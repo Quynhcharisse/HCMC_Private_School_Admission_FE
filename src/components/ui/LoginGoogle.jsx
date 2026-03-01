@@ -3,13 +3,6 @@ import { jwtDecode } from 'jwt-decode';
 import { useState } from 'react';
 import { signin } from '../../services/AuthService';
 
-/**
- * LoginGoogle Component
- * Handles Google OAuth authentication and returns user email
- *
- * @param {Function} onSuccess - Callback function that receives the user email
- * @param {Function} onError - Optional callback function for error handling
- */
 export default function LoginGoogle({ onSuccess, onError }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);

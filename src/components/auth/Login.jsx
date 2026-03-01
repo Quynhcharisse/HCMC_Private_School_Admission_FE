@@ -1,10 +1,6 @@
 import { useState } from 'react';
 import LoginGoogle from '../ui/LoginGoogle';
 
-/**
- * Login Component
- * Main login page that uses Google OAuth for authentication
- */
 export default function Login() {
   const [userEmail, setUserEmail] = useState(null);
   const [userData, setUserData] = useState(null);
@@ -22,14 +18,10 @@ export default function Login() {
     console.log('Picture:', picture);
     console.log('Auth Response:', response);
 
-    // You can redirect or perform other actions here
-    // For example: navigate to dashboard
-    // navigate('/dashboard', { state: { email } });
   };
 
   const handleLoginError = (error) => {
     console.error('Login failed:', error);
-    // Handle error appropriately
   };
 
   return (
