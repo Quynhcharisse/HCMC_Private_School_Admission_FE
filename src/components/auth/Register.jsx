@@ -13,6 +13,7 @@ import {
     TextField,
     Typography,
 } from '@mui/material';
+import backgroundLogin from '../../assets/backgroundLogin.png';
 
 const roleOptions = [
     {value: ROLES.PARENT, label: 'Phụ huynh'},
@@ -62,12 +63,28 @@ const Register = () => {
     return (
         <Box
             sx={{
-                minHeight: 'calc(100vh - 72px)',
-                bgcolor: 'linear-gradient(135deg, #e0f2fe 0%, #eff6ff 40%, #e0ecff 100%)',
+                position: 'fixed',
+                top: '64px',
+                left: 0,
+                right: 0,
+                bottom: 0,
+                height: 'calc(100vh - 64px)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                py: {xs: 6, md: 8},
+                py: {xs: 2, md: 3},
+                px: {xs: 2, md: 0},
+                backgroundImage: `linear-gradient(135deg, rgba(15,23,42,0.55), rgba(15,23,42,0.35)), url(${backgroundLogin})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+                backgroundAttachment: 'fixed',
+                overflow: 'hidden',
+                animation: 'fadeInUp 0.6s ease-out',
+                '@keyframes fadeInUp': {
+                    '0%': {opacity: 0, transform: 'translateY(10px)'},
+                    '100%': {opacity: 1, transform: 'translateY(0)'},
+                },
             }}
         >
             <Container maxWidth="sm">
@@ -77,8 +94,9 @@ const Register = () => {
                         p: 4,
                         borderRadius: 4,
                         background:
-                            'radial-gradient(circle at top left, #dbeafe 0, #eff6ff 40%, #ffffff 100%)',
+                            'radial-gradient(circle at top left, rgba(239,246,255,0.96) 0, rgba(239,246,255,0.98) 40%, #ffffff 100%)',
                         border: '1px solid #dbeafe',
+                        backdropFilter: 'blur(10px)',
                     }}
                 >
                     <Stack spacing={3}>

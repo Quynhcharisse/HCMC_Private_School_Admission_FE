@@ -17,8 +17,6 @@ import {
     Typography
 } from "@mui/material";
 import MenuIcon from '@mui/icons-material/Menu';
-import EmailIcon from '@mui/icons-material/Email';
-import PhoneIcon from '@mui/icons-material/Phone';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import LogoutIcon from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -26,63 +24,6 @@ import Fade from '@mui/material/Fade';
 import {enqueueSnackbar} from "notistack";
 import {signout} from "../../services/AccountService.jsx";
 import logo from "../../assets/logo.jpg";
-
-function TopBar() {
-    const handleRegisterClick = () => {
-        window.location.href = '/register';
-    };
-
-    return (
-        <Box sx={{
-            width: '100%',
-            bgcolor: '#1976d2',
-            color: 'white',
-            fontSize: 14,
-            py: 1,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-        }}>
-            <Container maxWidth={false} sx={{
-                px: {xs: 2, md: 8},
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-            }}>
-                <Box sx={{display: 'flex', alignItems: 'center', gap: 3}}>
-                    <Box sx={{display: 'flex', alignItems: 'center', gap: 0.5}}>
-                        <EmailIcon sx={{fontSize: 16, color: 'rgba(255,255,255,0.9)'}}/>
-                        <Typography sx={{color: 'rgba(255,255,255,0.9)'}}>admission@hcmhighschool.edu.vn</Typography>
-                    </Box>
-                    <Box sx={{display: 'flex', alignItems: 'center', gap: 0.5}}>
-                        <PhoneIcon sx={{fontSize: 16, color: 'rgba(255,255,255,0.9)'}}/>
-                        <Typography
-                            onClick={() => window.open("https://zalo.me/0839674767", "_blank")}
-                            sx={{color: 'rgba(255,255,255,0.9)', '&:hover': {cursor: 'pointer'}}}>
-                            0839-674-767
-                        </Typography>
-                    </Box>
-                </Box>
-                <Box sx={{display: 'flex', alignItems: 'center', gap: 2}}>
-                    <Button
-                        variant="outlined"
-                        size="small"
-                        sx={{
-                            color: 'white',
-                            borderColor: 'rgba(255,255,255,0.3)',
-                            fontSize: 12,
-                            px: 2,
-                            '&:hover': {borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)'}
-                        }}
-                        onClick={handleRegisterClick}
-                    >
-                        Đăng Ký Tư Vấn
-                    </Button>
-                </Box>
-            </Container>
-        </Box>
-    );
-}
 
 function MainHeader() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -405,7 +346,6 @@ export function ScrollTopButton() {
 export default function Header() {
     return (
         <>
-            <TopBar/>
             <MainHeader/>
         </>
     );
