@@ -7,6 +7,7 @@ import {GlobalLoadingOverlay, LoadingProvider} from './contexts/LoadingContext.j
 
 // Lazy load components
 const WebAppLayout = lazy(() => import("./components/ui/WebAppLayout.jsx"));
+const HomePage = lazy(() => import("./components/Page/HomePage.jsx"));
 const Login = lazy(() => import("./components/auth/Login.jsx"));
 const Register = lazy(() => import("./components/auth/Register.jsx"));
 const ProtectedRoute = lazy(() => import("./configs/ProtectedRoute.jsx"));
@@ -74,7 +75,7 @@ const router = createBrowserRouter([
                 path: 'home',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
-                        <div>Home Page</div>
+                        <HomePage/>
                     </Suspense>
                 )
             },

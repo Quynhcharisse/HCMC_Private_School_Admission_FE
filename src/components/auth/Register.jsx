@@ -2,14 +2,27 @@ import React, {useState} from 'react';
 import {GoogleLogin} from '@react-oauth/google';
 import {jwtDecode} from 'jwt-decode';
 import {signup} from '../../services/AuthService';
-import {ROLE_LIST} from '../../constants/roles';
+import {ROLES} from '../../constants/roles';
+import {
+    Box,
+    Button,
+    Container,
+    MenuItem,
+    Paper,
+    Stack,
+    TextField,
+    Typography,
+} from '@mui/material';
+
+const roleOptions = [
+    {value: ROLES.PARENT, label: 'Phụ huynh'},
+    {value: ROLES.SCHOOL, label: 'Nhà trường'},
+];
 
 const Register = () => {
     const [email, setEmail] = useState('');
     const [selectedRole, setSelectedRole] = useState('');
     const [isEmailVerified, setIsEmailVerified] = useState(false);
-
-    const roles = ROLE_LIST;
 
     const handleGoogleSuccess = (credentialResponse) => {
         const decoded = jwtDecode(credentialResponse.credential);
@@ -21,15 +34,16 @@ const Register = () => {
         console.error('Đăng nhập Google thất bại');
     };
 
-    const handleRoleSelect = (role) => {
-        setSelectedRole(role);
-    };
-
     const handleSubmit = async (e) => {
         e.preventDefault();
 
+        if (!isEmailVerified) {
+            alert('Vui lòng xác thực email bằng Google trước khi đăng ký.');
+            return;
+        }
+
         if (!selectedRole) {
-            alert('Vui lòng chọn role');
+            alert('Vui lòng chọn vai trò (Phụ huynh hoặc Nhà trường).');
             return;
         }
 
@@ -46,70 +60,96 @@ const Register = () => {
     };
 
     return (
-        <div style={{padding: '20px', maxWidth: '400px', margin: '0 auto'}}>
-            <h2>Đăng Ký</h2>
+        <Box
+            sx={{
+                minHeight: 'calc(100vh - 72px)',
+                bgcolor: 'linear-gradient(135deg, #e0f2fe 0%, #eff6ff 40%, #e0ecff 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                py: {xs: 6, md: 8},
+            }}
+        >
+            <Container maxWidth="sm">
+                <Paper
+                    elevation={8}
+                    sx={{
+                        p: 4,
+                        borderRadius: 4,
+                        background:
+                            'radial-gradient(circle at top left, #dbeafe 0, #eff6ff 40%, #ffffff 100%)',
+                        border: '1px solid #dbeafe',
+                    }}
+                >
+                    <Stack spacing={3}>
+                        <Box>
+                            <Typography variant="h5" sx={{fontWeight: 700, color: '#1e293b'}}>
+                                Đăng ký tài khoản
+                            </Typography>
+                            <Typography variant="body2" sx={{color: '#64748b', mt: 0.5}}>
+                                Chọn vai trò của bạn trong hệ thống, sau đó xác thực email bằng Google để hoàn tất đăng ký.
+                            </Typography>
+                        </Box>
 
-            {!isEmailVerified ? (
-                <div>
-                    <p>Đăng nhập bằng Google để tiếp tục:</p>
-                    <GoogleLogin
-                        onSuccess={handleGoogleSuccess}
-                        onError={handleGoogleError}
-                    />
-                </div>
-            ) : (
-                <form onSubmit={handleSubmit}>
-                    <div style={{marginBottom: '15px'}}>
-                        <label>Email:</label>
-                        <input
-                            type="email"
-                            value={email}
-                            disabled
-                            style={{width: '100%', padding: '8px', marginTop: '5px'}}
-                        />
-                    </div>
+                        <Box component="form" onSubmit={handleSubmit}>
+                            <Stack spacing={3}>
+                                <TextField
+                                    select
+                                    label="Vai trò trong hệ thống"
+                                    value={selectedRole}
+                                    onChange={(e) => setSelectedRole(e.target.value)}
+                                    fullWidth
+                                    size="small"
+                                    helperText="Vui lòng chọn đúng vai trò: Phụ huynh hoặc Nhà trường"
+                                >
+                                    {roleOptions.map((role) => (
+                                        <MenuItem key={role.value} value={role.value}>
+                                            {role.label}
+                                        </MenuItem>
+                                    ))}
+                                </TextField>
 
-                    <div style={{marginBottom: '15px'}}>
-                        <label>Chọn Role:</label>
-                        <div style={{marginTop: '10px'}}>
-                            {roles.map((role) => (
-                                <button
-                                    key={role}
-                                    type="button"
-                                    onClick={() => handleRoleSelect(role)}
-                                    style={{
-                                        padding: '10px 15px',
-                                        margin: '5px',
-                                        backgroundColor: selectedRole === role ? '#4285f4' : '#f0f0f0',
-                                        color: selectedRole === role ? 'white' : 'black',
-                                        border: 'none',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer'
+                                <Stack spacing={2} alignItems="center">
+                                    <Typography variant="body2" sx={{color: '#475569', width: '100%'}}>
+                                        Xác thực email bằng tài khoản Google được chỉ định cho bạn.
+                                    </Typography>
+                                    <GoogleLogin
+                                        onSuccess={handleGoogleSuccess}
+                                        onError={handleGoogleError}
+                                    />
+                                    <Typography variant="caption" sx={{color: '#94a3b8', width: '100%', textAlign: 'left'}}>
+                                        {isEmailVerified
+                                            ? `Email đã được xác thực: ${email}`
+                                            : 'Sau khi đăng nhập Google, hệ thống sẽ tự động lấy email của bạn.'}
+                                    </Typography>
+                                </Stack>
+
+                                <Button
+                                    type="submit"
+                                    variant="contained"
+                                    fullWidth
+                                    sx={{
+                                        mt: 1,
+                                        py: 1.1,
+                                        textTransform: 'none',
+                                        fontWeight: 700,
+                                        borderRadius: 999,
+                                        background: 'linear-gradient(90deg, #1d4ed8 0%, #2563eb 100%)',
+                                        boxShadow: '0 10px 30px rgba(37, 99, 235, 0.35)',
+                                        '&:hover': {
+                                            background: 'linear-gradient(90deg, #1d4ed8 0%, #1d4ed8 100%)',
+                                            boxShadow: '0 12px 36px rgba(30, 64, 175, 0.45)',
+                                        },
                                     }}
                                 >
-                                    {role}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-
-                    <button
-                        type="submit"
-                        style={{
-                            width: '100%',
-                            padding: '10px',
-                            backgroundColor: '#4285f4',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer'
-                        }}
-                    >
-                        Đăng Ký
-                    </button>
-                </form>
-            )}
-        </div>
+                                    Đăng ký
+                                </Button>
+                            </Stack>
+                        </Box>
+                    </Stack>
+                </Paper>
+            </Container>
+        </Box>
     );
 };
 
