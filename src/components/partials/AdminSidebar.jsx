@@ -22,8 +22,24 @@ export default function AdminSidebar({currentPath}) {
 
     return (
         <Box sx={{height: '100%', display: 'flex', flexDirection: 'column'}}>
-            <Box sx={{p: 2, borderBottom: '1px solid #e0e7ff'}}>
-                <Typography variant="h6" sx={{fontWeight: 700, color: '#1d4ed8'}}>
+            <Box
+                sx={{
+                    pt: 4,
+                    pb: 2,
+                    px: 2.5,
+                    borderBottom: '1px solid #e0e7ff',
+                    display: 'flex',
+                    alignItems: 'center',
+                }}
+            >
+                <Typography
+                    variant="h6"
+                    sx={{
+                        fontWeight: 700,
+                        color: '#1d4ed8',
+                        lineHeight: 1.2,
+                    }}
+                >
                     Quản Trị Viên
                 </Typography>
             </Box>

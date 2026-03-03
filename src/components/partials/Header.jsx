@@ -1,6 +1,7 @@
-import React, {useState} from "react";
+import React, {useState, useEffect} from "react";
 import {
     AppBar,
+    Avatar,
     Box,
     Button,
     Collapse,
@@ -20,14 +21,39 @@ import MenuIcon from '@mui/icons-material/Menu';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import LogoutIcon from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
+import PersonIcon from '@mui/icons-material/Person';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import Fade from '@mui/material/Fade';
 import {enqueueSnackbar} from "notistack";
-import {signout} from "../../services/AccountService.jsx";
+import {signout, getProfile} from "../../services/AccountService.jsx";
 import logo from "../../assets/logo.jpg";
 
 function MainHeader() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
+    const [profileData, setProfileData] = useState(null);
+    const [loadingProfile, setLoadingProfile] = useState(false);
+
+    const isSignedIn = typeof window !== 'undefined' && localStorage.getItem('user');
+
+    useEffect(() => {
+        const fetchProfile = async () => {
+            if (isSignedIn) {
+                setLoadingProfile(true);
+                try {
+                    const response = await getProfile();
+                    if (response && response.status === 200) {
+                        setProfileData(response.data);
+                    }
+                } catch (error) {
+                    console.error('Error fetching profile:', error);
+                } finally {
+                    setLoadingProfile(false);
+                }
+            }
+        };
+        fetchProfile();
+    }, [isSignedIn]);
 
     const handleMobileMenuToggle = () => {
         setMobileMenuOpen(!mobileMenuOpen);
@@ -57,7 +83,6 @@ function MainHeader() {
         }
     };
 
-    const isSignedIn = typeof window !== 'undefined' && localStorage.getItem('user');
     const buttonText = isSignedIn ? 'Khám Phá' : 'Đăng Nhập';
 
     const handleButtonClick = (event) => {
@@ -67,6 +92,24 @@ function MainHeader() {
             handleUserMenuClick(event);
         }
     };
+
+    // Get user info from localStorage or profile data
+    const getUserInfo = () => {
+        if (localStorage.getItem('user')) {
+            try {
+                return JSON.parse(localStorage.getItem('user'));
+            } catch (e) {
+                return null;
+            }
+        }
+        return null;
+    };
+
+    const userInfo = getUserInfo();
+    const profileBody = profileData?.body ? (typeof profileData.body === 'string' ? JSON.parse(profileData.body) : profileData.body) : null;
+    const displayName = profileBody?.name || profileBody?.email || userInfo?.name || userInfo?.email || 'Người dùng';
+    const displayEmail = profileBody?.email || userInfo?.email || '';
+    const avatarUrl = profileBody?.picture || userInfo?.picture || null;
 
     return (
         <AppBar position="sticky" elevation={0}
@@ -151,115 +194,173 @@ function MainHeader() {
                             Về Chúng Tôi
                         </Button>
                     </Box>
-                    <Box sx={{position: 'relative'}}>
-                        <Button
-                            variant="contained"
-                            sx={{
-                                background: 'linear-gradient(90deg, #1976d2 0%, #42a5f5 100%)',
-                                marginLeft: '1vw',
-                                color: 'white',
-                                fontWeight: 700,
-                                borderRadius: 3,
-                                px: 4,
-                                py: 1.5,
-                                fontSize: 16,
-                                boxShadow: '0 4px 12px rgba(25,118,210,0.3)',
-                                textTransform: 'none',
-                                '&:hover': {
-                                    background: 'linear-gradient(90deg, #1565c0 0%, #1976d2 100%)',
-                                    boxShadow: '0 6px 16px rgba(25,118,210,0.4)'
-                                }
-                            }}
-                            onClick={handleButtonClick}
-                        >
-                            {buttonText}
-                        </Button>
-
-                        {isSignedIn && (
-                            <Menu
-                                anchorEl={anchorEl}
-                                open={Boolean(anchorEl)}
-                                onClose={handleUserMenuClose}
-                                anchorOrigin={{vertical: 'bottom', horizontal: 'right'}}
-                                transformOrigin={{vertical: 'top', horizontal: 'right'}}
-
-                                disableScrollLock={true}
-                                slotProps={{
-                                    paper: {
-                                        style: {
-                                            maxHeight: '80vh',
-                                            overflow: 'visible'
-                                        },
-                                        sx: {
-                                            borderRadius: 2,
-                                            boxShadow: '0 6px 24px rgba(25, 118, 210, 0.15)',
-                                            minWidth: 200,
-                                            mt: 1,
-                                            p: 0.5,
-                                            bgcolor: 'white'
+                    <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', gap: 1}}>
+                        {isSignedIn ? (
+                            <>
+                                <Box
+                                    onClick={handleUserMenuClick}
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        cursor: 'pointer',
+                                        padding: '4px',
+                                        borderRadius: '50%',
+                                        transition: 'background 0.2s',
+                                        '&:hover': {
+                                            bgcolor: 'rgba(25,118,210,0.08)'
                                         }
-                                    }
-                                }}
-                                sx={{
-                                    '& .MuiPopover-paper': {
-                                        boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-                                        border: '1px solid rgba(0,0,0,0.12)'
-                                    }
-                                }}
-                            >
-                                <MenuItem
-                                    onClick={() => {
-                                        handleUserMenuClose();
-                                        if (localStorage.getItem('user')) {
-                                            const user = JSON.parse(localStorage.getItem('user'))
-                                            if (user.role === 'STUDENT') {
-                                                window.location.href = '/student/dashboard';
-                                            } else if (user.role === 'SCHOOL') {
-                                                window.location.href = '/school/dashboard';
-                                            } else if (user.role === 'ADMIN') {
-                                                window.location.href = '/admin/dashboard';
-                                            } else {
-                                                window.location.href = '/home';
+                                    }}
+                                >
+                                    <Avatar
+                                        src={avatarUrl}
+                                        sx={{
+                                            width: 40,
+                                            height: 40,
+                                            bgcolor: '#1976d2',
+                                            boxShadow: '0 2px 8px rgba(25,118,210,0.3)'
+                                        }}
+                                    >
+                                        {!avatarUrl && (displayName.charAt(0).toUpperCase())}
+                                    </Avatar>
+                                </Box>
+                                <Menu
+                                    anchorEl={anchorEl}
+                                    open={Boolean(anchorEl)}
+                                    onClose={handleUserMenuClose}
+                                    anchorOrigin={{vertical: 'bottom', horizontal: 'right'}}
+                                    transformOrigin={{vertical: 'top', horizontal: 'right'}}
+                                    disableScrollLock={true}
+                                    slotProps={{
+                                        paper: {
+                                            style: {
+                                                maxHeight: '80vh',
+                                                overflow: 'visible'
+                                            },
+                                            sx: {
+                                                borderRadius: 2,
+                                                boxShadow: '0 6px 24px rgba(25, 118, 210, 0.15)',
+                                                minWidth: 250,
+                                                mt: 1,
+                                                p: 1,
+                                                bgcolor: 'white'
                                             }
                                         }
-
                                     }}
                                     sx={{
-                                        fontSize: 16,
-                                        fontWeight: 500,
-                                        color: '#1976d2',
-                                        borderRadius: 1,
-                                        gap: 1.5,
-                                        '&:hover': {
-                                            bgcolor: 'rgba(25,118,210,0.08)',
-                                            color: '#1565c0',
-                                        },
-                                        transition: 'background 0.2s, color 0.2s',
+                                        '& .MuiPopover-paper': {
+                                            boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                                            border: '1px solid rgba(0,0,0,0.12)'
+                                        }
                                     }}
                                 >
-                                    <DashboardIcon sx={{color: '#1976d2', mr: 1}}/> Bảng Điều Khiển
-                                </MenuItem>
-                                <MenuItem
-                                    onClick={() => {
-                                        handleUserMenuClose();
-                                        handleLogout();
-                                    }}
-                                    sx={{
-                                        fontSize: 16,
-                                        fontWeight: 500,
-                                        color: '#dc3545',
-                                        borderRadius: 1,
-                                        gap: 1.5,
-                                        '&:hover': {
-                                            bgcolor: 'rgba(220,53,69,0.08)',
-                                            color: '#c82333',
-                                        },
-                                        transition: 'background 0.2s, color 0.2s',
-                                    }}
-                                >
-                                    <LogoutIcon sx={{color: '#dc3545', mr: 1}}/> Đăng Xuất
-                                </MenuItem>
-                            </Menu>
+                                    <Box sx={{px: 2, py: 1.5, borderBottom: '1px solid rgba(0,0,0,0.08)'}}>
+                                        <Box sx={{display: 'flex', alignItems: 'center', gap: 1.5}}>
+                                            <Avatar
+                                                src={avatarUrl}
+                                                sx={{
+                                                    width: 48,
+                                                    height: 48,
+                                                    bgcolor: '#1976d2'
+                                                }}
+                                            >
+                                                {!avatarUrl && (displayName.charAt(0).toUpperCase())}
+                                            </Avatar>
+                                            <Box>
+                                                <Typography sx={{fontSize: 14, fontWeight: 600, color: '#333'}}>
+                                                    {displayName}
+                                                </Typography>
+                                                {displayEmail && (
+                                                    <Typography sx={{fontSize: 12, color: '#666'}}>
+                                                        {displayEmail}
+                                                    </Typography>
+                                                )}
+                                                {userInfo?.role && (
+                                                    <Typography sx={{fontSize: 11, color: '#1976d2', mt: 0.5}}>
+                                                        {userInfo.role === 'STUDENT' ? 'Học sinh' : 
+                                                         userInfo.role === 'SCHOOL' ? 'Trường học' : 
+                                                         userInfo.role === 'ADMIN' ? 'Quản trị viên' : userInfo.role}
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                        </Box>
+                                    </Box>
+                                    <MenuItem
+                                        onClick={() => {
+                                            handleUserMenuClose();
+                                            if (userInfo) {
+                                                if (userInfo.role === 'STUDENT') {
+                                                    window.location.href = '/student/dashboard';
+                                                } else if (userInfo.role === 'SCHOOL') {
+                                                    window.location.href = '/school/dashboard';
+                                                } else if (userInfo.role === 'ADMIN') {
+                                                    window.location.href = '/admin/dashboard';
+                                                } else {
+                                                    window.location.href = '/home';
+                                                }
+                                            }
+                                        }}
+                                        sx={{
+                                            fontSize: 15,
+                                            fontWeight: 500,
+                                            color: '#1976d2',
+                                            borderRadius: 1,
+                                            gap: 1.5,
+                                            mt: 0.5,
+                                            '&:hover': {
+                                                bgcolor: 'rgba(25,118,210,0.08)',
+                                                color: '#1565c0',
+                                            },
+                                            transition: 'background 0.2s, color 0.2s',
+                                        }}
+                                    >
+                                        <DashboardIcon sx={{color: '#1976d2', fontSize: 20}}/> Bảng Điều Khiển
+                                    </MenuItem>
+                                    <MenuItem
+                                        onClick={() => {
+                                            handleUserMenuClose();
+                                            handleLogout();
+                                        }}
+                                        sx={{
+                                            fontSize: 15,
+                                            fontWeight: 500,
+                                            color: '#dc3545',
+                                            borderRadius: 1,
+                                            gap: 1.5,
+                                            mt: 0.5,
+                                            '&:hover': {
+                                                bgcolor: 'rgba(220,53,69,0.08)',
+                                                color: '#c82333',
+                                            },
+                                            transition: 'background 0.2s, color 0.2s',
+                                        }}
+                                    >
+                                        <LogoutIcon sx={{color: '#dc3545', fontSize: 20}}/> Đăng Xuất
+                                    </MenuItem>
+                                </Menu>
+                            </>
+                        ) : (
+                            <Button
+                                variant="contained"
+                                sx={{
+                                    background: 'linear-gradient(90deg, #1976d2 0%, #42a5f5 100%)',
+                                    marginLeft: '1vw',
+                                    color: 'white',
+                                    fontWeight: 700,
+                                    borderRadius: 3,
+                                    px: 4,
+                                    py: 1.5,
+                                    fontSize: 16,
+                                    boxShadow: '0 4px 12px rgba(25,118,210,0.3)',
+                                    textTransform: 'none',
+                                    '&:hover': {
+                                        background: 'linear-gradient(90deg, #1565c0 0%, #1976d2 100%)',
+                                        boxShadow: '0 6px 16px rgba(25,118,210,0.4)'
+                                    }
+                                }}
+                                onClick={handleButtonClick}
+                            >
+                                {buttonText}
+                            </Button>
                         )}
                     </Box>
                     <IconButton
@@ -293,12 +394,64 @@ function MainHeader() {
                             {isSignedIn && (
                                 <>
                                     <Divider sx={{my: 1}}/>
-                                    <ListItem onClick={() => window.location.href = '/student/dashboard'}>
-                                        <ListItemText primary="Bảng Điều Khiển"
-                                                      sx={{color: '#1976d2', fontWeight: 600}}/>
+                                    <ListItem sx={{py: 2}}>
+                                        <Box sx={{display: 'flex', alignItems: 'center', gap: 2, width: '100%'}}>
+                                            <Avatar
+                                                src={avatarUrl}
+                                                sx={{
+                                                    width: 48,
+                                                    height: 48,
+                                                    bgcolor: '#1976d2'
+                                                }}
+                                            >
+                                                {!avatarUrl && (displayName.charAt(0).toUpperCase())}
+                                            </Avatar>
+                                            <Box>
+                                                <Typography sx={{fontSize: 14, fontWeight: 600, color: '#333'}}>
+                                                    {displayName}
+                                                </Typography>
+                                                {displayEmail && (
+                                                    <Typography sx={{fontSize: 12, color: '#666'}}>
+                                                        {displayEmail}
+                                                    </Typography>
+                                                )}
+                                                {userInfo?.role && (
+                                                    <Typography sx={{fontSize: 11, color: '#1976d2', mt: 0.5}}>
+                                                        {userInfo.role === 'STUDENT' ? 'Học sinh' : 
+                                                         userInfo.role === 'SCHOOL' ? 'Trường học' : 
+                                                         userInfo.role === 'ADMIN' ? 'Quản trị viên' : userInfo.role}
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                        </Box>
                                     </ListItem>
-                                    <ListItem onClick={handleLogout}>
-                                        <ListItemText primary="Đăng Xuất" sx={{color: '#dc3545', fontWeight: 600}}/>
+                                    <Divider sx={{my: 1}}/>
+                                    <ListItem 
+                                        onClick={() => {
+                                            if (userInfo) {
+                                                if (userInfo.role === 'STUDENT') {
+                                                    window.location.href = '/student/dashboard';
+                                                } else if (userInfo.role === 'SCHOOL') {
+                                                    window.location.href = '/school/dashboard';
+                                                } else if (userInfo.role === 'ADMIN') {
+                                                    window.location.href = '/admin/dashboard';
+                                                } else {
+                                                    window.location.href = '/home';
+                                                }
+                                            }
+                                        }}
+                                        sx={{cursor: 'pointer'}}
+                                    >
+                                        <ListItemText 
+                                            primary="Bảng Điều Khiển"
+                                            sx={{color: '#1976d2', fontWeight: 600}}
+                                        />
+                                    </ListItem>
+                                    <ListItem onClick={handleLogout} sx={{cursor: 'pointer'}}>
+                                        <ListItemText 
+                                            primary="Đăng Xuất" 
+                                            sx={{color: '#dc3545', fontWeight: 600}}
+                                        />
                                     </ListItem>
                                 </>
                             )}

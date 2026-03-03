@@ -12,7 +12,7 @@ export default function AdminLayout() {
     return (
         <Box sx={{display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: '#f8fafc'}}>
             <AuthHeader/>
-            <Box sx={{display: 'flex', flex: 1, pt: '65px'}}>
+            <Box sx={{display: 'flex', flex: 1, pt: '65px', position: 'relative'}}>
                 <Drawer
                     variant="permanent"
                     sx={{
@@ -25,6 +25,9 @@ export default function AdminLayout() {
                             bgcolor: 'white',
                             height: 'calc(100vh - 65px)',
                             top: '65px',
+                            position: 'fixed',
+                            left: 0,
+                            zIndex: 1000,
                             animation: 'slideInLeft 0.3s ease-out',
                             '@keyframes slideInLeft': {
                                 '0%': {
@@ -47,27 +50,13 @@ export default function AdminLayout() {
                         flexGrow: 1,
                         pt: 3,
                         pb: 3,
-                        pl: 7,
-                        pr: 4,
+                        px: 3,
                         minHeight: 'calc(100vh - 65px)',
                         bgcolor: '#f8fafc',
                         overflow: 'auto',
-                        animation: 'fadeInUp 0.4s ease-out',
-                        '@keyframes fadeInUp': {
-                            '0%': {
-                                opacity: 0,
-                                transform: 'translateY(10px)',
-                            },
-                            '100%': {
-                                opacity: 1,
-                                transform: 'translateY(0)',
-                            },
-                        },
                     }}
-                >
-                    <Box sx={{ml: -3}}>
-                        <Outlet/>
-                    </Box>
+                    >
+                    <Outlet/>
                 </Box>
             </Box>
         </Box>

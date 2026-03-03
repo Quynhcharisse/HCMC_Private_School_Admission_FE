@@ -76,6 +76,19 @@ export default function Login() {
             }
         }
 
+        // Lưu thông tin user vào localStorage
+        if (role) {
+            const normalizedRole = role.toUpperCase();
+            const userData = {
+                email: email,
+                name: name,
+                picture: picture,
+                role: normalizedRole
+            };
+            localStorage.setItem('user', JSON.stringify(userData));
+            console.log('User data saved to localStorage:', userData);
+        }
+
         // Navigate đến trang tương ứng với role (chỉ navigate 1 lần)
         if (!hasNavigated.current) {
             hasNavigated.current = true; // Đánh dấu đã navigate
