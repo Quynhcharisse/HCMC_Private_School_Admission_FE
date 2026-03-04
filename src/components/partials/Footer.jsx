@@ -18,14 +18,26 @@ export default function Footer() {
                     alignItems="flex-start"
                     justifyContent="space-between"
                 >
-                    {/* Phần 1 trống để chia layout */}
-                    <Grid item xs={false} md={2} sx={{display: {xs: 'none', md: 'block'}}}/>
+                    {/* Phần 1: GIỚI THIỆU */}
+                    <Grid
+                        item
+                        xs={12}
+                        md={3}
+                        sx={{textAlign: {xs: 'center', md: 'left'}}}
+                    >
+                        <Typography variant="h6" sx={{fontWeight: 700, mb: 2, color: 'white'}}>
+                            GIỚI THIỆU
+                        </Typography>
+                        <Typography variant="body2" sx={{color: 'rgba(255,255,255,0.9)', lineHeight: 1.7, mb: 2}}>
+                            EduBridgeHCM là nền tảng tư vấn tuyển sinh thông minh, kết nối phụ huynh với các trường học chất lượng tại TP.HCM. Chúng tôi giúp phụ huynh tìm trường phù hợp và hỗ trợ trường học tiếp cận học sinh tiềm năng.
+                        </Typography>
+                    </Grid>
 
                     {/* Phần 2: LIÊN HỆ */}
                     <Grid
                         item
                         xs={12}
-                        md={2}
+                        md={3}
                         sx={{textAlign: {xs: 'center', md: 'left'}}}
                     >
                         <Typography variant="h6" sx={{fontWeight: 700, mb: 2, color: 'white'}}>
@@ -58,14 +70,11 @@ export default function Footer() {
                         </Box>
                     </Grid>
 
-                    {/* Phần 3 trống để chia layout */}
-                    <Grid item xs={false} md={2} sx={{display: {xs: 'none', md: 'block'}}}/>
-
-                    {/* Phần 4: CHÍNH SÁCH */}
+                    {/* Phần 3: CHÍNH SÁCH */}
                     <Grid
                         item
                         xs={12}
-                        md={2}
+                        md={3}
                         sx={{textAlign: {xs: 'center', md: 'left'}}}
                     >
                         <Typography variant="h6" sx={{fontWeight: 700, mb: 2, color: 'white'}}>
@@ -88,8 +97,29 @@ export default function Footer() {
                         </Box>
                     </Grid>
 
-                    {/* Phần 5 trống để chia layout */}
-                    <Grid item xs={false} md={2} sx={{display: {xs: 'none', md: 'block'}}}/>
+                    {/* Phần 4: LIÊN KẾT NHANH */}
+                    <Grid
+                        item
+                        xs={12}
+                        md={3}
+                        sx={{textAlign: {xs: 'center', md: 'left'}}}
+                    >
+                        <Typography variant="h6" sx={{fontWeight: 700, mb: 2, color: 'white'}}>
+                            LIÊN KẾT NHANH
+                        </Typography>
+                        <Box sx={{
+                            color: 'rgba(255,255,255,0.9)',
+                            fontSize: 15,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 1
+                        }}>
+                            <div><a href="/home" style={{color: 'inherit', textDecoration: 'none'}}>Trang Chủ</a></div>
+                            <div><a href="/schools" style={{color: 'inherit', textDecoration: 'none'}}>Danh Sách Trường</a></div>
+                            <div><a href="/guide" style={{color: 'inherit', textDecoration: 'none'}}>Hướng Dẫn</a></div>
+                            <div><a href="/about" style={{color: 'inherit', textDecoration: 'none'}}>Về Chúng Tôi</a></div>
+                        </Box>
+                    </Grid>
                 </Grid>
                 <Divider sx={{my: 4, borderColor: 'rgba(255,255,255,0.2)'}}/>
                 <Box sx={{
