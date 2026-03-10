@@ -14,6 +14,9 @@ const ProtectedRoute = lazy(() => import("./configs/ProtectedRoute.jsx"));
 const AdminLayout = lazy(() => import("./components/layouts/AdminLayout.jsx"));
 const AdminDashboard = lazy(() => import("./components/Page/admin/AdminDashboard.jsx"));
 const AdminUsersManagement = lazy(() => import("./components/Page/admin/AdminUsersManagement.jsx"));
+const SchoolLayout = lazy(() => import("./components/layouts/SchoolLayout.jsx"));
+const SchoolDashboard = lazy(() => import("./components/Page/school/SchoolDashboard.jsx"));
+const SchoolCampus = lazy(() => import("./components/Page/school/SchoolCampus.jsx"));
 
 const LoadingFallback = () => {
     return null;
@@ -188,7 +191,7 @@ const router = createBrowserRouter([
             <Suspense fallback={<LoadingFallback/>}>
                 <ProtectedRoute allowRoles={['SCHOOL']}>
                     <Suspense fallback={<LoadingFallback/>}>
-                        <div>School Dashboard Layout</div>
+                        <SchoolLayout/>
                     </Suspense>
                 </ProtectedRoute>
             </Suspense>
@@ -202,7 +205,15 @@ const router = createBrowserRouter([
                 path: 'dashboard',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
-                        <div>School Dashboard</div>
+                        <SchoolDashboard/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'campus',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolCampus/>
                     </Suspense>
                 )
             },

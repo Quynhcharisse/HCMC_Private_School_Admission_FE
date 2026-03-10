@@ -12,7 +12,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import {enqueueSnackbar} from "notistack";
 import {signout, getProfile} from "../../services/AccountService.jsx";
-import logo from "../../assets/logo.jpg";
+import logo from "../../assets/logo.png";
 
 export default function AuthHeader() {
     const [anchorEl, setAnchorEl] = useState(null);

@@ -26,7 +26,7 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import Fade from '@mui/material/Fade';
 import {enqueueSnackbar} from "notistack";
 import {signout, getProfile} from "../../services/AccountService.jsx";
-import logo from "../../assets/logo.jpg";
+import logo from "../../assets/logo.png";
 import {useLocation} from "react-router-dom";
 
 function MainHeader() {
