@@ -27,6 +27,7 @@ import Fade from '@mui/material/Fade';
 import {enqueueSnackbar} from "notistack";
 import {signout, getProfile} from "../../services/AccountService.jsx";
 import logo from "../../assets/logo.jpg";
+import {useLocation} from "react-router-dom";
 
 function MainHeader() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -34,6 +35,8 @@ function MainHeader() {
     const [profileData, setProfileData] = useState(null);
     const [loadingProfile, setLoadingProfile] = useState(false);
 
+    const location = useLocation();
+    const isHomePage = location.pathname === '/home' || location.pathname === '/';
     const isSignedIn = typeof window !== 'undefined' && localStorage.getItem('user');
 
     useEffect(() => {
@@ -93,7 +96,6 @@ function MainHeader() {
         }
     };
 
-    // Get user info from localStorage or profile data
     const getUserInfo = () => {
         if (localStorage.getItem('user')) {
             try {
@@ -140,60 +142,62 @@ function MainHeader() {
                             EduBridgeHCM
                         </Typography>
                     </Box>
-                    <Box sx={{display: {xs: 'none', md: 'flex'}, gap: 1}}>
-                        <Button
-                            color="inherit"
-                            sx={{
-                                fontWeight: 600,
-                                color: '#333',
-                                fontSize: 16,
-                                px: 2,
-                                '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
-                            }}
-                            onClick={() => window.location.href = '/home'}
-                        >
-                            Trang Chủ
-                        </Button>
-                        <Button
-                            color="inherit"
-                            sx={{
-                                fontWeight: 600,
-                                color: '#333',
-                                fontSize: 16,
-                                px: 2,
-                                '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
-                            }}
-                            onClick={() => window.location.href = '/schools'}
-                        >
-                            Danh Sách Trường
-                        </Button>
-                        <Button
-                            color="inherit"
-                            sx={{
-                                fontWeight: 600,
-                                color: '#333',
-                                fontSize: 16,
-                                px: 2,
-                                '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
-                            }}
-                            onClick={() => window.location.href = '/guide'}
-                        >
-                            Hướng Dẫn
-                        </Button>
-                        <Button
-                            color="inherit"
-                            sx={{
-                                fontWeight: 600,
-                                color: '#333',
-                                fontSize: 16,
-                                px: 2,
-                                '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
-                            }}
-                            onClick={() => window.location.href = '/about'}
-                        >
-                            Về Chúng Tôi
-                        </Button>
-                    </Box>
+                    {!isHomePage && (
+                        <Box sx={{display: {xs: 'none', md: 'flex'}, gap: 1}}>
+                            <Button
+                                color="inherit"
+                                sx={{
+                                    fontWeight: 600,
+                                    color: '#333',
+                                    fontSize: 16,
+                                    px: 2,
+                                    '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
+                                }}
+                                onClick={() => window.location.href = '/home'}
+                            >
+                                Trang Chủ
+                            </Button>
+                            <Button
+                                color="inherit"
+                                sx={{
+                                    fontWeight: 600,
+                                    color: '#333',
+                                    fontSize: 16,
+                                    px: 2,
+                                    '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
+                                }}
+                                onClick={() => window.location.href = '/schools'}
+                            >
+                                Danh Sách Trường
+                            </Button>
+                            <Button
+                                color="inherit"
+                                sx={{
+                                    fontWeight: 600,
+                                    color: '#333',
+                                    fontSize: 16,
+                                    px: 2,
+                                    '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
+                                }}
+                                onClick={() => window.location.href = '/guide'}
+                            >
+                                Hướng Dẫn
+                            </Button>
+                            <Button
+                                color="inherit"
+                                sx={{
+                                    fontWeight: 600,
+                                    color: '#333',
+                                    fontSize: 16,
+                                    px: 2,
+                                    '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
+                                }}
+                                onClick={() => window.location.href = '/about'}
+                            >
+                                Về Chúng Tôi
+                            </Button>
+                        </Box>
+                    )}
                     <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', gap: 1}}>
                         {isSignedIn ? (
                             <>
@@ -379,18 +383,22 @@ function MainHeader() {
                         boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
                     }}>
                         <List>
-                            <ListItem onClick={() => window.location.href = '/home'}>
-                                <ListItemText primary="Trang Chủ" sx={{color: '#1976d2', fontWeight: 600}}/>
-                            </ListItem>
-                            <ListItem onClick={() => window.location.href = '/schools'}>
-                                <ListItemText primary="Danh Sách Trường" sx={{color: '#333', fontWeight: 600}}/>
-                            </ListItem>
-                            <ListItem onClick={() => window.location.href = '/guide'}>
-                                <ListItemText primary="Hướng Dẫn" sx={{color: '#333', fontWeight: 600}}/>
-                            </ListItem>
-                            <ListItem onClick={() => window.location.href = '/about'}>
-                                <ListItemText primary="Về Chúng Tôi" sx={{color: '#333', fontWeight: 600}}/>
-                            </ListItem>
+                            {!isHomePage && (
+                                <>
+                                    <ListItem onClick={() => window.location.href = '/home'}>
+                                        <ListItemText primary="Trang Chủ" sx={{color: '#1976d2', fontWeight: 600}}/>
+                                    </ListItem>
+                                    <ListItem onClick={() => window.location.href = '/schools'}>
+                                        <ListItemText primary="Danh Sách Trường" sx={{color: '#333', fontWeight: 600}}/>
+                                    </ListItem>
+                                    <ListItem onClick={() => window.location.href = '/guide'}>
+                                        <ListItemText primary="Hướng Dẫn" sx={{color: '#333', fontWeight: 600}}/>
+                                    </ListItem>
+                                    <ListItem onClick={() => window.location.href = '/about'}>
+                                        <ListItemText primary="Về Chúng Tôi" sx={{color: '#333', fontWeight: 600}}/>
+                                    </ListItem>
+                                </>
+                            )}
                             {isSignedIn && (
                                 <>
                                     <Divider sx={{my: 1}}/>

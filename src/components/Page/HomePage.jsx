@@ -35,7 +35,6 @@ export default function HomePage() {
 
     return (
         <Box sx={{bgcolor: '#ffffff', overflow: 'hidden'}}>
-            {/* 1️⃣ Hero Section */}
             <Box
                 sx={{
                     background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 50%, #64b5f6 100%)',
@@ -185,7 +184,6 @@ export default function HomePage() {
                 </Container>
             </Box>
 
-            {/* 2️⃣ Vấn đề & Giải pháp */}
             <Box sx={{py: {xs: 10, md: 14}, bgcolor: '#f8fafc', position: 'relative'}}>
                 <Container maxWidth="lg" sx={{px: {xs: 3, md: 4}}}>
                     <Box sx={{textAlign: 'center', mb: {xs: 6, md: 8}}}>
@@ -441,7 +439,6 @@ export default function HomePage() {
                 </Container>
             </Box>
 
-            {/* 3️⃣ Cách hoạt động */}
             <Box sx={{py: {xs: 10, md: 14}, bgcolor: '#ffffff'}}>
                 <Container maxWidth="lg" sx={{px: {xs: 3, md: 4}}}>
                     <Box sx={{textAlign: 'center', mb: {xs: 6, md: 8}}}>
@@ -471,8 +468,7 @@ export default function HomePage() {
                             Quy trình đơn giản và hiệu quả cho cả hai phía
                         </Typography>
                     </Box>
-                    
-                    {/* Phụ Huynh */}
+
                     <Box sx={{mb: {xs: 8, md: 10}}}>
                         <Typography 
                             variant="h4" 
@@ -565,7 +561,6 @@ export default function HomePage() {
                         </Grid>
                     </Box>
 
-                    {/* Trường Học */}
                     <Box>
                         <Typography 
                             variant="h4" 
@@ -660,7 +655,6 @@ export default function HomePage() {
                 </Container>
             </Box>
 
-            {/* 4️⃣ Trường nổi bật */}
             <Box sx={{py: {xs: 10, md: 14}, bgcolor: '#f8fafc'}}>
                 <Container maxWidth="lg" sx={{px: {xs: 3, md: 4}}}>
                     <Box sx={{textAlign: 'center', mb: {xs: 6, md: 8}}}>
@@ -783,7 +777,6 @@ export default function HomePage() {
                 </Container>
             </Box>
 
-            {/* 5️⃣ Tính năng chính */}
             <Box sx={{py: {xs: 10, md: 14}, bgcolor: '#ffffff'}}>
                 <Container maxWidth="lg" sx={{px: {xs: 3, md: 4}}}>
                     <Box sx={{textAlign: 'center', mb: {xs: 6, md: 8}}}>
@@ -882,7 +875,6 @@ export default function HomePage() {
                 </Container>
             </Box>
 
-            {/* 6️⃣ Thống kê / Social proof */}
             <Box sx={{py: {xs: 10, md: 14}, background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 50%, #64b5f6 100%)', position: 'relative', overflow: 'hidden'}}>
                 <Box
                     sx={{
@@ -965,7 +957,6 @@ export default function HomePage() {
                 </Container>
             </Box>
 
-            {/* 7️⃣ CTA cuối trang */}
             <Box sx={{py: {xs: 10, md: 14}, bgcolor: '#f8fafc'}}>
                 <Container maxWidth="md" sx={{px: {xs: 3, md: 4}}}>
                     <Card

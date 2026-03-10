@@ -75,7 +75,6 @@ export default function AdminUsersManagement() {
                                                 </Typography>
                                             </TableCell>
                                             <TableCell>
-                                                {/* Buttons sẽ được thêm sau */}
                                             </TableCell>
                                         </TableRow>
                                     ))

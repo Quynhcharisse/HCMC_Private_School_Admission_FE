@@ -18,7 +18,6 @@ export default function Footer() {
                     alignItems="flex-start"
                     justifyContent="space-between"
                 >
-                    {/* Phần 1: GIỚI THIỆU */}
                     <Grid
                         item
                         xs={12}
@@ -33,7 +32,6 @@ export default function Footer() {
                         </Typography>
                     </Grid>
 
-                    {/* Phần 2: LIÊN HỆ */}
                     <Grid
                         item
                         xs={12}
@@ -70,7 +68,6 @@ export default function Footer() {
                         </Box>
                     </Grid>
 
-                    {/* Phần 3: CHÍNH SÁCH */}
                     <Grid
                         item
                         xs={12}
@@ -97,7 +94,6 @@ export default function Footer() {
                         </Box>
                     </Grid>
 
-                    {/* Phần 4: LIÊN KẾT NHANH */}
                     <Grid
                         item
                         xs={12}
