@@ -114,7 +114,7 @@ export default function SchoolCampus() {
         <Box>
             <Box sx={{display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3}}>
                 <Typography variant="h4" sx={{fontWeight: 700, color: "#1e293b"}}>
-                    Quản Lý Cơ Sở (Campus)
+                    Quản Lý Cơ Sở
                 </Typography>
                 <Button
                     variant="contained"

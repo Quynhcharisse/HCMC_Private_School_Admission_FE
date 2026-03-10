@@ -11,7 +11,7 @@ const menuItems = [
         path: "/school/dashboard",
     },
     {
-        text: "Cơ Sở (Campus)",
+        text: "Cơ Sở",
         icon: <ApartmentIcon/>,
         path: "/school/campus",
     },

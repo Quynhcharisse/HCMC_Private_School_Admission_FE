@@ -1,31 +1,46 @@
 import React from "react";
 import {Box, Card, CardContent, Grid, List, ListItem, ListItemText, Typography} from "@mui/material";
-import DashboardIcon from "@mui/icons-material/Dashboard";
 import ApartmentIcon from "@mui/icons-material/Apartment";
+import GroupsIcon from "@mui/icons-material/Groups";
 import ChatIcon from "@mui/icons-material/Chat";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
+import SchoolIcon from "@mui/icons-material/School";
 
 const statCards = [
     {
-        title: "Cơ sở đang hoạt động",
+        title: "Số cơ sở (Campus)",
         value: "0",
-        sub: "Tổng số campus của trường",
+        sub: "Tổng số cơ sở đang hoạt động",
         icon: <ApartmentIcon sx={{fontSize: 32}}/>,
         color: "#1d4ed8",
     },
     {
-        title: "Yêu cầu tư vấn mới",
+        title: "Tổng phụ huynh đăng ký tư vấn",
         value: "0",
-        sub: "Trong 7 ngày gần đây",
+        sub: "Trong toàn bộ hệ thống",
+        icon: <GroupsIcon sx={{fontSize: 32}}/>,
+        color: "#0ea5e9",
+    },
+    {
+        title: "Yêu cầu tư vấn mới hôm nay",
+        value: "0",
+        sub: "Tổng yêu cầu được tạo trong ngày",
         icon: <ChatIcon sx={{fontSize: 32}}/>,
         color: "#16a34a",
     },
     {
-        title: "Lịch hẹn hôm nay",
+        title: "Lịch hẹn tham quan hôm nay",
         value: "0",
-        sub: "Tham quan & gặp gỡ phụ huynh",
+        sub: "Tham quan trường & gặp gỡ phụ huynh",
         icon: <CalendarTodayIcon sx={{fontSize: 32}}/>,
-        color: "#dc2626",
+        color: "#22c55e",
+    },
+    {
+        title: "Số hồ sơ nhập học",
+        value: "0",
+        sub: "Hồ sơ đăng ký nhập học đã tạo",
+        icon: <SchoolIcon sx={{fontSize: 32}}/>,
+        color: "#6366f1",
     },
 ];
 
@@ -43,7 +58,7 @@ const mockSchedules = [
 
 export default function SchoolDashboard() {
     return (
-        <Box sx={{display: "flex", flexDirection: "column", gap: 4, width: "100%"}}>
+        <Box sx={{display: "flex", flexDirection: "column", gap: 5, width: "100%"}}>
             {/* Header + stats */}
             <Box>
                 <Typography
@@ -62,68 +77,73 @@ export default function SchoolDashboard() {
                     sx={{
                         color: "#64748b",
                         mb: 3,
-                        maxWidth: 800,
+                        maxWidth: 900,
                     }}
                 >
-                    Nắm nhanh tình hình tuyển sinh của trường: số cơ sở, yêu cầu tư vấn từ phụ huynh và các lịch hẹn
-                    tham quan trong ngày.
+                    Tổng quan nhanh về tuyển sinh: số cơ sở, phụ huynh đăng ký tư vấn, yêu cầu mới,
+                    lịch hẹn tham quan và hồ sơ nhập học trong hệ thống.
                 </Typography>
 
-                <Grid container spacing={3}>
+                <Box
+                    sx={{
+                        display: "grid",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+                        gap: 2.5,
+                    }}
+                >
                     {statCards.map((card, index) => (
-                        <Grid item xs={12} sm={6} md={4} key={index}>
-                            <Card
-                                elevation={2}
-                                sx={{
-                                    borderRadius: 3,
-                                    border: "1px solid #e0e7ff",
-                                    background:
-                                        "linear-gradient(135deg, #ffffff 0%, #f8fafc 40%, #eff6ff 100%)",
-                                    boxShadow: "0 12px 30px rgba(15,23,42,0.08)",
-                                }}
-                            >
-                                <CardContent sx={{p: 3}}>
+                        <Card
+                            key={index}
+                            elevation={2}
+                            sx={{
+                                borderRadius: 3,
+                                border: "1px solid #e0e7ff",
+                                background:
+                                    "linear-gradient(135deg, #ffffff 0%, #f8fafc 40%, #eff6ff 100%)",
+                                boxShadow: "0 12px 30px rgba(15,23,42,0.08)",
+                            }}
+                        >
+                            <CardContent sx={{p: 3}}>
+                                <Box
+                                    sx={{
+                                        display: "flex",
+                                        justifyContent: "space-between",
+                                        alignItems: "flex-start",
+                                        mb: 1.5,
+                                    }}
+                                >
+                                    <Box>
+                                        <Typography
+                                            variant="body2"
+                                            sx={{color: "#64748b", textTransform: "uppercase", fontSize: 11}}
+                                        >
+                                            {card.title}
+                                        </Typography>
+                                        <Typography
+                                            variant="h4"
+                                            sx={{fontWeight: 800, color: "#0f172a", mt: 0.5}}
+                                        >
+                                            {card.value}
+                                        </Typography>
+                                    </Box>
                                     <Box
                                         sx={{
-                                            display: "flex",
-                                            justifyContent: "space-between",
-                                            alignItems: "flex-start",
-                                            mb: 1.5,
+                                            color: card.color,
+                                            bgcolor: `${card.color}15`,
+                                            borderRadius: 2,
+                                            p: 1.25,
                                         }}
                                     >
-                                        <Box>
-                                            <Typography
-                                                variant="body2"
-                                                sx={{color: "#64748b", textTransform: "uppercase", fontSize: 11}}
-                                            >
-                                                {card.title}
-                                            </Typography>
-                                            <Typography
-                                                variant="h4"
-                                                sx={{fontWeight: 800, color: "#0f172a", mt: 0.5}}
-                                            >
-                                                {card.value}
-                                            </Typography>
-                                        </Box>
-                                        <Box
-                                            sx={{
-                                                color: card.color,
-                                                bgcolor: `${card.color}15`,
-                                                borderRadius: 2,
-                                                p: 1.25,
-                                            }}
-                                        >
-                                            {card.icon}
-                                        </Box>
+                                        {card.icon}
                                     </Box>
-                                    <Typography variant="body2" sx={{color: "#94a3b8"}}>
-                                        {card.sub}
-                                    </Typography>
-                                </CardContent>
-                            </Card>
-                        </Grid>
+                                </Box>
+                                <Typography variant="body2" sx={{color: "#94a3b8"}}>
+                                    {card.sub}
+                                </Typography>
+                            </CardContent>
+                        </Card>
                     ))}
-                </Grid>
+                </Box>
             </Box>
 
             {/* 2 columns: requests & schedule */}
