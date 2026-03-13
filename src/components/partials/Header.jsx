@@ -8,7 +8,6 @@ import {
     Container,
     Divider,
     Fab,
-    Grid,
     IconButton,
     List,
     ListItem,
@@ -473,30 +472,73 @@ function MainHeader() {
 
 export function ScrollTopButton() {
     const [visible, setVisible] = React.useState(false);
+    const isAnimatingRef = React.useRef(false);
 
     React.useEffect(() => {
         const handleScroll = () => {
-            setVisible(window.scrollY > 200);
+            if (!isAnimatingRef.current) {
+                setVisible(window.scrollY > 200);
+            }
         };
         window.addEventListener('scroll', handleScroll);
         return () => window.removeEventListener('scroll', handleScroll);
     }, []);
 
     const handleClick = () => {
-        window.scrollTo({top: 0, behavior: 'smooth'});
+        const start = window.scrollY || window.pageYOffset;
+        const duration = 600;
+        const startTime = performance.now();
+
+        isAnimatingRef.current = true;
+
+        const easeInOutCubic = (t) =>
+            t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+        const animate = (currentTime) => {
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            const eased = easeInOutCubic(progress);
+            const newY = start * (1 - eased);
+
+            window.scrollTo(0, newY);
+
+            if (progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                isAnimatingRef.current = false;
+                setVisible(window.scrollY > 200);
+            }
+        };
+
+        requestAnimationFrame(animate);
     };
 
     return (
-        <Fade in={visible}>
+        <Fade in={visible} timeout={500}>
             <Box
                 sx={{
                     position: 'fixed',
                     bottom: 32,
                     right: 32,
                     zIndex: 1300,
+                    transition: 'transform 0.3s ease-out',
+                    '&:hover': {
+                        transform: 'translateY(-4px)'
+                    }
                 }}
             >
-                <Fab color="primary" size="medium" onClick={handleClick} aria-label="scroll back to top">
+                <Fab
+                    color="primary"
+                    size="medium"
+                    onClick={handleClick}
+                    aria-label="scroll back to top"
+                    sx={{
+                        boxShadow: '0 8px 20px rgba(15,23,42,0.35)',
+                        '&:hover': {
+                            boxShadow: '0 12px 28px rgba(15,23,42,0.45)'
+                        }
+                    }}
+                >
                     <KeyboardArrowUpIcon/>
                 </Fab>
             </Box>
