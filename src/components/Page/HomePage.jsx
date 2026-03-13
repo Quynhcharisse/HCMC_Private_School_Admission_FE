@@ -32,7 +32,9 @@ import {
     Star as StarIcon,
     People as PeopleIcon,
     AttachMoney as MoneyIcon,
-    AccountBalance as BoardingIcon
+    AccountBalance as BoardingIcon,
+    Groups as GroupsIcon,
+    Verified as VerifiedIcon
 } from "@mui/icons-material";
 
 function BlogCard({title, description, image, date, tags}) {
@@ -44,7 +46,7 @@ function BlogCard({title, description, image, date, tags}) {
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100%',
-                borderRadius: 3, // ~16px
+                borderRadius: 3,
                 boxShadow: '0 4px 18px rgba(15,23,42,0.06)',
                 border: '1px solid rgba(15,23,42,0.06)',
                 overflow: 'hidden',
@@ -358,7 +360,6 @@ export default function HomePage() {
                             Đăng ký ngay
                         </Button>
 
-                        {/* Thanh tìm kiếm chuyển từ header xuống hero */}
                         <Box
                             sx={{
                                 mt: 2,
@@ -913,54 +914,55 @@ export default function HomePage() {
             {/* 8️⃣ Form đăng ký tư vấn */}
             <Box sx={{py: {xs: 10, md: 14}, bgcolor: '#2563EB'}}>
                 <Container maxWidth="lg" sx={{px: {xs: 3, md: 4}, color: '#FFFFFF'}}>
-                    <Grid container spacing={{xs: 4, md: 6}} alignItems="stretch">
-                        <Grid item xs={12} md={6}>
-                            <Box sx={{height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'center'}}>
-                        <Typography
-                            variant="h2"
-                            sx={{
-                                fontWeight: 800,
-                                mb: 2,
-                                        fontSize: {xs: '1.9rem', md: '2.5rem'},
-                                        letterSpacing: '-0.02em',
-                                color: '#FFFFFF'
-                                    }}
-                                >
-                                    Đăng Ký Nhận Tư Vấn Miễn Phí
-                        </Typography>
-                                <Typography
-                                    variant="body1"
-                            sx={{
-                                        mb: 3,
-                                        fontSize: {xs: '0.95rem', md: '1.05rem'},
-                                        lineHeight: 1.7,
-                                        color: 'rgba(255,255,255,0.9)',
-                                        maxWidth: '520px'
-                                    }}
-                                >
-                                    Để lại thông tin, đội ngũ tư vấn của EduBridgeHCM sẽ liên hệ trong vòng
-                                    24 giờ để hỗ trợ bạn chọn trường, chọn ngành phù hợp với nhu cầu và tài chính.
-                        </Typography>
-                                <Stack spacing={1.5} sx={{color: 'rgba(255,255,255,0.9)', fontSize: '0.9rem'}}>
-                                    <Box sx={{display: 'flex', alignItems: 'center', gap: 1}}>
-                                        <CheckCircleIcon sx={{fontSize: 18, color: '#22c55e'}}/>
-                                        <Typography>Hoàn toàn miễn phí, bảo mật thông tin.</Typography>
-                    </Box>
-                                    <Box sx={{display: 'flex', alignItems: 'center', gap: 1}}>
-                                        <CheckCircleIcon sx={{fontSize: 18, color: '#22c55e'}}/>
-                                        <Typography>Tư vấn 1-1 theo hồ sơ và nhu cầu của từng gia đình.</Typography>
-                                    </Box>
-                                </Stack>
-                            </Box>
-                        </Grid>
-                        <Grid item xs={12} md={6}>
-                                <Card
-                                    sx={{
-                                        borderRadius: 3,
+                    <>
+                        <Box sx={{textAlign: 'center', mb: {xs: 6, md: 8}}}>
+                            <Typography
+                                variant="h2"
+                                sx={{
+                                    fontWeight: 800,
+                                    mb: 2,
+                                    fontSize: {xs: '1.9rem', md: '2.5rem'},
+                                    letterSpacing: '-0.02em',
+                                    color: '#FFFFFF'
+                                }}
+                            >
+                                Đăng Ký Nhận Tư Vấn Miễn Phí
+                            </Typography>
+                            <Typography
+                                variant="body1"
+                                sx={{
+                                    mb: 3,
+                                    fontSize: {xs: '0.95rem', md: '1.05rem'},
+                                    lineHeight: 1.7,
+                                    color: 'rgba(255,255,255,0.9)',
+                                    maxWidth: '640px',
+                                    mx: 'auto'
+                                }}
+                            >
+                                Để lại thông tin, đội ngũ tư vấn của EduBridgeHCM sẽ liên hệ trong vòng
+                                24 giờ để hỗ trợ bạn chọn trường, chọn ngành phù hợp với nhu cầu và tài chính.
+                            </Typography>
+                            <Stack spacing={1.5} sx={{color: 'rgba(255,255,255,0.9)', fontSize: '0.9rem', alignItems: 'center'}}>
+                                <Box sx={{display: 'flex', alignItems: 'center', gap: 1}}>
+                                    <CheckCircleIcon sx={{fontSize: 18, color: '#22c55e'}}/>
+                                    <Typography>Hoàn toàn miễn phí, bảo mật thông tin.</Typography>
+                                </Box>
+                                <Box sx={{display: 'flex', alignItems: 'center', gap: 1}}>
+                                    <CheckCircleIcon sx={{fontSize: 18, color: '#22c55e'}}/>
+                                    <Typography>Tư vấn 1-1 theo hồ sơ và nhu cầu của từng gia đình.</Typography>
+                                </Box>
+                            </Stack>
+                        </Box>
+                        <Box sx={{display: 'flex', justifyContent: 'center'}}>
+                            <Card
+                                sx={{
+                                    borderRadius: 3,
                                     boxShadow: '0 12px 40px rgba(15,23,42,0.15)',
                                     p: {xs: 3, md: 4},
                                     bgcolor: 'white',
-                                    border: '1px solid rgba(15,23,42,0.06)'
+                                    border: '1px solid rgba(15,23,42,0.06)',
+                                    maxWidth: '700px',
+                                    width: '100%'
                                 }}
                             >
                                 <Stack spacing={2.5}>
@@ -1005,175 +1007,82 @@ export default function HomePage() {
                                         variant="contained"
                                         size="large"
                                         onClick={handleRegisterClick}
-                                            sx={{
+                                        sx={{
                                             mt: 1,
                                             bgcolor: '#1976d2',
-                                                textTransform: 'none',
+                                            textTransform: 'none',
                                             fontWeight: 700,
                                             py: 1.4,
-                                                borderRadius: 2,
+                                            borderRadius: 2,
                                             boxShadow: '0 8px 20px rgba(25,118,210,0.35)',
-                                                '&:hover': {
+                                            '&:hover': {
                                                 bgcolor: '#1565c0',
                                                 boxShadow: '0 10px 28px rgba(25,118,210,0.45)',
-                                                }
-                                            }}
-                                        >
+                                            }
+                                        }}
+                                    >
                                         Gửi yêu cầu tư vấn
-                                        </Button>
+                                    </Button>
                                 </Stack>
-                                </Card>
-                            </Grid>
-                    </Grid>
-                </Container>
-            </Box>
-
-            {/* 9️⃣ Feedback sinh viên & phụ huynh */}
-            <Box sx={{py: {xs: 10, md: 14}, bgcolor: '#EFF6FF'}}>
-                <Container maxWidth="lg" sx={{px: {xs: 3, md: 4}}}>
-                    <Box sx={{textAlign: 'center', mb: {xs: 6, md: 8}}}>
-                        <Typography
-                            variant="h2"
-                            sx={{
-                                fontWeight: 800,
-                                mb: 2,
-                                color: '#1a237e',
-                                fontSize: {xs: '2.1rem', md: '2.6rem'},
-                                letterSpacing: '-0.02em'
-                            }}
-                        >
-                            Cảm Nhận Từ Học Sinh & Phụ Huynh
-                        </Typography>
-                        <Typography variant="body1" sx={{
-                            color: '#666',
-                            fontSize: {xs: '0.95rem', md: '1.05rem'},
-                            maxWidth: '640px',
-                                mx: 'auto',
-                            lineHeight: 1.7
-                        }}>
-                            Những chia sẻ thực tế từ các gia đình đã sử dụng EduBridgeHCM trong hành trình chọn trường
-                        </Typography>
-                    </Box>
-                    <Grid container spacing={{xs: 3, md: 4}}>
-                        {[
-                            {
-                                name: 'Minh Anh',
-                                role: 'Học sinh lớp 9',
-                                school: 'Đã trúng tuyển THPT Chuyên Lê Hồng Phong',
-                                content: 'Nhờ EduBridgeHCM, em biết được nhiều lựa chọn phù hợp với năng lực và được tư vấn kỹ về hồ sơ, lịch thi tuyển.'
-                            },
-                            {
-                                name: 'Chị Thu Trang',
-                                role: 'Phụ huynh',
-                                school: 'Con đang học tại THPT Nguyễn Thị Minh Khai',
-                                content: 'Trước đây mình rất rối khi tìm trường, nhưng nhờ nền tảng và đội ngũ tư vấn mà gia đình tiết kiệm rất nhiều thời gian.'
-                            },
-                            {
-                                name: 'Hoàng Long',
-                                role: 'Học sinh lớp 11',
-                                school: 'Đang học tại THPT Gia Định',
-                                content: 'Mình được hỗ trợ chọn tổ hợp môn, định hướng ngành đại học và so sánh các trường một cách rất rõ ràng.'
-                            }
-                        ].map((fb, index) => (
-                            <Grid item xs={12} md={4} key={index}>
-                                <Card
-                                    sx={{
-                                        height: '100%',
-                                        borderRadius: 3,
-                                        boxShadow: '0 4px 18px rgba(15,23,42,0.06)',
-                                        border: '1px solid rgba(15,23,42,0.06)',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        p: 3
-                                    }}
-                                >
-                                    <Box sx={{display: 'flex', alignItems: 'center', mb: 2.5, gap: 1.5}}>
-                                        <Avatar
-                                            sx={{
-                                                width: 48,
-                                                height: 48,
-                                                bgcolor: '#1976d2',
-                                                fontWeight: 700
-                                            }}
-                                        >
-                                            {fb.name.charAt(0)}
-                                        </Avatar>
-                                        <Box>
-                                            <Typography sx={{fontWeight: 700, fontSize: '0.98rem', color: '#111827'}}>
-                                                {fb.name}
-                                        </Typography>
-                                            <Typography sx={{fontSize: '0.8rem', color: '#6b7280'}}>
-                                                {fb.role} · {fb.school}
-                                        </Typography>
-                                        </Box>
-                                    </Box>
-                                    <Typography sx={{color: '#4b5563', fontSize: '0.95rem', lineHeight: 1.7, flexGrow: 1}}>
-                                        “{fb.content}”
-                                    </Typography>
-                                </Card>
-                            </Grid>
-                        ))}
-                    </Grid>
+                            </Card>
+                        </Box>
+                    </>
                 </Container>
             </Box>
 
             {/* 3️⃣ Thống kê hệ thống (section cuối) */}
-            <Box sx={{py: {xs: 10, md: 14}, bgcolor: '#BFDBFE', position: 'relative', overflow: 'hidden'}}>
+            <Box sx={{py: {xs: 10, md: 14}, bgcolor: '#EFF6FF', position: 'relative', overflow: 'hidden'}}>
                 <Container maxWidth="lg" sx={{px: {xs: 3, md: 4}, position: 'relative', zIndex: 1}}>
-                    <Box sx={{textAlign: 'center', mb: {xs: 6, md: 8}}}>
-                        <Typography
-                            variant="h2"
-                            sx={{
-                                fontWeight: 800,
-                                mb: 2,
-                                color: '#111827',
-                                fontSize: {xs: '2.25rem', md: '3rem'},
-                                letterSpacing: '-0.02em'
-                            }}
-                        >
-                            Thống Kê Nền Tảng
-                        </Typography>
+                    <Box sx={{textAlign: 'center', mb: {xs: 8, md: 10}}}>
                         <Typography variant="body1" sx={{
-                            color: '#1f2937',
-                            fontSize: {xs: '0.95rem', md: '1.05rem'},
-                            maxWidth: '640px',
-                                mx: 'auto',
-                            lineHeight: 1.7
+                            color: '#64748B',
+                            fontSize: {xs: '1rem', md: '1.125rem'},
+                            maxWidth: '800px',
+                            mx: 'auto',
+                            lineHeight: 1.7,
+                            mb: {xs: 6, md: 8}
                         }}>
                             Những con số thể hiện niềm tin của phụ huynh và trường học dành cho EduBridgeHCM
                         </Typography>
                     </Box>
-                    <Grid container spacing={{xs: 4, md: 6}} justifyContent="center">
+                    <Grid container spacing={{xs: 4, sm: 5, md: 6}} justifyContent="center">
                         {[
-                            {number: '150+', label: 'Trường Học Tham Gia', icon: <SchoolIcon/>},
-                            {number: '5,000+', label: 'Phụ Huynh Đăng Ký', icon: <ParentIcon/>},
-                            {number: '10,000+', label: 'Yêu Cầu Tư Vấn', icon: <ChatIcon/>},
-                            {number: '95%', label: 'Độ Hài Lòng', icon: <CheckCircleIcon/>}
+                            {number: '150+', label: 'Trường học tham gia'},
+                            {number: '5,000+', label: 'Phụ huynh đăng ký'},
+                            {number: '10,000+', label: 'Yêu cầu tư vấn'},
+                            {number: '95%', label: 'Độ hài lòng'}
                         ].map((stat, index) => (
-                            <Grid item xs={6} md={3} key={index}>
-                                <Box sx={{textAlign: 'center', color: '#111827'}}>
-                                    <Box 
-                                        sx={{
-                                            fontSize: 56, 
-                                            mb: 2, 
-                                            display: 'flex', 
-                                            justifyContent: 'center'
-                                        }}
-                                    >
-                                        {stat.icon}
-                                    </Box>
+                            <Grid
+                                item
+                                xs={12}
+                                sm={6}
+                                md={3}
+                                key={index}
+                                sx={{display: 'flex', justifyContent: 'center'}}
+                            >
+                                <Box sx={{textAlign: 'center'}}>
                                     <Typography
-                                        variant="h2"
                                         sx={{
+                                            fontSize: {xs: '3rem', sm: '3.5rem', md: '4rem'},
                                             fontWeight: 800,
-                                            mb: 1,
-                                            fontSize: {xs: '2.25rem', md: '3rem'},
-                                            lineHeight: 1.1
+                                            background: 'linear-gradient(135deg, #1E40AF 0%, #3B82F6 50%, #60A5FA 100%)',
+                                            WebkitBackgroundClip: 'text',
+                                            WebkitTextFillColor: 'transparent',
+                                            backgroundClip: 'text',
+                                            lineHeight: 1.1,
+                                            mb: 1.5
                                         }}
                                     >
                                         {stat.number}
                                     </Typography>
-                                    <Typography variant="h6" sx={{fontWeight: 600, fontSize: {xs: '1rem', md: '1.125rem'}}}>
+                                    <Typography
+                                        sx={{
+                                            fontSize: {xs: '0.875rem', md: '1rem'},
+                                            color: '#64748B',
+                                            lineHeight: 1.5,
+                                            fontWeight: 500
+                                        }}
+                                    >
                                         {stat.label}
                                     </Typography>
                                 </Box>
