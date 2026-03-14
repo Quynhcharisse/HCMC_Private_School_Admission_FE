@@ -43,6 +43,7 @@ import {
     Groups as GroupsIcon,
     Verified as VerifiedIcon
 } from "@mui/icons-material";
+import Chatbot from "../ui/Chatbot";
 
 function BlogCard({title, description, image, date, tags}) {
     return (
@@ -1340,6 +1341,9 @@ export default function HomePage() {
                     </Grid>
                 </Container>
             </Box>
+
+            {/* Chatbot */}
+            <Chatbot />
         </Box>
     );
 }

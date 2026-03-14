@@ -785,11 +785,12 @@ export function ScrollTopButton() {
                 sx={{
                     position: 'fixed',
                     bottom: 32,
-                    right: 32,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
                     zIndex: 1300,
                     transition: 'transform 0.3s ease-out',
                     '&:hover': {
-                        transform: 'translateY(-4px)'
+                        transform: 'translateX(-50%) translateY(-4px)'
                     }
                 }}
             >
