@@ -1,7 +1,11 @@
 import axiosClient from "../configs/APIConfig.jsx";
 
 export const signout = async () => {
-    const response = await axiosClient.post("/account/logout");
+    const response = await axiosClient.post("/account/logout", {}, {
+        headers: {
+            "X-Device-Type": "web"
+        }
+    });
     return response || null
 }
 

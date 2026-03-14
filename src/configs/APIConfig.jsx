@@ -8,7 +8,8 @@ axios.defaults.baseURL = `${url}/api/v1`
 const axiosClient = axios.create({
     baseURL: axios.defaults.baseURL,
     headers: {
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "X-Device-Type": "web"
     },
     withCredentials: true
 })
