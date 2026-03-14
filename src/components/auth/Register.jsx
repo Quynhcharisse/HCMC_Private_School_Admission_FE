@@ -13,7 +13,9 @@ import {
     TextField,
     Typography,
     CircularProgress,
+    IconButton,
 } from '@mui/material';
+import {ArrowBack} from '@mui/icons-material';
 import backgroundLogin from '../../assets/backgroundLogin.png';
 import SchoolRegistrationForm from './SchoolRegistrationForm';
 import {useNavigate} from 'react-router-dom';
@@ -51,6 +53,13 @@ const Register = () => {
             return;
         }
 
+        // If SCHOOL role is selected, go directly to registration form without calling signup API
+        if (selectedRole === ROLES.SCHOOL) {
+            setStep(3);
+            return;
+        }
+
+        // For PARENT role, call signup API
         setIsSubmitting(true);
 
         try {
@@ -58,13 +67,8 @@ const Register = () => {
 
             if (response) {
                 console.log('Đăng ký thành công:', response);
-                
-                if (selectedRole === ROLES.SCHOOL) {
-                    setStep(3);
-                } else if (selectedRole === ROLES.PARENT) {
-                    alert('Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.');
-                    navigate('/login');
-                }
+                alert('Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.');
+                navigate('/login');
             }
         } catch (error) {
             console.error('Lỗi đăng ký:', error);
@@ -129,14 +133,32 @@ const Register = () => {
                     }}
                 >
                     <Stack spacing={3}>
-                        <Box>
-                            <Typography variant="h5" sx={{fontWeight: 700, color: '#1e293b'}}>
+                        <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40px'}}>
+                            {step === 2 && (
+                                <IconButton
+                                    onClick={() => setStep(1)}
+                                    sx={{
+                                        position: 'absolute',
+                                        left: 0,
+                                        color: '#64748b',
+                                        '&:hover': {
+                                            bgcolor: 'rgba(25, 118, 210, 0.08)',
+                                            color: '#1976d2',
+                                        },
+                                    }}
+                                >
+                                    <ArrowBack />
+                                </IconButton>
+                            )}
+                            <Typography 
+                                variant="h5" 
+                                sx={{
+                                    fontWeight: 700, 
+                                    color: '#1e293b',
+                                    textAlign: 'center',
+                                }}
+                            >
                                 {step === 1 ? 'Đăng ký tài khoản' : 'Chọn vai trò'}
-                            </Typography>
-                            <Typography variant="body2" sx={{color: '#64748b', mt: 0.5}}>
-                                {step === 1
-                                    ? 'Vui lòng đăng nhập bằng tài khoản Google để xác thực email của bạn.'
-                                    : 'Vui lòng chọn vai trò phù hợp với bạn trong hệ thống.'}
                             </Typography>
                         </Box>
 
@@ -206,18 +228,6 @@ const Register = () => {
                                         ) : (
                                             'Tiếp tục'
                                         )}
-                                    </Button>
-
-                                    <Button
-                                        variant="outlined"
-                                        onClick={() => setStep(1)}
-                                        fullWidth
-                                        sx={{
-                                            textTransform: 'none',
-                                            borderRadius: 999,
-                                        }}
-                                    >
-                                        Quay lại
                                     </Button>
                                 </Stack>
                             </Box>

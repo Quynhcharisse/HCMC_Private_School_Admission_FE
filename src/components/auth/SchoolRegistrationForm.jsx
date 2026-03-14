@@ -10,7 +10,10 @@ import {
     CircularProgress,
     Alert,
     Grid,
+    IconButton,
+    Divider,
 } from '@mui/material';
+import {ArrowBack} from '@mui/icons-material';
 import {checkTaxCode, registerSchool} from '../../services/AuthService';
 import backgroundLogin from '../../assets/backgroundLogin.png';
 import {useNavigate} from 'react-router-dom';
@@ -26,9 +29,9 @@ const SchoolRegistrationForm = ({email, onBack}) => {
     // Form data
     const [formData, setFormData] = useState({
         schoolName: '',
-        schoolAddress: '',
         campusName: '',
         campusAddress: '',
+        campusPhone: '',
         taxCode: '',
         websiteUrl: '',
         logoUrl: '',
@@ -40,6 +43,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
     
     const [formErrors, setFormErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showSuccessAlert, setShowSuccessAlert] = useState(false);
 
     const handleTaxCodeCheck = async () => {
         if (!taxCode.trim()) {
@@ -62,8 +66,9 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                     taxCode: taxCode.trim(),
                     // Map fields from API response to form fields
                     schoolName: data.data.name || data.data.companyName || prev.schoolName,
-                    schoolAddress: data.data.address || data.data.companyAddress || prev.schoolAddress,
+                    campusAddress: data.data.address || data.data.companyAddress || prev.campusAddress,
                     representativeName: data.data.representative || data.data.representativeName || prev.representativeName,
+                    campusPhone: data.data.phone || data.data.phoneNumber || prev.campusPhone,
                 }));
                 setStep(2);
             } else {
@@ -99,14 +104,14 @@ const SchoolRegistrationForm = ({email, onBack}) => {
         if (!formData.schoolName.trim()) {
             errors.schoolName = 'Tên trường là bắt buộc';
         }
-        if (!formData.schoolAddress.trim()) {
-            errors.schoolAddress = 'Địa chỉ trường là bắt buộc';
-        }
         if (!formData.campusName.trim()) {
             errors.campusName = 'Tên cơ sở là bắt buộc';
         }
         if (!formData.campusAddress.trim()) {
             errors.campusAddress = 'Địa chỉ cơ sở là bắt buộc';
+        }
+        if (!formData.campusPhone.trim()) {
+            errors.campusPhone = 'Số điện thoại cơ sở là bắt buộc';
         }
         if (!formData.taxCode.trim()) {
             errors.taxCode = 'Mã số thuế là bắt buộc';
@@ -137,9 +142,9 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                 role: 'SCHOOL',
                 schoolRequest: {
                     schoolName: formData.schoolName.trim(),
-                    schoolAddress: formData.schoolAddress.trim(),
                     campusName: formData.campusName.trim(),
                     campusAddress: formData.campusAddress.trim(),
+                    campusPhone: formData.campusPhone.trim(),
                     taxCode: formData.taxCode.trim(),
                     websiteUrl: formData.websiteUrl.trim() || null,
                     logoUrl: formData.logoUrl.trim() || null,
@@ -147,21 +152,22 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                     representativeName: formData.representativeName.trim(),
                     hotline: formData.hotline.trim(),
                     businessLicenseUrl: formData.businessLicenseUrl.trim() || null,
-                    status: 'ACCOUNT_PENDING_VERIFY',
-                    rejectionReason: null,
                 }
             };
 
             const response = await registerSchool(registerPayload);
             
             if (response) {
-                alert('Đăng ký thành công! Vui lòng đợi admin xác thực tài khoản.');
+                setShowSuccessAlert(true);
+                setIsSubmitting(false);
+                // Redirect to login after 2 seconds
+                setTimeout(() => {
                 navigate('/login');
+                }, 2000);
             }
         } catch (error) {
             console.error('Registration error:', error);
             alert('Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.');
-        } finally {
             setIsSubmitting(false);
         }
     };
@@ -197,16 +203,35 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                         background: 'radial-gradient(circle at top left, rgba(239,246,255,0.96) 0, rgba(239,246,255,0.98) 40%, #ffffff 100%)',
                         border: '1px solid #dbeafe',
                         backdropFilter: 'blur(10px)',
+                        position: 'relative',
                     }}
                 >
                     {step === 1 ? (
                         <Stack spacing={3}>
-                            <Box>
-                                <Typography variant="h5" sx={{fontWeight: 700, color: '#1e293b'}}>
+                            <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40px'}}>
+                                <IconButton
+                                    onClick={onBack}
+                                    sx={{
+                                        position: 'absolute',
+                                        left: 0,
+                                        color: '#64748b',
+                                        '&:hover': {
+                                            bgcolor: 'rgba(25, 118, 210, 0.08)',
+                                            color: '#1976d2',
+                                        },
+                                    }}
+                                >
+                                    <ArrowBack />
+                                </IconButton>
+                                <Typography 
+                                    variant="h5" 
+                                    sx={{
+                                        fontWeight: 700, 
+                                        color: '#1e293b',
+                                        textAlign: 'center',
+                                    }}
+                                >
                                     Nhập mã số thuế
-                                </Typography>
-                                <Typography variant="body2" sx={{color: '#64748b', mt: 0.5}}>
-                                    Vui lòng nhập mã số thuế của trường để hệ thống tự động điền thông tin.
                                 </Typography>
                             </Box>
 
@@ -256,33 +281,62 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                     </Alert>
                                 )}
                             </Stack>
-
-                            <Button
-                                variant="outlined"
-                                onClick={onBack}
-                                fullWidth
-                                sx={{
-                                    textTransform: 'none',
-                                    borderRadius: 999,
-                                }}
-                            >
-                                Quay lại
-                            </Button>
                         </Stack>
                     ) : (
                         <Box component="form" onSubmit={handleSubmit}>
-                            <Stack spacing={3}>
-                                <Box>
-                                    <Typography variant="h5" sx={{fontWeight: 700, color: '#1e293b'}}>
+                            <Stack spacing={2}>
+                                {/* Success Alert */}
+                                {showSuccessAlert && (
+                                    <Alert variant="filled" severity="success">
+                                        Đăng ký thành công! Đang chuyển đến trang đăng nhập...
+                                    </Alert>
+                                )}
+
+                                {/* Header with back button and centered title */}
+                                <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40px'}}>
+                                    <IconButton
+                                        onClick={() => setStep(1)}
+                                        sx={{
+                                            position: 'absolute',
+                                            left: 0,
+                                            color: '#64748b',
+                                            '&:hover': {
+                                                bgcolor: 'rgba(25, 118, 210, 0.08)',
+                                                color: '#1976d2',
+                                            },
+                                        }}
+                                    >
+                                        <ArrowBack />
+                                    </IconButton>
+                                    <Typography 
+                                        variant="h5" 
+                                        sx={{
+                                            fontWeight: 700, 
+                                            color: '#1e293b',
+                                            textAlign: 'center',
+                                        }}
+                                    >
                                         Đăng ký trường học
-                                    </Typography>
-                                    <Typography variant="body2" sx={{color: '#64748b', mt: 0.5}}>
-                                        Vui lòng điền đầy đủ thông tin để hoàn tất đăng ký.
                                     </Typography>
                                 </Box>
 
-                                <Grid container spacing={2}>
-                                    <Grid item xs={12}>
+                                {/* Section 1: Basic School Information */}
+                                <Box>
+                                    <Typography 
+                                        variant="subtitle1" 
+                                        sx={{
+                                            fontWeight: 600, 
+                                            color: '#1976d2',
+                                            mb: 1,
+                                            fontSize: '0.95rem',
+                                            letterSpacing: '0.5px',
+                                        }}
+                                    >
+                                        Thông tin trường
+                                    </Typography>
+                                    <Divider sx={{mb: 1.5}} />
+                                    <Grid container rowSpacing={2} columnSpacing={{ xs: 1, sm: 2, md: 3 }}>
+                                        <Grid size={6}>
                                         <TextField
                                             label="Tên trường *"
                                             name="schoolName"
@@ -292,23 +346,14 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             size="small"
                                             error={!!formErrors.schoolName}
                                             helperText={formErrors.schoolName}
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: 2,
+                                                    },
+                                                }}
                                         />
                                     </Grid>
-                                    <Grid item xs={12}>
-                                        <TextField
-                                            label="Địa chỉ trường *"
-                                            name="schoolAddress"
-                                            value={formData.schoolAddress}
-                                            onChange={handleInputChange}
-                                            fullWidth
-                                            size="small"
-                                            multiline
-                                            rows={2}
-                                            error={!!formErrors.schoolAddress}
-                                            helperText={formErrors.schoolAddress}
-                                        />
-                                    </Grid>
-                                    <Grid item xs={12} md={6}>
+                                        <Grid size={6}>
                                         <TextField
                                             label="Tên cơ sở *"
                                             name="campusName"
@@ -318,9 +363,14 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             size="small"
                                             error={!!formErrors.campusName}
                                             helperText={formErrors.campusName}
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: 2,
+                                                    },
+                                                }}
                                         />
                                     </Grid>
-                                    <Grid item xs={12} md={6}>
+                                        <Grid size={6}>
                                         <TextField
                                             label="Mã số thuế *"
                                             name="taxCode"
@@ -331,9 +381,52 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             error={!!formErrors.taxCode}
                                             helperText={formErrors.taxCode}
                                             disabled
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: 2,
+                                                    },
+                                                }}
+                                            />
+                                        </Grid>
+                                        <Grid size={6}>
+                                            <TextField
+                                                label="Ngày thành lập"
+                                                name="foundingDate"
+                                                type="date"
+                                                value={formData.foundingDate}
+                                                onChange={handleInputChange}
+                                                fullWidth
+                                                size="small"
+                                                InputLabelProps={{
+                                                    shrink: true,
+                                                }}
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: 2,
+                                                    },
+                                                }}
                                         />
                                     </Grid>
-                                    <Grid item xs={12}>
+                                    </Grid>
+                                </Box>
+
+                                {/* Section 2: Contact Information */}
+                                <Box>
+                                    <Typography 
+                                        variant="subtitle1" 
+                                        sx={{
+                                            fontWeight: 600, 
+                                            color: '#1976d2',
+                                            mb: 1,
+                                            fontSize: '0.95rem',
+                                            letterSpacing: '0.5px',
+                                        }}
+                                    >
+                                        Thông tin liên hệ
+                                    </Typography>
+                                    <Divider sx={{mb: 1.5}} />
+                                    <Grid container rowSpacing={2} columnSpacing={{ xs: 1, sm: 2, md: 3 }}>
+                                        <Grid size={6}>
                                         <TextField
                                             label="Địa chỉ cơ sở *"
                                             name="campusAddress"
@@ -345,21 +438,31 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             rows={2}
                                             error={!!formErrors.campusAddress}
                                             helperText={formErrors.campusAddress}
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: 2,
+                                                    },
+                                                }}
                                         />
                                     </Grid>
-                                    <Grid item xs={12} md={6}>
+                                        <Grid size={6}>
                                         <TextField
-                                            label="Tên người đại diện *"
-                                            name="representativeName"
-                                            value={formData.representativeName}
+                                                label="Số điện thoại cơ sở *"
+                                                name="campusPhone"
+                                                value={formData.campusPhone}
                                             onChange={handleInputChange}
                                             fullWidth
                                             size="small"
-                                            error={!!formErrors.representativeName}
-                                            helperText={formErrors.representativeName}
+                                                error={!!formErrors.campusPhone}
+                                                helperText={formErrors.campusPhone}
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: 2,
+                                                    },
+                                                }}
                                         />
                                     </Grid>
-                                    <Grid item xs={12} md={6}>
+                                        <Grid size={6}>
                                         <TextField
                                             label="Hotline *"
                                             name="hotline"
@@ -369,9 +472,14 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             size="small"
                                             error={!!formErrors.hotline}
                                             helperText={formErrors.hotline}
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: 2,
+                                                    },
+                                                }}
                                         />
                                     </Grid>
-                                    <Grid item xs={12} md={6}>
+                                        <Grid size={6}>
                                         <TextField
                                             label="Website URL"
                                             name="websiteUrl"
@@ -380,9 +488,50 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             fullWidth
                                             size="small"
                                             placeholder="https://example.com"
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: 2,
+                                                    },
+                                                }}
+                                            />
+                                        </Grid>
+                                    </Grid>
+                                </Box>
+
+                                {/* Section 3: Legal / Branding */}
+                                <Box>
+                                    <Typography 
+                                        variant="subtitle1" 
+                                        sx={{
+                                            fontWeight: 600, 
+                                            color: '#1976d2',
+                                            mb: 1,
+                                            fontSize: '0.95rem',
+                                            letterSpacing: '0.5px',
+                                        }}
+                                    >
+                                        Thông tin pháp lý
+                                    </Typography>
+                                    <Divider sx={{mb: 1.5}} />
+                                    <Grid container rowSpacing={2} columnSpacing={{ xs: 1, sm: 2, md: 3 }}>
+                                        <Grid size={6}>
+                                            <TextField
+                                                label="Tên người đại diện *"
+                                                name="representativeName"
+                                                value={formData.representativeName}
+                                                onChange={handleInputChange}
+                                                fullWidth
+                                                size="small"
+                                                error={!!formErrors.representativeName}
+                                                helperText={formErrors.representativeName}
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: 2,
+                                                    },
+                                                }}
                                         />
                                     </Grid>
-                                    <Grid item xs={12} md={6}>
+                                        <Grid size={6}>
                                         <TextField
                                             label="Logo URL"
                                             name="logoUrl"
@@ -391,23 +540,14 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             fullWidth
                                             size="small"
                                             placeholder="https://example.com/logo.png"
-                                        />
-                                    </Grid>
-                                    <Grid item xs={12} md={6}>
-                                        <TextField
-                                            label="Ngày thành lập"
-                                            name="foundingDate"
-                                            type="date"
-                                            value={formData.foundingDate}
-                                            onChange={handleInputChange}
-                                            fullWidth
-                                            size="small"
-                                            InputLabelProps={{
-                                                shrink: true,
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: 2,
+                                                    },
                                             }}
                                         />
                                     </Grid>
-                                    <Grid item xs={12} md={6}>
+                                        <Grid size={6}>
                                         <TextField
                                             label="URL giấy phép kinh doanh"
                                             name="businessLicenseUrl"
@@ -416,31 +556,30 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             fullWidth
                                             size="small"
                                             placeholder="https://example.com/license.pdf"
+                                                sx={{
+                                                    '& .MuiOutlinedInput-root': {
+                                                        borderRadius: 2,
+                                                    },
+                                                }}
                                         />
                                     </Grid>
                                 </Grid>
+                                </Box>
 
-                                <Stack direction="row" spacing={2}>
-                                    <Button
-                                        variant="outlined"
-                                        onClick={() => setStep(1)}
-                                        sx={{
-                                            textTransform: 'none',
-                                            borderRadius: 999,
-                                        }}
-                                    >
-                                        Quay lại
-                                    </Button>
+                                {/* Submit Button - Centered and smaller */}
+                                <Box sx={{display: 'flex', justifyContent: 'center', pt: 1}}>
                                     <Button
                                         type="submit"
                                         variant="contained"
                                         disabled={isSubmitting}
-                                        fullWidth
                                         sx={{
-                                            py: 1.1,
+                                            minWidth: 200,
+                                            py: 1.2,
+                                            px: 4,
                                             textTransform: 'none',
                                             fontWeight: 700,
-                                            borderRadius: 999,
+                                            fontSize: '0.95rem',
+                                            borderRadius: 2,
                                             background: 'linear-gradient(90deg, #1d4ed8 0%, #2563eb 100%)',
                                             boxShadow: '0 10px 30px rgba(37, 99, 235, 0.35)',
                                             '&:hover': {
@@ -452,10 +591,10 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         {isSubmitting ? (
                                             <CircularProgress size={24} color="inherit" />
                                         ) : (
-                                            'Hoàn tất đăng ký'
+                                            'Đăng ký'
                                         )}
                                     </Button>
-                                </Stack>
+                                </Box>
                             </Stack>
                         </Box>
                     )}
