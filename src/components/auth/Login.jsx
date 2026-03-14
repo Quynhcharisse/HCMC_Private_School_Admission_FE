@@ -9,10 +9,9 @@ export default function Login() {
     const [userEmail, setUserEmail] = useState(null);
     const [userData, setUserData] = useState(null);
     const navigate = useNavigate();
-    const hasNavigated = useRef(false); // Flag để prevent multiple navigate calls
+    const hasNavigated = useRef(false);
 
     const getRoleBasedRoute = (role) => {
-        // Normalize role về uppercase để match với constants
         const normalizedRole = role?.toUpperCase();
         
         switch (normalizedRole) {
@@ -23,14 +22,13 @@ export default function Login() {
             case 'STUDENT':
                 return '/student/dashboard';
             case 'PARENT':
-                return '/'; // Redirect về homepage cho PARENT
+                return '/';
             default:
                 return '/';
         }
     };
 
     const handleLoginSuccess = async (data) => {
-        // Prevent multiple calls
         if (hasNavigated.current) {
             console.log('Navigation already triggered, skipping...');
             return;
@@ -48,13 +46,10 @@ export default function Login() {
         console.log('Auth Response:', response);
         console.log('Full response data:', response?.data);
 
-        // Lấy role và firstLogin từ signin response
         let role = null;
         let firstLogin = false;
         
-        // Response structure: { message: "...", body: { role: "admin", firstLogin: true, ... } }
         if (response && response.data) {
-            // Thử cả response.data.body.role và response.data.role
             if (response.data.body && response.data.body.role) {
                 role = response.data.body.role;
                 firstLogin = response.data.body.firstLogin || false;
@@ -68,7 +63,6 @@ export default function Login() {
             }
         }
 
-        // Nếu không có trong response, gọi getAccess() để lấy role
         if (!role) {
             try {
                 const accessResponse = await getAccess();
@@ -83,7 +77,6 @@ export default function Login() {
             }
         }
 
-        // Lưu thông tin user vào localStorage
         if (role) {
             const normalizedRole = role.toUpperCase();
             const userData = {
@@ -97,14 +90,12 @@ export default function Login() {
             console.log('User data saved to localStorage:', userData);
         }
 
-        // Navigate đến trang tương ứng với role (chỉ navigate 1 lần)
         if (!hasNavigated.current) {
-            hasNavigated.current = true; // Đánh dấu đã navigate
+            hasNavigated.current = true;
             
             if (role) {
                 const normalizedRole = role.toUpperCase();
                 
-                // Nếu là PARENT và firstLogin = true, cần điền thông tin
                 if (normalizedRole === 'PARENT' && firstLogin) {
                     console.log('PARENT first login detected, user needs to fill information');
                 }
@@ -113,9 +104,8 @@ export default function Login() {
                 console.log('User role:', normalizedRole, '-> Navigating to:', route);
                 setTimeout(() => {
                     navigate(route);
-                }, 1000); // Delay 1 giây để user thấy thông báo thành công
+                }, 1000);
             } else {
-                // Nếu không có role, navigate về home
                 console.warn('No role found, navigating to home');
                 setTimeout(() => {
                     navigate('/');

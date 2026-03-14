@@ -25,7 +25,7 @@ const roleOptions = [
 
 const Register = () => {
     const navigate = useNavigate();
-    const [step, setStep] = useState(1); // 1: Google auth, 2: Role selection, 3: School form
+    const [step, setStep] = useState(1);
     const [email, setEmail] = useState('');
     const [name, setName] = useState('');
     const [picture, setPicture] = useState('');
@@ -38,7 +38,7 @@ const Register = () => {
         setName(data.name || '');
         setPicture(data.picture || '');
         setIsEmailVerified(true);
-        setStep(2); // Move to role selection
+        setStep(2);
     };
 
     const handleGoogleError = () => {
@@ -59,11 +59,9 @@ const Register = () => {
             if (response) {
                 console.log('Đăng ký thành công:', response);
                 
-                // Check if it's SCHOOL role, show school registration form
                 if (selectedRole === ROLES.SCHOOL) {
-                    setStep(3); // Show school registration form
+                    setStep(3);
                 } else if (selectedRole === ROLES.PARENT) {
-                    // PARENT registration successful, show success message and redirect to login
                     alert('Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.');
                     navigate('/login');
                 }
@@ -72,7 +70,6 @@ const Register = () => {
             console.error('Lỗi đăng ký:', error);
             const errorMessage = error?.response?.data?.message || error?.message || 'Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.';
             
-            // If user already exists, redirect to login
             if (error?.response?.status === 400 || errorMessage.includes('đã tồn tại') || errorMessage.includes('already exists')) {
                 alert('Tài khoản đã tồn tại. Vui lòng đăng nhập.');
                 navigate('/login');
@@ -88,7 +85,6 @@ const Register = () => {
         setStep(2);
     };
 
-    // If showing school registration form
     if (step === 3) {
         return <SchoolRegistrationForm email={email} onBack={handleBackToRoleSelection} />;
     }

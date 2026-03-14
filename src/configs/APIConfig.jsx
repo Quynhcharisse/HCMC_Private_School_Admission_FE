@@ -19,29 +19,26 @@ axiosClient.interceptors.response.use(
     async error => {
         const originalRequest = error.config;
 
-        // Kiểm tra nếu request đã được retry rồi thì không retry nữa
         if (originalRequest._retry) {
             return Promise.reject(error);
         }
 
         if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-            // Nếu là request refresh token thì không retry
-            if (originalRequest.url === "/auth/refresh" || originalRequest.url === "/account/access") {
-                console.error("Auth request failed, redirecting to login.");
-                // Không redirect ngay, để component tự xử lý
+            if (originalRequest.url === "/auth/refresh" || 
+                originalRequest.url === "/account/access" ||
+                originalRequest.url === "/auth/login" ||
+                originalRequest.url === "/auth/register") {
+                console.error("Auth request failed, skipping auto refresh.");
                 return Promise.reject(error);
             }
 
-            // Đánh dấu request đã được retry
             originalRequest._retry = true;
 
             try {
                 const refreshRes = await refreshToken();
                 if (refreshRes && refreshRes.status === 200) {
-                    // Retry original request sau khi refresh thành công
                     return axiosClient(originalRequest);
                 } else {
-                    // Refresh failed, chỉ redirect nếu không phải trang public
                     const publicPaths = ['/home', '/register', '/login', '/schools', '/guide', '/about', '/policy/privacy', '/tos', '/faq', '/'];
                     const isPublicPath = publicPaths.some(path => window.location.pathname === path || window.location.pathname.startsWith(path + '/'));
                     if (!isPublicPath && !window.location.pathname.includes('/login')) {
@@ -51,7 +48,6 @@ axiosClient.interceptors.response.use(
                 }
             } catch (refreshError) {
                 console.error("Token refresh failed:", refreshError);
-                // Refresh failed, chỉ redirect nếu không phải trang public
                 const publicPaths = ['/home', '/register', '/login', '/schools', '/guide', '/about', '/policy/privacy', '/tos', '/faq', '/'];
                 const isPublicPath = publicPaths.some(path => window.location.pathname === path || window.location.pathname.startsWith(path + '/'));
                 if (!isPublicPath && !window.location.pathname.includes('/login')) {

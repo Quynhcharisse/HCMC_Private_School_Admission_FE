@@ -25,13 +25,21 @@ export const signup = async (email, role) => {
     const response = await axiosClient.post("/auth/register", {
             email: email,
             role: role
+        }, {
+            headers: {
+                "X-Device-Type": "web"
+            }
         }
     );
     return response || null
 }
 
 export const registerSchool = async (registerData) => {
-    const response = await axiosClient.post("/auth/register", registerData);
+    const response = await axiosClient.post("/auth/register", registerData, {
+        headers: {
+            "X-Device-Type": "web"
+        }
+    });
     return response || null
 }
 
