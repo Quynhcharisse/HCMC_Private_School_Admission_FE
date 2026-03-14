@@ -568,24 +568,25 @@ export default function HomePage() {
                         </Typography>
                         <Button
                             variant="contained"
-                            size="large"
+                            size="medium"
                             onClick={handleRegisterClick}
                             sx={{
                                 bgcolor: 'white',
                                 color: '#1976d2',
-                                px: {xs: 6, md: 8},
-                                py: 2,
-                                fontSize: {xs: '1rem', md: '1.25rem'},
-                                fontWeight: 700,
-                                borderRadius: 3,
+                                px: {xs: 4, md: 5},
+                                py: {xs: 1.2, md: 1.4},
+                                fontSize: {xs: '0.95rem', md: '1.05rem'},
+                                fontWeight: 600,
+                                borderRadius: 2.5,
                                 textTransform: 'none',
-                                boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
-                                minWidth: {xs: '100%', sm: '280px'},
+                                boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+                                minWidth: {xs: '100%', sm: '240px'},
                                 mb: 3,
+                                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                                 '&:hover': {
-                                    bgcolor: '#f5f5f5',
-                                    boxShadow: '0 12px 32px rgba(0,0,0,0.25)',
-                                    transform: 'translateY(-3px) scale(1.02)'
+                                    bgcolor: '#f8f9fa',
+                                    boxShadow: '0 6px 20px rgba(0,0,0,0.2)',
+                                    transform: 'translateY(-2px)'
                                 }
                             }}
                         >

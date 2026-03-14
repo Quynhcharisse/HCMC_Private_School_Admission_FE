@@ -203,7 +203,14 @@ function MainHeader() {
                                     color: '#333',
                                     fontSize: 16,
                                     px: 2,
-                                    '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
+                                    py: 1,
+                                    borderRadius: 2,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                        color: '#1976d2',
+                                        bgcolor: 'rgba(25,118,210,0.08)',
+                                        transform: 'translateY(-1px)',
+                                    }
                                 }}
                                 onClick={() => window.location.href = '/'}
                             >
@@ -216,7 +223,14 @@ function MainHeader() {
                                     color: '#333',
                                     fontSize: 16,
                                     px: 2,
-                                    '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
+                                    py: 1,
+                                    borderRadius: 2,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                        color: '#1976d2',
+                                        bgcolor: 'rgba(25,118,210,0.08)',
+                                        transform: 'translateY(-1px)',
+                                    }
                                 }}
                                 onClick={() => window.location.href = '/saved-schools'}
                             >
@@ -229,7 +243,14 @@ function MainHeader() {
                                     color: '#333',
                                     fontSize: 16,
                                     px: 2,
-                                    '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
+                                    py: 1,
+                                    borderRadius: 2,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                        color: '#1976d2',
+                                        bgcolor: 'rgba(25,118,210,0.08)',
+                                        transform: 'translateY(-1px)',
+                                    }
                                 }}
                                 onClick={() => window.location.href = '/consultation-requests'}
                             >
@@ -242,7 +263,14 @@ function MainHeader() {
                                     color: '#333',
                                     fontSize: 16,
                                     px: 2,
-                                    '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
+                                    py: 1,
+                                    borderRadius: 2,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                        color: '#1976d2',
+                                        bgcolor: 'rgba(25,118,210,0.08)',
+                                        transform: 'translateY(-1px)',
+                                    }
                                 }}
                                 onClick={() => window.location.href = '/admission-news'}
                             >
@@ -259,7 +287,14 @@ function MainHeader() {
                                     color: '#333',
                                     fontSize: 16,
                                     px: 2,
-                                    '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
+                                    py: 1,
+                                    borderRadius: 2,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                        color: '#1976d2',
+                                        bgcolor: 'rgba(25,118,210,0.08)',
+                                        transform: 'translateY(-1px)',
+                                    }
                                 }}
                                 onClick={() => smoothScrollToSection('trường-nổi-bật')}
                             >
@@ -272,7 +307,14 @@ function MainHeader() {
                                     color: '#333',
                                     fontSize: 16,
                                     px: 2,
-                                    '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
+                                    py: 1,
+                                    borderRadius: 2,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                        color: '#1976d2',
+                                        bgcolor: 'rgba(25,118,210,0.08)',
+                                        transform: 'translateY(-1px)',
+                                    }
                                 }}
                                 onClick={() => smoothScrollToSection('quy-trình')}
                             >
@@ -285,7 +327,14 @@ function MainHeader() {
                                     color: '#333',
                                     fontSize: 16,
                                     px: 2,
-                                    '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
+                                    py: 1,
+                                    borderRadius: 2,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                        color: '#1976d2',
+                                        bgcolor: 'rgba(25,118,210,0.08)',
+                                        transform: 'translateY(-1px)',
+                                    }
                                 }}
                                 onClick={() => smoothScrollToSection('tin-tuyen-sinh')}
                             >
@@ -298,7 +347,14 @@ function MainHeader() {
                                     color: '#333',
                                     fontSize: 16,
                                     px: 2,
-                                    '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
+                                    py: 1,
+                                    borderRadius: 2,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                        color: '#1976d2',
+                                        bgcolor: 'rgba(25,118,210,0.08)',
+                                        transform: 'translateY(-1px)',
+                                    }
                                 }}
                                 onClick={() => smoothScrollToSection('tu-van-ngay')}
                             >
@@ -315,7 +371,14 @@ function MainHeader() {
                                     color: '#333',
                                     fontSize: 16,
                                     px: 2,
-                                    '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
+                                    py: 1,
+                                    borderRadius: 2,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                        color: '#1976d2',
+                                        bgcolor: 'rgba(25,118,210,0.08)',
+                                        transform: 'translateY(-1px)',
+                                    }
                                 }}
                                 onClick={() => window.location.href = '/home'}
                             >
@@ -328,7 +391,14 @@ function MainHeader() {
                                     color: '#333',
                                     fontSize: 16,
                                     px: 2,
-                                    '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
+                                    py: 1,
+                                    borderRadius: 2,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                        color: '#1976d2',
+                                        bgcolor: 'rgba(25,118,210,0.08)',
+                                        transform: 'translateY(-1px)',
+                                    }
                                 }}
                                 onClick={() => window.location.href = '/schools'}
                             >
@@ -341,7 +411,14 @@ function MainHeader() {
                                     color: '#333',
                                     fontSize: 16,
                                     px: 2,
-                                    '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
+                                    py: 1,
+                                    borderRadius: 2,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                        color: '#1976d2',
+                                        bgcolor: 'rgba(25,118,210,0.08)',
+                                        transform: 'translateY(-1px)',
+                                    }
                                 }}
                                 onClick={() => window.location.href = '/guide'}
                             >
@@ -354,7 +431,14 @@ function MainHeader() {
                                     color: '#333',
                                     fontSize: 16,
                                     px: 2,
-                                    '&:hover': {color: '#1976d2', bgcolor: 'rgba(25,118,210,0.1)'}
+                                    py: 1,
+                                    borderRadius: 2,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                        color: '#1976d2',
+                                        bgcolor: 'rgba(25,118,210,0.08)',
+                                        transform: 'translateY(-1px)',
+                                    }
                                 }}
                                 onClick={() => window.location.href = '/about'}
                             >
