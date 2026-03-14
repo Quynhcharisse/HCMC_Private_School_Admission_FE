@@ -25,6 +25,7 @@ import {
     InputLabel,
     Select
 } from "@mui/material";
+import TuitionFilter from "../ui/TuitionFilter";
 import {
     School as SchoolIcon,
     FamilyRestroom as ParentIcon,
@@ -269,6 +270,8 @@ const HCM_DISTRICTS = [
 export default function HomePage() {
     const [searchKeyword, setSearchKeyword] = React.useState('');
     const [selectedDistrict, setSelectedDistrict] = React.useState(HCM_DISTRICTS[0]);
+    const [tuitionMin, setTuitionMin] = React.useState(0);
+    const [tuitionMax, setTuitionMax] = React.useState(30);
     const [showParentFormModal, setShowParentFormModal] = React.useState(false);
     const [parentFormData, setParentFormData] = React.useState({
         occupation: '',
@@ -514,8 +517,8 @@ export default function HomePage() {
                     }
                 }}
             >
-                <Container maxWidth="lg" sx={{position: 'relative', zIndex: 1}}>
-                    <Box sx={{textAlign: 'center', maxWidth: '900px', mx: 'auto', px: {xs: 2, md: 0}}}>
+                <Container maxWidth={false} sx={{position: 'relative', zIndex: 1, maxWidth: '2400px', px: {xs: 2, md: 4}}}>
+                    <Box sx={{textAlign: 'center', width: '80%', mx: 'auto', px: {xs: 2, md: 0}}}>
                         <Box
                             sx={{
                                 display: 'inline-flex',
@@ -599,43 +602,40 @@ export default function HomePage() {
                                 display: 'flex',
                                 flexDirection: {xs: 'column', md: 'row'},
                                 alignItems: {xs: 'stretch', md: 'center'},
-                                gap: 2,
+                                gap: {xs: 2, md: 4},
                                 bgcolor: 'rgba(255,255,255,0.12)',
                                 borderRadius: 3,
                                 p: {xs: 2, md: 2.5},
                                 border: '1px solid rgba(255,255,255,0.35)',
-                                backdropFilter: 'blur(10px)'
+                                backdropFilter: 'blur(10px)',
+                                width: '100%',
+                                mx: 'auto'
                             }}
                         >
                             <TextField
                                 placeholder="Tìm kiếm trường học..."
                                 size="small"
-                                fullWidth
                                 value={searchKeyword}
                                 onChange={(e) => setSearchKeyword(e.target.value)}
                                 sx={{
                                     bgcolor: 'white',
                                     borderRadius: 2,
-                                    '& .MuiOutlinedInput-root': {
-                                        '& fieldset': {
-                                            borderColor: 'rgba(25,118,210,0.2)',
-                                        },
-                                        '&:hover fieldset': {
-                                            borderColor: 'rgba(25,118,210,0.4)',
-                                        },
-                                        '&.Mui-focused fieldset': {
-                                            borderColor: '#1976d2',
-                                            borderWidth: 2,
-                                        },
+                                    flex: 1,
+                                    minWidth: {xs: '100%', md: 100},
+                                    maxWidth: {xs: '100%', md: 550},
+                                    '& .MuiOutlinedInput-root fieldset': {
+                                        borderColor: 'rgba(25,118,210,0.2)',
+                                    },
+                                    '& .MuiOutlinedInput-root:hover fieldset': {
+                                        borderColor: 'rgba(25,118,210,0.4)',
+                                    },
+                                    '& .MuiOutlinedInput-root.Mui-focused fieldset': {
+                                        borderColor: '#1976d2',
+                                        borderWidth: 2,
                                     },
                                 }}
                             />
-                            <Box
-                                sx={{
-                                    position: 'relative',
-                                    minWidth: {xs: '100%', md: 260}
-                                }}
-                            >
+                            <Box sx={{position: 'relative', minWidth: {xs: '100%', md: 250}, maxWidth: {xs: '100%', md: 300}}}>
                                 <LocationIcon
                                     sx={{
                                         position: 'absolute',
@@ -660,16 +660,9 @@ export default function HomePage() {
                                         '& .MuiOutlinedInput-root': {
                                             borderRadius: 999,
                                             transition: 'all 0.25s ease',
-                                            '& fieldset': {
-                                                borderColor: 'rgba(25,118,210,0.25)'
-                                            },
-                                            '&:hover fieldset': {
-                                                borderColor: 'rgba(25,118,210,0.6)'
-                                            },
-                                            '&.Mui-focused fieldset': {
-                                                borderColor: '#ffffff',
-                                                borderWidth: 2
-                                            }
+                                            '& fieldset': {borderColor: 'rgba(25,118,210,0.25)'},
+                                            '&:hover fieldset': {borderColor: 'rgba(25,118,210,0.6)'},
+                                            '&.Mui-focused fieldset': {borderColor: '#ffffff', borderWidth: 2}
                                         },
                                         '& .MuiSelect-select': {
                                             pl: 4.5,
@@ -684,22 +677,24 @@ export default function HomePage() {
                                         MenuProps: {
                                             PaperProps: {
                                                 elevation: 6,
-                                                sx: {
-                                                    borderRadius: 2,
-                                                    mt: 1,
-                                                    overflow: 'hidden'
-                                                }
+                                                sx: {borderRadius: 2, mt: 1, overflow: 'hidden'}
                                             }
                                         }
                                     }}
                                 >
                                     {HCM_DISTRICTS.map((district) => (
-                                        <MenuItem key={district} value={district}>
-                                            {district}
-                                        </MenuItem>
+                                        <MenuItem key={district} value={district}>{district}</MenuItem>
                                     ))}
                                 </TextField>
                             </Box>
+                            <TuitionFilter
+                                tuitionMin={tuitionMin}
+                                tuitionMax={tuitionMax}
+                                onChange={(min, max) => {
+                                    setTuitionMin(min);
+                                    setTuitionMax(max);
+                                }}
+                            />
                             <Button
                                 variant="contained"
                                 sx={{
@@ -711,9 +706,7 @@ export default function HomePage() {
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    '&:hover': {
-                                        bgcolor: '#e3f2fd'
-                                    }
+                                    '&:hover': {bgcolor: '#e3f2fd'}
                                 }}
                             >
                                 <SearchIcon/>
