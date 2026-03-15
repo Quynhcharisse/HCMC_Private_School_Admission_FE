@@ -34,7 +34,19 @@ import EditIcon from "@mui/icons-material/Edit";
 import BlockIcon from "@mui/icons-material/Block";
 import PersonOffIcon from "@mui/icons-material/PersonOff";
 import SupportAgentIcon from "@mui/icons-material/SupportAgent";
+import CloseIcon from "@mui/icons-material/Close";
 import {enqueueSnackbar} from "notistack";
+
+const modalPaperSx = {
+    borderRadius: "16px",
+    boxShadow: "0 24px 48px rgba(0, 0, 0, 0.12)",
+    bgcolor: "white",
+    overflow: "hidden",
+};
+const modalBackdropSx = {
+    backdropFilter: "blur(6px)",
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+};
 
 const ROWS_PER_PAGE_OPTIONS = [5, 10, 25];
 
@@ -269,7 +281,7 @@ export default function SchoolCounselors() {
                                 textShadow: "0 1px 2px rgba(0,0,0,0.1)",
                             }}
                         >
-                            Counselor Management
+                            Quản lý Tư vấn viên
                         </Typography>
                         <Typography variant="body2" sx={{mt: 0.5, opacity: 0.95}}>
                             Quản lý tài khoản tư vấn viên của trường
@@ -294,7 +306,7 @@ export default function SchoolCounselors() {
                             },
                         }}
                     >
-                        Create Counselor Account
+                        Tạo tài khoản tư vấn viên
                     </Button>
                 </Box>
             </Box>
@@ -315,7 +327,7 @@ export default function SchoolCounselors() {
                         alignItems={{xs: "stretch", md: "center"}}
                     >
                         <TextField
-                            placeholder="Search by name or email..."
+                            placeholder="Tìm theo tên hoặc email..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             size="small"
@@ -336,16 +348,16 @@ export default function SchoolCounselors() {
                             }}
                         />
                         <FormControl size="small" sx={{minWidth: 160}}>
-                            <InputLabel>Status</InputLabel>
+                            <InputLabel>Trạng thái</InputLabel>
                             <Select
                                 value={statusFilter}
-                                label="Status"
+                                label="Trạng thái"
                                 onChange={(e) => setStatusFilter(e.target.value)}
                                 sx={{borderRadius: 2, bgcolor: "#f8fafc"}}
                             >
-                                <MenuItem value="all">All</MenuItem>
-                                <MenuItem value="active">Active</MenuItem>
-                                <MenuItem value="inactive">Inactive</MenuItem>
+                                <MenuItem value="all">Tất cả</MenuItem>
+                                <MenuItem value="active">Hoạt động</MenuItem>
+                                <MenuItem value="inactive">Ngưng hoạt động</MenuItem>
                             </Select>
                         </FormControl>
                     </Stack>
@@ -367,25 +379,25 @@ export default function SchoolCounselors() {
                         <TableHead>
                             <TableRow sx={{bgcolor: "#f8fafc"}}>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Counselor
+                                    Tư vấn viên
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
                                     Email
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Phone
+                                    Số điện thoại
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Specialty
+                                    Chuyên môn
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Status
+                                    Trạng thái
                                 </TableCell>
                                 <TableCell
                                     sx={{fontWeight: 700, color: "#1e293b", py: 2}}
                                     align="right"
                                 >
-                                    Actions
+                                    Thao tác
                                 </TableCell>
                             </TableRow>
                         </TableHead>
@@ -408,12 +420,12 @@ export default function SchoolCounselors() {
                                                 variant="h6"
                                                 sx={{color: "#64748b", fontWeight: 600}}
                                             >
-                                                No counselors yet
+                                                Chưa có tư vấn viên nào
                                             </Typography>
                                             <Typography variant="body2" sx={{color: "#94a3b8"}}>
                                                 {filteredCounselors.length === 0 && counselors.length > 0
-                                                    ? "No results match your search or filter."
-                                                    : "Create your first counselor account to get started."}
+                                                    ? "Không có kết quả phù hợp với tìm kiếm hoặc bộ lọc."
+                                                    : "Tạo tài khoản tư vấn viên đầu tiên để bắt đầu."}
                                             </Typography>
                                             {counselors.length === 0 && (
                                                 <Button
@@ -428,7 +440,7 @@ export default function SchoolCounselors() {
                                                         background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                                                     }}
                                                 >
-                                                    Create Counselor Account
+                                                    Tạo tài khoản tư vấn viên
                                                 </Button>
                                             )}
                                         </Box>
@@ -493,7 +505,7 @@ export default function SchoolCounselors() {
                                                             : "#64748b",
                                                 }}
                                             >
-                                                {row.status === "active" ? "Active" : "Inactive"}
+                                                {row.status === "active" ? "Hoạt động" : "Ngưng hoạt động"}
                                             </Box>
                                         </TableCell>
                                         <TableCell align="right">
@@ -509,7 +521,7 @@ export default function SchoolCounselors() {
                                                         color: "#64748b",
                                                         "&:hover": {color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)"},
                                                     }}
-                                                    title="View"
+                                                    title="Xem"
                                                 >
                                                     <VisibilityIcon fontSize="small"/>
                                                 </IconButton>
@@ -520,7 +532,7 @@ export default function SchoolCounselors() {
                                                         color: "#64748b",
                                                         "&:hover": {color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)"},
                                                     }}
-                                                    title="Edit"
+                                                    title="Sửa"
                                                 >
                                                     <EditIcon fontSize="small"/>
                                                 </IconButton>
@@ -532,7 +544,7 @@ export default function SchoolCounselors() {
                                                         color: "#64748b",
                                                         "&:hover": {color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)"},
                                                     }}
-                                                    title="Disable"
+                                                    title="Vô hiệu hóa"
                                                 >
                                                     <BlockIcon fontSize="small"/>
                                                 </IconButton>
@@ -572,27 +584,40 @@ export default function SchoolCounselors() {
                 onClose={handleCloseCreate}
                 fullWidth
                 maxWidth="sm"
-                PaperProps={{
-                    sx: {
-                        borderRadius: 3,
-                        boxShadow: "0 24px 48px rgba(13, 100, 222, 0.12)",
-                    },
-                }}
+                PaperProps={{sx: modalPaperSx}}
+                slotProps={{backdrop: {sx: modalBackdropSx}}}
             >
-                <DialogTitle
-                    sx={{
-                        fontWeight: 700,
-                        color: "#1e293b",
-                        borderBottom: "1px solid #e2e8f0",
-                        pb: 2,
-                    }}
-                >
-                    Create Counselor Account
-                </DialogTitle>
-                <DialogContent dividers sx={{pt: 2}}>
+                <Box sx={{px: 3, pt: 3, pb: 0}}>
+                    <Box
+                        sx={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            justifyContent: "space-between",
+                            gap: 2,
+                        }}
+                    >
+                        <Box>
+                            <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
+                                Tạo tài khoản tư vấn viên
+                            </Typography>
+                            <Typography variant="body2" sx={{color: "#64748b", mt: 0.5}}>
+                                Điền thông tin tư vấn viên mới bên dưới.
+                            </Typography>
+                        </Box>
+                        <IconButton
+                            onClick={handleCloseCreate}
+                            size="small"
+                            sx={{mt: -0.5, mr: -0.5}}
+                            aria-label="Đóng"
+                        >
+                            <CloseIcon fontSize="small"/>
+                        </IconButton>
+                    </Box>
+                </Box>
+                <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 1}}>
                     <Stack spacing={2.5}>
                         <TextField
-                            label="Full Name"
+                            label="Họ và tên"
                             name="fullName"
                             fullWidth
                             value={formValues.fullName}
@@ -613,14 +638,14 @@ export default function SchoolCounselors() {
                             required
                         />
                         <TextField
-                            label="Phone Number"
+                            label="Số điện thoại"
                             name="phone"
                             fullWidth
                             value={formValues.phone}
                             onChange={handleChange}
                         />
                         <TextField
-                            label="Password"
+                            label="Mật khẩu"
                             name="password"
                             type="password"
                             fullWidth
@@ -631,15 +656,15 @@ export default function SchoolCounselors() {
                             required
                         />
                         <TextField
-                            label="Specialty / Field"
+                            label="Chuyên môn / Lĩnh vực"
                             name="specialty"
                             fullWidth
                             value={formValues.specialty}
                             onChange={handleChange}
-                            placeholder="e.g. Tư vấn tuyển sinh THPT"
+                            placeholder="VD: Tư vấn tuyển sinh THPT"
                         />
                         <TextField
-                            label="Short Bio"
+                            label="Tiểu sử ngắn"
                             name="shortBio"
                             fullWidth
                             multiline
@@ -656,14 +681,14 @@ export default function SchoolCounselors() {
                             }}
                         >
                             <Typography sx={{fontWeight: 500, color: "#1e293b"}}>
-                                Status
+                                Trạng thái
                             </Typography>
                             <Stack direction="row" alignItems="center" spacing={1}>
                                 <Typography
                                     variant="body2"
                                     sx={{color: formValues.status ? "#16a34a" : "#94a3b8"}}
                                 >
-                                    {formValues.status ? "Active" : "Inactive"}
+                                    {formValues.status ? "Hoạt động" : "Ngưng hoạt động"}
                                 </Typography>
                                 <Switch
                                     checked={formValues.status}
@@ -681,9 +706,14 @@ export default function SchoolCounselors() {
                         </Box>
                     </Stack>
                 </DialogContent>
-                <DialogActions sx={{px: 3, py: 2, borderTop: "1px solid #e2e8f0"}}>
-                    <Button onClick={handleCloseCreate} color="inherit" sx={{textTransform: "none"}}>
-                        Cancel
+                <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
+                    <Button
+                        onClick={handleCloseCreate}
+                        variant="text"
+                        color="inherit"
+                        sx={{textTransform: "none", fontWeight: 500}}
+                    >
+                        Hủy
                     </Button>
                     <Button
                         onClick={handleCreateSubmit}
@@ -692,10 +722,11 @@ export default function SchoolCounselors() {
                             textTransform: "none",
                             fontWeight: 600,
                             borderRadius: 2,
+                            px: 3,
                             background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                         }}
                     >
-                        Create
+                        Tạo
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -709,7 +740,7 @@ export default function SchoolCounselors() {
                 PaperProps={{sx: {borderRadius: 3}}}
             >
                 <DialogTitle sx={{fontWeight: 700, color: "#1e293b"}}>
-                    Counselor Details
+                    Chi tiết tư vấn viên
                 </DialogTitle>
                 <DialogContent dividers>
                     {selectedCounselor && (
@@ -737,7 +768,7 @@ export default function SchoolCounselors() {
                             </Stack>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Phone
+                                    Số điện thoại
                                 </Typography>
                                 <Typography variant="body1">
                                     {selectedCounselor.phone || "—"}
@@ -745,7 +776,7 @@ export default function SchoolCounselors() {
                             </Box>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Specialty
+                                    Chuyên môn
                                 </Typography>
                                 <Typography variant="body1">
                                     {selectedCounselor.specialty || "—"}
@@ -753,7 +784,7 @@ export default function SchoolCounselors() {
                             </Box>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Bio
+                                    Tiểu sử
                                 </Typography>
                                 <Typography variant="body1">
                                     {selectedCounselor.shortBio || "—"}
@@ -761,7 +792,7 @@ export default function SchoolCounselors() {
                             </Box>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Status
+                                    Trạng thái
                                 </Typography>
                                 <Box component="span" sx={{mt: 0.5, display: "inline-block"}}>
                                     <Box
@@ -783,8 +814,8 @@ export default function SchoolCounselors() {
                                         }}
                                     >
                                         {selectedCounselor.status === "active"
-                                            ? "Active"
-                                            : "Inactive"}
+                                            ? "Hoạt động"
+                                            : "Ngưng hoạt động"}
                                     </Box>
                                 </Box>
                             </Box>
@@ -793,7 +824,7 @@ export default function SchoolCounselors() {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setViewModalOpen(false)} color="inherit">
-                        Close
+                        Đóng
                     </Button>
                     <Button
                         variant="contained"
@@ -807,7 +838,7 @@ export default function SchoolCounselors() {
                             textTransform: "none",
                         }}
                     >
-                        Edit
+                        Sửa
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -818,15 +849,40 @@ export default function SchoolCounselors() {
                 onClose={() => setEditModalOpen(false)}
                 fullWidth
                 maxWidth="sm"
-                PaperProps={{sx: {borderRadius: 3}}}
+                PaperProps={{sx: modalPaperSx}}
+                slotProps={{backdrop: {sx: modalBackdropSx}}}
             >
-                <DialogTitle sx={{fontWeight: 700, color: "#1e293b"}}>
-                    Edit Counselor
-                </DialogTitle>
-                <DialogContent dividers>
-                    <Stack spacing={2.5} sx={{pt: 0.5}}>
+                <Box sx={{px: 3, pt: 3, pb: 0}}>
+                    <Box
+                        sx={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            justifyContent: "space-between",
+                            gap: 2,
+                        }}
+                    >
+                        <Box>
+                            <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
+                                Chỉnh sửa tư vấn viên
+                            </Typography>
+                            <Typography variant="body2" sx={{color: "#64748b", mt: 0.5}}>
+                                Cập nhật thông tin tư vấn viên.
+                            </Typography>
+                        </Box>
+                        <IconButton
+                            onClick={() => setEditModalOpen(false)}
+                            size="small"
+                            sx={{mt: -0.5, mr: -0.5}}
+                            aria-label="Đóng"
+                        >
+                            <CloseIcon fontSize="small"/>
+                        </IconButton>
+                    </Box>
+                </Box>
+                <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 1}}>
+                    <Stack spacing={2.5}>
                         <TextField
-                            label="Full Name"
+                            label="Họ và tên"
                             name="fullName"
                             fullWidth
                             value={formValues.fullName}
@@ -845,21 +901,21 @@ export default function SchoolCounselors() {
                             helperText={formErrors.email}
                         />
                         <TextField
-                            label="Phone Number"
+                            label="Số điện thoại"
                             name="phone"
                             fullWidth
                             value={formValues.phone}
                             onChange={handleChange}
                         />
                         <TextField
-                            label="Specialty / Field"
+                            label="Chuyên môn / Lĩnh vực"
                             name="specialty"
                             fullWidth
                             value={formValues.specialty}
                             onChange={handleChange}
                         />
                         <TextField
-                            label="Short Bio"
+                            label="Tiểu sử ngắn"
                             name="shortBio"
                             fullWidth
                             multiline
@@ -874,13 +930,13 @@ export default function SchoolCounselors() {
                                 justifyContent: "space-between",
                             }}
                         >
-                            <Typography sx={{fontWeight: 500}}>Status</Typography>
+                            <Typography sx={{fontWeight: 500}}>Trạng thái</Typography>
                             <Stack direction="row" alignItems="center" spacing={1}>
                                 <Typography
                                     variant="body2"
                                     sx={{color: formValues.status ? "#16a34a" : "#94a3b8"}}
                                 >
-                                    {formValues.status ? "Active" : "Inactive"}
+                                    {formValues.status ? "Hoạt động" : "Ngưng hoạt động"}
                                 </Typography>
                                 <Switch
                                     checked={formValues.status}
@@ -896,19 +952,27 @@ export default function SchoolCounselors() {
                         </Box>
                     </Stack>
                 </DialogContent>
-                <DialogActions sx={{px: 3, py: 2}}>
-                    <Button onClick={() => setEditModalOpen(false)} color="inherit">
-                        Cancel
+                <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
+                    <Button
+                        onClick={() => setEditModalOpen(false)}
+                        variant="text"
+                        color="inherit"
+                        sx={{textTransform: "none", fontWeight: 500}}
+                    >
+                        Hủy
                     </Button>
                     <Button
                         onClick={handleEditSubmit}
                         variant="contained"
                         sx={{
-                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                             textTransform: "none",
+                            fontWeight: 600,
+                            borderRadius: 2,
+                            px: 3,
+                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                         }}
                     >
-                        Save
+                        Lưu
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -920,18 +984,18 @@ export default function SchoolCounselors() {
                 PaperProps={{sx: {borderRadius: 3, p: 1}}}
             >
                 <DialogTitle sx={{display: "flex", alignItems: "center", gap: 1}}>
-                    <PersonOffIcon color="error"/> Disable Counselor Account
+                    <PersonOffIcon color="error"/> Vô hiệu hóa tài khoản tư vấn viên
                 </DialogTitle>
                 <DialogContent>
                     <Typography>
-                        Are you sure you want to disable the account for{" "}
-                        <strong>{selectedCounselor?.fullName}</strong>? They will no longer
-                        be able to sign in or access the platform.
+                        Bạn có chắc muốn vô hiệu hóa tài khoản của{" "}
+                        <strong>{selectedCounselor?.fullName}</strong>? Tư vấn viên này sẽ không thể
+                        đăng nhập hoặc truy cập hệ thống nữa.
                     </Typography>
                 </DialogContent>
                 <DialogActions sx={{px: 3, pb: 2}}>
                     <Button onClick={() => setDisableConfirmOpen(false)} color="inherit">
-                        Cancel
+                        Hủy
                     </Button>
                     <Button
                         variant="contained"
@@ -939,7 +1003,7 @@ export default function SchoolCounselors() {
                         onClick={handleDisableConfirm}
                         startIcon={<BlockIcon/>}
                     >
-                        Disable
+                        Vô hiệu hóa
                     </Button>
                 </DialogActions>
             </Dialog>

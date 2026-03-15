@@ -17,7 +17,7 @@ const menuItems = [
         path: "/school/campus",
     },
     {
-        text: "Quản lý Tư vấn viên",
+        text: "Tư vấn viên",
         icon: <SupportAgentIcon/>,
         path: "/school/counselors",
     },

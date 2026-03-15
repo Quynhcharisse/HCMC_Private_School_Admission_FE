@@ -34,7 +34,19 @@ import BlockIcon from "@mui/icons-material/Block";
 import ApartmentIcon from "@mui/icons-material/Apartment";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import PersonOffIcon from "@mui/icons-material/PersonOff";
+import CloseIcon from "@mui/icons-material/Close";
 import {enqueueSnackbar} from "notistack";
+
+const modalPaperSx = {
+    borderRadius: "16px",
+    boxShadow: "0 24px 48px rgba(0, 0, 0, 0.12)",
+    bgcolor: "white",
+    overflow: "hidden",
+};
+const modalBackdropSx = {
+    backdropFilter: "blur(6px)",
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+};
 
 const ROWS_PER_PAGE_OPTIONS = [5, 10, 25];
 
@@ -171,7 +183,7 @@ export default function SchoolCampus() {
 
     const validateForm = () => {
         const errors = {};
-        if (!formValues.name?.trim()) errors.name = "Campus name is required";
+        if (!formValues.name?.trim()) errors.name = "Tên cơ sở là bắt buộc";
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -208,7 +220,7 @@ export default function SchoolCampus() {
             ...payload,
         };
         setCampuses((prev) => [newCampus, ...prev]);
-        enqueueSnackbar("Campus created successfully", {variant: "success"});
+        enqueueSnackbar("Tạo cơ sở thành công", {variant: "success"});
         handleCloseCreate();
     };
 
@@ -242,7 +254,7 @@ export default function SchoolCampus() {
                 c.id === selectedCampus.id ? {...c, ...payload} : c
             )
         );
-        enqueueSnackbar("Campus updated successfully", {variant: "success"});
+        enqueueSnackbar("Cập nhật cơ sở thành công", {variant: "success"});
         setEditModalOpen(false);
     };
 
@@ -258,7 +270,7 @@ export default function SchoolCampus() {
                 c.id === selectedCampus.id ? {...c, status: "inactive"} : c
             )
         );
-        enqueueSnackbar("Campus has been disabled", {variant: "info"});
+        enqueueSnackbar("Đã vô hiệu hóa cơ sở", {variant: "info"});
         setDisableConfirmOpen(false);
         setSelectedCampus(null);
     };
@@ -293,10 +305,10 @@ export default function SchoolCampus() {
                                 textShadow: "0 1px 2px rgba(0,0,0,0.1)",
                             }}
                         >
-                            Campus Management
+                            Quản lý Cơ sở
                         </Typography>
                         <Typography variant="body2" sx={{mt: 0.5, opacity: 0.95}}>
-                            Manage all campuses of your school
+                            Quản lý tất cả cơ sở của trường bạn
                         </Typography>
                     </Box>
                     <Button
@@ -318,7 +330,7 @@ export default function SchoolCampus() {
                             },
                         }}
                     >
-                        Create Campus
+                        Tạo cơ sở
                     </Button>
                 </Box>
             </Box>
@@ -341,7 +353,7 @@ export default function SchoolCampus() {
                         flexWrap="wrap"
                     >
                         <TextField
-                            placeholder="Search by name or address..."
+                            placeholder="Tìm theo tên hoặc địa chỉ..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             size="small"
@@ -363,27 +375,27 @@ export default function SchoolCampus() {
                             }}
                         />
                         <FormControl size="small" sx={{minWidth: 140}}>
-                            <InputLabel>Status</InputLabel>
+                            <InputLabel>Trạng thái</InputLabel>
                             <Select
                                 value={statusFilter}
-                                label="Status"
+                                label="Trạng thái"
                                 onChange={(e) => setStatusFilter(e.target.value)}
                                 sx={{borderRadius: 2, bgcolor: "white"}}
                             >
-                                <MenuItem value="all">All</MenuItem>
-                                <MenuItem value="active">Active</MenuItem>
-                                <MenuItem value="inactive">Inactive</MenuItem>
+                                <MenuItem value="all">Tất cả</MenuItem>
+                                <MenuItem value="active">Hoạt động</MenuItem>
+                                <MenuItem value="inactive">Ngưng hoạt động</MenuItem>
                             </Select>
                         </FormControl>
                         <FormControl size="small" sx={{minWidth: 160}}>
-                            <InputLabel>City / Location</InputLabel>
+                            <InputLabel>Quận / Khu vực</InputLabel>
                             <Select
                                 value={cityFilter}
-                                label="City / Location"
+                                label="Quận / Khu vực"
                                 onChange={(e) => setCityFilter(e.target.value)}
                                 sx={{borderRadius: 2, bgcolor: "white"}}
                             >
-                                <MenuItem value="all">All</MenuItem>
+                                <MenuItem value="all">Tất cả</MenuItem>
                                 {cities.map((city) => (
                                     <MenuItem key={city} value={city}>
                                         {city}
@@ -411,28 +423,28 @@ export default function SchoolCampus() {
                         <TableHead>
                             <TableRow sx={{bgcolor: "#f1f5f9"}}>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Campus
+                                    Cơ sở
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Address
+                                    Địa chỉ
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    City
+                                    Quận
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Phone
+                                    Số điện thoại
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Counselors
+                                    Tư vấn viên
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Status
+                                    Trạng thái
                                 </TableCell>
                                 <TableCell
                                     sx={{fontWeight: 700, color: "#1e293b", py: 2}}
                                     align="right"
                                 >
-                                    Actions
+                                    Thao tác
                                 </TableCell>
                             </TableRow>
                         </TableHead>
@@ -455,12 +467,12 @@ export default function SchoolCampus() {
                                                 variant="h6"
                                                 sx={{color: "#64748b", fontWeight: 600}}
                                             >
-                                                No campuses yet
+                                                Chưa có cơ sở nào
                                             </Typography>
                                             <Typography variant="body2" sx={{color: "#94a3b8"}}>
                                                 {filteredCampuses.length === 0 && campuses.length > 0
-                                                    ? "No results match your search or filter."
-                                                    : "Create your first campus to get started."}
+                                                    ? "Không có kết quả phù hợp với tìm kiếm hoặc bộ lọc."
+                                                    : "Tạo cơ sở đầu tiên để bắt đầu."}
                                             </Typography>
                                             {campuses.length === 0 && (
                                                 <Button
@@ -475,7 +487,7 @@ export default function SchoolCampus() {
                                                         background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                                                     }}
                                                 >
-                                                    Create Campus
+                                                    Tạo cơ sở
                                                 </Button>
                                             )}
                                         </Box>
@@ -546,7 +558,7 @@ export default function SchoolCampus() {
                                                             : "#64748b",
                                                 }}
                                             >
-                                                {row.status === "active" ? "Active" : "Inactive"}
+                                                {row.status === "active" ? "Hoạt động" : "Ngưng hoạt động"}
                                             </Box>
                                         </TableCell>
                                         <TableCell align="right">
@@ -562,7 +574,7 @@ export default function SchoolCampus() {
                                                         color: "#64748b",
                                                         "&:hover": {color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)"},
                                                     }}
-                                                    title="View details"
+                                                    title="Xem chi tiết"
                                                 >
                                                     <VisibilityIcon fontSize="small"/>
                                                 </IconButton>
@@ -573,7 +585,7 @@ export default function SchoolCampus() {
                                                         color: "#64748b",
                                                         "&:hover": {color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)"},
                                                     }}
-                                                    title="Edit"
+                                                    title="Sửa"
                                                 >
                                                     <EditIcon fontSize="small"/>
                                                 </IconButton>
@@ -585,7 +597,7 @@ export default function SchoolCampus() {
                                                         color: "#64748b",
                                                         "&:hover": {color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)"},
                                                     }}
-                                                    title="Deactivate"
+                                                    title="Vô hiệu hóa"
                                                 >
                                                     <BlockIcon fontSize="small"/>
                                                 </IconButton>
@@ -626,27 +638,40 @@ export default function SchoolCampus() {
                 onClose={handleCloseCreate}
                 fullWidth
                 maxWidth="sm"
-                PaperProps={{
-                    sx: {
-                        borderRadius: 3,
-                        boxShadow: "0 24px 48px rgba(13, 100, 222, 0.12)",
-                    },
-                }}
+                PaperProps={{sx: modalPaperSx}}
+                slotProps={{backdrop: {sx: modalBackdropSx}}}
             >
-                <DialogTitle
-                    sx={{
-                        fontWeight: 700,
-                        color: "#1e293b",
-                        borderBottom: "1px solid #e2e8f0",
-                        pb: 2,
-                    }}
-                >
-                    Create Campus
-                </DialogTitle>
-                <DialogContent dividers sx={{pt: 2, bgcolor: "#F8FAFC"}}>
+                <Box sx={{px: 3, pt: 3, pb: 0}}>
+                    <Box
+                        sx={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            justifyContent: "space-between",
+                            gap: 2,
+                        }}
+                    >
+                        <Box>
+                            <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
+                                Tạo cơ sở
+                            </Typography>
+                            <Typography variant="body2" sx={{color: "#64748b", mt: 0.5}}>
+                                Điền thông tin cơ sở mới bên dưới.
+                            </Typography>
+                        </Box>
+                        <IconButton
+                            onClick={handleCloseCreate}
+                            size="small"
+                            sx={{mt: -0.5, mr: -0.5}}
+                            aria-label="Đóng"
+                        >
+                            <CloseIcon fontSize="small"/>
+                        </IconButton>
+                    </Box>
+                </Box>
+                <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 1}}>
                     <Stack spacing={2.5}>
                         <TextField
-                            label="Campus Name"
+                            label="Tên cơ sở"
                             name="name"
                             fullWidth
                             value={formValues.name}
@@ -656,21 +681,21 @@ export default function SchoolCampus() {
                             required
                         />
                         <TextField
-                            label="Address"
+                            label="Địa chỉ"
                             name="address"
                             fullWidth
                             value={formValues.address}
                             onChange={handleChange}
                         />
                         <TextField
-                            label="City / District"
+                            label="Quận / Thành phố"
                             name="city"
                             fullWidth
                             value={formValues.city}
                             onChange={handleChange}
                         />
                         <TextField
-                            label="Phone Number"
+                            label="Số điện thoại"
                             name="phone"
                             fullWidth
                             value={formValues.phone}
@@ -685,7 +710,7 @@ export default function SchoolCampus() {
                             onChange={handleChange}
                         />
                         <TextField
-                            label="Description"
+                            label="Mô tả"
                             name="description"
                             fullWidth
                             multiline
@@ -695,7 +720,7 @@ export default function SchoolCampus() {
                         />
                         <Box>
                             <Typography variant="body2" sx={{mb: 1, color: "#64748b"}}>
-                                Campus Image
+                                Ảnh cơ sở
                             </Typography>
                             <Button
                                 component="label"
@@ -703,7 +728,7 @@ export default function SchoolCampus() {
                                 startIcon={<CloudUploadIcon/>}
                                 sx={{borderRadius: 2, textTransform: "none"}}
                             >
-                                Upload image
+                                Tải ảnh lên
                                 <input
                                     type="file"
                                     hidden
@@ -734,14 +759,14 @@ export default function SchoolCampus() {
                             }}
                         >
                             <Typography sx={{fontWeight: 500, color: "#1e293b"}}>
-                                Status
+                                Trạng thái
                             </Typography>
                             <Stack direction="row" alignItems="center" spacing={1}>
                                 <Typography
                                     variant="body2"
                                     sx={{color: formValues.status ? "#16a34a" : "#94a3b8"}}
                                 >
-                                    {formValues.status ? "Active" : "Inactive"}
+                                    {formValues.status ? "Hoạt động" : "Ngưng hoạt động"}
                                 </Typography>
                                 <Switch
                                     checked={formValues.status}
@@ -757,9 +782,14 @@ export default function SchoolCampus() {
                         </Box>
                     </Stack>
                 </DialogContent>
-                <DialogActions sx={{px: 3, py: 2, borderTop: "1px solid #e2e8f0", bgcolor: "white"}}>
-                    <Button onClick={handleCloseCreate} color="inherit" sx={{textTransform: "none"}}>
-                        Cancel
+                <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
+                    <Button
+                        onClick={handleCloseCreate}
+                        variant="text"
+                        color="inherit"
+                        sx={{textTransform: "none", fontWeight: 500}}
+                    >
+                        Hủy
                     </Button>
                     <Button
                         onClick={handleCreateSubmit}
@@ -768,10 +798,11 @@ export default function SchoolCampus() {
                             textTransform: "none",
                             fontWeight: 600,
                             borderRadius: 2,
+                            px: 3,
                             background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                         }}
                     >
-                        Create Campus
+                        Tạo cơ sở
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -785,7 +816,7 @@ export default function SchoolCampus() {
                 PaperProps={{sx: {borderRadius: 3}}}
             >
                 <DialogTitle sx={{fontWeight: 700, color: "#1e293b"}}>
-                    Campus Details
+                    Chi tiết cơ sở
                 </DialogTitle>
                 <DialogContent dividers>
                     {selectedCampus && (
@@ -804,7 +835,7 @@ export default function SchoolCampus() {
                             />
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Campus Name
+                                    Tên cơ sở
                                 </Typography>
                                 <Typography variant="h6" sx={{fontWeight: 600}}>
                                     {selectedCampus.name}
@@ -812,7 +843,7 @@ export default function SchoolCampus() {
                             </Box>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Address
+                                    Địa chỉ
                                 </Typography>
                                 <Typography variant="body1">
                                     {selectedCampus.address || "—"}
@@ -820,7 +851,7 @@ export default function SchoolCampus() {
                             </Box>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    City / District
+                                    Quận / Thành phố
                                 </Typography>
                                 <Typography variant="body1">
                                     {selectedCampus.city || "—"}
@@ -828,7 +859,7 @@ export default function SchoolCampus() {
                             </Box>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Phone
+                                    Số điện thoại
                                 </Typography>
                                 <Typography variant="body1">
                                     {selectedCampus.phone || "—"}
@@ -844,7 +875,7 @@ export default function SchoolCampus() {
                             </Box>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Description
+                                    Mô tả
                                 </Typography>
                                 <Typography variant="body1">
                                     {selectedCampus.description || "—"}
@@ -852,7 +883,7 @@ export default function SchoolCampus() {
                             </Box>
                             <Box sx={{display: "flex", gap: 2, alignItems: "center"}}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Status
+                                    Trạng thái
                                 </Typography>
                                 <Box
                                     component="span"
@@ -872,12 +903,12 @@ export default function SchoolCampus() {
                                                 : "#64748b",
                                     }}
                                 >
-                                    {selectedCampus.status === "active" ? "Active" : "Inactive"}
+                                    {selectedCampus.status === "active" ? "Hoạt động" : "Ngưng hoạt động"}
                                 </Box>
                             </Box>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Number of Counselors
+                                    Số tư vấn viên
                                 </Typography>
                                 <Typography variant="body1">
                                     {selectedCampus.counselorCount ?? 0}
@@ -888,7 +919,7 @@ export default function SchoolCampus() {
                 </DialogContent>
                 <DialogActions>
                     <Button onClick={() => setViewModalOpen(false)} color="inherit">
-                        Close
+                        Đóng
                     </Button>
                     <Button
                         variant="contained"
@@ -902,7 +933,7 @@ export default function SchoolCampus() {
                             textTransform: "none",
                         }}
                     >
-                        Edit
+                        Sửa
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -913,15 +944,40 @@ export default function SchoolCampus() {
                 onClose={() => setEditModalOpen(false)}
                 fullWidth
                 maxWidth="sm"
-                PaperProps={{sx: {borderRadius: 3}}}
+                PaperProps={{sx: modalPaperSx}}
+                slotProps={{backdrop: {sx: modalBackdropSx}}}
             >
-                <DialogTitle sx={{fontWeight: 700, color: "#1e293b"}}>
-                    Edit Campus
-                </DialogTitle>
-                <DialogContent dividers sx={{bgcolor: "#F8FAFC"}}>
-                    <Stack spacing={2.5} sx={{pt: 0.5}}>
+                <Box sx={{px: 3, pt: 3, pb: 0}}>
+                    <Box
+                        sx={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            justifyContent: "space-between",
+                            gap: 2,
+                        }}
+                    >
+                        <Box>
+                            <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
+                                Chỉnh sửa cơ sở
+                            </Typography>
+                            <Typography variant="body2" sx={{color: "#64748b", mt: 0.5}}>
+                                Cập nhật thông tin cơ sở.
+                            </Typography>
+                        </Box>
+                        <IconButton
+                            onClick={() => setEditModalOpen(false)}
+                            size="small"
+                            sx={{mt: -0.5, mr: -0.5}}
+                            aria-label="Đóng"
+                        >
+                            <CloseIcon fontSize="small"/>
+                        </IconButton>
+                    </Box>
+                </Box>
+                <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 1}}>
+                    <Stack spacing={2.5}>
                         <TextField
-                            label="Campus Name"
+                            label="Tên cơ sở"
                             name="name"
                             fullWidth
                             value={formValues.name}
@@ -930,21 +986,21 @@ export default function SchoolCampus() {
                             helperText={formErrors.name}
                         />
                         <TextField
-                            label="Address"
+                            label="Địa chỉ"
                             name="address"
                             fullWidth
                             value={formValues.address}
                             onChange={handleChange}
                         />
                         <TextField
-                            label="City / District"
+                            label="Quận / Thành phố"
                             name="city"
                             fullWidth
                             value={formValues.city}
                             onChange={handleChange}
                         />
                         <TextField
-                            label="Phone Number"
+                            label="Số điện thoại"
                             name="phone"
                             fullWidth
                             value={formValues.phone}
@@ -959,7 +1015,7 @@ export default function SchoolCampus() {
                             onChange={handleChange}
                         />
                         <TextField
-                            label="Description"
+                            label="Mô tả"
                             name="description"
                             fullWidth
                             multiline
@@ -969,7 +1025,7 @@ export default function SchoolCampus() {
                         />
                         <Box>
                             <Typography variant="body2" sx={{mb: 1, color: "#64748b"}}>
-                                Campus Image
+                                Ảnh cơ sở
                             </Typography>
                             <Button
                                 component="label"
@@ -977,7 +1033,7 @@ export default function SchoolCampus() {
                                 startIcon={<CloudUploadIcon/>}
                                 sx={{borderRadius: 2, textTransform: "none"}}
                             >
-                                Upload image
+                                Tải ảnh lên
                                 <input
                                     type="file"
                                     hidden
@@ -1006,13 +1062,13 @@ export default function SchoolCampus() {
                                 justifyContent: "space-between",
                             }}
                         >
-                            <Typography sx={{fontWeight: 500}}>Status</Typography>
+                            <Typography sx={{fontWeight: 500}}>Trạng thái</Typography>
                             <Stack direction="row" alignItems="center" spacing={1}>
                                 <Typography
                                     variant="body2"
                                     sx={{color: formValues.status ? "#16a34a" : "#94a3b8"}}
                                 >
-                                    {formValues.status ? "Active" : "Inactive"}
+                                    {formValues.status ? "Hoạt động" : "Ngưng hoạt động"}
                                 </Typography>
                                 <Switch
                                     checked={formValues.status}
@@ -1028,19 +1084,27 @@ export default function SchoolCampus() {
                         </Box>
                     </Stack>
                 </DialogContent>
-                <DialogActions sx={{px: 3, py: 2}}>
-                    <Button onClick={() => setEditModalOpen(false)} color="inherit">
-                        Cancel
+                <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
+                    <Button
+                        onClick={() => setEditModalOpen(false)}
+                        variant="text"
+                        color="inherit"
+                        sx={{textTransform: "none", fontWeight: 500}}
+                    >
+                        Hủy
                     </Button>
                     <Button
                         onClick={handleEditSubmit}
                         variant="contained"
                         sx={{
-                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                             textTransform: "none",
+                            fontWeight: 600,
+                            borderRadius: 2,
+                            px: 3,
+                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                         }}
                     >
-                        Save
+                        Lưu
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -1052,18 +1116,18 @@ export default function SchoolCampus() {
                 PaperProps={{sx: {borderRadius: 3, p: 1}}}
             >
                 <DialogTitle sx={{display: "flex", alignItems: "center", gap: 1}}>
-                    <PersonOffIcon color="error"/> Deactivate Campus
+                    <PersonOffIcon color="error"/> Vô hiệu hóa cơ sở
                 </DialogTitle>
                 <DialogContent>
                     <Typography>
-                        Are you sure you want to deactivate{" "}
-                        <strong>{selectedCampus?.name}</strong>? This campus will be
-                        marked as inactive and may be hidden from parents.
+                        Bạn có chắc muốn vô hiệu hóa{" "}
+                        <strong>{selectedCampus?.name}</strong>? Cơ sở này sẽ được
+                        đánh dấu là ngưng hoạt động và có thể bị ẩn khỏi phụ huynh.
                     </Typography>
                 </DialogContent>
                 <DialogActions sx={{px: 3, pb: 2}}>
                     <Button onClick={() => setDisableConfirmOpen(false)} color="inherit">
-                        Cancel
+                        Hủy
                     </Button>
                     <Button
                         variant="contained"
@@ -1071,7 +1135,7 @@ export default function SchoolCampus() {
                         onClick={handleDisableConfirm}
                         startIcon={<BlockIcon/>}
                     >
-                        Deactivate
+                        Vô hiệu hóa
                     </Button>
                 </DialogActions>
             </Dialog>
