@@ -1,4 +1,4 @@
-import React, {useState, useMemo} from "react";
+import React, {useState, useMemo, useEffect} from "react";
 import {
     Box,
     Button,
@@ -36,6 +36,7 @@ import PersonOffIcon from "@mui/icons-material/PersonOff";
 import SupportAgentIcon from "@mui/icons-material/SupportAgent";
 import CloseIcon from "@mui/icons-material/Close";
 import {enqueueSnackbar} from "notistack";
+import {fetchCounsellors, createCounsellor} from "../../../services/CounsellorService.jsx";
 
 const modalPaperSx = {
     borderRadius: "16px",
@@ -50,8 +51,8 @@ const modalBackdropSx = {
 
 const ROWS_PER_PAGE_OPTIONS = [5, 10, 25];
 
-// Mock data for UI demo
-const initialMockCounselors = [
+// Mock data cho fallback khi API lỗi
+const initialMockCounsellors = [
     {
         id: 1,
         fullName: "Nguyễn Thị Mai",
@@ -81,21 +82,40 @@ const initialMockCounselors = [
         shortBio: "Tư vấn định hướng và hỗ trợ hồ sơ.",
         avatar: null,
         status: "inactive",
+        campusName: "Cơ sở 1 - Quận 1",
+        employeeCode: "MOCK-EMP-003",
+        registerDate: "2024-03-10",
     },
 ];
 
 const emptyForm = {
-    fullName: "",
     email: "",
-    phone: "",
-    password: "",
-    specialty: "",
-    shortBio: "",
     status: true,
 };
 
+const mapCounsellorFromApi = (dto) => ({
+    id: dto.id,
+    fullName: dto.name || "",
+    email: dto.account?.email || "",
+    phone: "",
+    specialty: "",
+    shortBio: "",
+    avatar: null,
+    status: dto.account?.status === "ACCOUNT_ACTIVE" ? "active" : "inactive",
+    campusName: dto.campusName,
+    employeeCode: dto.employeeCode,
+    registerDate: dto.account?.registerDate || "",
+});
+
+const formatDate = (d) => {
+    if (!d) return "—";
+    const date = new Date(d);
+    if (Number.isNaN(date.getTime())) return d;
+    return date.toLocaleDateString("vi-VN");
+};
+
 export default function SchoolCounselors() {
-    const [counselors, setCounselors] = useState(initialMockCounselors);
+    const [counselors, setCounselors] = useState([]);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
     const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -107,6 +127,26 @@ export default function SchoolCounselors() {
     const [formErrors, setFormErrors] = useState({});
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
+
+    useEffect(() => {
+        const loadCounsellors = async () => {
+            try {
+                const res = await fetchCounsellors();
+                const list = res?.data?.body;
+                if (res && res.status === 200 && Array.isArray(list)) {
+                    setCounselors(list.map(mapCounsellorFromApi));
+                } else {
+                    setCounselors(initialMockCounsellors);
+                }
+            } catch (error) {
+                console.error("Fetch counsellors error:", error);
+                enqueueSnackbar("Không tải được danh sách tư vấn viên", {variant: "error"});
+                setCounselors(initialMockCounsellors);
+            }
+        };
+
+        loadCounsellors();
+    }, []);
 
     const handleChange = (e) => {
         const {name, value} = e.target;
@@ -142,9 +182,7 @@ export default function SchoolCounselors() {
 
     const validateCreate = () => {
         const errors = {};
-        if (!formValues.fullName?.trim()) errors.fullName = "Họ tên là bắt buộc";
         if (!formValues.email?.trim()) errors.email = "Email là bắt buộc";
-        if (!formValues.password?.trim()) errors.password = "Mật khẩu là bắt buộc";
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -159,21 +197,23 @@ export default function SchoolCounselors() {
         setCreateModalOpen(false);
     };
 
-    const handleCreateSubmit = () => {
+    const handleCreateSubmit = async () => {
         if (!validateCreate()) return;
-        const newCounselor = {
-            id: Date.now(),
-            fullName: formValues.fullName.trim(),
-            email: formValues.email.trim(),
-            phone: formValues.phone?.trim() || "",
-            specialty: formValues.specialty?.trim() || "",
-            shortBio: formValues.shortBio?.trim() || "",
-            status: formValues.status ? "active" : "inactive",
-            avatar: null,
-        };
-        setCounselors((prev) => [newCounselor, ...prev]);
-        enqueueSnackbar("Tạo tài khoản tư vấn viên thành công", {variant: "success"});
-        setCreateModalOpen(false);
+        try {
+            const res = await createCounsellor(formValues.email.trim());
+            const dto = res?.data?.body;
+            if (res && res.status === 200 && dto) {
+                const newCounsellor = mapCounsellorFromApi(dto);
+                setCounselors((prev) => [newCounsellor, ...prev]);
+                enqueueSnackbar("Tạo tài khoản tư vấn viên thành công", {variant: "success"});
+                setCreateModalOpen(false);
+            } else {
+                enqueueSnackbar("Không thể tạo tư vấn viên", {variant: "error"});
+            }
+        } catch (error) {
+            console.error("Create counsellor error:", error);
+            enqueueSnackbar("Lỗi khi tạo tư vấn viên", {variant: "error"});
+        }
     };
 
     const handleOpenView = (counselor) => {
@@ -385,10 +425,7 @@ export default function SchoolCounselors() {
                                     Email
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Số điện thoại
-                                </TableCell>
-                                <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Chuyên môn
+                                    Cơ sở
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
                                     Trạng thái
@@ -404,7 +441,7 @@ export default function SchoolCounselors() {
                         <TableBody>
                             {paginatedCounselors.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} align="center" sx={{py: 8}}>
+                                    <TableCell colSpan={5} align="center" sx={{py: 8}}>
                                         <Box
                                             sx={{
                                                 display: "flex",
@@ -481,10 +518,7 @@ export default function SchoolCounselors() {
                                             {row.email}
                                         </TableCell>
                                         <TableCell sx={{color: "#64748b"}}>
-                                            {row.phone || "—"}
-                                        </TableCell>
-                                        <TableCell sx={{color: "#64748b"}}>
-                                            {row.specialty || "—"}
+                                            {row.campusName || "—"}
                                         </TableCell>
                                         <TableCell>
                                             <Box
@@ -617,17 +651,7 @@ export default function SchoolCounselors() {
                 <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 1}}>
                     <Stack spacing={2.5}>
                         <TextField
-                            label="Họ và tên"
-                            name="fullName"
-                            fullWidth
-                            value={formValues.fullName}
-                            onChange={handleChange}
-                            error={!!formErrors.fullName}
-                            helperText={formErrors.fullName}
-                            required
-                        />
-                        <TextField
-                            label="Email"
+                            label="Email tư vấn viên"
                             name="email"
                             type="email"
                             fullWidth
@@ -637,73 +661,11 @@ export default function SchoolCounselors() {
                             helperText={formErrors.email}
                             required
                         />
-                        <TextField
-                            label="Số điện thoại"
-                            name="phone"
-                            fullWidth
-                            value={formValues.phone}
-                            onChange={handleChange}
-                        />
-                        <TextField
-                            label="Mật khẩu"
-                            name="password"
-                            type="password"
-                            fullWidth
-                            value={formValues.password}
-                            onChange={handleChange}
-                            error={!!formErrors.password}
-                            helperText={formErrors.password}
-                            required
-                        />
-                        <TextField
-                            label="Chuyên môn / Lĩnh vực"
-                            name="specialty"
-                            fullWidth
-                            value={formValues.specialty}
-                            onChange={handleChange}
-                            placeholder="VD: Tư vấn tuyển sinh THPT"
-                        />
-                        <TextField
-                            label="Tiểu sử ngắn"
-                            name="shortBio"
-                            fullWidth
-                            multiline
-                            rows={3}
-                            value={formValues.shortBio}
-                            onChange={handleChange}
-                        />
-                        <Box
-                            sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                py: 0.5,
-                            }}
-                        >
-                            <Typography sx={{fontWeight: 500, color: "#1e293b"}}>
-                                Trạng thái
-                            </Typography>
-                            <Stack direction="row" alignItems="center" spacing={1}>
-                                <Typography
-                                    variant="body2"
-                                    sx={{color: formValues.status ? "#16a34a" : "#94a3b8"}}
-                                >
-                                    {formValues.status ? "Hoạt động" : "Ngưng hoạt động"}
-                                </Typography>
-                                <Switch
-                                    checked={formValues.status}
-                                    onChange={handleStatusToggle}
-                                    sx={{
-                                        "& .MuiSwitch-switchBase.Mui-checked": {
-                                            color: "#0D64DE",
-                                        },
-                                        "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
-                                            backgroundColor: "#0D64DE",
-                                        },
-                                    }}
-                                />
-                            </Stack>
-                        </Box>
+                        <Typography variant="body2" sx={{color: "#64748b", fontSize: 13}}>
+                            Hệ thống sẽ tạo tài khoản với role <strong>COUNSELLOR</strong> dựa trên địa chỉ
+                            email. Các thông tin khác (họ tên, mật khẩu, chuyên môn) sẽ được cập nhật sau khi
+                            tư vấn viên đăng nhập lần đầu hoặc qua trang quản trị.
+                        </Typography>
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
@@ -737,12 +699,32 @@ export default function SchoolCounselors() {
                 onClose={() => setViewModalOpen(false)}
                 maxWidth="sm"
                 fullWidth
-                PaperProps={{sx: {borderRadius: 3}}}
+                PaperProps={{sx: modalPaperSx}}
+                slotProps={{backdrop: {sx: modalBackdropSx}}}
             >
-                <DialogTitle sx={{fontWeight: 700, color: "#1e293b"}}>
-                    Chi tiết tư vấn viên
-                </DialogTitle>
-                <DialogContent dividers>
+                <Box sx={{px: 3, pt: 3, pb: 0}}>
+                    <Box
+                        sx={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            justifyContent: "space-between",
+                            gap: 2,
+                        }}
+                    >
+                        <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
+                            Chi tiết tư vấn viên
+                        </Typography>
+                        <IconButton
+                            onClick={() => setViewModalOpen(false)}
+                            size="small"
+                            sx={{mt: -0.5, mr: -0.5}}
+                            aria-label="Đóng"
+                        >
+                            <CloseIcon fontSize="small"/>
+                        </IconButton>
+                    </Box>
+                </Box>
+                <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 2}}>
                     {selectedCounselor && (
                         <Stack spacing={2}>
                             <Stack direction="row" alignItems="center" spacing={2}>
@@ -768,26 +750,26 @@ export default function SchoolCounselors() {
                             </Stack>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Số điện thoại
+                                    Cơ sở
                                 </Typography>
                                 <Typography variant="body1">
-                                    {selectedCounselor.phone || "—"}
+                                    {selectedCounselor.campusName || "—"}
                                 </Typography>
                             </Box>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Chuyên môn
+                                    Mã nhân viên
                                 </Typography>
                                 <Typography variant="body1">
-                                    {selectedCounselor.specialty || "—"}
+                                    {selectedCounselor.employeeCode || "—"}
                                 </Typography>
                             </Box>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Tiểu sử
+                                    Ngày đăng ký
                                 </Typography>
                                 <Typography variant="body1">
-                                    {selectedCounselor.shortBio || "—"}
+                                    {formatDate(selectedCounselor.registerDate)}
                                 </Typography>
                             </Box>
                             <Box>
@@ -822,7 +804,7 @@ export default function SchoolCounselors() {
                         </Stack>
                     )}
                 </DialogContent>
-                <DialogActions>
+                <DialogActions sx={{px: 3, py: 2, borderTop: "1px solid #e2e8f0"}}>
                     <Button onClick={() => setViewModalOpen(false)} color="inherit">
                         Đóng
                     </Button>
