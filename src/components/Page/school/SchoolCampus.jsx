@@ -222,7 +222,8 @@ export default function SchoolCampus() {
                 const res = await listCampuses();
                 const list = res?.data?.body;
                 if (res && res.status === 200 && Array.isArray(list)) {
-                    setCampuses(list.map((dto) => mapCampusFromApi(dto)));
+                    // Mỗi phần tử body đã chứa cả campus và account
+                    setCampuses(list.map((dto) => mapCampusFromApi(dto, dto.account)));
                 } else {
                     setCampuses(initialMockCampuses);
                 }
@@ -602,7 +603,7 @@ export default function SchoolCampus() {
                                                             : "#64748b",
                                                 }}
                                             >
-                                                {row.status === "active" ? "Hoạt động" : "Ngưng hoạt động"}
+                                                {row.status === "active" ? "Xác thực" : "Chưa xác thực"}
                                             </Box>
                                         </TableCell>
                                         <TableCell align="right">
@@ -827,14 +828,6 @@ export default function SchoolCampus() {
                             </Box>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Quận / Thành phố
-                                </Typography>
-                                <Typography variant="body1">
-                                    {selectedCampus.city || "—"}
-                                </Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="caption" color="text.secondary">
                                     Số điện thoại
                                 </Typography>
                                 <Typography variant="body1">
@@ -847,14 +840,6 @@ export default function SchoolCampus() {
                                 </Typography>
                                 <Typography variant="body1">
                                     {selectedCampus.email || "—"}
-                                </Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="caption" color="text.secondary">
-                                    Mô tả
-                                </Typography>
-                                <Typography variant="body1">
-                                    {selectedCampus.description || "—"}
                                 </Typography>
                             </Box>
                             <Box>
@@ -887,16 +872,35 @@ export default function SchoolCampus() {
                                                 : "#64748b",
                                     }}
                                 >
-                                    {selectedCampus.status === "active" ? "Hoạt động" : "Ngưng hoạt động"}
+                                    {selectedCampus.status === "active" ? "Xác thực" : "Chưa xác thực"}
                                 </Box>
                             </Box>
-                            <Box>
+                            <Box sx={{display: "flex", gap: 2, alignItems: "center"}}>
                                 <Typography variant="caption" color="text.secondary">
                                     Trạng thái tài khoản
                                 </Typography>
-                                <Typography variant="body1">
-                                    {selectedCampus.accountStatus || "—"}
-                                </Typography>
+                                <Box
+                                    component="span"
+                                    sx={{
+                                        px: 1.5,
+                                        py: 0.5,
+                                        borderRadius: 999,
+                                        fontSize: 12,
+                                        fontWeight: 600,
+                                        bgcolor:
+                                            selectedCampus.accountStatus === "ACCOUNT_ACTIVE"
+                                                ? "rgba(34, 197, 94, 0.12)"
+                                                : "rgba(148, 163, 184, 0.2)",
+                                        color:
+                                            selectedCampus.accountStatus === "ACCOUNT_ACTIVE"
+                                                ? "#16a34a"
+                                                : "#64748b",
+                                    }}
+                                >
+                                    {selectedCampus.accountStatus === "ACCOUNT_ACTIVE"
+                                        ? "Hoạt động"
+                                        : "Ngưng hoạt động"}
+                                </Box>
                             </Box>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
