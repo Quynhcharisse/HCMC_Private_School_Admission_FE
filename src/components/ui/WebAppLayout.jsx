@@ -1,5 +1,5 @@
 import React, {useEffect} from "react";
-import {Box} from "@mui/material";
+import {Box, Fade} from "@mui/material";
 import {Outlet, useLocation} from "react-router-dom";
 import Header, {ScrollTopButton} from "../partials/Header.jsx";
 import Footer from "../partials/Footer.jsx";
@@ -42,9 +42,20 @@ export default function WebAppLayout() {
             }}
         >
             {isAuthPage ? <AuthHeader/> : <Header/>}
-            <Box component="main" sx={{flex: 1, width: '100vw', minHeight: '60vh', bgcolor: '#f8fafc', overflow: isAuthPage ? 'hidden' : 'auto'}}>
-                <Outlet/>
-            </Box>
+            <Fade in key={location.pathname} timeout={{ enter: 250, exit: 150 }}>
+                <Box
+                    component="main"
+                    sx={{
+                        flex: 1,
+                        width: '100vw',
+                        minHeight: '60vh',
+                        bgcolor: '#f8fafc',
+                        overflow: isAuthPage ? 'hidden' : 'auto'
+                    }}
+                >
+                    <Outlet/>
+                </Box>
+            </Fade>
             {!isAuthPage && <Footer/>}
             {!isAuthPage && <ScrollTopButton/>}
         </Box>

@@ -35,11 +35,6 @@ export default function AdminDashboard() {
                     fontWeight: 700, 
                     color: '#1e293b', 
                     mb: 3,
-                    animation: 'fadeIn 0.5s ease-out',
-                    '@keyframes fadeIn': {
-                        '0%': {opacity: 0},
-                        '100%': {opacity: 1},
-                    },
                 }}
             >
                 Bảng Điều Khiển
@@ -54,17 +49,6 @@ export default function AdminDashboard() {
                                 borderRadius: 3,
                                 border: '1px solid #e0e7ff',
                                 transition: 'all 0.3s ease',
-                                animation: `fadeInUp 0.5s ease-out ${index * 0.1}s both`,
-                                '@keyframes fadeInUp': {
-                                    '0%': {
-                                        opacity: 0,
-                                        transform: 'translateY(20px)',
-                                    },
-                                    '100%': {
-                                        opacity: 1,
-                                        transform: 'translateY(0)',
-                                    },
-                                },
                                 '&:hover': {
                                     transform: 'translateY(-4px)',
                                     boxShadow: '0 8px 24px rgba(29, 78, 216, 0.15)',
@@ -104,17 +88,6 @@ export default function AdminDashboard() {
                     mt: 4,
                     borderRadius: 3,
                     border: '1px solid #e0e7ff',
-                    animation: 'fadeInUp 0.6s ease-out 0.3s both',
-                    '@keyframes fadeInUp': {
-                        '0%': {
-                            opacity: 0,
-                            transform: 'translateY(20px)',
-                        },
-                        '100%': {
-                            opacity: 1,
-                            transform: 'translateY(0)',
-                        },
-                    },
                 }}
             >
                 <CardContent>
