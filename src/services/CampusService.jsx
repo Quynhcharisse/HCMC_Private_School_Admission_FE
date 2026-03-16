@@ -1,7 +1,7 @@
 import axiosClient from "../configs/APIConfig.jsx";
 
 export const listCampuses = async () => {
-    const response = await axiosClient.post("/school/campus/list");
+    const response = await axiosClient.get("/school/campus/list");
     return response || null;
 };
 
