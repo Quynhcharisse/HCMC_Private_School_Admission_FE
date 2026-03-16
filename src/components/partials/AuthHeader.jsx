@@ -4,17 +4,19 @@ import {
     Avatar,
     Box,
     Container,
+    IconButton,
     Menu,
     MenuItem,
     Typography
 } from "@mui/material";
+import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import {enqueueSnackbar} from "notistack";
 import {signout, getProfile} from "../../services/AccountService.jsx";
 import logo from "../../assets/logo.png";
 
-export default function AuthHeader() {
+export default function AuthHeader({showSidebarToggle = false, onToggleSidebar}) {
     const [anchorEl, setAnchorEl] = useState(null);
     const [profileData, setProfileData] = useState(null);
     const [loadingProfile, setLoadingProfile] = useState(false);
@@ -111,36 +113,55 @@ export default function AuthHeader() {
                         justifyContent: 'space-between',
                     }}
                 >
-                    <Box
-                        sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 1.5,
-                            cursor: isAdmin ? 'default' : 'pointer',
-                        }}
-                        onClick={handleGoHome}
-                    >
+                    <Box sx={{display: 'flex', alignItems: 'center', gap: 2}}>
+                        {showSidebarToggle && (
+                            <IconButton
+                                edge="start"
+                                color="inherit"
+                                onClick={onToggleSidebar}
+                                sx={{
+                                    mr: 1,
+                                    color: '#1e293b',
+                                    bgcolor: 'rgba(15,23,42,0.04)',
+                                    '&:hover': {
+                                        bgcolor: 'rgba(15,23,42,0.08)',
+                                    },
+                                }}
+                            >
+                                <MenuIcon/>
+                            </IconButton>
+                        )}
                         <Box
-                            component="img"
-                            src={logo}
-                            alt="EduBridgeHCM"
                             sx={{
-                                height: 40,
-                                width: 40,
-                                borderRadius: '50%',
-                                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.35)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1.5,
+                                cursor: isAdmin ? 'default' : 'pointer',
                             }}
-                        />
-                        <Typography
-                            variant="h6"
-                            sx={{
-                                fontWeight: 800,
-                                color: '#1d4ed8',
-                                letterSpacing: 0.5,
-                            }}
+                            onClick={handleGoHome}
                         >
-                            EduBridgeHCM
-                        </Typography>
+                            <Box
+                                component="img"
+                                src={logo}
+                                alt="EduBridgeHCM"
+                                sx={{
+                                    height: 40,
+                                    width: 40,
+                                    borderRadius: '50%',
+                                    boxShadow: '0 4px 12px rgba(37, 99, 235, 0.35)',
+                                }}
+                            />
+                            <Typography
+                                variant="h6"
+                                sx={{
+                                    fontWeight: 800,
+                                    color: '#1d4ed8',
+                                    letterSpacing: 0.5,
+                                }}
+                            >
+                                EduBridgeHCM
+                            </Typography>
+                        </Box>
                     </Box>
 
                     {isSignedIn && (
