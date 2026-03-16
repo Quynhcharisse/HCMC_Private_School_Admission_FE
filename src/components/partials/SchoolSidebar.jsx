@@ -3,6 +3,7 @@ import {Box, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typogra
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import ApartmentIcon from "@mui/icons-material/Apartment";
 import SupportAgentIcon from "@mui/icons-material/SupportAgent";
+import CampaignIcon from "@mui/icons-material/Campaign";
 import {useNavigate} from "react-router-dom";
 
 const menuItems = [
@@ -20,6 +21,11 @@ const menuItems = [
         text: "Tư vấn viên",
         icon: <SupportAgentIcon/>,
         path: "/school/counselors",
+    },
+    {
+        text: "Chiến dịch tuyển sinh",
+        icon: <CampaignIcon/>,
+        path: "/school/campaigns",
     },
 ];
 
@@ -51,7 +57,9 @@ export default function SchoolSidebar({currentPath}) {
             </Box>
             <List sx={{flex: 1, pt: 2}}>
                 {menuItems.map((item) => {
-                    const isActive = currentPath === item.path;
+                    const isActive =
+                        currentPath === item.path ||
+                        (item.path !== "/school/dashboard" && currentPath.startsWith(item.path + "/"));
                     return (
                         <ListItem key={item.path} disablePadding>
                             <ListItemButton
