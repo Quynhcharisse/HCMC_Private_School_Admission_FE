@@ -58,6 +58,7 @@ const initialMockCampuses = [
         name: "Cơ sở 1 - Quận 1",
         address: "123 Nguyễn Huệ, Phường Bến Nghé",
         city: "Quận 1",
+        district: "Quận 1",
         phone: "028 3822 1234",
         email: "campus1@school.edu.vn",
         description: "Cơ sở chính, gần trung tâm thành phố.",
@@ -70,6 +71,7 @@ const initialMockCampuses = [
         name: "Cơ sở 2 - Bình Thạnh",
         address: "456 Điện Biên Phủ, Phường 25",
         city: "Bình Thạnh",
+        district: "Bình Thạnh",
         phone: "028 3899 5678",
         email: "campus2@school.edu.vn",
         description: "Cơ sở mở rộng, khu vực phía Bắc.",
@@ -82,6 +84,7 @@ const initialMockCampuses = [
         name: "Cơ sở 3 - Thủ Đức",
         address: "789 Võ Văn Ngân, Phường Linh Chiểu",
         city: "Thủ Đức",
+        district: "Thủ Đức",
         phone: "028 3726 9012",
         email: "campus3@school.edu.vn",
         description: "Cơ sở tại thành phố Thủ Đức.",
@@ -91,12 +94,23 @@ const initialMockCampuses = [
     },
 ];
 
+const BOARDING_TYPE_OPTIONS = [
+    { value: "NONE", label: "Không nội trú" },
+    { value: "FULL_BOARDING", label: "Nội trú toàn phần" },
+    { value: "SEMI_BOARDING", label: "Nội trú bán phần" },
+    { value: "BOTH", label: "Cả hai" },
+];
+
 const emptyForm = {
     name: "",
     address: "",
     city: "",
+    district: "",
     phone: "",
     email: "",
+    latitude: "",
+    longitude: "",
+    boardingType: "NONE",
     description: "",
     imageFile: null,
     imagePreview: null,
@@ -112,11 +126,17 @@ const formatDate = (d) => {
     return date.toLocaleDateString("vi-VN");
 };
 
+const getBoardingTypeLabelVi = (boardingType, boardingTypeLabel) => {
+    const match = BOARDING_TYPE_OPTIONS.find((o) => o.value === boardingType);
+    if (match) return match.label;
+    return boardingTypeLabel || "—";
+};
+
 export default function SchoolCampus() {
     const [campuses, setCampuses] = useState([]);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
-    const [cityFilter, setCityFilter] = useState("all");
+    const [districtFilter, setDistrictFilter] = useState("all");
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [viewModalOpen, setViewModalOpen] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
@@ -127,8 +147,8 @@ export default function SchoolCampus() {
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
 
-    const cities = useMemo(() => {
-        const set = new Set(campuses.map((c) => c.city).filter(Boolean));
+    const districts = useMemo(() => {
+        const set = new Set(campuses.map((c) => c.district).filter(Boolean));
         return Array.from(set).sort();
     }, [campuses]);
 
@@ -178,11 +198,11 @@ export default function SchoolCampus() {
         } else if (statusFilter === "inactive") {
             list = list.filter((c) => c.status === "inactive");
         }
-        if (cityFilter !== "all") {
-            list = list.filter((c) => c.city === cityFilter);
+        if (districtFilter !== "all") {
+            list = list.filter((c) => c.district === districtFilter);
         }
         return list;
-    }, [campuses, search, statusFilter, cityFilter]);
+    }, [campuses, search, statusFilter, districtFilter]);
 
     const paginatedCampuses = useMemo(() => {
         const start = page * rowsPerPage;
@@ -201,18 +221,21 @@ export default function SchoolCampus() {
         id: dto.id,
         name: dto.name,
         address: dto.address,
-        city: "", // API hiện chưa cung cấp city riêng, có thể parse sau
+        city: dto.city ?? "",
+        district: dto.district ?? "",
+        latitude: dto.latitude,
+        longitude: dto.longitude,
+        boardingType: dto.boardingType ?? "NONE",
+        boardingTypeLabel: dto.boardingTypeLabel ?? "",
         phone: dto.phoneNumber,
-        email: account?.email || "",
+        email: account?.email ?? "",
         description: "",
         imageUrl: null,
-        // Thông tin từ campus
         isPrimaryBranch: dto.isPrimaryBranch ?? false,
         campusStatus: dto.status,
         status: dto.status === "VERIFIED" ? "active" : "inactive",
-        // Thông tin từ account
-        accountStatus: account?.status || "",
-        accountRegisterDate: account?.registerDate || "",
+        accountStatus: account?.status ?? "",
+        accountRegisterDate: account?.registerDate ?? "",
         counselorCount: 0,
     });
 
@@ -258,11 +281,17 @@ export default function SchoolCampus() {
                 name: formValues.name.trim(),
                 address: formValues.address?.trim() || "",
                 phone: formValues.phone?.trim() || "",
+                city: formValues.city?.trim() || undefined,
+                district: formValues.district?.trim() || undefined,
+                latitude: formValues.latitude !== "" ? formValues.latitude : undefined,
+                longitude: formValues.longitude !== "" ? formValues.longitude : undefined,
+                boardingType: formValues.boardingType || "NONE",
             });
 
             const body = res?.data?.body;
             if (res && res.status === 200 && body?.campus) {
-                const newCampus = mapCampusFromApi(body.campus, body.account);
+                const account = body.campus.account ?? body.account;
+                const newCampus = mapCampusFromApi(body.campus, account);
                 setCampuses((prev) => [newCampus, ...prev]);
                 enqueueSnackbar("Tạo cơ sở thành công", {variant: "success"});
                 handleCloseCreate();
@@ -286,8 +315,12 @@ export default function SchoolCampus() {
             name: campus.name || "",
             address: campus.address || "",
             city: campus.city || "",
+            district: campus.district || "",
             phone: campus.phone || "",
             email: campus.email || "",
+            latitude: campus.latitude ?? "",
+            longitude: campus.longitude ?? "",
+            boardingType: campus.boardingType || "NONE",
             description: campus.description || "",
             imageFile: null,
             imagePreview: campus.imageUrl || null,
@@ -441,15 +474,15 @@ export default function SchoolCampus() {
                         <FormControl size="small" sx={{minWidth: 160}}>
                             <InputLabel>Quận / Khu vực</InputLabel>
                             <Select
-                                value={cityFilter}
+                                value={districtFilter}
                                 label="Quận / Khu vực"
-                                onChange={(e) => setCityFilter(e.target.value)}
+                                onChange={(e) => setDistrictFilter(e.target.value)}
                                 sx={{borderRadius: 2, bgcolor: "white"}}
                             >
                                 <MenuItem value="all">Tất cả</MenuItem>
-                                {cities.map((city) => (
-                                    <MenuItem key={city} value={city}>
-                                        {city}
+                                {districts.map((district) => (
+                                    <MenuItem key={district} value={district}>
+                                        {district}
                                     </MenuItem>
                                 ))}
                             </Select>
@@ -733,6 +766,61 @@ export default function SchoolCampus() {
                             onChange={handleChange}
                             placeholder="8, Hồ Đắc Di, Tây Thạnh Tân Phú, TP Hồ Chí Minh"
                         />
+                        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                            <TextField
+                                label="Thành phố"
+                                name="city"
+                                fullWidth
+                                value={formValues.city}
+                                onChange={handleChange}
+                                placeholder="TP Hồ Chí Minh"
+                            />
+                            <TextField
+                                label="Quận / Huyện"
+                                name="district"
+                                fullWidth
+                                value={formValues.district}
+                                onChange={handleChange}
+                                placeholder="Tân Phú"
+                            />
+                        </Stack>
+                        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                            <TextField
+                                label="Vĩ độ"
+                                name="latitude"
+                                type="number"
+                                fullWidth
+                                value={formValues.latitude}
+                                onChange={handleChange}
+                                placeholder="10.8012"
+                                inputProps={{ step: "any" }}
+                            />
+                            <TextField
+                                label="Kinh độ"
+                                name="longitude"
+                                type="number"
+                                fullWidth
+                                value={formValues.longitude}
+                                onChange={handleChange}
+                                placeholder="106.7104"
+                                inputProps={{ step: "any" }}
+                            />
+                        </Stack>
+                        <FormControl fullWidth>
+                            <InputLabel>Loại nội trú</InputLabel>
+                            <Select
+                                name="boardingType"
+                                value={formValues.boardingType}
+                                label="Loại nội trú"
+                                onChange={handleChange}
+                            >
+                                {BOARDING_TYPE_OPTIONS.map((opt) => (
+                                    <MenuItem key={opt.value} value={opt.value}>
+                                        {opt.label}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
                         <TextField
                             label="Số điện thoại"
                             name="phone"
@@ -826,6 +914,39 @@ export default function SchoolCampus() {
                                     {selectedCampus.address || "—"}
                                 </Typography>
                             </Box>
+                            {(selectedCampus.city || selectedCampus.district) && (
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">
+                                        Thành phố / Quận
+                                    </Typography>
+                                    <Typography variant="body1">
+                                        {[selectedCampus.city, selectedCampus.district].filter(Boolean).join(" / ") || "—"}
+                                    </Typography>
+                                </Box>
+                            )}
+                            {(selectedCampus.latitude != null || selectedCampus.longitude != null) && (
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">
+                                        Tọa độ
+                                    </Typography>
+                                    <Typography variant="body1">
+                                        {[selectedCampus.latitude, selectedCampus.longitude].filter((v) => v != null && v !== "").join(", ") || "—"}
+                                    </Typography>
+                                </Box>
+                            )}
+                            {(selectedCampus.boardingType || selectedCampus.boardingTypeLabel) && (
+                                <Box>
+                                    <Typography variant="caption" color="text.secondary">
+                                        Loại nội trú
+                                    </Typography>
+                                    <Typography variant="body1">
+                                        {getBoardingTypeLabelVi(
+                                            selectedCampus.boardingType,
+                                            selectedCampus.boardingTypeLabel
+                                        )}
+                                    </Typography>
+                                </Box>
+                            )}
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
                                     Số điện thoại
