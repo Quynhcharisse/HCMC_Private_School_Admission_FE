@@ -11,7 +11,6 @@ import {
 } from "@mui/material";
 import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
-import DashboardIcon from '@mui/icons-material/Dashboard';
 import {enqueueSnackbar} from "notistack";
 import {signout, getProfile} from "../../services/AccountService.jsx";
 import logo from "../../assets/logo.png";
@@ -245,9 +244,15 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar})
                                             )}
                                             {userInfo?.role && (
                                                 <Typography sx={{fontSize: 11, color: '#1d4ed8', mt: 0.5}}>
-                                                    {userInfo.role === 'STUDENT' ? 'Học sinh' : 
-                                                     userInfo.role === 'SCHOOL' ? 'Trường học' : 
-                                                     userInfo.role === 'ADMIN' ? 'Quản trị viên' : userInfo.role}
+                                                    {userInfo.role === 'STUDENT'
+                                                        ? 'Học sinh'
+                                                        : userInfo.role === 'SCHOOL'
+                                                        ? 'Trường học'
+                                                        : userInfo.role === 'ADMIN'
+                                                        ? 'Quản trị viên'
+                                                        : userInfo.role === 'COUNSELLOR'
+                                                        ? 'Tư vấn viên'
+                                                        : userInfo.role}
                                                 </Typography>
                                             )}
                                         </Box>
@@ -258,11 +263,13 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar})
                                         handleUserMenuClose();
                                         if (userInfo) {
                                             if (userInfo.role === 'STUDENT') {
-                                                window.location.href = '/student/dashboard';
+                                                window.location.href = '/student/profile';
                                             } else if (userInfo.role === 'SCHOOL') {
-                                                window.location.href = '/school/dashboard';
+                                                window.location.href = '/school/profile';
                                             } else if (userInfo.role === 'ADMIN') {
-                                                window.location.href = '/admin/dashboard';
+                                                window.location.href = '/admin/profile';
+                                            } else if (userInfo.role === 'COUNSELLOR') {
+                                                window.location.href = '/counsellor/profile';
                                             } else {
                                                 window.location.href = '/home';
                                             }
@@ -282,6 +289,7 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar})
                                         transition: 'background 0.2s, color 0.2s',
                                     }}
                                 >
+                                    Hồ sơ cá nhân
                                 </MenuItem>
                                 <MenuItem
                                     onClick={() => {

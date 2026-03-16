@@ -18,6 +18,7 @@ const AdminSchoolVerification = lazy(() => import("./components/Page/admin/Admin
 const SchoolLayout = lazy(() => import("./components/layouts/SchoolLayout.jsx"));
 const SchoolDashboard = lazy(() => import("./components/Page/school/SchoolDashboard.jsx"));
 const SchoolCampus = lazy(() => import("./components/Page/school/SchoolCampus.jsx"));
+const UserProfilePage = lazy(() => import("./components/Page/UserProfilePage.jsx"));
 const SchoolCounselors = lazy(() => import("./components/Page/school/SchoolCounselors.jsx"));
 const SchoolCampaigns = lazy(() => import("./components/Page/school/SchoolCampaigns.jsx"));
 const SchoolCampaignOfferings = lazy(() =>
@@ -185,7 +186,7 @@ const router = createBrowserRouter([
                 path: 'profile',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
-                        <div>Student Profile</div>
+                        <UserProfilePage/>
                     </Suspense>
                 )
             }
@@ -251,7 +252,7 @@ const router = createBrowserRouter([
                 path: 'profile',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
-                        <div>School Profile</div>
+                        <UserProfilePage/>
                     </Suspense>
                 )
             }
@@ -282,6 +283,14 @@ const router = createBrowserRouter([
                 )
             },
             {
+                path: 'profile',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <UserProfilePage/>
+                    </Suspense>
+                )
+            },
+            {
                 path: 'users',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
@@ -294,6 +303,32 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <AdminSchoolVerification/>
+                    </Suspense>
+                )
+            }
+        ]
+    },
+    {
+        path: '/counsellor',
+        element: (
+            <Suspense fallback={<LoadingFallback/>}>
+                <ProtectedRoute allowRoles={['COUNSELLOR']}>
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <div>Counsellor Layout</div>
+                    </Suspense>
+                </ProtectedRoute>
+            </Suspense>
+        ),
+        children: [
+            {
+                index: true,
+                element: <Navigate to={'/counsellor/profile'}/>
+            },
+            {
+                path: 'profile',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <UserProfilePage/>
                     </Suspense>
                 )
             }
