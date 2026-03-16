@@ -1,4 +1,4 @@
-import React, {useState, useMemo} from "react";
+import React, {useState, useMemo, useEffect} from "react";
 import {
     Box,
     Button,
@@ -36,6 +36,7 @@ import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import PersonOffIcon from "@mui/icons-material/PersonOff";
 import CloseIcon from "@mui/icons-material/Close";
 import {enqueueSnackbar} from "notistack";
+import {listCampuses, createCampus} from "../../../services/CampusService.jsx";
 
 const modalPaperSx = {
     borderRadius: "16px",
@@ -50,7 +51,7 @@ const modalBackdropSx = {
 
 const ROWS_PER_PAGE_OPTIONS = [5, 10, 25];
 
-// Mock data for UI
+// Mock data cho fallback khi API lỗi
 const initialMockCampuses = [
     {
         id: 1,
@@ -104,8 +105,15 @@ const emptyForm = {
 
 const PLACEHOLDER_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60' fill='%23e2e8f0'%3E%3Crect width='80' height='60' fill='%23f1f5f9'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='10' fill='%2394a3b8'%3ECampus%3C/text%3E%3C/svg%3E";
 
+const formatDate = (d) => {
+    if (!d) return "—";
+    const date = new Date(d);
+    if (Number.isNaN(date.getTime())) return d;
+    return date.toLocaleDateString("vi-VN");
+};
+
 export default function SchoolCampus() {
-    const [campuses, setCampuses] = useState(initialMockCampuses);
+    const [campuses, setCampuses] = useState([]);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
     const [cityFilter, setCityFilter] = useState("all");
@@ -184,21 +192,49 @@ export default function SchoolCampus() {
     const validateForm = () => {
         const errors = {};
         if (!formValues.name?.trim()) errors.name = "Tên cơ sở là bắt buộc";
+        if (!formValues.email?.trim()) errors.email = "Email là bắt buộc";
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
     };
 
-    const getPayload = () => ({
-        name: formValues.name.trim(),
-        address: formValues.address?.trim() || "",
-        city: formValues.city?.trim() || "",
-        phone: formValues.phone?.trim() || "",
-        email: formValues.email?.trim() || "",
-        description: formValues.description?.trim() || "",
-        status: formValues.status ? "active" : "inactive",
-        imageUrl: formValues.imagePreview || null,
-        counselorCount: selectedCampus?.counselorCount ?? 0,
+    const mapCampusFromApi = (dto, account) => ({
+        id: dto.id,
+        name: dto.name,
+        address: dto.address,
+        city: "", // API hiện chưa cung cấp city riêng, có thể parse sau
+        phone: dto.phoneNumber,
+        email: account?.email || "",
+        description: "",
+        imageUrl: null,
+        // Thông tin từ campus
+        isPrimaryBranch: dto.isPrimaryBranch ?? false,
+        campusStatus: dto.status,
+        status: dto.status === "VERIFIED" ? "active" : "inactive",
+        // Thông tin từ account
+        accountStatus: account?.status || "",
+        accountRegisterDate: account?.registerDate || "",
+        counselorCount: 0,
     });
+
+    useEffect(() => {
+        const loadCampuses = async () => {
+            try {
+                const res = await listCampuses();
+                const list = res?.data?.body;
+                if (res && res.status === 200 && Array.isArray(list)) {
+                    setCampuses(list.map((dto) => mapCampusFromApi(dto)));
+                } else {
+                    setCampuses(initialMockCampuses);
+                }
+            } catch (error) {
+                console.error("Fetch campuses error:", error);
+                enqueueSnackbar("Không tải được danh sách cơ sở", {variant: "error"});
+                setCampuses(initialMockCampuses);
+            }
+        };
+
+        loadCampuses();
+    }, []);
 
     const handleOpenCreate = () => {
         setSelectedCampus(null);
@@ -212,16 +248,30 @@ export default function SchoolCampus() {
         setCreateModalOpen(false);
     };
 
-    const handleCreateSubmit = () => {
+    const handleCreateSubmit = async () => {
         if (!validateForm()) return;
-        const payload = getPayload();
-        const newCampus = {
-            id: Date.now(),
-            ...payload,
-        };
-        setCampuses((prev) => [newCampus, ...prev]);
-        enqueueSnackbar("Tạo cơ sở thành công", {variant: "success"});
-        handleCloseCreate();
+
+        try {
+            const res = await createCampus({
+                email: formValues.email.trim(),
+                name: formValues.name.trim(),
+                address: formValues.address?.trim() || "",
+                phone: formValues.phone?.trim() || "",
+            });
+
+            const body = res?.data?.body;
+            if (res && res.status === 200 && body?.campus) {
+                const newCampus = mapCampusFromApi(body.campus, body.account);
+                setCampuses((prev) => [newCampus, ...prev]);
+                enqueueSnackbar("Tạo cơ sở thành công", {variant: "success"});
+                handleCloseCreate();
+            } else {
+                enqueueSnackbar("Không thể tạo cơ sở", {variant: "error"});
+            }
+        } catch (error) {
+            console.error("Create campus error:", error);
+            enqueueSnackbar("Lỗi khi tạo cơ sở", {variant: "error"});
+        }
     };
 
     const handleOpenView = (campus) => {
@@ -429,16 +479,13 @@ export default function SchoolCampus() {
                                     Địa chỉ
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Quận
-                                </TableCell>
-                                <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
                                     Số điện thoại
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Tư vấn viên
+                                    Chi nhánh chính
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Trạng thái
+                                    Trạng thái cơ sở
                                 </TableCell>
                                 <TableCell
                                     sx={{fontWeight: 700, color: "#1e293b", py: 2}}
@@ -451,7 +498,7 @@ export default function SchoolCampus() {
                         <TableBody>
                             {paginatedCampuses.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={7} align="center" sx={{py: 8}}>
+                                    <TableCell colSpan={6} align="center" sx={{py: 8}}>
                                         <Box
                                             sx={{
                                                 display: "flex",
@@ -531,13 +578,10 @@ export default function SchoolCampus() {
                                             </Typography>
                                         </TableCell>
                                         <TableCell sx={{color: "#64748b"}}>
-                                            {row.city || "—"}
-                                        </TableCell>
-                                        <TableCell sx={{color: "#64748b"}}>
                                             {row.phone || "—"}
                                         </TableCell>
                                         <TableCell sx={{color: "#64748b"}}>
-                                            {row.counselorCount ?? 0}
+                                            {row.isPrimaryBranch ? "Có" : "Không"}
                                         </TableCell>
                                         <TableCell>
                                             <Box
@@ -686,13 +730,7 @@ export default function SchoolCampus() {
                             fullWidth
                             value={formValues.address}
                             onChange={handleChange}
-                        />
-                        <TextField
-                            label="Quận / Thành phố"
-                            name="city"
-                            fullWidth
-                            value={formValues.city}
-                            onChange={handleChange}
+                            placeholder="8, Hồ Đắc Di, Tây Thạnh Tân Phú, TP Hồ Chí Minh"
                         />
                         <TextField
                             label="Số điện thoại"
@@ -700,86 +738,24 @@ export default function SchoolCampus() {
                             fullWidth
                             value={formValues.phone}
                             onChange={handleChange}
+                            placeholder="0983810915"
                         />
                         <TextField
-                            label="Email"
+                            label="Email quản lý cơ sở"
                             name="email"
                             type="email"
                             fullWidth
                             value={formValues.email}
                             onChange={handleChange}
+                            error={!!formErrors.email}
+                            helperText={formErrors.email}
+                            placeholder="truonghongductphcm@gmail.com"
+                            required
                         />
-                        <TextField
-                            label="Mô tả"
-                            name="description"
-                            fullWidth
-                            multiline
-                            rows={3}
-                            value={formValues.description}
-                            onChange={handleChange}
-                        />
-                        <Box>
-                            <Typography variant="body2" sx={{mb: 1, color: "#64748b"}}>
-                                Ảnh cơ sở
-                            </Typography>
-                            <Button
-                                component="label"
-                                variant="outlined"
-                                startIcon={<CloudUploadIcon/>}
-                                sx={{borderRadius: 2, textTransform: "none"}}
-                            >
-                                Tải ảnh lên
-                                <input
-                                    type="file"
-                                    hidden
-                                    accept="image/*"
-                                    onChange={handleImageChange}
-                                />
-                            </Button>
-                            {formValues.imagePreview && (
-                                <Box
-                                    component="img"
-                                    src={formValues.imagePreview}
-                                    alt="Preview"
-                                    sx={{
-                                        mt: 1,
-                                        maxHeight: 120,
-                                        borderRadius: 2,
-                                        border: "1px solid #e2e8f0",
-                                    }}
-                                />
-                            )}
-                        </Box>
-                        <Box
-                            sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                                py: 0.5,
-                            }}
-                        >
-                            <Typography sx={{fontWeight: 500, color: "#1e293b"}}>
-                                Trạng thái
-                            </Typography>
-                            <Stack direction="row" alignItems="center" spacing={1}>
-                                <Typography
-                                    variant="body2"
-                                    sx={{color: formValues.status ? "#16a34a" : "#94a3b8"}}
-                                >
-                                    {formValues.status ? "Hoạt động" : "Ngưng hoạt động"}
-                                </Typography>
-                                <Switch
-                                    checked={formValues.status}
-                                    onChange={handleStatusToggle}
-                                    sx={{
-                                        "& .MuiSwitch-switchBase.Mui-checked": {color: "#0D64DE"},
-                                        "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
-                                            backgroundColor: "#0D64DE",
-                                        },
-                                    }}
-                                />
-                            </Stack>
-                        </Box>
+                        <Typography variant="body2" sx={{color: "#64748b", fontSize: 13}}>
+                            Hệ thống sẽ tạo cơ sở mới và tài khoản quản lý tương ứng với role{" "}
+                            <strong>SCHOOL</strong> dựa trên email này.
+                        </Typography>
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
@@ -881,9 +857,17 @@ export default function SchoolCampus() {
                                     {selectedCampus.description || "—"}
                                 </Typography>
                             </Box>
+                            <Box>
+                                <Typography variant="caption" color="text.secondary">
+                                    Chi nhánh chính
+                                </Typography>
+                                <Typography variant="body1">
+                                    {selectedCampus.isPrimaryBranch ? "Có" : "Không"}
+                                </Typography>
+                            </Box>
                             <Box sx={{display: "flex", gap: 2, alignItems: "center"}}>
                                 <Typography variant="caption" color="text.secondary">
-                                    Trạng thái
+                                    Trạng thái cơ sở
                                 </Typography>
                                 <Box
                                     component="span"
@@ -908,10 +892,18 @@ export default function SchoolCampus() {
                             </Box>
                             <Box>
                                 <Typography variant="caption" color="text.secondary">
-                                    Số tư vấn viên
+                                    Trạng thái tài khoản
                                 </Typography>
                                 <Typography variant="body1">
-                                    {selectedCampus.counselorCount ?? 0}
+                                    {selectedCampus.accountStatus || "—"}
+                                </Typography>
+                            </Box>
+                            <Box>
+                                <Typography variant="caption" color="text.secondary">
+                                    Ngày đăng ký tài khoản
+                                </Typography>
+                                <Typography variant="body1">
+                                    {formatDate(selectedCampus.accountRegisterDate)}
                                 </Typography>
                             </Box>
                         </Stack>
