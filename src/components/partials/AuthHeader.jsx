@@ -15,7 +15,7 @@ import {enqueueSnackbar} from "notistack";
 import {signout, getProfile} from "../../services/AccountService.jsx";
 import logo from "../../assets/logo.png";
 
-export default function AuthHeader({showSidebarToggle = false, onToggleSidebar}) {
+export default function AuthHeader({showSidebarToggle = false, onToggleSidebar, logoAlignLeft = false, headerLeftOffset}) {
     const [anchorEl, setAnchorEl] = useState(null);
     const [profileData, setProfileData] = useState(null);
     const [loadingProfile, setLoadingProfile] = useState(false);
@@ -90,20 +90,28 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar})
         window.location.href = '/home';
     };
 
+    const isHeaderOverContentOnly = headerLeftOffset != null && headerLeftOffset !== undefined;
+
     return (
-        <AppBar 
-            position="fixed" 
-            elevation={0} 
+        <AppBar
+            position="fixed"
+            elevation={0}
             sx={{
-                bgcolor: 'white', 
+                bgcolor: 'white',
                 borderBottom: '1px solid #e0e7ff',
                 top: 0,
-                left: 0,
+                ...(isHeaderOverContentOnly && { left: headerLeftOffset }),
+                ...(!isHeaderOverContentOnly && { left: 0 }),
                 right: 0,
                 zIndex: 1100,
             }}
         >
-            <Container maxWidth={false} sx={{px: {xs: 2, md: 8}}}>
+            <Container
+                maxWidth={false}
+                sx={{
+                    px: logoAlignLeft ? 2 : { xs: 2, md: 8 },
+                }}
+            >
                 <Box
                     sx={{
                         py: 1.5,
@@ -113,12 +121,13 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar})
                     }}
                 >
                     <Box sx={{display: 'flex', alignItems: 'center', gap: 2}}>
-                        {showSidebarToggle && (
+                        {showSidebarToggle && !isHeaderOverContentOnly && (
                             <IconButton
                                 edge="start"
                                 color="inherit"
                                 onClick={onToggleSidebar}
                                 sx={{
+                                    ...(logoAlignLeft && { ml: 1 }),
                                     mr: 1,
                                     color: '#1e293b',
                                     bgcolor: 'rgba(15,23,42,0.04)',

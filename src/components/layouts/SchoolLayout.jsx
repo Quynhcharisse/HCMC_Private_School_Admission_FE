@@ -4,56 +4,67 @@ import { Outlet, useLocation } from "react-router-dom";
 import AuthHeader from "../partials/AuthHeader.jsx";
 import SchoolSidebar from "../partials/SchoolSidebar.jsx";
 
-const DRAWER_WIDTH = 280;
+const SIDEBAR_WIDTH_EXPANDED = 240;
+const SIDEBAR_WIDTH_COLLAPSED = 72;
+const SIDEBAR_WIDTH_TRANSITION = "280ms cubic-bezier(0.4, 0, 0.2, 1)";
 
 export default function SchoolLayout() {
   const location = useLocation();
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const sidebarWidth = sidebarCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
+
+  const HEADER_HEIGHT = 65;
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", minHeight: "100vh", bgcolor: "#f8fafc" }}>
-      <AuthHeader
-        showSidebarToggle
-        onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
-      />
+    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "#f8fafc" }}>
+      {/* Sidebar: full height bên trái */}
+      <Drawer
+        variant="persistent"
+        open
+        sx={{
+          zIndex: 1100,
+          width: sidebarWidth,
+          flexShrink: 0,
+          transition: `width ${SIDEBAR_WIDTH_TRANSITION}`,
+          "& .MuiDrawer-paper": {
+            width: sidebarWidth,
+            boxSizing: "border-box",
+            borderRight: "1px solid #e5e7eb",
+            bgcolor: "#ffffff",
+            height: "100vh",
+            top: 0,
+            mt: 0,
+            zIndex: 1100,
+            transition: `width ${SIDEBAR_WIDTH_TRANSITION}`,
+            boxShadow: "2px 0 8px rgba(0,0,0,0.04)",
+          },
+        }}
+      >
+        <SchoolSidebar
+          currentPath={location.pathname}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
+        />
+      </Drawer>
 
-      {/* 65px là chiều cao header (AuthHeader / AppBar) */}
-      <Box sx={{ display: "flex", flex: 1, pt: "65px" }}>
-        <Drawer
-          variant="persistent"
-          open={sidebarOpen}
-          sx={{
-            zIndex: 1000, // Thấp hơn AppBar (1100) để không đè lên header
-            width: sidebarOpen ? DRAWER_WIDTH : 0,
-            flexShrink: 0,
-            transition: "width 0.25s ease-in-out",
-            "& .MuiDrawer-paper": {
-              width: DRAWER_WIDTH,
-              boxSizing: "border-box",
-              borderRight: "1px solid #e0e7ff",
-              bgcolor: "white",
-              height: "calc(100vh - 65px)",
-              mt: "65px",
-              zIndex: 1000,
-              transition: "transform 0.25s ease-in-out, width 0.25s ease-in-out"
-            }
-          }}
-        >
-          <SchoolSidebar currentPath={location.pathname} />
-        </Drawer>
-
-        {/* Transition nội dung mỗi khi đổi route qua sidebar */}
+      {/* Vùng header + content: bằng với nội dung dashboard */}
+      <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+        <AuthHeader
+          logoAlignLeft
+          headerLeftOffset={sidebarWidth}
+        />
         <Fade in key={location.pathname} timeout={{ enter: 250, exit: 150 }}>
           <Box
             component="main"
             sx={{
-              flexGrow: 1,
+              flex: 1,
               pt: 3,
               pb: 3,
               px: 3,
-              minHeight: "calc(100vh - 65px)",
+              mt: `${HEADER_HEIGHT}px`,
+              minHeight: `calc(100vh - ${HEADER_HEIGHT}px)`,
               bgcolor: "#f8fafc",
-              overflow: "auto"
+              overflow: "auto",
             }}
           >
             <Outlet />
