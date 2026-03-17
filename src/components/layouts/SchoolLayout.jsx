@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Box, Drawer, Fade } from "@mui/material";
 import { Outlet, useLocation } from "react-router-dom";
+import { SchoolProvider } from "../../contexts/SchoolContext.jsx";
 import SchoolAuthHeader from "../Page/school/SchoolAuthHeader.jsx";
 import SchoolSidebar from "../partials/SchoolSidebar.jsx";
 
@@ -16,9 +17,10 @@ export default function SchoolLayout() {
   const HEADER_HEIGHT = 65;
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "#f8fafc" }}>
-      {/* Sidebar: full height bên trái */}
-      <Drawer
+    <SchoolProvider>
+      <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "#f8fafc" }}>
+        {/* Sidebar: full height bên trái */}
+        <Drawer
         variant="persistent"
         open
         sx={{
@@ -69,5 +71,6 @@ export default function SchoolLayout() {
         </Fade>
       </Box>
     </Box>
+    </SchoolProvider>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     Box,
     Button,
@@ -13,6 +13,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ListIcon from "@mui/icons-material/List";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useSchool } from "../../../contexts/SchoolContext.jsx";
 
 const STATUS_OPTIONS = [
     { value: "active", label: "Đang diễn ra" },
@@ -48,10 +49,18 @@ export default function SchoolCampaignDetail() {
     const navigate = useNavigate();
     const { campaignId } = useParams();
     const location = useLocation();
+    const { isPrimaryBranch } = useSchool();
     const campaign = location.state?.campaign;
 
     const [tabValue, setTabValue] = useState(0);
 
+    useEffect(() => {
+        if (!isPrimaryBranch) {
+            navigate("/school/campaigns", { replace: true });
+        }
+    }, [isPrimaryBranch, navigate]);
+
+    if (!isPrimaryBranch) return null;
     if (!campaign) {
         return (
             <Box sx={{ display: "flex", flexDirection: "column", gap: 3, width: "100%" }}>
