@@ -15,7 +15,6 @@ import {
 import PeopleIcon from '@mui/icons-material/People';
 
 export default function AdminUsersManagement() {
-    // Placeholder data - sẽ được thay thế bằng API call sau
     const users = [];
 
     return (

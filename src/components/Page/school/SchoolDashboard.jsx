@@ -114,7 +114,6 @@ const statusColorMap = {
 export default function SchoolDashboard() {
     return (
         <Box sx={{display: "flex", flexDirection: "column", gap: 4, width: "100%", pb: 4}}>
-            {/* SECTION 1 — Welcome Header */}
             <Card
                 elevation={0}
                 sx={{
@@ -219,7 +218,6 @@ export default function SchoolDashboard() {
                 </CardContent>
             </Card>
 
-            {/* SECTION 2 — Statistic Cards */}
             <Grid container spacing={2.5}>
                 {statCards.map((card) => (
                     <Grid key={card.label} item xs={12} sm={6} md={4} lg={2.4}>
@@ -290,9 +288,7 @@ export default function SchoolDashboard() {
                 ))}
             </Grid>
 
-            {/* SECTION 3 — Charts (visual placeholders) */}
             <Grid container spacing={2.5}>
-                {/* Chart 1: Consultation Requests Over Time */}
                 <Grid item xs={12} md={6} lg={4}>
                     <Card
                         elevation={0}
@@ -330,7 +326,6 @@ export default function SchoolDashboard() {
                             >
                                 {[30, 60, 45, 80, 55, 90, 70].map((h, idx) => (
                                     <Box
-                                        // eslint-disable-next-line react/no-array-index-key
                                         key={idx}
                                         sx={{
                                             flex: 1,
@@ -347,7 +342,6 @@ export default function SchoolDashboard() {
                     </Card>
                 </Grid>
 
-                {/* Chart 2: Student Registrations by Campus */}
                 <Grid item xs={12} md={6} lg={4}>
                     <Card
                         elevation={0}
@@ -413,7 +407,6 @@ export default function SchoolDashboard() {
                     </Card>
                 </Grid>
 
-                {/* Chart 3: Campaign Enrollment Distribution */}
                 <Grid item xs={12} lg={4}>
                     <Card
                         elevation={0}
@@ -504,7 +497,6 @@ export default function SchoolDashboard() {
                 </Grid>
             </Grid>
 
-            {/* SECTION 4 — Recent Activities */}
             <Grid container spacing={2.5}>
                 <Grid item xs={12} md={8}>
                     <Card
@@ -621,7 +613,6 @@ export default function SchoolDashboard() {
                     </Card>
                 </Grid>
 
-                {/* SECTION 5 — Quick Actions */}
                 <Grid item xs={12} md={4}>
                     <Card
                         elevation={0}

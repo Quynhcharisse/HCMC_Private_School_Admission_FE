@@ -290,7 +290,6 @@ export default function HomePage() {
     });
 
     React.useEffect(() => {
-        // Check if user is PARENT and firstLogin is true
         const userData = localStorage.getItem('user');
         if (userData) {
             try {
@@ -303,7 +302,6 @@ export default function HomePage() {
             }
         }
 
-        // Handle hash navigation for smooth scroll
         const smoothScrollToElement = (element, headerHeight) => {
             const elementTop = element.offsetTop;
             const offsetPosition = elementTop - headerHeight;
@@ -345,10 +343,8 @@ export default function HomePage() {
             }
         };
 
-        // Check hash on mount
         handleHashNavigation();
 
-        // Listen for hash changes
         window.addEventListener('hashchange', handleHashNavigation);
         return () => window.removeEventListener('hashchange', handleHashNavigation);
     }, []);
@@ -456,7 +452,6 @@ export default function HomePage() {
 
     return (
         <Box sx={{bgcolor: '#ffffff', overflow: 'hidden', pt: '80px'}}>
-            {/* Modal form điền thông tin phụ huynh khi firstLogin = true */}
             <Dialog
                 open={showParentFormModal}
                 onClose={handleParentFormClose}
@@ -591,7 +586,6 @@ export default function HomePage() {
                     </Button>
                 </DialogActions>
             </Dialog>
-            {/* 2️⃣ Hero banner */}
             <Box
                 sx={{
                     background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 50%, #64b5f6 100%)',
@@ -811,7 +805,6 @@ export default function HomePage() {
                 </Container>
             </Box>
 
-            {/* 4️⃣ Trường nổi bật */}
             <Box 
                 id="trường-nổi-bật"
                 sx={{
@@ -1124,7 +1117,6 @@ export default function HomePage() {
                 </Container>
             </Box>
 
-            {/* 6️⃣ Quy trình tư vấn */}
             <Box 
                 id="quy-trình"
                 sx={{
@@ -1240,10 +1232,8 @@ export default function HomePage() {
                 </Container>
             </Box>
 
-            {/* 7️⃣ Tin tuyển sinh */}
             <LatestAdmissionNewsSection/>
 
-            {/* 8️⃣ Form đăng ký tư vấn */}
             <Box 
                 id="tu-van-ngay"
                 sx={{
@@ -1369,7 +1359,6 @@ export default function HomePage() {
                 </Container>
             </Box>
 
-            {/* 3️⃣ Thống kê hệ thống (section cuối) */}
             <Box sx={{py: {xs: 10, md: 14}, bgcolor: '#EFF6FF', position: 'relative', overflow: 'hidden'}}>
                 <Container maxWidth="lg" sx={{px: {xs: 3, md: 4}, position: 'relative', zIndex: 1}}>
                     <Box sx={{textAlign: 'center', mb: {xs: 8, md: 10}}}>

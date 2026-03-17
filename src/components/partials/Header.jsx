@@ -113,15 +113,12 @@ function MainHeader() {
         if (isHomePage) {
             const element = document.getElementById(sectionId);
             if (element) {
-                const headerHeight = 80; // Header height
-                // Get element's position relative to document
+                const headerHeight = 80;
                 const elementTop = element.offsetTop;
                 const offsetPosition = elementTop - headerHeight;
 
-                // Update URL hash
                 window.history.pushState(null, '', `#${sectionId}`);
                 
-                // Smooth scroll with custom easing
                 const startPosition = window.pageYOffset;
                 const distance = offsetPosition - startPosition;
                 const duration = Math.min(Math.abs(distance) * 0.8, 1200); // Max 1.2 seconds, smoother
@@ -147,7 +144,6 @@ function MainHeader() {
                 requestAnimationFrame(step);
             }
         } else {
-            // If not on homepage, navigate to homepage first then scroll
             window.location.href = `/#${sectionId}`;
         }
     };

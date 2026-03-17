@@ -23,19 +23,21 @@ import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import {enqueueSnackbar} from "notistack";
 import {showSuccessSnackbar} from "../../ui/AppSnackbar.jsx";
+import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
 import {getPendingSchoolRegistrations, verifySchoolRegistration} from "../../../services/AdminService.jsx";
 
 export default function AdminSchoolVerification() {
     const [registrations, setRegistrations] = useState([]);
     const [loading, setLoading] = useState(false);
     const [verifyingId, setVerifyingId] = useState(null);
+    const [confirmOpen, setConfirmOpen] = useState(false);
+    const [selectedRegistration, setSelectedRegistration] = useState(null);
 
     const fetchRegistrations = async () => {
         setLoading(true);
         try {
             const res = await getPendingSchoolRegistrations();
             const list = res?.data?.body || [];
-            // Sort newest createdAt first
             const sorted = [...list].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
             setRegistrations(sorted);
         } catch (error) {
@@ -50,7 +52,20 @@ export default function AdminSchoolVerification() {
         fetchRegistrations();
     }, []);
 
-    const handleVerify = async (id) => {
+    const openConfirm = (registration) => {
+        if (!registration || verifyingId) return;
+        setSelectedRegistration(registration);
+        setConfirmOpen(true);
+    };
+
+    const handleConfirmClose = () => {
+        if (verifyingId) return;
+        setConfirmOpen(false);
+        setSelectedRegistration(null);
+    };
+
+    const handleVerify = async () => {
+        const id = selectedRegistration?.id;
         if (!id || verifyingId) return;
         setVerifyingId(id);
         try {
@@ -65,6 +80,8 @@ export default function AdminSchoolVerification() {
             enqueueSnackbar(msg, {variant: "error"});
         } finally {
             setVerifyingId(null);
+            setConfirmOpen(false);
+            setSelectedRegistration(null);
         }
     };
 
@@ -81,8 +98,8 @@ export default function AdminSchoolVerification() {
     return (
         <Box>
             <Box sx={{display: "flex", alignItems: "center", gap: 2, mb: 3}}>
-                <SchoolIcon sx={{fontSize: 32, color: "#1d4ed8"}} />
-                <Typography variant="h4" sx={{fontWeight: 700, color: "#1e293b"}}>
+                <SchoolIcon sx={{fontSize: 28, color: "#1d4ed8"}} />
+                <Typography variant="h5" sx={{fontWeight: 700, color: "#1e293b"}}>
                     Xác Thực Trường Học
                 </Typography>
             </Box>
@@ -96,13 +113,13 @@ export default function AdminSchoolVerification() {
             >
                 <CardContent>
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{mb: 2}}>
-                        <Typography variant="subtitle1" sx={{color: "#475569", fontWeight: 600}}>
+                        <Typography variant="subtitle2" sx={{color: "#475569", fontWeight: 600}}>
                             Danh sách hồ sơ đăng ký trường học đang chờ duyệt
                         </Typography>
                     </Stack>
 
                     <TableContainer component={Paper} elevation={0}>
-                        <Table>
+                        <Table size="small">
                             <TableHead>
                                 <TableRow sx={{bgcolor: "#f8fafc"}}>
                                     <TableCell
@@ -112,6 +129,7 @@ export default function AdminSchoolVerification() {
                                             color: "#1e293b",
                                             whiteSpace: "nowrap",
                                             width: 60,
+                                            fontSize: 13,
                                         }}
                                     >
                                         STT
@@ -123,6 +141,7 @@ export default function AdminSchoolVerification() {
                                             color: "#1e293b",
                                             whiteSpace: "nowrap",
                                             minWidth: 260,
+                                            fontSize: 13,
                                         }}
                                     >
                                         Trường
@@ -134,6 +153,7 @@ export default function AdminSchoolVerification() {
                                             color: "#1e293b",
                                             whiteSpace: "nowrap",
                                             width: 140,
+                                            fontSize: 13,
                                         }}
                                     >
                                         Mã số thuế
@@ -145,6 +165,7 @@ export default function AdminSchoolVerification() {
                                             color: "#1e293b",
                                             whiteSpace: "nowrap",
                                             minWidth: 260,
+                                            fontSize: 13,
                                         }}
                                     >
                                         Cơ sở
@@ -156,6 +177,7 @@ export default function AdminSchoolVerification() {
                                             color: "#1e293b",
                                             whiteSpace: "nowrap",
                                             width: 140,
+                                            fontSize: 13,
                                         }}
                                     >
                                         Hotline
@@ -167,6 +189,7 @@ export default function AdminSchoolVerification() {
                                             color: "#1e293b",
                                             whiteSpace: "nowrap",
                                             width: 140,
+                                            fontSize: 13,
                                         }}
                                     >
                                         Giấy phép kinh doanh 
@@ -178,6 +201,7 @@ export default function AdminSchoolVerification() {
                                             color: "#1e293b",
                                             whiteSpace: "nowrap",
                                             width: 130,
+                                            fontSize: 13,
                                         }}
                                     >
                                         Trạng thái
@@ -188,6 +212,7 @@ export default function AdminSchoolVerification() {
                                             color: "#1e293b",
                                             whiteSpace: "nowrap",
                                             width: 130,
+                                            fontSize: 13,
                                         }}
                                         align="center"
                                     >
@@ -213,15 +238,17 @@ export default function AdminSchoolVerification() {
                                 ) : (
                                     registrations.map((item, index) => (
                                         <TableRow key={item.id} hover>
-                                            <TableCell align="center">{index + 1}</TableCell>
+                                            <TableCell align="center" sx={{fontSize: 13}}>
+                                                {index + 1}
+                                            </TableCell>
                                             <TableCell>
                                                 <Box>
-                                                    <Typography sx={{fontWeight: 600}}>
+                                                    <Typography sx={{fontWeight: 600, fontSize: 13}}>
                                                         {item.schoolName}
                                                     </Typography>
                                                     <Typography
                                                         variant="body2"
-                                                        sx={{color: "#64748b"}}
+                                                        sx={{color: "#64748b", fontSize: 12}}
                                                     >
                                                         Đại diện: {item.representativeName}
                                                     </Typography>
@@ -232,6 +259,7 @@ export default function AdminSchoolVerification() {
                                                                 color: "#2563eb",
                                                                 textDecoration: "underline",
                                                                 cursor: "pointer",
+                                                                fontSize: 12,
                                                             }}
                                                             component="a"
                                                             href={item.websiteUrl}
@@ -243,37 +271,44 @@ export default function AdminSchoolVerification() {
                                                     )}
                                                 </Box>
                                             </TableCell>
-                                            <TableCell align="center">{item.taxCode}</TableCell>
+                                            <TableCell align="center" sx={{fontSize: 13}}>
+                                                {item.taxCode}
+                                            </TableCell>
                                             <TableCell>
-                                                <Typography sx={{fontWeight: 500}}>
+                                                <Typography sx={{fontWeight: 500, fontSize: 13}}>
                                                     {item.campusName}
                                                 </Typography>
                                                 <Typography
                                                     variant="body2"
-                                                    sx={{color: "#64748b"}}
+                                                    sx={{color: "#64748b", fontSize: 12}}
                                                 >
                                                     {item.campusAddress}
                                                 </Typography>
                                                 <Typography
                                                     variant="body2"
-                                                    sx={{color: "#64748b"}}
+                                                    sx={{color: "#64748b", fontSize: 12}}
                                                 >
                                                     {item.campusPhone}
                                                 </Typography>
                                             </TableCell>
-                                            <TableCell align="center">{item.hotline}</TableCell>
+                                            <TableCell
+                                                align="center"
+                                                sx={{whiteSpace: "nowrap", fontSize: 13}}
+                                            >
+                                                {item.hotline}
+                                            </TableCell>
                                             <TableCell align="center">
                                                 {item.businessLicenseUrl ? (
                                                     <Tooltip title="Xem giấy phép kinh doanh">
                                                         <IconButton
-                                                            size="small"
+                                                            size="medium"
                                                             color="primary"
                                                             component="a"
                                                             href={item.businessLicenseUrl}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                         >
-                                                            <VisibilityIcon fontSize="small" />
+                                                            <VisibilityIcon fontSize="medium" />
                                                         </IconButton>
                                                     </Tooltip>
                                                 ) : (
@@ -294,12 +329,12 @@ export default function AdminSchoolVerification() {
                                                     <span>
                                                         <IconButton
                                                             color="primary"
-                                                            size="small"
+                                                            size="medium"
                                                             disabled={
                                                                 verifyingId === item.id ||
                                                                 item.status === "VERIFIED"
                                                             }
-                                                            onClick={() => handleVerify(item.id)}
+                                                            onClick={() => openConfirm(item)}
                                                         >
                                                             {verifyingId === item.id ? (
                                                                 <CircularProgress
@@ -307,7 +342,7 @@ export default function AdminSchoolVerification() {
                                                                     color="inherit"
                                                                 />
                                                             ) : (
-                                                                <TaskAltIcon fontSize="small" />
+                                                                <TaskAltIcon fontSize="medium" />
                                                             )}
                                                         </IconButton>
                                                     </span>
@@ -321,6 +356,21 @@ export default function AdminSchoolVerification() {
                     </TableContainer>
                 </CardContent>
             </Card>
+            <ConfirmDialog
+                open={confirmOpen}
+                title="Xác thực hồ sơ trường học"
+                description={
+                    selectedRegistration
+                        ? `Bạn có chắc chắn muốn xác thực hồ sơ cho "${selectedRegistration.schoolName}"?`
+                        : ""
+                }
+                extraDescription="Sau khi được xác thực, tài khoản của trường sẽ được kích hoạt để sử dụng hệ thống EduBridgeHCM."
+                cancelText="Hủy"
+                confirmText={verifyingId ? "Đang xác thực..." : "Xác thực"}
+                onCancel={handleConfirmClose}
+                onConfirm={handleVerify}
+                loading={!!verifyingId}
+            />
         </Box>
     );
 }

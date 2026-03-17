@@ -11,7 +11,6 @@ export default function WebAppLayout() {
 
     useEffect(() => {
         if (isAuthPage) {
-            // Khóa scroll ngay lập tức
             document.body.style.overflow = 'hidden';
             document.documentElement.style.overflow = 'hidden';
             document.body.style.position = 'fixed';

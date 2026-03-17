@@ -24,9 +24,7 @@ export default function AdminLayout() {
         onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
       />
 
-      {/* 65px là chiều cao header (AuthHeader / AppBar) */}
       <Box sx={{ display: "flex", flex: 1, pt: "65px" }}>
-        {/* Sidebar */}
         <Drawer
           variant="persistent"
           open={sidebarOpen}
@@ -50,8 +48,6 @@ export default function AdminLayout() {
           <AdminSidebar currentPath={location.pathname} />
         </Drawer>
 
-        {/* Main content */}
-        {/* Transition nội dung mỗi khi đổi route qua sidebar */}
         <Fade in key={location.pathname} timeout={{ enter: 250, exit: 150 }}>
           <Box
             component="main"

@@ -48,7 +48,7 @@ const Register = () => {
         showSuccessSnackbar('Xác thực email thành công. Vui lòng chọn vai trò để tiếp tục đăng ký.', {
             onClose: (event, reason) => {
                 if (reason === 'clickaway') return;
-                setStep(2);
+        setStep(2);
             }
         });
     };
@@ -69,14 +69,13 @@ const Register = () => {
                 {
                     onClose: (event, reason) => {
                         if (reason === 'clickaway') return;
-                        setStep(3);
+            setStep(3);
                     }
                 }
             );
             return;
         }
 
-        // For PARENT role, call signup API
         setIsSubmitting(true);
 
         try {
@@ -89,7 +88,6 @@ const Register = () => {
                 try {
                     const loginResponse = await signin(email);
                     if (loginResponse && loginResponse.status === 200) {
-                        // Get user role and firstLogin status
                         let role = null;
                         let firstLogin = false;
                         
@@ -98,7 +96,6 @@ const Register = () => {
                             firstLogin = loginResponse.data.body.firstLogin || false;
                         }
                         
-                        // If role not in login response, get from access endpoint
                         if (!role) {
                             try {
                                 const accessResponse = await getAccess();
@@ -111,7 +108,6 @@ const Register = () => {
                             }
                         }
                         
-                        // Save user data to localStorage
                         if (role) {
                             const userData = {
                                 email: email,
@@ -126,7 +122,6 @@ const Register = () => {
                     }
                 } catch (loginError) {
                     console.error('Error auto-login after signup:', loginError);
-                    // Continue to form even if auto-login fails
                 }
                 
                 const message = 'Đăng ký thành công! Vui lòng điền thông tin để hoàn tất.';

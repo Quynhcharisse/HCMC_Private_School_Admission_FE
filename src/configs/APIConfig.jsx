@@ -32,7 +32,6 @@ axiosClient.interceptors.response.use(
                 return Promise.reject(error);
             }
 
-            // Only retry on 401 (Unauthorized), not on 403 (Forbidden)
             if (originalRequest._retry) {
                 return Promise.reject(error);
             }
@@ -62,7 +61,6 @@ axiosClient.interceptors.response.use(
             }
         }
         
-        // For 403 (Forbidden), don't auto-retry, just reject
         if (error.response && error.response.status === 403) {
             return Promise.reject(error);
         }

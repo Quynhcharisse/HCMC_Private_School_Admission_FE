@@ -1,29 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { Box, Slider, Typography } from '@mui/material';
+import React, {useState, useEffect} from 'react';
+import {Box, Slider, Typography} from '@mui/material';
 
-/**
- * Component để lọc trường theo mức học phí bằng range slider
- * 
- * @param {Object} props
- * @param {number} props.tuitionMin - Giá trị tối thiểu (triệu đồng)
- * @param {number} props.tuitionMax - Giá trị tối đa (triệu đồng)
- * @param {Function} props.onChange - Callback khi giá trị thay đổi (tuitionMin, tuitionMax)
- */
 export default function TuitionFilter({ tuitionMin = 0, tuitionMax = 30, onChange }) {
     const [value, setValue] = useState([0, tuitionMax]);
 
-    // Sync với props khi props thay đổi
     useEffect(() => {
         setValue([0, tuitionMax]);
     }, [tuitionMax]);
 
-    // Xử lý khi slider thay đổi - luôn giữ giá trị min ở 0
     const handleChange = (event, newValue) => {
-        // Luôn giữ giá trị đầu tiên ở 0, chỉ cho phép giá trị thứ hai thay đổi
-        // Nếu handle đầu tiên bị kéo, giữ nó ở 0 và dùng giá trị của nó làm giá trị max
         let maxValue = newValue[1];
         if (newValue[0] > 0) {
-            // Nếu handle đầu tiên bị kéo, dùng giá trị đó làm max và giữ min ở 0
             maxValue = newValue[0];
         }
         const updatedValue = [0, maxValue];
@@ -33,13 +20,11 @@ export default function TuitionFilter({ tuitionMin = 0, tuitionMax = 30, onChang
         }
     };
 
-    // Format số tiền thành định dạng: 15 triệu
     const formatCurrency = (amount) => {
         if (amount === 0) return '0đ';
         return `${amount} triệu`;
     };
 
-    // Các mốc học phí để hiển thị dưới slider
     const marks = [
         { value: 0, label: '0đ' },
         { value: 10, label: '10tr' },

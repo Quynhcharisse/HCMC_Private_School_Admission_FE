@@ -11,13 +11,11 @@ export default function RegisterGoogle({onSuccess, onError}) {
             setIsLoading(true);
             setError(null);
 
-            // Decode the JWT token to get user information
             const decoded = jwtDecode(credentialResponse.credential);
             const email = decoded.email;
             const name = decoded.name;
             const picture = decoded.picture;
 
-            // Call the success callback with email and other user data
             if (onSuccess) {
                 onSuccess({
                     email,

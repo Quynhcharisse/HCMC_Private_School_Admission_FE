@@ -51,7 +51,6 @@ const modalBackdropSx = {
 
 const ROWS_PER_PAGE_OPTIONS = [5, 10, 25];
 
-// Mock data cho fallback khi API lỗi
 const initialMockCampuses = [
     {
         id: 1,

@@ -12,17 +12,14 @@ export default function LoginGoogle({onSuccess, onError}) {
             setIsLoading(true);
             setError(null);
 
-            // Decode the JWT token to get user information
             const decoded = jwtDecode(credentialResponse.credential);
             const email = decoded.email;
             const name = decoded.name;
             const picture = decoded.picture;
 
-            // Call the signin service with the email
             const response = await signin(email);
 
             if (response) {
-                // Call the success callback with email and other user data
                 if (onSuccess) {
                     onSuccess({
                         email,

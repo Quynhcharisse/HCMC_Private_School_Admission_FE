@@ -174,7 +174,6 @@ const ParentRegistrationForm = ({email, name: initialName, onBack}) => {
                 >
                     <Box component="form" onSubmit={handleSubmit}>
                         <Stack spacing={3}>
-                            {/* Header with back button and centered title */}
                             <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40px'}}>
                                 <IconButton
                                     onClick={onBack}
@@ -213,7 +212,6 @@ const ParentRegistrationForm = ({email, name: initialName, onBack}) => {
                                 Vui lòng điền đầy đủ thông tin để hoàn tất hồ sơ của bạn.
                             </Typography>
 
-                            {/* Form Fields */}
                             <Grid container rowSpacing={2} columnSpacing={{ xs: 1, sm: 2, md: 3 }}>
                                 <Grid size={12}>
                                     <TextField
@@ -378,7 +376,6 @@ const ParentRegistrationForm = ({email, name: initialName, onBack}) => {
                                 </Grid>
                             </Grid>
 
-                            {/* Submit Button */}
                             <Box sx={{display: 'flex', justifyContent: 'flex-end', gap: 2, pt: 1}}>
                                 <Button
                                     variant="outlined"

@@ -82,9 +82,7 @@ export default function Login() {
         const targetRoute = role ? getRoleBasedRoute(role.toUpperCase()) : '/';
 
         showSuccessSnackbar('Đăng nhập thành công!', {
-            autoHideDuration: null,
             onClose: (event, reason) => {
-                // Bỏ qua clickaway để tránh chuyển trang khi user chỉ click ra ngoài
                 if (reason === 'clickaway') return;
                 if (hasNavigated.current) return;
 
