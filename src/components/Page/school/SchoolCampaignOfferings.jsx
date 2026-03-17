@@ -29,6 +29,7 @@ import ListIcon from "@mui/icons-material/List";
 import CloseIcon from "@mui/icons-material/Close";
 import {useNavigate, useParams, useLocation} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
+import {useSchool} from "../../../contexts/SchoolContext.jsx";
 import {listCampuses} from "../../../services/CampusService.jsx";
 import {
     getCampaignOfferingsByCampus,
@@ -93,9 +94,16 @@ export default function SchoolCampaignOfferings() {
     const navigate = useNavigate();
     const { campaignId } = useParams();
     const location = useLocation();
+    const { isPrimaryBranch } = useSchool();
     const campaignFromState = location.state?.campaign;
 
     const [campuses, setCampuses] = useState([]);
+
+    useEffect(() => {
+        if (!isPrimaryBranch) {
+            navigate("/school/campaigns", { replace: true });
+        }
+    }, [isPrimaryBranch, navigate]);
     const [campusesLoading, setCampusesLoading] = useState(true);
     const [campusFilter, setCampusFilter] = useState("");
     const [offerings, setOfferings] = useState([]);
@@ -224,6 +232,8 @@ export default function SchoolCampaignOfferings() {
             setSubmitLoading(false);
         }
     };
+
+    if (!isPrimaryBranch) return null;
 
     return (
         <Box sx={{display: "flex", flexDirection: "column", gap: 3, width: "100%"}}>

@@ -36,6 +36,7 @@ import CampaignIcon from "@mui/icons-material/Campaign";
 import CloseIcon from "@mui/icons-material/Close";
 import {useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
+import { useSchool } from "../../../contexts/SchoolContext.jsx";
 import {
     getCampaignTemplatesByYear,
     createCampaignTemplate,
@@ -119,6 +120,7 @@ function getCampaignErrorMessage(backendMessage, fallback) {
 
 export default function SchoolCampaigns() {
     const navigate = useNavigate();
+    const { isPrimaryBranch } = useSchool();
     const [campaigns, setCampaigns] = useState([]);
     const [loading, setLoading] = useState(true);
     const [submitLoading, setSubmitLoading] = useState(false);
@@ -427,30 +429,34 @@ export default function SchoolCampaigns() {
                             Chiến dịch tuyển sinh
                         </Typography>
                         <Typography variant="body2" sx={{mt: 0.5, opacity: 0.95}}>
-                            Quản lý chiến dịch tuyển sinh của trường
+                            {isPrimaryBranch
+                                ? "Quản lý chiến dịch tuyển sinh của trường"
+                                : "Xem kế hoạch tuyển sinh (admission plan)"}
                         </Typography>
                     </Box>
-                    <Button
-                        variant="contained"
-                        startIcon={<AddIcon/>}
-                        onClick={handleOpenCreate}
-                        sx={{
-                            bgcolor: "rgba(255,255,255,0.95)",
-                            color: "#0D64DE",
-                            borderRadius: 2,
-                            textTransform: "none",
-                            fontWeight: 600,
-                            px: 3,
-                            py: 1.5,
-                            boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
-                            "&:hover": {
-                                bgcolor: "white",
-                                boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
-                            },
-                        }}
-                    >
-                        Tạo chiến dịch
-                    </Button>
+                    {isPrimaryBranch && (
+                        <Button
+                            variant="contained"
+                            startIcon={<AddIcon/>}
+                            onClick={handleOpenCreate}
+                            sx={{
+                                bgcolor: "rgba(255,255,255,0.95)",
+                                color: "#0D64DE",
+                                borderRadius: 2,
+                                textTransform: "none",
+                                fontWeight: 600,
+                                px: 3,
+                                py: 1.5,
+                                boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
+                                "&:hover": {
+                                    bgcolor: "white",
+                                    boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
+                                },
+                            }}
+                        >
+                            Tạo chiến dịch
+                        </Button>
+                    )}
                 </Box>
             </Box>
 
@@ -562,12 +568,14 @@ export default function SchoolCampaigns() {
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
                                     Trạng thái
                                 </TableCell>
-                                <TableCell
-                                    sx={{fontWeight: 700, color: "#1e293b", py: 2}}
-                                    align="right"
-                                >
-                                    Thao tác
-                                </TableCell>
+                                {isPrimaryBranch && (
+                                    <TableCell
+                                        sx={{fontWeight: 700, color: "#1e293b", py: 2}}
+                                        align="right"
+                                    >
+                                        Thao tác
+                                    </TableCell>
+                                )}
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -581,12 +589,12 @@ export default function SchoolCampaigns() {
                                         <TableCell><Skeleton variant="text" width={70} /></TableCell>
                                         <TableCell><Skeleton variant="text" width={32} /></TableCell>
                                         <TableCell><Skeleton variant="rounded" width={70} height={24} /></TableCell>
-                                        <TableCell><Skeleton variant="rounded" width={100} height={32} /></TableCell>
+                                        {isPrimaryBranch && <TableCell><Skeleton variant="rounded" width={100} height={32} /></TableCell>}
                                     </TableRow>
                                 ))
                             ) : paginatedCampaigns.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={8} align="center" sx={{py: 8}}>
+                                    <TableCell colSpan={isPrimaryBranch ? 8 : 7} align="center" sx={{py: 8}}>
                                         <Box
                                             sx={{
                                                 display: "flex",
@@ -605,9 +613,11 @@ export default function SchoolCampaigns() {
                                             <Typography variant="body2" sx={{color: "#94a3b8"}}>
                                                 {filteredCampaigns.length === 0 && campaigns.length > 0
                                                     ? "Không có kết quả phù hợp với tìm kiếm hoặc bộ lọc."
-                                                    : "Tạo chiến dịch tuyển sinh đầu tiên của bạn."}
+                                                    : isPrimaryBranch
+                                                        ? "Tạo chiến dịch tuyển sinh đầu tiên của bạn."
+                                                        : "Chưa có kế hoạch tuyển sinh."}
                                             </Typography>
-                                            {campaigns.length === 0 && (
+                                            {campaigns.length === 0 && isPrimaryBranch && (
                                                 <Button
                                                     variant="contained"
                                                     startIcon={<AddIcon/>}
@@ -677,44 +687,16 @@ export default function SchoolCampaigns() {
                                                     {getStatusLabel(row.status)}
                                                 </Box>
                                             </TableCell>
-                                            <TableCell align="right">
-                                                <Stack
-                                                    direction="row"
-                                                    spacing={0.5}
-                                                    justifyContent="flex-end"
-                                                >
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={() => handleOpenView(row)}
-                                                        sx={{
-                                                            color: "#64748b",
-                                                            "&:hover": {
-                                                                color: "#0D64DE",
-                                                                bgcolor: "rgba(13, 100, 222, 0.08)",
-                                                            },
-                                                        }}
-                                                        title="Xem chi tiết"
+                                            {isPrimaryBranch && (
+                                                <TableCell align="right">
+                                                    <Stack
+                                                        direction="row"
+                                                        spacing={0.5}
+                                                        justifyContent="flex-end"
                                                     >
-                                                        <VisibilityIcon fontSize="small"/>
-                                                    </IconButton>
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={() => handleOpenEdit(row)}
-                                                        sx={{
-                                                            color: "#64748b",
-                                                            "&:hover": {
-                                                                color: "#0D64DE",
-                                                                bgcolor: "rgba(13, 100, 222, 0.08)",
-                                                            },
-                                                        }}
-                                                        title="Chỉnh sửa"
-                                                    >
-                                                        <EditIcon fontSize="small"/>
-                                                    </IconButton>
-                                                    <Tooltip title="Đổi trạng thái">
                                                         <IconButton
                                                             size="small"
-                                                            onClick={() => handleOpenStatusDialog(row)}
+                                                            onClick={() => handleOpenView(row)}
                                                             sx={{
                                                                 color: "#64748b",
                                                                 "&:hover": {
@@ -722,27 +704,57 @@ export default function SchoolCampaigns() {
                                                                     bgcolor: "rgba(13, 100, 222, 0.08)",
                                                                 },
                                                             }}
-                                                            aria-label="Đổi trạng thái"
+                                                            title="Xem chi tiết"
                                                         >
-                                                            <SwapHorizIcon fontSize="small"/>
+                                                            <VisibilityIcon fontSize="small"/>
                                                         </IconButton>
-                                                    </Tooltip>
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={() => handleManageOfferings(row)}
-                                                        sx={{
-                                                            color: "#64748b",
-                                                            "&:hover": {
-                                                                color: "#0D64DE",
-                                                                bgcolor: "rgba(13, 100, 222, 0.08)",
-                                                            },
-                                                        }}
-                                                        title="Quản lý chỉ tiêu"
-                                                    >
-                                                        <ListIcon fontSize="small"/>
-                                                    </IconButton>
-                                                </Stack>
-                                            </TableCell>
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => handleOpenEdit(row)}
+                                                            sx={{
+                                                                color: "#64748b",
+                                                                "&:hover": {
+                                                                    color: "#0D64DE",
+                                                                    bgcolor: "rgba(13, 100, 222, 0.08)",
+                                                                },
+                                                            }}
+                                                            title="Chỉnh sửa"
+                                                        >
+                                                            <EditIcon fontSize="small"/>
+                                                        </IconButton>
+                                                        <Tooltip title="Đổi trạng thái">
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => handleOpenStatusDialog(row)}
+                                                                sx={{
+                                                                    color: "#64748b",
+                                                                    "&:hover": {
+                                                                        color: "#0D64DE",
+                                                                        bgcolor: "rgba(13, 100, 222, 0.08)",
+                                                                    },
+                                                                }}
+                                                                aria-label="Đổi trạng thái"
+                                                            >
+                                                                <SwapHorizIcon fontSize="small"/>
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => handleManageOfferings(row)}
+                                                            sx={{
+                                                                color: "#64748b",
+                                                                "&:hover": {
+                                                                    color: "#0D64DE",
+                                                                    bgcolor: "rgba(13, 100, 222, 0.08)",
+                                                                },
+                                                            }}
+                                                            title="Quản lý chỉ tiêu"
+                                                        >
+                                                            <ListIcon fontSize="small"/>
+                                                        </IconButton>
+                                                    </Stack>
+                                                </TableCell>
+                                            )}
                                         </TableRow>
                                     );
                                 })

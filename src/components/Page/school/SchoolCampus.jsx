@@ -36,6 +36,7 @@ import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import PersonOffIcon from "@mui/icons-material/PersonOff";
 import CloseIcon from "@mui/icons-material/Close";
 import {enqueueSnackbar} from "notistack";
+import {useSchool} from "../../../contexts/SchoolContext.jsx";
 import {listCampuses, createCampus} from "../../../services/CampusService.jsx";
 
 const modalPaperSx = {
@@ -132,6 +133,7 @@ const getBoardingTypeLabelVi = (boardingType, boardingTypeLabel) => {
 };
 
 export default function SchoolCampus() {
+    const { isPrimaryBranch } = useSchool();
     const [campuses, setCampuses] = useState([]);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
@@ -391,30 +393,34 @@ export default function SchoolCampus() {
                             Quản lý Cơ sở
                         </Typography>
                         <Typography variant="body2" sx={{mt: 0.5, opacity: 0.95}}>
-                            Quản lý tất cả cơ sở của trường bạn
+                            {isPrimaryBranch
+                                ? "Quản lý tất cả cơ sở của trường bạn"
+                                : "Xem thông tin cơ sở của bạn"}
                         </Typography>
                     </Box>
-                    <Button
-                        variant="contained"
-                        startIcon={<AddIcon/>}
-                        onClick={handleOpenCreate}
-                        sx={{
-                            bgcolor: "rgba(255,255,255,0.95)",
-                            color: "#0D64DE",
-                            borderRadius: 2,
-                            textTransform: "none",
-                            fontWeight: 600,
-                            px: 3,
-                            py: 1.5,
-                            boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
-                            "&:hover": {
-                                bgcolor: "white",
-                                boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
-                            },
-                        }}
-                    >
-                        Tạo cơ sở
-                    </Button>
+                    {isPrimaryBranch && (
+                        <Button
+                            variant="contained"
+                            startIcon={<AddIcon/>}
+                            onClick={handleOpenCreate}
+                            sx={{
+                                bgcolor: "rgba(255,255,255,0.95)",
+                                color: "#0D64DE",
+                                borderRadius: 2,
+                                textTransform: "none",
+                                fontWeight: 600,
+                                px: 3,
+                                py: 1.5,
+                                boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
+                                "&:hover": {
+                                    bgcolor: "white",
+                                    boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
+                                },
+                            }}
+                        >
+                            Tạo cơ sở
+                        </Button>
+                    )}
                 </Box>
             </Box>
 
@@ -552,9 +558,11 @@ export default function SchoolCampus() {
                                             <Typography variant="body2" sx={{color: "#94a3b8"}}>
                                                 {filteredCampuses.length === 0 && campuses.length > 0
                                                     ? "Không có kết quả phù hợp với tìm kiếm hoặc bộ lọc."
-                                                    : "Tạo cơ sở đầu tiên để bắt đầu."}
+                                                    : isPrimaryBranch
+                                                        ? "Tạo cơ sở đầu tiên để bắt đầu."
+                                                        : "Chưa có dữ liệu cơ sở."}
                                             </Typography>
-                                            {campuses.length === 0 && (
+                                            {campuses.length === 0 && isPrimaryBranch && (
                                                 <Button
                                                     variant="contained"
                                                     startIcon={<AddIcon/>}
@@ -655,29 +663,33 @@ export default function SchoolCampus() {
                                                 >
                                                     <VisibilityIcon fontSize="small"/>
                                                 </IconButton>
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => handleOpenEdit(row)}
-                                                    sx={{
-                                                        color: "#64748b",
-                                                        "&:hover": {color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)"},
-                                                    }}
-                                                    title="Sửa"
-                                                >
-                                                    <EditIcon fontSize="small"/>
-                                                </IconButton>
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => handleOpenDisableConfirm(row)}
-                                                    disabled={row.status === "inactive"}
-                                                    sx={{
-                                                        color: "#64748b",
-                                                        "&:hover": {color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)"},
-                                                    }}
-                                                    title="Vô hiệu hóa"
-                                                >
-                                                    <BlockIcon fontSize="small"/>
-                                                </IconButton>
+                                                {isPrimaryBranch && (
+                                                    <>
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => handleOpenEdit(row)}
+                                                            sx={{
+                                                                color: "#64748b",
+                                                                "&:hover": {color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)"},
+                                                            }}
+                                                            title="Sửa"
+                                                        >
+                                                            <EditIcon fontSize="small"/>
+                                                        </IconButton>
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => handleOpenDisableConfirm(row)}
+                                                            disabled={row.status === "inactive"}
+                                                            sx={{
+                                                                color: "#64748b",
+                                                                "&:hover": {color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)"},
+                                                            }}
+                                                            title="Vô hiệu hóa"
+                                                        >
+                                                            <BlockIcon fontSize="small"/>
+                                                        </IconButton>
+                                                    </>
+                                                )}
                                             </Stack>
                                         </TableCell>
                                     </TableRow>
