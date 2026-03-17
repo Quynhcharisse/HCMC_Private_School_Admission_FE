@@ -16,6 +16,8 @@ const AdminLayout = lazy(() => import("./components/layouts/AdminLayout.jsx"));
 const AdminDashboard = lazy(() => import("./components/Page/admin/AdminDashboard.jsx"));
 const AdminUsersManagement = lazy(() => import("./components/Page/admin/AdminUsersManagement.jsx"));
 const AdminSchoolVerification = lazy(() => import("./components/Page/admin/AdminSchoolVerification.jsx"));
+const AdminSchoolCampuses = lazy(() => import("./components/Page/admin/AdminSchoolCampuses.jsx"));
+const AdminCampusConsultants = lazy(() => import("./components/Page/admin/AdminCampusConsultants.jsx"));
 const SchoolLayout = lazy(() => import("./components/layouts/SchoolLayout.jsx"));
 const SchoolDashboard = lazy(() => import("./components/Page/school/SchoolDashboard.jsx"));
 const SchoolCampus = lazy(() => import("./components/Page/school/SchoolCampus.jsx"));
@@ -317,6 +319,22 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <AdminUsersManagement/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'schools/:schoolId/campuses',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminSchoolCampuses/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'campuses/:campusId/consultants',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminCampusConsultants/>
                     </Suspense>
                 )
             },
