@@ -537,7 +537,7 @@ function MainHeader() {
                                             <MenuItem
                                                 onClick={() => {
                                                     handleUserMenuClose();
-                                                    window.location.href = '/profile';
+                                                    window.location.href = '/parent/profile';
                                                 }}
                                                 sx={{
                                                     fontSize: 15,
