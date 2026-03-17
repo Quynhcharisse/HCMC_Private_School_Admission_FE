@@ -38,6 +38,17 @@ import CloseIcon from "@mui/icons-material/Close";
 import {enqueueSnackbar} from "notistack";
 import {fetchCounsellors, createCounsellor} from "../../../services/CounsellorService.jsx";
 
+const InfoItem = ({ label, value }) => (
+    <Box>
+        <Typography variant="caption" sx={{color: "#94a3b8"}}>
+            {label}
+        </Typography>
+        <Typography variant="body1" sx={{fontWeight: 600, color: "#1e293b"}}>
+            {value}
+        </Typography>
+    </Box>
+);
+
 const modalPaperSx = {
     borderRadius: "16px",
     boxShadow: "0 24px 48px rgba(0, 0, 0, 0.12)",
@@ -126,26 +137,35 @@ export default function SchoolCounselors() {
     const [formErrors, setFormErrors] = useState({});
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [totalItems, setTotalItems] = useState(0);
+    const [loading, setLoading] = useState(false);
 
     useEffect(() => {
         const loadCounsellors = async () => {
+            setLoading(true);
             try {
-                const res = await fetchCounsellors();
-                const list = res?.data?.body;
+                const res = await fetchCounsellors(page, rowsPerPage);
+                const body = res?.data?.body;
+                const list = body?.items;
                 if (res && res.status === 200 && Array.isArray(list)) {
                     setCounselors(list.map(mapCounsellorFromApi));
+                    setTotalItems(body?.totalItems ?? 0);
                 } else {
-                    setCounselors(initialMockCounsellors);
+                    setCounselors([]);
+                    setTotalItems(0);
                 }
             } catch (error) {
                 console.error("Fetch counsellors error:", error);
                 enqueueSnackbar("Không tải được danh sách tư vấn viên", {variant: "error"});
-                setCounselors(initialMockCounsellors);
+                setCounselors([]);
+                setTotalItems(0);
+            } finally {
+                setLoading(false);
             }
         };
 
         loadCounsellors();
-    }, []);
+    }, [page, rowsPerPage]);
 
     const handleChange = (e) => {
         const {name, value} = e.target;
@@ -174,11 +194,6 @@ export default function SchoolCounselors() {
         return list;
     }, [counselors, search, statusFilter]);
 
-    const paginatedCounselors = useMemo(() => {
-        const start = page * rowsPerPage;
-        return filteredCounselors.slice(start, start + rowsPerPage);
-    }, [filteredCounselors, page, rowsPerPage]);
-
     const validateCreate = () => {
         const errors = {};
         if (!formValues.email?.trim()) errors.email = "Email là bắt buộc";
@@ -204,6 +219,7 @@ export default function SchoolCounselors() {
             if (res && res.status === 200 && dto) {
                 const newCounsellor = mapCounsellorFromApi(dto);
                 setCounselors((prev) => [newCounsellor, ...prev]);
+                setTotalItems((prev) => prev + 1);
                 enqueueSnackbar("Tạo tài khoản tư vấn viên thành công", {variant: "success"});
                 setCreateModalOpen(false);
             } else {
@@ -438,7 +454,7 @@ export default function SchoolCounselors() {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {paginatedCounselors.length === 0 ? (
+                            {filteredCounselors.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={5} align="center" sx={{py: 8}}>
                                         <Box
@@ -483,7 +499,7 @@ export default function SchoolCounselors() {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                paginatedCounselors.map((row) => (
+                                filteredCounselors.map((row) => (
                                     <TableRow
                                         key={row.id}
                                         hover
@@ -589,10 +605,10 @@ export default function SchoolCounselors() {
                         </TableBody>
                     </Table>
                 </TableContainer>
-                {filteredCounselors.length > 0 && (
+                {totalItems > 0 && (
                     <TablePagination
                         component="div"
-                        count={filteredCounselors.length}
+                        count={totalItems}
                         page={page}
                         onPageChange={(_, newPage) => setPage(newPage)}
                         rowsPerPage={rowsPerPage}
@@ -693,136 +709,183 @@ export default function SchoolCounselors() {
             </Dialog>
 
             {/* View Detail Modal */}
-            <Dialog
-                open={viewModalOpen}
-                onClose={() => setViewModalOpen(false)}
-                maxWidth="sm"
-                fullWidth
-                PaperProps={{sx: modalPaperSx}}
-                slotProps={{backdrop: {sx: modalBackdropSx}}}
-            >
-                <Box sx={{px: 3, pt: 3, pb: 0}}>
-                    <Box
+<Dialog
+    open={viewModalOpen}
+    onClose={() => setViewModalOpen(false)}
+    maxWidth="sm"
+    fullWidth
+    PaperProps={{
+        sx: {
+            borderRadius: 3,
+            overflow: "hidden",
+            boxShadow: "0 20px 60px rgba(0,0,0,0.15)",
+        },
+    }}
+    slotProps={{backdrop: {sx: modalBackdropSx}}}
+>
+    {/* HEADER */}
+    <Box
+        sx={{
+            px: 3,
+            py: 2.5,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            borderBottom: "1px solid #f1f5f9",
+            background: "#fafafa",
+        }}
+    >
+        <Typography variant="h6" sx={{fontWeight: 700}}>
+            Chi tiết tư vấn viên
+        </Typography>
+
+        <IconButton
+            onClick={() => setViewModalOpen(false)}
+            size="small"
+            sx={{
+                bgcolor: "#f1f5f9",
+                "&:hover": {bgcolor: "#e2e8f0"},
+            }}
+        >
+            <CloseIcon fontSize="small"/>
+        </IconButton>
+    </Box>
+
+    {/* CONTENT */}
+    <DialogContent sx={{px: 3, py: 3}}>
+        {selectedCounselor && (
+            <Stack spacing={3}>
+                {/* PROFILE */}
+                <Stack direction="row" spacing={2} alignItems="center">
+                    <Avatar
                         sx={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            justifyContent: "space-between",
-                            gap: 2,
+                            width: 64,
+                            height: 64,
+                            background:
+                                "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
+                            fontWeight: 700,
+                            fontSize: "1.4rem",
                         }}
                     >
-                        <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
-                            Chi tiết tư vấn viên
+                        {getInitials(selectedCounselor.fullName)}
+                    </Avatar>
+
+                    <Box>
+                        <Typography variant="h6" sx={{fontWeight: 700}}>
+                            {selectedCounselor.fullName}
                         </Typography>
-                        <IconButton
-                            onClick={() => setViewModalOpen(false)}
-                            size="small"
-                            sx={{mt: -0.5, mr: -0.5}}
-                            aria-label="Đóng"
-                        >
-                            <CloseIcon fontSize="small"/>
-                        </IconButton>
+                        <Typography variant="body2" sx={{color: "#64748b"}}>
+                            {selectedCounselor.email}
+                        </Typography>
                     </Box>
-                </Box>
-                <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 2}}>
-                    {selectedCounselor && (
-                        <Stack spacing={2}>
-                            <Stack direction="row" alignItems="center" spacing={2}>
-                                <Avatar
+                </Stack>
+
+                {/* INFO CARD */}
+                <Box
+                    sx={{
+                        p: 2.5,
+                        borderRadius: 2,
+                        bgcolor: "#f8fafc",
+                        border: "1px solid #f1f5f9",
+                    }}
+                >
+                    <Stack spacing={2}>
+                        <InfoItem
+                            label="Cơ sở"
+                            value={selectedCounselor.campusName || "—"}
+                        />
+                        <InfoItem
+                            label="Mã nhân viên"
+                            value={selectedCounselor.employeeCode || "—"}
+                        />
+                        <InfoItem
+                            label="Ngày đăng ký"
+                            value={formatDate(selectedCounselor.registerDate)}
+                        />
+
+                        {/* STATUS */}
+                        <Box>
+                            <Typography variant="caption" sx={{color: "#94a3b8"}}>
+                                Trạng thái
+                            </Typography>
+                            <Box mt={1}>
+                                <Box
                                     sx={{
-                                        width: 56,
-                                        height: 56,
-                                        bgcolor: "#7AA9EB",
-                                        fontSize: "1.25rem",
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 0.5,
+                                        px: 1.5,
+                                        py: 0.5,
+                                        borderRadius: "999px",
+                                        fontSize: 12,
                                         fontWeight: 600,
+                                        bgcolor:
+                                            selectedCounselor.status === "active"
+                                                ? "#dcfce7"
+                                                : "#f1f5f9",
+                                        color:
+                                            selectedCounselor.status === "active"
+                                                ? "#16a34a"
+                                                : "#64748b",
                                     }}
                                 >
-                                    {getInitials(selectedCounselor.fullName)}
-                                </Avatar>
-                                <Box>
-                                    <Typography variant="h6" sx={{fontWeight: 600}}>
-                                        {selectedCounselor.fullName}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        {selectedCounselor.email}
-                                    </Typography>
-                                </Box>
-                            </Stack>
-                            <Box>
-                                <Typography variant="caption" color="text.secondary">
-                                    Cơ sở
-                                </Typography>
-                                <Typography variant="body1">
-                                    {selectedCounselor.campusName || "—"}
-                                </Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="caption" color="text.secondary">
-                                    Mã nhân viên
-                                </Typography>
-                                <Typography variant="body1">
-                                    {selectedCounselor.employeeCode || "—"}
-                                </Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="caption" color="text.secondary">
-                                    Ngày đăng ký
-                                </Typography>
-                                <Typography variant="body1">
-                                    {formatDate(selectedCounselor.registerDate)}
-                                </Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="caption" color="text.secondary">
-                                    Trạng thái
-                                </Typography>
-                                <Box component="span" sx={{mt: 0.5, display: "inline-block"}}>
-                                    <Box
-                                        component="span"
-                                        sx={{
-                                            px: 1.5,
-                                            py: 0.5,
-                                            borderRadius: 999,
-                                            fontSize: 12,
-                                            fontWeight: 600,
-                                            bgcolor:
-                                                selectedCounselor.status === "active"
-                                                    ? "rgba(34, 197, 94, 0.12)"
-                                                    : "rgba(148, 163, 184, 0.2)",
-                                            color:
-                                                selectedCounselor.status === "active"
-                                                    ? "#16a34a"
-                                                    : "#64748b",
-                                        }}
-                                    >
-                                        {selectedCounselor.status === "active"
-                                            ? "Hoạt động"
-                                            : "Ngưng hoạt động"}
-                                    </Box>
+                                    ●{" "}
+                                    {selectedCounselor.status === "active"
+                                        ? "Hoạt động"
+                                        : "Ngưng hoạt động"}
                                 </Box>
                             </Box>
-                        </Stack>
-                    )}
-                </DialogContent>
-                <DialogActions sx={{px: 3, py: 2, borderTop: "1px solid #e2e8f0"}}>
-                    <Button onClick={() => setViewModalOpen(false)} color="inherit">
-                        Đóng
-                    </Button>
-                    <Button
-                        variant="contained"
-                        startIcon={<EditIcon/>}
-                        onClick={() => {
-                            setViewModalOpen(false);
-                            handleOpenEdit(selectedCounselor);
-                        }}
-                        sx={{
-                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
-                            textTransform: "none",
-                        }}
-                    >
-                        Sửa
-                    </Button>
-                </DialogActions>
-            </Dialog>
+                        </Box>
+                    </Stack>
+                </Box>
+            </Stack>
+        )}
+    </DialogContent>
+
+    {/* FOOTER */}
+    <DialogActions
+        sx={{
+            px: 3,
+            py: 2,
+            borderTop: "1px solid #f1f5f9",
+        }}
+    >
+        <Button
+            onClick={() => setViewModalOpen(false)}
+            sx={{
+                textTransform: "none",
+                color: "#64748b",
+                fontWeight: 500,
+            }}
+        >
+            Đóng
+        </Button>
+
+        <Button
+            variant="contained"
+            startIcon={<EditIcon/>}
+            onClick={() => {
+                setViewModalOpen(false);
+                handleOpenEdit(selectedCounselor);
+            }}
+            sx={{
+                borderRadius: 2,
+                px: 2.5,
+                fontWeight: 600,
+                background:
+                    "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
+                boxShadow: "0 4px 14px rgba(13,100,222,0.4)",
+                textTransform: "none",
+                "&:hover": {
+                    background:
+                        "linear-gradient(135deg, #6b9be6 0%, #0b5ad1 100%)",
+                },
+            }}
+        >
+            Sửa thông tin
+        </Button>
+    </DialogActions>
+</Dialog>
 
             {/* Edit Modal */}
             <Dialog
