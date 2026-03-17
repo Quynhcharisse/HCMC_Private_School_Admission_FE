@@ -5,7 +5,6 @@ import {getAccess} from '../../services/AccountService';
 import {ROLES} from '../../constants/roles';
 import RegisterGoogle from '../ui/RegisterGoogle';
 import {
-    Alert,
     Box,
     Button,
     Container,
@@ -23,6 +22,7 @@ import SchoolRegistrationForm from './SchoolRegistrationForm';
 import ParentRegistrationForm from './ParentRegistrationForm';
 import {useNavigate} from 'react-router-dom';
 import {enqueueSnackbar} from 'notistack';
+import {showSuccessSnackbar} from '../ui/AppSnackbar.jsx';
 
 const roleOptions = [
     {value: ROLES.PARENT, label: 'Phụ huynh'},
@@ -38,14 +38,19 @@ const Register = () => {
     const [selectedRole, setSelectedRole] = useState('');
     const [isEmailVerified, setIsEmailVerified] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [successMessage, setSuccessMessage] = useState('');
 
     const handleGoogleSuccess = (data) => {
         setEmail(data.email);
         setName(data.name || '');
         setPicture(data.picture || '');
         setIsEmailVerified(true);
-        setStep(2);
+
+        showSuccessSnackbar('Xác thực email thành công. Vui lòng chọn vai trò để tiếp tục đăng ký.', {
+            onClose: (event, reason) => {
+                if (reason === 'clickaway') return;
+                setStep(2);
+            }
+        });
     };
 
     const handleGoogleError = () => {
@@ -58,9 +63,16 @@ const Register = () => {
             return;
         }
 
-        // If SCHOOL role is selected, go directly to registration form without calling signup API
         if (selectedRole === ROLES.SCHOOL) {
-            setStep(3);
+            showSuccessSnackbar(
+                'Bạn đã chọn vai trò Nhà trường. Vui lòng tiếp tục bằng cách xác thực mã số thuế của trường.',
+                {
+                    onClose: (event, reason) => {
+                        if (reason === 'clickaway') return;
+                        setStep(3);
+                    }
+                }
+            );
             return;
         }
 
@@ -119,14 +131,7 @@ const Register = () => {
                 
                 const message = 'Đăng ký thành công! Vui lòng điền thông tin để hoàn tất.';
                 setSuccessMessage(message);
-                enqueueSnackbar(message, {
-                    autoHideDuration: 2000,
-                    content: (key, msg) => (
-                        <Alert variant="filled" severity="success" sx={{width: '100%'}}>
-                            {msg}
-                        </Alert>
-                    ),
-                });
+                enqueueSnackbar(message, { variant: 'success', autoHideDuration: 5000 });
                 // Move to step 3 to fill parent information
                 setStep(3);
             }
@@ -197,15 +202,6 @@ const Register = () => {
                     }}
                 >
                     <Stack spacing={3}>
-                        {successMessage && (
-                            <Alert
-                                variant="filled"
-                                severity="success"
-                                sx={{width: '100%'}}
-                            >
-                                {successMessage}
-                            </Alert>
-                        )}
                         <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40px'}}>
                             {step === 2 && (
                                 <IconButton

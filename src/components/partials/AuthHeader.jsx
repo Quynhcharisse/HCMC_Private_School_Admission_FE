@@ -1,6 +1,5 @@
 import React, {useState, useEffect} from "react";
 import {
-    Alert,
     AppBar,
     Avatar,
     Box,
@@ -59,14 +58,7 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar, 
             if (sessionStorage.length > 0) {
                 sessionStorage.clear()
             }
-            enqueueSnackbar(response.data.message, {
-                autoHideDuration: 2000,
-                content: (key, message) => (
-                    <Alert variant="filled" severity="success" sx={{width: '100%'}}>
-                        {message}
-                    </Alert>
-                ),
-            })
+            enqueueSnackbar(response.data.message, { variant: 'success', autoHideDuration: 5000 })
             setTimeout(() => {
                 window.location.href = '/home';
             }, 1000)

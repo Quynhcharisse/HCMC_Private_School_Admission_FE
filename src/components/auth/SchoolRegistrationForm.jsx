@@ -8,7 +8,6 @@ import {
     TextField,
     Typography,
     CircularProgress,
-    Alert,
     Grid,
     IconButton,
     Divider,
@@ -17,16 +16,17 @@ import {ArrowBack} from '@mui/icons-material';
 import {checkTaxCode, registerSchool} from '../../services/AuthService';
 import backgroundLogin from '../../assets/backgroundLogin.png';
 import {useNavigate} from 'react-router-dom';
+import {enqueueSnackbar} from 'notistack';
+import {showErrorSnackbar, showSuccessSnackbar} from '../ui/AppSnackbar.jsx';
 
 const SchoolRegistrationForm = ({email, onBack}) => {
     const navigate = useNavigate();
-    const [step, setStep] = useState(1); // 1: Tax code input, 2: Registration form
+    const [step, setStep] = useState(1);
     const [taxCode, setTaxCode] = useState('');
     const [taxCodeError, setTaxCodeError] = useState('');
     const [isCheckingTaxCode, setIsCheckingTaxCode] = useState(false);
     const [taxCodeData, setTaxCodeData] = useState(null);
     
-    // Form data
     const [formData, setFormData] = useState({
         schoolName: '',
         campusName: '',
@@ -43,7 +43,6 @@ const SchoolRegistrationForm = ({email, onBack}) => {
     
     const [formErrors, setFormErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [showSuccessAlert, setShowSuccessAlert] = useState(false);
 
     const handleTaxCodeCheck = async () => {
         if (!taxCode.trim()) {
@@ -57,20 +56,23 @@ const SchoolRegistrationForm = ({email, onBack}) => {
         try {
             const data = await checkTaxCode(taxCode.trim());
             
-            // Check if tax code is valid (code '00' means success)
             if (data.code === '00' && data.data) {
-                // Tax code is valid
                 setTaxCodeData(data.data);
                 setFormData(prev => ({
                     ...prev,
                     taxCode: taxCode.trim(),
-                    // Map fields from API response to form fields
                     schoolName: data.data.name || data.data.companyName || prev.schoolName,
                     campusAddress: data.data.address || data.data.companyAddress || prev.campusAddress,
                     representativeName: data.data.representative || data.data.representativeName || prev.representativeName,
                     campusPhone: data.data.phone || data.data.phoneNumber || prev.campusPhone,
                 }));
-                setStep(2);
+
+                showSuccessSnackbar('Mã số thuế hợp lệ! Hệ thống sẽ chuyển sang bước tiếp theo sau khi thông báo đóng.', {
+                    onClose: (event, reason) => {
+                        if (reason === 'clickaway') return;
+                        setStep(2);
+                    },
+                });
             } else {
                 // Tax code is invalid
                 setTaxCodeError(data.desc || 'Mã số thuế không hợp lệ');
@@ -78,6 +80,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
         } catch (error) {
             console.error('Error checking tax code:', error);
             setTaxCodeError('Có lỗi xảy ra khi kiểm tra mã số thuế. Vui lòng thử lại.');
+            showErrorSnackbar('Có lỗi xảy ra khi kiểm tra mã số thuế. Vui lòng thử lại.');
         } finally {
             setIsCheckingTaxCode(false);
         }
@@ -158,16 +161,22 @@ const SchoolRegistrationForm = ({email, onBack}) => {
             const response = await registerSchool(registerPayload);
             
             if (response) {
-                setShowSuccessAlert(true);
                 setIsSubmitting(false);
-                // Redirect to login after 2 seconds
-                setTimeout(() => {
-                navigate('/login');
-                }, 2000);
+
+                showSuccessSnackbar(
+                    'Đăng ký trường học thành công. Vui lòng chờ quản trị viên hệ thống xem xét và xác thực hồ sơ. Bạn sẽ được thông báo khi tài khoản sẵn sàng sử dụng.',
+                    {
+                        autoHideDuration: 5000,
+                        onClose: (event, reason) => {
+                            if (reason === 'clickaway') return;
+                            navigate('/home');
+                        }
+                    }
+                );
             }
         } catch (error) {
             console.error('Registration error:', error);
-            alert('Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.');
+            showErrorSnackbar('Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.');
             setIsSubmitting(false);
         }
     };
@@ -274,24 +283,11 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         'Kiểm tra mã số thuế'
                                     )}
                                 </Button>
-
-                                {taxCodeData && (
-                                    <Alert severity="success" sx={{mt: 1}}>
-                                        Mã số thuế hợp lệ! Vui lòng điền thông tin bên dưới.
-                                    </Alert>
-                                )}
                             </Stack>
                         </Stack>
                     ) : (
                         <Box component="form" onSubmit={handleSubmit}>
                             <Stack spacing={2}>
-                                {/* Success Alert */}
-                                {showSuccessAlert && (
-                                    <Alert variant="filled" severity="success">
-                                        Đăng ký thành công! Đang chuyển đến trang đăng nhập...
-                                    </Alert>
-                                )}
-
                                 {/* Header with back button and centered title */}
                                 <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40px'}}>
                                     <IconButton

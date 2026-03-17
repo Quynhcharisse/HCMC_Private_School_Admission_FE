@@ -1,10 +1,10 @@
 import {useState, useRef} from 'react';
-import {Alert, Box, Button, Container, Divider, Paper, Stack, Typography} from '@mui/material';
+import {Box, Button, Container, Divider, Paper, Stack, Typography} from '@mui/material';
 import {Link as RouterLink, useNavigate} from 'react-router-dom';
 import LoginGoogle from '../ui/LoginGoogle';
 import backgroundLogin from '../../assets/backgroundLogin.png';
 import {getAccess} from '../../services/AccountService';
-import {enqueueSnackbar} from 'notistack';
+import {showSuccessSnackbar} from '../ui/AppSnackbar.jsx';
 
 export default function Login() {
     const [userEmail, setUserEmail] = useState(null);
@@ -78,31 +78,20 @@ export default function Login() {
         }
 
         setLoginStatusMessage('Đăng nhập thành công! Hệ thống đang chuyển bạn tới trang phù hợp.');
-        enqueueSnackbar('Đăng nhập thành công!', {
-            autoHideDuration: 2000,
-            content: (key, message) => (
-                <Alert variant="filled" severity="success" sx={{width: '100%'}}>
-                    {message}
-                </Alert>
-            ),
-        });
 
-        if (!hasNavigated.current) {
-            hasNavigated.current = true;
-            
-            if (role) {
-                const normalizedRole = role.toUpperCase();
-                
-                const route = getRoleBasedRoute(normalizedRole);
-                setTimeout(() => {
-                    navigate(route);
-                }, 2200);
-            } else {
-                setTimeout(() => {
-                    navigate('/');
-                }, 2200);
+        const targetRoute = role ? getRoleBasedRoute(role.toUpperCase()) : '/';
+
+        showSuccessSnackbar('Đăng nhập thành công!', {
+            autoHideDuration: null,
+            onClose: (event, reason) => {
+                // Bỏ qua clickaway để tránh chuyển trang khi user chỉ click ra ngoài
+                if (reason === 'clickaway') return;
+                if (hasNavigated.current) return;
+
+                hasNavigated.current = true;
+                navigate(targetRoute);
             }
-        }
+        });
     };
 
     const handleLoginError = (error) => {

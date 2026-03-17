@@ -22,6 +22,7 @@ import SchoolIcon from "@mui/icons-material/School";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import {enqueueSnackbar} from "notistack";
+import {showSuccessSnackbar} from "../../ui/AppSnackbar.jsx";
 import {getPendingSchoolRegistrations, verifySchoolRegistration} from "../../../services/AdminService.jsx";
 
 export default function AdminSchoolVerification() {
@@ -55,7 +56,7 @@ export default function AdminSchoolVerification() {
         try {
             const res = await verifySchoolRegistration(id);
             if (res && res.status === 200) {
-                alert("Xác thực trường học thành công!");
+                showSuccessSnackbar("Xác thực trường học thành công!");
                 await fetchRegistrations();
             }
         } catch (error) {
