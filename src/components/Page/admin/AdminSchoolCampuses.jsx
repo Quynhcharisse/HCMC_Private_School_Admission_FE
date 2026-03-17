@@ -2,7 +2,6 @@ import React, {useEffect, useState} from "react";
 import {
     Box,
     Breadcrumbs,
-    Button,
     Card,
     CardContent,
     Chip,
@@ -15,11 +14,12 @@ import {
     TableContainer,
     TableHead,
     TableRow,
-    Typography
+    Typography,
+    Pagination,
+    Stack,
 } from "@mui/material";
 import ApartmentIcon from "@mui/icons-material/Apartment";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 import {useNavigate, useParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {getSchoolCampuses} from "../../../services/AdminService.jsx";
@@ -63,7 +63,6 @@ export default function AdminSchoolCampuses() {
 
     useEffect(() => {
         fetchCampuses(0);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [schoolId]);
 
     const renderStatusChip = (status) => {
@@ -135,100 +134,103 @@ export default function AdminSchoolCampuses() {
                             <Table size="small">
                                 <TableHead>
                                     <TableRow sx={{bgcolor: "#f8fafc"}}>
-                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", width: 60}}>
+                                        <TableCell
+                                            align="center"
+                                            sx={{fontWeight: 700, color: "#1e293b", width: 60}}
+                                        >
                                             STT
                                         </TableCell>
-                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", minWidth: 220}}>
-                                            Campus
+                                        <TableCell
+                                            align="center"
+                                            sx={{fontWeight: 700, color: "#1e293b", minWidth: 200}}
+                                        >
+                                            Tên campus
                                         </TableCell>
-                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", minWidth: 220}}>
+                                        <TableCell
+                                            align="center"
+                                            sx={{fontWeight: 700, color: "#1e293b", minWidth: 220}}
+                                        >
                                             Địa chỉ
                                         </TableCell>
-                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", width: 140}}>
+                                        <TableCell
+                                            align="center"
+                                            sx={{fontWeight: 700, color: "#1e293b", width: 160}}
+                                        >
                                             Số điện thoại
                                         </TableCell>
-                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", width: 140}}>
+                                        <TableCell
+                                            align="center"
+                                            sx={{fontWeight: 700, color: "#1e293b", width: 140}}
+                                        >
                                             Trạng thái
-                                        </TableCell>
-                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", width: 80}} align="right">
-                                            Tư vấn viên
                                         </TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {campuses.map((campus, index) => (
-                                        <TableRow
-                                            key={campus.campusId || index}
-                                            hover
-                                            sx={{cursor: "pointer"}}
-                                            onClick={() => handleRowClick(campus)}
-                                        >
-                                            <TableCell>
-                                                {pagination.page * pagination.pageSize + index + 1}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Typography sx={{fontWeight: 600, fontSize: 14}}>
-                                                    {campus.campusName}
-                                                </Typography>
-                                                {campus.isPrimaryBranch && (
-                                                    <Chip
-                                                        label="Cơ sở chính"
-                                                        size="small"
-                                                        color="primary"
-                                                        sx={{mt: 0.5}}
-                                                    />
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                <Typography sx={{fontSize: 13}}>
-                                                    {campus.address}
-                                                </Typography>
-                                                <Typography sx={{fontSize: 12, color: "#64748b"}}>
-                                                    {campus.district}, {campus.city}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Typography sx={{fontSize: 13}}>
-                                                    {campus.phoneNumber}
-                                                </Typography>
-                                            </TableCell>
-                                            <TableCell>
-                                                {renderStatusChip(campus.status)}
-                                            </TableCell>
-                                            <TableCell align="right">
-                                                <ArrowForwardIosIcon sx={{fontSize: 16, color: "#94a3b8"}}/>
-                                            </TableCell>
-                                        </TableRow>
+                                            <TableRow
+                                                key={campus.campusId || index}
+                                                hover
+                                                sx={{cursor: "pointer"}}
+                                                onClick={() => handleRowClick(campus)}
+                                            >
+                                                <TableCell align="center">
+                                                    {pagination.page * pagination.pageSize + index + 1}
+                                                </TableCell>
+                                                <TableCell align="center">
+                                                    <Typography sx={{fontWeight: 600, fontSize: 14}}>
+                                                        {campus.campusName}
+                                                    </Typography>
+                                                    {campus.isPrimaryBranch && (
+                                                        <Typography
+                                                            sx={{
+                                                                fontSize: 11,
+                                                                color: "#16a34a",
+                                                                fontWeight: 600,
+                                                                mt: 0.5,
+                                                            }}
+                                                        >
+                                                            (Cơ sở chính)
+                                                        </Typography>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell align="center">
+                                                    <Typography sx={{fontSize: 13}}>
+                                                        {campus.city} - {campus.district}
+                                                    </Typography>
+                                                </TableCell>
+                                                <TableCell align="center">
+                                                    <Typography sx={{fontSize: 13}}>
+                                                        {campus.phoneNumber}
+                                                    </Typography>
+                                                </TableCell>
+                                                <TableCell align="center">
+                                                    {renderStatusChip(campus.status)}
+                                                </TableCell>
+                                            </TableRow>
                                     ))}
                                 </TableBody>
                             </Table>
                         </TableContainer>
                     )}
 
-                    {campuses.length > 0 && (
-                        <Box sx={{display: "flex", justifyContent: "space-between", mt: 2}}>
+                    {campuses.length > 0 && pagination.totalPages > 1 && (
+                        <Box sx={{display: "flex", justifyContent: "space-between", mt: 2, alignItems: "center"}}>
                             <Typography variant="body2" sx={{color: "#64748b"}}>
                                 Trang {pagination.page + 1} / {Math.max(pagination.totalPages, 1)} –{" "}
                                 {pagination.totalItems} campus
                             </Typography>
-                            <Box sx={{display: "flex", gap: 1}}>
-                                <Button
+                            <Stack spacing={1} direction="row" justifyContent="flex-end">
+                                <Pagination
+                                    count={pagination.totalPages || 1}
+                                    page={pagination.page + 1}
                                     size="small"
-                                    variant="outlined"
-                                    disabled={!pagination.hasPrevious || loading}
-                                    onClick={() => fetchCampuses(pagination.page - 1)}
-                                >
-                                    Trước
-                                </Button>
-                                <Button
-                                    size="small"
-                                    variant="outlined"
-                                    disabled={!pagination.hasNext || loading}
-                                    onClick={() => fetchCampuses(pagination.page + 1)}
-                                >
-                                    Sau
-                                </Button>
-                            </Box>
+                                    color="primary"
+                                    onChange={(_, value) => {
+                                        fetchCampuses(value - 1);
+                                    }}
+                                />
+                            </Stack>
                         </Box>
                     )}
                 </CardContent>
