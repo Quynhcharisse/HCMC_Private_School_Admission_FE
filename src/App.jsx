@@ -29,6 +29,7 @@ const SchoolCampaignDetail = lazy(() =>
     import("./components/Page/school/SchoolCampaignDetail.jsx")
 );
 const SchoolProfile = lazy(() => import("./components/Page/school/SchoolProfile.jsx"));
+const ParentProfile = lazy(() => import("./components/auth/ParentProfile.jsx"));
 
 const LoadingFallback = () => {
     return null;
@@ -350,6 +351,32 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <UserProfilePage/>
+                    </Suspense>
+                )
+            }
+        ]
+    },
+    {
+        path: '/parent',
+        element: (
+            <Suspense fallback={<LoadingFallback/>}>
+                <ProtectedRoute allowRoles={['PARENT']}>
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <WebAppLayout/>
+                    </Suspense>
+                </ProtectedRoute>
+            </Suspense>
+        ),
+        children: [
+            {
+                index: true,
+                element: <Navigate to={'/parent/profile'}/>
+            },
+            {
+                path: 'profile',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <ParentProfile/>
                     </Suspense>
                 )
             }
