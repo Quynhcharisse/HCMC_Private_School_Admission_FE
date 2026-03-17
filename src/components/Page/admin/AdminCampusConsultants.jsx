@@ -2,7 +2,6 @@ import React, {useEffect, useState} from "react";
 import {
     Box,
     Breadcrumbs,
-    Button,
     Card,
     CardContent,
     Chip,
@@ -15,7 +14,9 @@ import {
     TableHead,
     TableRow,
     Typography,
-    Link
+    Link,
+    Pagination,
+    Stack,
 } from "@mui/material";
 import GroupIcon from "@mui/icons-material/Group";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -67,7 +68,6 @@ export default function AdminCampusConsultants() {
 
     useEffect(() => {
         fetchConsultants(0);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [campusId]);
 
     const renderStatusChip = (status) => {
@@ -134,19 +134,34 @@ export default function AdminCampusConsultants() {
                             <Table size="small">
                                 <TableHead>
                                     <TableRow sx={{bgcolor: "#f8fafc"}}>
-                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", width: 60}}>
+                                        <TableCell
+                                            align="center"
+                                            sx={{fontWeight: 700, color: "#1e293b", width: 60}}
+                                        >
                                             STT
                                         </TableCell>
-                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", minWidth: 180}}>
+                                        <TableCell
+                                            align="center"
+                                            sx={{fontWeight: 700, color: "#1e293b", minWidth: 180}}
+                                        >
                                             Tên
                                         </TableCell>
-                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", minWidth: 220}}>
+                                        <TableCell
+                                            align="center"
+                                            sx={{fontWeight: 700, color: "#1e293b", minWidth: 220}}
+                                        >
                                             Email
                                         </TableCell>
-                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", minWidth: 180}}>
+                                        <TableCell
+                                            align="center"
+                                            sx={{fontWeight: 700, color: "#1e293b", minWidth: 180}}
+                                        >
                                             Mã nhân viên
                                         </TableCell>
-                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", width: 140}}>
+                                        <TableCell
+                                            align="center"
+                                            sx={{fontWeight: 700, color: "#1e293b", width: 140}}
+                                        >
                                             Trạng thái
                                         </TableCell>
                                     </TableRow>
@@ -154,25 +169,25 @@ export default function AdminCampusConsultants() {
                                 <TableBody>
                                     {consultants.map((item, index) => (
                                         <TableRow key={item.counsellorId || item.accountId || index} hover>
-                                            <TableCell>
+                                            <TableCell align="center">
                                                 {pagination.page * pagination.pageSize + index + 1}
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell align="center">
                                                 <Typography sx={{fontWeight: 600, fontSize: 14}}>
                                                     {item.name}
                                                 </Typography>
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell align="center">
                                                 <Typography sx={{fontSize: 13}}>
                                                     {item.email}
                                                 </Typography>
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell align="center">
                                                 <Typography sx={{fontSize: 13}}>
                                                     {item.employeeCode}
                                                 </Typography>
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell align="center">
                                                 {renderStatusChip(item.status)}
                                             </TableCell>
                                         </TableRow>
@@ -182,30 +197,23 @@ export default function AdminCampusConsultants() {
                         </TableContainer>
                     )}
 
-                    {consultants.length > 0 && (
-                        <Box sx={{display: "flex", justifyContent: "space-between", mt: 2}}>
+                    {consultants.length > 0 && pagination.totalPages > 1 && (
+                        <Box sx={{display: "flex", justifyContent: "space-between", mt: 2, alignItems: "center"}}>
                             <Typography variant="body2" sx={{color: "#64748b"}}>
                                 Trang {pagination.page + 1} / {Math.max(pagination.totalPages, 1)} –{" "}
                                 {pagination.totalItems} tư vấn viên
                             </Typography>
-                            <Box sx={{display: "flex", gap: 1}}>
-                                <Button
+                            <Stack spacing={1} direction="row" justifyContent="flex-end">
+                                <Pagination
+                                    count={pagination.totalPages || 1}
+                                    page={pagination.page + 1}
                                     size="small"
-                                    variant="outlined"
-                                    disabled={!pagination.hasPrevious || loading}
-                                    onClick={() => fetchConsultants(pagination.page - 1)}
-                                >
-                                    Trước
-                                </Button>
-                                <Button
-                                    size="small"
-                                    variant="outlined"
-                                    disabled={!pagination.hasNext || loading}
-                                    onClick={() => fetchConsultants(pagination.page + 1)}
-                                >
-                                    Sau
-                                </Button>
-                            </Box>
+                                    color="primary"
+                                    onChange={(_, value) => {
+                                        fetchConsultants(value - 1);
+                                    }}
+                                />
+                            </Stack>
                         </Box>
                     )}
                 </CardContent>
