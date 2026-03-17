@@ -1,4 +1,4 @@
-import React, {useState, useMemo} from "react";
+import React, {useState, useMemo, useEffect} from "react";
 import {
     Box,
     Button,
@@ -13,6 +13,7 @@ import {
     InputLabel,
     MenuItem,
     Select,
+    Skeleton,
     Stack,
     Table,
     TableBody,
@@ -21,6 +22,7 @@ import {
     TableHead,
     TableRow,
     TextField,
+    Tooltip,
     Typography,
     TablePagination,
 } from "@mui/material";
@@ -29,10 +31,17 @@ import SearchIcon from "@mui/icons-material/Search";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import ListIcon from "@mui/icons-material/List";
+import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import CloseIcon from "@mui/icons-material/Close";
 import {useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
+import {
+    getCampaignTemplatesByYear,
+    createCampaignTemplate,
+    updateCampaignTemplate,
+    updateCampaignTemplateStatus,
+} from "../../../services/CampaignService.jsx";
 
 const modalPaperSx = {
     borderRadius: "16px",
@@ -47,44 +56,28 @@ const modalBackdropSx = {
 
 const ROWS_PER_PAGE_OPTIONS = [5, 10, 25];
 
+// Backend has many statuses; UI focuses on main campaign lifecycle ones
 const STATUS_OPTIONS = [
-    {value: "active", label: "Đang diễn ra"},
-    {value: "upcoming", label: "Sắp diễn ra"},
-    {value: "closed", label: "Đã kết thúc"},
+    {value: "OPEN", label: "Đang mở"},
+    {value: "PAUSED", label: "Tạm dừng"},
+    {value: "CLOSED", label: "Đã đóng"},
+    {value: "EXPIRED", label: "Hết hạn"},
 ];
 
-const initialMockCampaigns = [
-    {
-        id: 1,
-        name: "Tuyển sinh lớp 10 năm 2025",
-        description: "Chiến dịch tuyển sinh lớp 10 cho năm học 2025-2026.",
-        year: 2025,
-        startDate: "2025-03-01",
-        endDate: "2025-07-15",
-        numberOfOfferings: 3,
-        status: "active",
-    },
-    {
-        id: 2,
-        name: "Tuyển sinh lớp 6 năm 2025",
-        description: "Chiến dịch tuyển sinh lớp 6 năm học 2025-2026.",
-        year: 2025,
-        startDate: "2025-04-01",
-        endDate: "2025-06-30",
-        numberOfOfferings: 2,
-        status: "upcoming",
-    },
-    {
-        id: 3,
-        name: "Tuyển sinh lớp 10 năm 2024",
-        description: "Chiến dịch tuyển sinh lớp 10 năm học 2024-2025.",
-        year: 2024,
-        startDate: "2024-03-01",
-        endDate: "2024-07-20",
-        numberOfOfferings: 4,
-        status: "closed",
-    },
-];
+/** Normalize template from API (id or admissionCampaignTemplateId) */
+function mapTemplate(row) {
+    if (!row) return null;
+    const id = row.admissionCampaignTemplateId ?? row.id;
+    const status = row.status ? String(row.status).toUpperCase() : "OPEN";
+
+    return {
+        ...row,
+        id,
+        admissionCampaignTemplateId: row.admissionCampaignTemplateId ?? row.id,
+        status,
+        numberOfOfferings: row.numberOfOfferings ?? 0,
+    };
+}
 
 const emptyForm = {
     name: "",
@@ -100,25 +93,81 @@ function formatDate(dateStr) {
     return d.toLocaleDateString("vi-VN");
 }
 
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = [CURRENT_YEAR + 1, CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2];
+
+/** Map BE validation messages (EN) → hiển thị tiếng Việt (Create + Update) */
+const CAMPAIGN_ERROR_VI = {
+    "Request is required": "Yêu cầu không được để trống",
+    "Name is required": "Tên chiến dịch là bắt buộc",
+    "Name is too long. Maximum length is 100 characters": "Tên chiến dịch quá dài. Tối đa 100 ký tự",
+    "Description is required": "Mô tả là bắt buộc",
+    "Year is required": "Năm là bắt buộc",
+    "A campaign template for the year already exists": "Đã tồn tại chiến dịch cho năm này",
+    "Cannot create a campaign for a past year": "Không thể tạo chiến dịch cho năm đã qua",
+    "Start date and end date are required": "Ngày bắt đầu và ngày kết thúc là bắt buộc",
+    "Start date cannot be in the past": "Ngày bắt đầu không được ở quá khứ",
+    "End date must be after start date": "Ngày kết thúc phải sau ngày bắt đầu",
+    "End date must be a future date": "Ngày kết thúc phải từ hôm nay trở đi",
+};
+
+function getCampaignErrorMessage(backendMessage, fallback) {
+    if (!backendMessage) return fallback;
+    const trimmed = String(backendMessage).trim();
+    return CAMPAIGN_ERROR_VI[trimmed] ?? trimmed ?? fallback;
+}
+
 export default function SchoolCampaigns() {
     const navigate = useNavigate();
-    const [campaigns, setCampaigns] = useState(initialMockCampaigns);
+    const [campaigns, setCampaigns] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [submitLoading, setSubmitLoading] = useState(false);
     const [search, setSearch] = useState("");
     const [yearFilter, setYearFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
     const [createModalOpen, setCreateModalOpen] = useState(false);
-    const [viewModalOpen, setViewModalOpen] = useState(false);
     const [editModalOpen, setEditModalOpen] = useState(false);
     const [selectedCampaign, setSelectedCampaign] = useState(null);
     const [formValues, setFormValues] = useState(emptyForm);
     const [formErrors, setFormErrors] = useState({});
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
+    const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+    const [statusTargetCampaign, setStatusTargetCampaign] = useState(null);
+    const [statusValue, setStatusValue] = useState("OPEN");
 
-    const years = useMemo(() => {
-        const set = new Set(campaigns.map((c) => c.year).filter(Boolean));
-        return Array.from(set).sort((a, b) => b - a);
-    }, [campaigns]);
+    useEffect(() => {
+        let cancelled = false;
+        const year = yearFilter === "all" ? 0 : parseInt(yearFilter, 10);
+        setLoading(true);
+        getCampaignTemplatesByYear(year)
+            .then((res) => {
+                if (cancelled) return;
+                const raw = res?.data?.body ?? res?.data;
+                let list = [];
+                if (Array.isArray(raw)) {
+                    list = raw;
+                } else if (raw) {
+                    list = [raw];
+                }
+                const mapped = list.map(mapTemplate).filter(Boolean);
+                setCampaigns(mapped);
+            })
+            .catch((err) => {
+                if (cancelled) return;
+                console.error("Fetch campaign templates error:", err);
+                enqueueSnackbar(err?.response?.data?.message || "Không tải được danh sách chiến dịch", {
+                    variant: "error",
+                });
+                setCampaigns([]);
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+        return () => { cancelled = true; };
+    }, [yearFilter]);
+
+    const years = useMemo(() => YEAR_OPTIONS, []);
 
     const handleChange = (e) => {
         const {name, value} = e.target;
@@ -139,7 +188,7 @@ export default function SchoolCampaigns() {
             list = list.filter((c) => c.year === y);
         }
         if (statusFilter !== "all") {
-            list = list.filter((c) => c.status === statusFilter);
+            list = list.filter((c) => String(c.status).toUpperCase() === statusFilter);
         }
         return list;
     }, [campaigns, search, yearFilter, statusFilter]);
@@ -154,18 +203,29 @@ export default function SchoolCampaigns() {
         if (!formValues.name?.trim()) errors.name = "Tên chiến dịch là bắt buộc";
         if (!formValues.startDate?.trim()) errors.startDate = "Ngày bắt đầu là bắt buộc";
         if (!formValues.endDate?.trim()) errors.endDate = "Ngày kết thúc là bắt buộc";
+        const start = formValues.startDate?.trim();
+        const end = formValues.endDate?.trim();
+        if (start && end && new Date(end) < new Date(start)) {
+            errors.endDate = "Ngày kết thúc phải sau ngày bắt đầu";
+        }
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
     };
 
-    const getPayload = () => ({
+    const getCreatePayload = () => ({
         name: formValues.name.trim(),
         description: formValues.description?.trim() || "",
         year: formValues.year || new Date().getFullYear(),
         startDate: formValues.startDate?.trim() || "",
         endDate: formValues.endDate?.trim() || "",
-        numberOfOfferings: selectedCampaign?.numberOfOfferings ?? 0,
-        status: selectedCampaign?.status ?? "upcoming",
+    });
+
+    const getUpdatePayload = () => ({
+        admissionCampaignTemplateId: selectedCampaign?.admissionCampaignTemplateId ?? selectedCampaign?.id,
+        name: formValues.name.trim(),
+        description: formValues.description?.trim() || "",
+        startDate: formValues.startDate?.trim() || "",
+        endDate: formValues.endDate?.trim() || "",
     });
 
     const handleOpenCreate = () => {
@@ -178,23 +238,45 @@ export default function SchoolCampaigns() {
         setCreateModalOpen(true);
     };
 
-    const handleCreateSubmit = () => {
+    const handleCreateSubmit = async () => {
         if (!validateForm()) return;
-        const payload = getPayload();
-        const newCampaign = {
-            id: Date.now(),
-            ...payload,
-            numberOfOfferings: 0,
-            status: "upcoming",
-        };
-        setCampaigns((prev) => [newCampaign, ...prev]);
-        enqueueSnackbar("Tạo chiến dịch thành công", {variant: "success"});
-        setCreateModalOpen(false);
+        setSubmitLoading(true);
+        try {
+            const payload = getCreatePayload();
+            const res = await createCampaignTemplate(payload);
+            if (res?.status === 200 || res?.data?.message) {
+                enqueueSnackbar(res?.data?.message || "Tạo chiến dịch thành công", { variant: "success" });
+                setCreateModalOpen(false);
+                const year = yearFilter === "all" ? 0 : parseInt(yearFilter, 10);
+                const refetch = await getCampaignTemplatesByYear(year);
+                const raw = refetch?.data?.body ?? refetch?.data;
+                let list = [];
+                if (Array.isArray(raw)) {
+                    list = raw;
+                } else if (raw) {
+                    list = [raw];
+                }
+                const mapped = list.map(mapTemplate).filter(Boolean);
+                setCampaigns(mapped);
+            } else {
+                enqueueSnackbar(
+                    getCampaignErrorMessage(res?.data?.message, "Tạo chiến dịch thất bại"),
+                    { variant: "error" }
+                );
+            }
+        } catch (err) {
+            enqueueSnackbar(
+                getCampaignErrorMessage(err?.response?.data?.message, "Tạo chiến dịch thất bại"),
+                { variant: "error" }
+            );
+        } finally {
+            setSubmitLoading(false);
+        }
     };
 
     const handleOpenView = (campaign) => {
-        setSelectedCampaign(campaign);
-        setViewModalOpen(true);
+        const id = campaign.id ?? campaign.admissionCampaignTemplateId;
+        navigate(`/school/campaigns/detail/${id}`, { state: { campaign } });
     };
 
     const handleOpenEdit = (campaign) => {
@@ -210,18 +292,40 @@ export default function SchoolCampaigns() {
         setEditModalOpen(true);
     };
 
-    const handleEditSubmit = () => {
+    const handleEditSubmit = async () => {
         if (!selectedCampaign || !validateForm()) return;
-        const payload = getPayload();
-        setCampaigns((prev) =>
-            prev.map((c) =>
-                c.id === selectedCampaign.id
-                    ? {...c, ...payload, numberOfOfferings: c.numberOfOfferings, status: c.status}
-                    : c
-            )
-        );
-        enqueueSnackbar("Cập nhật chiến dịch thành công", {variant: "success"});
-        setEditModalOpen(false);
+        setSubmitLoading(true);
+        try {
+            const payload = getUpdatePayload();
+            const res = await updateCampaignTemplate(payload);
+            if (res?.status === 200 || res?.data) {
+                enqueueSnackbar("Cập nhật chiến dịch thành công", { variant: "success" });
+                setEditModalOpen(false);
+                const year = yearFilter === "all" ? 0 : parseInt(yearFilter, 10);
+                const refetch = await getCampaignTemplatesByYear(year);
+                const raw = refetch?.data?.body ?? refetch?.data;
+                let list = [];
+                if (Array.isArray(raw)) {
+                    list = raw;
+                } else if (raw) {
+                    list = [raw];
+                }
+                const mapped = list.map(mapTemplate).filter(Boolean);
+                setCampaigns(mapped);
+            } else {
+                enqueueSnackbar(
+                    getCampaignErrorMessage(res?.data?.message, "Cập nhật chiến dịch thất bại"),
+                    { variant: "error" }
+                );
+            }
+        } catch (err) {
+            enqueueSnackbar(
+                getCampaignErrorMessage(err?.response?.data?.message, "Cập nhật chiến dịch thất bại"),
+                { variant: "error" }
+            );
+        } finally {
+            setSubmitLoading(false);
+        }
     };
 
     const handleManageOfferings = (campaign) => {
@@ -229,14 +333,65 @@ export default function SchoolCampaigns() {
     };
 
     const getStatusLabel = (status) => {
-        const o = STATUS_OPTIONS.find((s) => s.value === status);
-        return o?.label ?? status;
+        const upper = String(status || "").toUpperCase();
+        const mapped = STATUS_OPTIONS.find((s) => s.value === upper);
+        return mapped?.label ?? status ?? "—";
     };
 
     const getStatusColor = (status) => {
-        if (status === "active") return {bg: "rgba(34, 197, 94, 0.12)", color: "#16a34a"};
-        if (status === "upcoming") return {bg: "rgba(59, 130, 246, 0.12)", color: "#2563eb"};
-        return {bg: "rgba(148, 163, 184, 0.2)", color: "#64748b"};
+        const upper = String(status || "").toUpperCase();
+        if (upper === "OPEN") return {bg: "rgba(34, 197, 94, 0.12)", color: "#16a34a"};
+        if (upper === "PAUSED") return {bg: "rgba(250, 204, 21, 0.18)", color: "#a16207"};
+        if (upper === "EXPIRED") return {bg: "rgba(248, 113, 113, 0.15)", color: "#b91c1c"};
+        if (upper === "CLOSED") return {bg: "rgba(148, 163, 184, 0.2)", color: "#64748b"};
+        return {bg: "rgba(148, 163, 184, 0.18)", color: "#64748b"};
+    };
+
+    const handleOpenStatusDialog = (campaign) => {
+        setStatusTargetCampaign(campaign);
+        setStatusValue(String(campaign.status || "OPEN").toUpperCase());
+        setStatusDialogOpen(true);
+    };
+
+    const handleConfirmStatusChange = async () => {
+        if (!statusTargetCampaign) return;
+        setSubmitLoading(true);
+        try {
+            const id =
+                statusTargetCampaign.admissionCampaignTemplateId ?? statusTargetCampaign.id;
+            const res = await updateCampaignTemplateStatus(id, statusValue);
+            if (res?.status === 200 || res?.data) {
+                enqueueSnackbar("Cập nhật trạng thái chiến dịch thành công", {
+                    variant: "success",
+                });
+                setStatusDialogOpen(false);
+                const year = yearFilter === "all" ? 0 : parseInt(yearFilter, 10);
+                const refetch = await getCampaignTemplatesByYear(year);
+                const raw = refetch?.data?.body ?? refetch?.data;
+                let list = [];
+                if (Array.isArray(raw)) {
+                    list = raw;
+                } else if (raw) {
+                    list = [raw];
+                }
+                const mapped = list.map(mapTemplate).filter(Boolean);
+                setCampaigns(mapped);
+            } else {
+                enqueueSnackbar("Cập nhật trạng thái chiến dịch thất bại", {
+                    variant: "error",
+                });
+            }
+        } catch (err) {
+            enqueueSnackbar(
+                getCampaignErrorMessage(
+                    err?.response?.data?.message,
+                    "Cập nhật trạng thái chiến dịch thất bại"
+                ),
+                { variant: "error" }
+            );
+        } finally {
+            setSubmitLoading(false);
+        }
     };
 
     return (
@@ -335,7 +490,7 @@ export default function SchoolCampaigns() {
                                 ),
                             }}
                         />
-                        <FormControl size="small" sx={{minWidth: 120}}>
+                        <FormControl size="small" sx={{minWidth: 140}}>
                             <InputLabel>Năm</InputLabel>
                             <Select
                                 value={yearFilter}
@@ -343,7 +498,7 @@ export default function SchoolCampaigns() {
                                 onChange={(e) => setYearFilter(e.target.value)}
                                 sx={{borderRadius: 2, bgcolor: "white"}}
                             >
-                                <MenuItem value="all">Tất cả</MenuItem>
+                                <MenuItem value="all">Tất cả năm</MenuItem>
                                 {years.map((y) => (
                                     <MenuItem key={y} value={String(y)}>
                                         {y}
@@ -390,6 +545,9 @@ export default function SchoolCampaigns() {
                                     Tên chiến dịch
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
+                                    Mô tả
+                                </TableCell>
+                                <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
                                     Năm
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
@@ -413,9 +571,22 @@ export default function SchoolCampaigns() {
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {paginatedCampaigns.length === 0 ? (
+                            {loading ? (
+                                Array.from({ length: 5 }).map((_, i) => (
+                                    <TableRow key={i}>
+                                        <TableCell><Skeleton variant="text" width="80%" /></TableCell>
+                                        <TableCell><Skeleton variant="text" width="60%" /></TableCell>
+                                        <TableCell><Skeleton variant="text" width={40} /></TableCell>
+                                        <TableCell><Skeleton variant="text" width={70} /></TableCell>
+                                        <TableCell><Skeleton variant="text" width={70} /></TableCell>
+                                        <TableCell><Skeleton variant="text" width={32} /></TableCell>
+                                        <TableCell><Skeleton variant="rounded" width={70} height={24} /></TableCell>
+                                        <TableCell><Skeleton variant="rounded" width={100} height={32} /></TableCell>
+                                    </TableRow>
+                                ))
+                            ) : paginatedCampaigns.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={7} align="center" sx={{py: 8}}>
+                                    <TableCell colSpan={8} align="center" sx={{py: 8}}>
                                         <Box
                                             sx={{
                                                 display: "flex",
@@ -474,6 +645,11 @@ export default function SchoolCampaigns() {
                                                     {row.name}
                                                 </Typography>
                                             </TableCell>
+                                            <TableCell sx={{color: "#64748b", maxWidth: 200}}>
+                                                <Typography noWrap title={row.description}>
+                                                    {row.description || "—"}
+                                                </Typography>
+                                            </TableCell>
                                             <TableCell sx={{color: "#64748b"}}>{row.year}</TableCell>
                                             <TableCell sx={{color: "#64748b"}}>
                                                 {formatDate(row.startDate)}
@@ -484,7 +660,7 @@ export default function SchoolCampaigns() {
                                             <TableCell sx={{color: "#64748b"}}>
                                                 {row.numberOfOfferings ?? 0}
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell onClick={() => handleOpenStatusDialog(row)}>
                                                 <Box
                                                     component="span"
                                                     sx={{
@@ -495,6 +671,7 @@ export default function SchoolCampaigns() {
                                                         fontWeight: 600,
                                                         bgcolor: statusStyle.bg,
                                                         color: statusStyle.color,
+                                                        cursor: "pointer",
                                                     }}
                                                 >
                                                     {getStatusLabel(row.status)}
@@ -534,6 +711,22 @@ export default function SchoolCampaigns() {
                                                     >
                                                         <EditIcon fontSize="small"/>
                                                     </IconButton>
+                                                    <Tooltip title="Đổi trạng thái">
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => handleOpenStatusDialog(row)}
+                                                            sx={{
+                                                                color: "#64748b",
+                                                                "&:hover": {
+                                                                    color: "#0D64DE",
+                                                                    bgcolor: "rgba(13, 100, 222, 0.08)",
+                                                                },
+                                                            }}
+                                                            aria-label="Đổi trạng thái"
+                                                        >
+                                                            <SwapHorizIcon fontSize="small"/>
+                                                        </IconButton>
+                                                    </Tooltip>
                                                     <IconButton
                                                         size="small"
                                                         onClick={() => handleManageOfferings(row)}
@@ -684,6 +877,7 @@ export default function SchoolCampaigns() {
                     <Button
                         onClick={handleCreateSubmit}
                         variant="contained"
+                        disabled={submitLoading}
                         sx={{
                             textTransform: "none",
                             fontWeight: 600,
@@ -692,99 +886,7 @@ export default function SchoolCampaigns() {
                             background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                         }}
                     >
-                        Tạo chiến dịch
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* View Modal */}
-            <Dialog
-                open={viewModalOpen}
-                onClose={() => setViewModalOpen(false)}
-                maxWidth="sm"
-                fullWidth
-                PaperProps={{sx: modalPaperSx}}
-                slotProps={{backdrop: {sx: modalBackdropSx}}}
-            >
-                <Box sx={{px: 3, pt: 3, pb: 0}}>
-                    <Box
-                        sx={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            justifyContent: "space-between",
-                            gap: 2,
-                        }}
-                    >
-                        <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
-                            Chi tiết chiến dịch
-                        </Typography>
-                        <IconButton
-                            onClick={() => setViewModalOpen(false)}
-                            size="small"
-                            sx={{mt: -0.5, mr: -0.5}}
-                            aria-label="Đóng"
-                        >
-                            <CloseIcon fontSize="small"/>
-                        </IconButton>
-                    </Box>
-                </Box>
-                <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 2}}>
-                    {selectedCampaign && (
-                        <Stack spacing={2}>
-                            <Box>
-                                <Typography variant="caption" color="text.secondary">
-                                    Tên chiến dịch
-                                </Typography>
-                                <Typography variant="h6" sx={{fontWeight: 600}}>
-                                    {selectedCampaign.name}
-                                </Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="caption" color="text.secondary">
-                                    Mô tả
-                                </Typography>
-                                <Typography variant="body1">
-                                    {selectedCampaign.description || "—"}
-                                </Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="caption" color="text.secondary">
-                                    Năm · Ngày bắt đầu · Ngày kết thúc
-                                </Typography>
-                                <Typography variant="body1">
-                                    {selectedCampaign.year} · {formatDate(selectedCampaign.startDate)} ·{" "}
-                                    {formatDate(selectedCampaign.endDate)}
-                                </Typography>
-                            </Box>
-                            <Box>
-                                <Typography variant="caption" color="text.secondary">
-                                    Số chỉ tiêu · Trạng thái
-                                </Typography>
-                                <Typography variant="body1">
-                                    {selectedCampaign.numberOfOfferings ?? 0} ·{" "}
-                                    {getStatusLabel(selectedCampaign.status)}
-                                </Typography>
-                            </Box>
-                        </Stack>
-                    )}
-                </DialogContent>
-                <DialogActions sx={{px: 3, py: 2, borderTop: "1px solid #e2e8f0"}}>
-                    <Button onClick={() => setViewModalOpen(false)} color="inherit">
-                        Đóng
-                    </Button>
-                    <Button
-                        variant="contained"
-                        startIcon={<ListIcon/>}
-                        onClick={() => {
-                            setViewModalOpen(false);
-                            handleManageOfferings(selectedCampaign);
-                        }}
-                        sx={{
-                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
-                            textTransform: "none",
-                        }}
-                    >
-                        Quản lý chỉ tiêu
+                        {submitLoading ? "Đang tạo…" : "Tạo chiến dịch"}
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -890,6 +992,7 @@ export default function SchoolCampaigns() {
                     <Button
                         onClick={handleEditSubmit}
                         variant="contained"
+                        disabled={submitLoading}
                         sx={{
                             textTransform: "none",
                             fontWeight: 600,
@@ -898,7 +1001,69 @@ export default function SchoolCampaigns() {
                             background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                         }}
                     >
-                        Lưu
+                        {submitLoading ? "Đang lưu…" : "Lưu"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Change Status Dialog */}
+            <Dialog
+                open={statusDialogOpen}
+                onClose={() => setStatusDialogOpen(false)}
+                fullWidth
+                maxWidth="xs"
+                PaperProps={{sx: modalPaperSx}}
+                slotProps={{backdrop: {sx: modalBackdropSx}}}
+            >
+                <Box sx={{px: 3, pt: 3, pb: 0}}>
+                    <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
+                        Thay đổi trạng thái chiến dịch
+                    </Typography>
+                    {statusTargetCampaign && (
+                        <Typography variant="body2" sx={{color: "#64748b", mt: 0.5}}>
+                            {statusTargetCampaign.name}
+                        </Typography>
+                    )}
+                </Box>
+                <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 1}}>
+                    <FormControl fullWidth size="small">
+                        <InputLabel>Trạng thái</InputLabel>
+                        <Select
+                            label="Trạng thái"
+                            value={statusValue}
+                            onChange={(e) => setStatusValue(e.target.value)}
+                            sx={{borderRadius: 2}}
+                        >
+                            {STATUS_OPTIONS.map((opt) => (
+                                <MenuItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
+                </DialogContent>
+                <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
+                    <Button
+                        onClick={() => setStatusDialogOpen(false)}
+                        variant="text"
+                        color="inherit"
+                        sx={{textTransform: "none", fontWeight: 500}}
+                    >
+                        Hủy
+                    </Button>
+                    <Button
+                        onClick={handleConfirmStatusChange}
+                        variant="contained"
+                        disabled={submitLoading}
+                        sx={{
+                            textTransform: "none",
+                            fontWeight: 600,
+                            borderRadius: 2,
+                            px: 3,
+                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
+                        }}
+                    >
+                        {submitLoading ? "Đang cập nhật…" : "Xác nhận"}
                     </Button>
                 </DialogActions>
             </Dialog>

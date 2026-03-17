@@ -24,6 +24,9 @@ const SchoolCampaigns = lazy(() => import("./components/Page/school/SchoolCampai
 const SchoolCampaignOfferings = lazy(() =>
     import("./components/Page/school/SchoolCampaignOfferings.jsx")
 );
+const SchoolCampaignDetail = lazy(() =>
+    import("./components/Page/school/SchoolCampaignDetail.jsx")
+);
 const SchoolProfile = lazy(() => import("./components/Page/school/SchoolProfile.jsx"));
 
 const LoadingFallback = () => {
@@ -238,6 +241,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <SchoolCampaigns/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'campaigns/detail/:campaignId',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolCampaignDetail/>
                     </Suspense>
                 )
             },
