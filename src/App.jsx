@@ -31,6 +31,11 @@ const SchoolCampaignDetail = lazy(() =>
     import("./components/Page/school/SchoolCampaignDetail.jsx")
 );
 const SchoolProfile = lazy(() => import("./components/Page/school/SchoolProfile.jsx"));
+const CounsellorLayout = lazy(() => import("./components/layouts/CounsellorLayout.jsx"));
+const CounsellorDashboard = lazy(() => import("./components/Page/counsellor/CounsellorDashboard.jsx"));
+const CounsellorParentConsultation = lazy(() =>
+    import("./components/Page/counsellor/CounsellorParentConsultation.jsx")
+);
 const ParentProfile = lazy(() => import("./components/auth/ParentProfile.jsx"));
 
 const LoadingFallback = () => {
@@ -354,7 +359,7 @@ const router = createBrowserRouter([
             <Suspense fallback={<LoadingFallback/>}>
                 <ProtectedRoute allowRoles={['COUNSELLOR']}>
                     <Suspense fallback={<LoadingFallback/>}>
-                        <div>Counsellor Layout</div>
+                        <CounsellorLayout/>
                     </Suspense>
                 </ProtectedRoute>
             </Suspense>
@@ -362,7 +367,23 @@ const router = createBrowserRouter([
         children: [
             {
                 index: true,
-                element: <Navigate to={'/counsellor/profile'}/>
+                element: <Navigate to={'/counsellor/dashboard'}/>
+            },
+            {
+                path: 'dashboard',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <CounsellorDashboard/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'parent-consultation',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <CounsellorParentConsultation/>
+                    </Suspense>
+                )
             },
             {
                 path: 'profile',

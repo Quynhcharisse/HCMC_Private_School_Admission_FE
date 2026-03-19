@@ -3,22 +3,22 @@ import { Box, Drawer, Fade } from "@mui/material";
 import { ThemeProvider, createTheme, useTheme } from "@mui/material/styles";
 import { Outlet, useLocation } from "react-router-dom";
 import AuthHeader from "../partials/AuthHeader.jsx";
-import AdminSidebar from "../partials/AdminSidebar.jsx";
+import CounsellorSidebar from "../partials/CounsellorSidebar.jsx";
 
 const SIDEBAR_WIDTH_EXPANDED = 240;
 const SIDEBAR_WIDTH_COLLAPSED = 72;
 const SIDEBAR_WIDTH_TRANSITION = "280ms cubic-bezier(0.4, 0, 0.2, 1)";
-const ADMIN_FONT = '"Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif';
+const COUNSELLOR_FONT = '"Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif';
 
-export default function AdminLayout() {
+export default function CounsellorLayout() {
   const baseTheme = useTheme();
-  const adminTheme = useMemo(
+  const counsellorTheme = useMemo(
     () =>
       createTheme(baseTheme, {
         typography: {
           ...baseTheme.typography,
-          fontFamily: ADMIN_FONT,
-          allVariants: { fontFamily: ADMIN_FONT },
+          fontFamily: COUNSELLOR_FONT,
+          allVariants: { fontFamily: COUNSELLOR_FONT },
         },
       }),
     [baseTheme]
@@ -30,13 +30,13 @@ export default function AdminLayout() {
   const HEADER_HEIGHT = 65;
 
   return (
-    <ThemeProvider theme={adminTheme}>
+    <ThemeProvider theme={counsellorTheme}>
       <Box
         sx={{
           display: "flex",
           minHeight: "100vh",
           bgcolor: "#f8fafc",
-          fontFamily: ADMIN_FONT,
+          fontFamily: COUNSELLOR_FONT,
         }}
       >
         <Drawer
@@ -61,7 +61,7 @@ export default function AdminLayout() {
             },
           }}
         >
-          <AdminSidebar
+          <CounsellorSidebar
             currentPath={location.pathname}
             collapsed={sidebarCollapsed}
             onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
