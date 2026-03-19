@@ -158,10 +158,17 @@ export default function AdminUsersManagement() {
                     >
                         <TextField
                             size="small"
-                            placeholder="Tìm theo tên, email..."
+                            placeholder="Tìm theo tên hoặc địa chỉ..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            sx={{minWidth: {xs: "100%", sm: 260}, maxWidth: 360}}
+                            sx={{
+                                minWidth: {xs: "100%", sm: 260},
+                                maxWidth: 360,
+                                "& .MuiOutlinedInput-root": {
+                                    borderRadius: 2,
+                                    bgcolor: "white",
+                                },
+                            }}
                             InputProps={{
                                 startAdornment: (
                                     <InputAdornment position="start">
@@ -171,24 +178,7 @@ export default function AdminUsersManagement() {
                             }}
                         />
                         <Box sx={{display: "flex", gap: 1}}>
-                            <Button
-                                type="submit"
-                                variant="contained"
-                                size="small"
-                                disabled={loading}
-                            >
-                                Tìm kiếm
-                            </Button>
-                            <IconButton
-                                size="small"
-                                onClick={() => {
-                                    setSearch("");
-                                    fetchUsers({page: 0, search: ""});
-                                }}
-                                disabled={loading}
-                            >
-                                <RefreshIcon fontSize="small"/>
-                            </IconButton>
+                            {/* Nút tìm kiếm & làm mới đã được bỏ theo yêu cầu */}
                         </Box>
                     </Box>
 
