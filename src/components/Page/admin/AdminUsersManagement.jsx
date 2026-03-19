@@ -25,7 +25,7 @@ import {
 import PeopleIcon from '@mui/icons-material/People';
 import SearchIcon from '@mui/icons-material/Search';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import {useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {getUsersByRole} from "../../../services/AdminService.jsx";
@@ -89,12 +89,9 @@ export default function AdminUsersManagement() {
         fetchUsers({page: 0});
     };
 
-    const handleRowClick = (user) => {
-        if (roleTab === "SCHOOL") {
-            const schoolId = user?.schoolId;
-            if (!schoolId) return;
-            navigate(`/admin/schools/${schoolId}/campuses`);
-        }
+    const handleOpenCampuses = (schoolId) => {
+        if (!schoolId) return;
+        navigate(`/admin/schools/${schoolId}/campuses`);
     };
 
     const renderStatusChip = (status) => {
@@ -233,6 +230,12 @@ export default function AdminUsersManagement() {
                                             >
                                                 Mã số thuế
                                             </TableCell>
+                                            <TableCell
+                                                align="center"
+                                                sx={{fontWeight: 700, color: '#1e293b', width: 120}}
+                                            >
+                                                Campus
+                                            </TableCell>
                                         </>
                                     )}
                                     {roleTab === "PARENT" && (
@@ -268,7 +271,7 @@ export default function AdminUsersManagement() {
                             <TableBody>
                                 {loading ? (
                                     <TableRow>
-                                        <TableCell colSpan={roleTab === "SCHOOL" ? 6 : 5} align="center" sx={{py: 4}}>
+                                        <TableCell colSpan={roleTab === "SCHOOL" ? 7 : 5} align="center" sx={{py: 4}}>
                                             <Typography variant="body2" sx={{color: "#64748b"}}>
                                                 Đang tải dữ liệu...
                                             </Typography>
@@ -276,7 +279,7 @@ export default function AdminUsersManagement() {
                                     </TableRow>
                                 ) : users.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={roleTab === "SCHOOL" ? 6 : 5} align="center" sx={{py: 4}}>
+                                        <TableCell colSpan={roleTab === "SCHOOL" ? 7 : 5} align="center" sx={{py: 4}}>
                                             <Typography variant="body1" sx={{color: '#64748b'}}>
                                                 Chưa có dữ liệu người dùng
                                             </Typography>
@@ -287,10 +290,6 @@ export default function AdminUsersManagement() {
                                         <TableRow
                                             key={user.accountId || user.schoolId || index}
                                             hover
-                                            sx={{
-                                                cursor: roleTab === "SCHOOL" ? "pointer" : "default",
-                                            }}
-                                            onClick={() => handleRowClick(user)}
                                         >
                                             <TableCell align="center">
                                                 {pagination.page * pagination.pageSize + index + 1}
@@ -332,6 +331,16 @@ export default function AdminUsersManagement() {
                                                         <Typography sx={{fontSize: 14}}>
                                                             {user.taxCode || "-"}
                                                         </Typography>
+                                                    </TableCell>
+                                                    <TableCell align="center">
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => handleOpenCampuses(user?.schoolId)}
+                                                            disabled={!user?.schoolId}
+                                                            aria-label="Xem campus"
+                                                        >
+                                                            <VisibilityIcon fontSize="small"/>
+                                                        </IconButton>
                                                     </TableCell>
                                                 </>
                                             )}

@@ -20,13 +20,15 @@ import {
 } from "@mui/material";
 import GroupIcon from "@mui/icons-material/Group";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import {useNavigate, useParams} from "react-router-dom";
+import {useLocation, useNavigate, useParams, useSearchParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {getCampusCounsellors} from "../../../services/AdminService.jsx";
 
 export default function AdminCampusConsultants() {
     const navigate = useNavigate();
     const {campusId} = useParams();
+    const location = useLocation();
+    const [searchParams] = useSearchParams();
 
     const [consultants, setConsultants] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -77,7 +79,11 @@ export default function AdminCampusConsultants() {
         return <Chip label={status} size="small"/>;
     };
 
-    const campusLabel = campusName || `Campus ${campusId}`;
+    const schoolIdFromState = location.state?.schoolId;
+    const schoolIdFromQuery = searchParams.get("schoolId");
+    const schoolId = schoolIdFromState || schoolIdFromQuery;
+    const schoolLabel = location.state?.schoolLabel || (schoolId ? `School ${schoolId}` : "School");
+    const campusLabel = location.state?.campusName || campusName || `Campus ${campusId}`;
 
     return (
         <Box>
@@ -85,13 +91,19 @@ export default function AdminCampusConsultants() {
                 <Link
                     underline="hover"
                     color="inherit"
-                    onClick={() => navigate("/admin/users")}
+                    onClick={() => {
+                        if (schoolId) {
+                            navigate(`/admin/schools/${schoolId}/campuses`);
+                            return;
+                        }
+                        navigate("/admin/users");
+                    }}
                     sx={{cursor: "pointer"}}
                 >
-                    Users
+                    {schoolLabel}
                 </Link>
                 <Typography color="inherit">{campusLabel}</Typography>
-                <Typography color="text.primary">Consultants</Typography>
+                <Typography color="text.primary">Tư vấn viên</Typography>
             </Breadcrumbs>
 
             <Box sx={{display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2}}>
