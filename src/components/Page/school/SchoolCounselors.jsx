@@ -24,9 +24,9 @@ import {
     TableRow,
     TextField,
     Typography,
-    TablePagination,
     Avatar,
 } from "@mui/material";
+import Pagination from "@mui/material/Pagination";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -60,9 +60,7 @@ const modalBackdropSx = {
     backgroundColor: "rgba(15, 23, 42, 0.45)",
 };
 
-const ROWS_PER_PAGE_OPTIONS = [5, 10, 25];
-
-const initialMockCounsellors = [
+const _initialMockCounsellors = [
     {
         id: 1,
         fullName: "Nguyễn Thị Mai",
@@ -136,9 +134,9 @@ export default function SchoolCounselors() {
     const [formValues, setFormValues] = useState(emptyForm);
     const [formErrors, setFormErrors] = useState({});
     const [page, setPage] = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(10);
+    const rowsPerPage = 10;
     const [totalItems, setTotalItems] = useState(0);
-    const [loading, setLoading] = useState(false);
+    const [_loading, setLoading] = useState(false);
 
     useEffect(() => {
         const loadCounsellors = async () => {
@@ -165,7 +163,7 @@ export default function SchoolCounselors() {
         };
 
         loadCounsellors();
-    }, [page, rowsPerPage]);
+    }, [page]);
 
     const handleChange = (e) => {
         const {name, value} = e.target;
@@ -606,24 +604,15 @@ export default function SchoolCounselors() {
                     </Table>
                 </TableContainer>
                 {totalItems > 0 && (
-                    <TablePagination
-                        component="div"
-                        count={totalItems}
-                        page={page}
-                        onPageChange={(_, newPage) => setPage(newPage)}
-                        rowsPerPage={rowsPerPage}
-                        onRowsPerPageChange={(e) => {
-                            setRowsPerPage(parseInt(e.target.value, 10));
-                            setPage(0);
-                        }}
-                        rowsPerPageOptions={ROWS_PER_PAGE_OPTIONS}
-                        sx={{
-                            borderTop: "1px solid #e2e8f0",
-                            ".MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows": {
-                                color: "#64748b",
-                            },
-                        }}
-                    />
+                    <Box sx={{ borderTop: "1px solid #e2e8f0", px: 3, py: 1.5, display: "flex", justifyContent: "flex-end", bgcolor: "#f8fafc" }}>
+                        <Pagination
+                            count={Math.ceil(totalItems / rowsPerPage)}
+                            page={page + 1}
+                            onChange={(_, p) => setPage(p - 1)}
+                            color="primary"
+                            shape="rounded"
+                        />
+                    </Box>
                 )}
             </Card>
 

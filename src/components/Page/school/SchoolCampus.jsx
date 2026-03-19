@@ -24,8 +24,8 @@ import {
     TableRow,
     TextField,
     Typography,
-    TablePagination,
 } from "@mui/material";
+import Pagination from "@mui/material/Pagination";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -49,8 +49,6 @@ const modalBackdropSx = {
     backdropFilter: "blur(6px)",
     backgroundColor: "rgba(15, 23, 42, 0.45)",
 };
-
-const ROWS_PER_PAGE_OPTIONS = [5, 10, 25];
 
 const initialMockCampuses = [
     {
@@ -146,7 +144,7 @@ export default function SchoolCampus() {
     const [formValues, setFormValues] = useState(emptyForm);
     const [formErrors, setFormErrors] = useState({});
     const [page, setPage] = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(10);
+    const rowsPerPage = 10;
 
     const districts = useMemo(() => {
         const set = new Set(campuses.map((c) => c.district).filter(Boolean));
@@ -208,7 +206,7 @@ export default function SchoolCampus() {
     const paginatedCampuses = useMemo(() => {
         const start = page * rowsPerPage;
         return filteredCampuses.slice(start, start + rowsPerPage);
-    }, [filteredCampuses, page, rowsPerPage]);
+    }, [filteredCampuses, page]);
 
     const validateForm = () => {
         const errors = {};
@@ -329,6 +327,26 @@ export default function SchoolCampus() {
         });
         setFormErrors({});
         setEditModalOpen(true);
+    };
+
+    const getPayload = () => {
+        const latitude = formValues.latitude !== "" ? Number(formValues.latitude) : undefined;
+        const longitude = formValues.longitude !== "" ? Number(formValues.longitude) : undefined;
+
+        return {
+            name: formValues.name?.trim() || "",
+            address: formValues.address?.trim() || "",
+            city: formValues.city?.trim() || "",
+            district: formValues.district?.trim() || "",
+            phone: formValues.phone?.trim() || "",
+            email: formValues.email?.trim() || "",
+            latitude: latitude !== undefined && Number.isNaN(latitude) ? undefined : latitude,
+            longitude: longitude !== undefined && Number.isNaN(longitude) ? undefined : longitude,
+            boardingType: formValues.boardingType || "NONE",
+            description: formValues.description?.trim() || "",
+            imageUrl: formValues.imagePreview ?? selectedCampus?.imageUrl ?? null,
+            status: formValues.status ? "active" : "inactive",
+        };
     };
 
     const handleEditSubmit = () => {
@@ -699,25 +717,15 @@ export default function SchoolCampus() {
                     </Table>
                 </TableContainer>
                 {filteredCampuses.length > 0 && (
-                    <TablePagination
-                        component="div"
-                        count={filteredCampuses.length}
-                        page={page}
-                        onPageChange={(_, newPage) => setPage(newPage)}
-                        rowsPerPage={rowsPerPage}
-                        onRowsPerPageChange={(e) => {
-                            setRowsPerPage(parseInt(e.target.value, 10));
-                            setPage(0);
-                        }}
-                        rowsPerPageOptions={ROWS_PER_PAGE_OPTIONS}
-                        sx={{
-                            borderTop: "1px solid #e2e8f0",
-                            bgcolor: "#f8fafc",
-                            ".MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows": {
-                                color: "#64748b",
-                            },
-                        }}
-                    />
+                    <Box sx={{ borderTop: "1px solid #e2e8f0", bgcolor: "#f8fafc", px: 3, py: 1.5, display: "flex", justifyContent: "flex-end" }}>
+                        <Pagination
+                            count={Math.ceil(filteredCampuses.length / rowsPerPage)}
+                            page={page + 1}
+                            onChange={(_, p) => setPage(p - 1)}
+                            color="primary"
+                            shape="rounded"
+                        />
+                    </Box>
                 )}
             </Card>
 

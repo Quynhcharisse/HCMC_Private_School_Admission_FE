@@ -18,6 +18,7 @@ import DashboardIcon from "@mui/icons-material/Dashboard";
 import ApartmentIcon from "@mui/icons-material/Apartment";
 import SupportAgentIcon from "@mui/icons-material/SupportAgent";
 import CampaignIcon from "@mui/icons-material/Campaign";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
@@ -31,6 +32,7 @@ const menuItems = [
     { text: "Bảng điều khiển", icon: <DashboardIcon />, path: "/school/dashboard" },
     { text: "Cơ sở", icon: <ApartmentIcon />, path: "/school/campus" },
     { text: "Tư vấn viên", icon: <SupportAgentIcon />, path: "/school/counselors" },
+    { text: "Chương trình học", icon: <MenuBookIcon />, path: "/school/curriculums" },
     { text: "Chiến dịch tuyển sinh", icon: <CampaignIcon />, path: "/school/campaigns" },
 ];
 

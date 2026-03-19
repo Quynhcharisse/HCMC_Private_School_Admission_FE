@@ -24,8 +24,8 @@ import {
     TextField,
     Tooltip,
     Typography,
-    TablePagination,
 } from "@mui/material";
+import Pagination from "@mui/material/Pagination";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import VisibilityIcon from "@mui/icons-material/Visibility";
@@ -54,8 +54,6 @@ const modalBackdropSx = {
     backdropFilter: "blur(6px)",
     backgroundColor: "rgba(15, 23, 42, 0.45)",
 };
-
-const ROWS_PER_PAGE_OPTIONS = [5, 10, 25];
 
 // Backend has many statuses; UI focuses on main campaign lifecycle ones
 const STATUS_OPTIONS = [
@@ -133,7 +131,7 @@ export default function SchoolCampaigns() {
     const [formValues, setFormValues] = useState(emptyForm);
     const [formErrors, setFormErrors] = useState({});
     const [page, setPage] = useState(0);
-    const [rowsPerPage, setRowsPerPage] = useState(10);
+    const rowsPerPage = 10;
     const [statusDialogOpen, setStatusDialogOpen] = useState(false);
     const [statusTargetCampaign, setStatusTargetCampaign] = useState(null);
     const [statusValue, setStatusValue] = useState("OPEN");
@@ -198,7 +196,7 @@ export default function SchoolCampaigns() {
     const paginatedCampaigns = useMemo(() => {
         const start = page * rowsPerPage;
         return filteredCampaigns.slice(start, start + rowsPerPage);
-    }, [filteredCampaigns, page, rowsPerPage]);
+    }, [filteredCampaigns, page]);
 
     const validateForm = () => {
         const errors = {};
@@ -763,25 +761,24 @@ export default function SchoolCampaigns() {
                     </Table>
                 </TableContainer>
                 {filteredCampaigns.length > 0 && (
-                    <TablePagination
-                        component="div"
-                        count={filteredCampaigns.length}
-                        page={page}
-                        onPageChange={(_, newPage) => setPage(newPage)}
-                        rowsPerPage={rowsPerPage}
-                        onRowsPerPageChange={(e) => {
-                            setRowsPerPage(parseInt(e.target.value, 10));
-                            setPage(0);
-                        }}
-                        rowsPerPageOptions={ROWS_PER_PAGE_OPTIONS}
+                    <Box
                         sx={{
                             borderTop: "1px solid #e2e8f0",
                             bgcolor: "#f8fafc",
-                            ".MuiTablePagination-selectLabel, .MuiTablePagination-displayedRows": {
-                                color: "#64748b",
-                            },
+                            px: 3,
+                            py: 1.5,
+                            display: "flex",
+                            justifyContent: "flex-end",
                         }}
-                    />
+                    >
+                        <Pagination
+                            count={Math.ceil(filteredCampaigns.length / rowsPerPage)}
+                            page={page + 1}
+                            onChange={(_, p) => setPage(p - 1)}
+                            color="primary"
+                            shape="rounded"
+                        />
+                    </Box>
                 )}
             </Card>
 
