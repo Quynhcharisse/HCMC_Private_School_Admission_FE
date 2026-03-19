@@ -11,6 +11,7 @@ import {
     Divider,
     Fab,
     IconButton,
+    InputBase,
     List,
     ListItem,
     ListItemText,
@@ -26,10 +27,14 @@ import PersonIcon from '@mui/icons-material/Person';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import ChatBubbleRoundedIcon from "@mui/icons-material/ChatBubbleRounded";
 import SearchIcon from "@mui/icons-material/Search";
+import ArrowBackIosNewIcon from "@mui/icons-material/ArrowBackIosNew";
+import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import Fade from '@mui/material/Fade';
 import {enqueueSnackbar} from "notistack";
 import {signout, getProfile} from "../../services/AccountService.jsx";
 import {getParentConversations} from "../../services/ConversationService.jsx";
+import {getParentMessagesHistory, markParentMessagesRead} from "../../services/MessageService.jsx";
+import {connectPrivateMessageSocket, disconnect, sendMessage} from "../../services/WebSocketService.jsx";
 import logo from "../../assets/logo.png";
 import {useLocation} from "react-router-dom";
 
@@ -44,6 +49,18 @@ function MainHeader() {
     const [conversationError, setConversationError] = useState('');
     const [nextCursorId, setNextCursorId] = useState(null);
     const [hasMoreConversations, setHasMoreConversations] = useState(false);
+    const [selectedConversation, setSelectedConversation] = useState(null);
+    const [messageItems, setMessageItems] = useState([]);
+    const [messageLoading, setMessageLoading] = useState(false);
+    const [messageError, setMessageError] = useState('');
+    const [messageNextCursorId, setMessageNextCursorId] = useState(null);
+    const [messageHasMore, setMessageHasMore] = useState(false);
+    const [chatInput, setChatInput] = useState('');
+
+    const chatListRef = React.useRef(null);
+    const loadingMoreRef = React.useRef(false);
+    const hasMarkedReadRef = React.useRef(false);
+    const selectedConversationRef = React.useRef(null);
 
     const location = useLocation();
     const isHomePage = location.pathname === '/home' || location.pathname === '/';
@@ -62,6 +79,18 @@ function MainHeader() {
     
     const userInfo = getUserInfo();
     const isParent = userInfo?.role === 'PARENT';
+    const userIdentitySet = React.useMemo(() => {
+        return new Set(
+            [
+                userInfo?.email,
+                userInfo?.username,
+                userInfo?.userName,
+                userInfo?.sub
+            ]
+                .filter(Boolean)
+                .map((v) => String(v).toLowerCase())
+        );
+    }, [userInfo]);
     const unreadMessagesCount = conversationItems.reduce((sum, item) => {
         const unread = Number(item?.unreadCount ?? item?.unreadMessages ?? 0);
         return Number.isFinite(unread) ? sum + unread : sum;
@@ -74,6 +103,44 @@ function MainHeader() {
             nextCursorId: payload?.nextCursorId ?? null,
             hasMore: !!payload?.hasMore
         };
+    };
+
+    const parseHistoryResponse = (response) => {
+        const payload = response?.data?.body?.body || response?.data?.body || {};
+        return {
+            items: Array.isArray(payload?.items) ? payload.items : [],
+            nextCursorId: payload?.nextCursorId ?? null,
+            hasMore: !!payload?.hasMore
+        };
+    };
+
+    const normalizeMessage = (message) => {
+        const id = message?.id || message?.messageId || message?.clientMessageId || `${message?.sentAt || Date.now()}-${Math.random()}`;
+        const text = message?.content || message?.message || "";
+        const sender = message?.sender || message?.senderEmail || message?.from || message?.username || message?.createdBy || "";
+        const sentAt = message?.sentAt || message?.createdAt || message?.timestamp || null;
+        return {id, text, sender, sentAt, raw: message};
+    };
+
+    const mergeUniqueMessages = (messages) => {
+        const map = new Map();
+        messages.forEach((message) => {
+            if (message?.id) {
+                map.set(String(message.id), message);
+            }
+        });
+        return Array.from(map.values()).sort((a, b) => {
+            const aTime = a?.sentAt ? new Date(a.sentAt).getTime() : 0;
+            const bTime = b?.sentAt ? new Date(b.sentAt).getTime() : 0;
+            return aTime - bTime;
+        });
+    };
+
+    const formatMessageTime = (value) => {
+        if (!value) return "";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "";
+        return date.toLocaleTimeString("vi-VN", {hour: "2-digit", minute: "2-digit"});
     };
 
     const loadConversations = async (cursorId = null) => {
@@ -98,6 +165,110 @@ function MainHeader() {
         }
     };
 
+    const resolveConversationEmails = (conversation) => {
+        const parentEmail = userInfo?.email || conversation?.parentEmail || conversation?.participantParentEmail || '';
+        const counsellorEmail = conversation?.counsellorEmail || conversation?.schoolEmail || conversation?.participantCounsellorEmail || conversation?.participantEmail || '';
+        return {parentEmail, counsellorEmail};
+    };
+
+    const loadMessageHistory = async ({conversation, cursorId = null}) => {
+        if (!conversation) return;
+        const {parentEmail, counsellorEmail} = resolveConversationEmails(conversation);
+
+        if (!parentEmail || !counsellorEmail) {
+            setMessageError('Thiếu thông tin email để tải lịch sử tin nhắn.');
+            return;
+        }
+
+        setMessageLoading(true);
+        setMessageError('');
+        try {
+            const response = await getParentMessagesHistory({
+                parentEmail,
+                counsellorEmail,
+                cursorId
+            });
+            if (response?.status === 200) {
+                const parsed = parseHistoryResponse(response);
+                const normalized = parsed.items.map(normalizeMessage);
+                setMessageItems((prev) => (cursorId ? mergeUniqueMessages([...normalized, ...prev]) : mergeUniqueMessages(normalized)));
+                setMessageNextCursorId(parsed.nextCursorId);
+                setMessageHasMore(parsed.hasMore);
+            } else {
+                setMessageError('Không thể tải lịch sử tin nhắn.');
+            }
+        } catch (error) {
+            console.error('Error fetching message history:', error);
+            setMessageError('Không thể tải lịch sử tin nhắn.');
+        } finally {
+            setMessageLoading(false);
+        }
+    };
+
+    const handleSelectConversation = async (conversation) => {
+        setSelectedConversation(conversation);
+        selectedConversationRef.current = conversation;
+        setMessageItems([]);
+        setMessageNextCursorId(null);
+        setMessageHasMore(false);
+        hasMarkedReadRef.current = false;
+        await loadMessageHistory({conversation});
+    };
+
+    const handleChatScroll = async (event) => {
+        if (!messageHasMore || loadingMoreRef.current || !selectedConversation) return;
+        const node = event.currentTarget;
+        if (node.scrollTop > 60) return;
+
+        loadingMoreRef.current = true;
+        const previousHeight = node.scrollHeight;
+        await loadMessageHistory({conversation: selectedConversation, cursorId: messageNextCursorId});
+        requestAnimationFrame(() => {
+            const newHeight = node.scrollHeight;
+            node.scrollTop = Math.max(newHeight - previousHeight, 0);
+            loadingMoreRef.current = false;
+        });
+    };
+
+    const handleMarkRead = async () => {
+        if (!selectedConversation || hasMarkedReadRef.current) return;
+        const conversationId = selectedConversation?.conversationId || selectedConversation?.id;
+        const username = userInfo?.email || userInfo?.username;
+        if (!conversationId || !username) return;
+
+        try {
+            await markParentMessagesRead({conversationId, username});
+            hasMarkedReadRef.current = true;
+            setConversationItems((prev) =>
+                prev.map((item) => {
+                    const id = item?.conversationId || item?.id;
+                    if (id !== conversationId) return item;
+                    return {...item, unreadCount: 0, unreadMessages: 0};
+                })
+            );
+        } catch (error) {
+            console.error('Error marking messages as read:', error);
+        }
+    };
+
+    const handleSendMessage = () => {
+        const trimmed = chatInput.trim();
+        if (!trimmed || !selectedConversation) return;
+
+        const payload = {
+            conversationId: selectedConversation?.conversationId || selectedConversation?.id,
+            content: trimmed,
+            senderEmail: userInfo?.email,
+            receiverEmail: selectedConversation?.counsellorEmail || selectedConversation?.participantEmail
+        };
+        const sent = sendMessage(payload);
+        if (!sent) {
+            enqueueSnackbar('WebSocket chưa sẵn sàng, vui lòng thử lại.', {variant: 'warning'});
+            return;
+        }
+        setChatInput('');
+    };
+
     useEffect(() => {
         const fetchProfile = async () => {
             if (isSignedIn) {
@@ -116,6 +287,49 @@ function MainHeader() {
         };
         fetchProfile();
     }, [isSignedIn]);
+
+    useEffect(() => {
+        if (!isSignedIn || !isParent) return;
+
+        const client = connectPrivateMessageSocket({
+            onMessage: (payload) => {
+                const conversationId = payload?.conversationId || payload?.conversation?.id;
+                setConversationItems((prev) =>
+                    prev.map((item) => {
+                        const id = item?.conversationId || item?.id;
+                        if (id !== conversationId) return item;
+                        const currentUnread = Number(item?.unreadCount ?? item?.unreadMessages ?? 0) || 0;
+                        const currentSelected = selectedConversationRef.current;
+                        const selectedId = currentSelected?.conversationId || currentSelected?.id;
+                        const shouldIncreaseUnread = !(selectedId && selectedId === conversationId);
+                        return {
+                            ...item,
+                            lastMessage: payload?.content || payload?.message || item?.lastMessage,
+                            unreadCount: shouldIncreaseUnread ? currentUnread + 1 : currentUnread
+                        };
+                    })
+                );
+
+                const currentSelected = selectedConversationRef.current;
+                const selectedId = currentSelected?.conversationId || currentSelected?.id;
+                if (selectedId && selectedId === conversationId) {
+                    setMessageItems((prev) => mergeUniqueMessages([...prev, normalizeMessage(payload)]));
+                }
+            }
+        });
+
+        return () => {
+            if (client?.active) {
+                disconnect();
+            }
+        };
+    }, [isSignedIn, isParent]);
+
+    useEffect(() => {
+        if (!selectedConversation || messageItems.length === 0) return;
+        if (!chatListRef.current) return;
+        chatListRef.current.scrollTop = chatListRef.current.scrollHeight;
+    }, [selectedConversation, messageItems.length]);
 
     const handleMobileMenuToggle = () => {
         setMobileMenuOpen(!mobileMenuOpen);
@@ -136,6 +350,11 @@ function MainHeader() {
 
     const handleMessageMenuClose = () => {
         setMessageAnchorEl(null);
+        setSelectedConversation(null);
+        selectedConversationRef.current = null;
+        setMessageItems([]);
+        setMessageError('');
+        setChatInput('');
     };
 
     const handleLogout = async () => {
@@ -604,100 +823,190 @@ function MainHeader() {
                                         </Box>
                                     </Box>
 
-                                    {conversationLoading && conversationItems.length === 0 ? (
-                                        <Box sx={{display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4}}>
-                                            <CircularProgress size={24}/>
-                                        </Box>
-                                    ) : conversationError ? (
-                                        <Box sx={{px: 2, py: 3}}>
-                                            <Typography sx={{fontSize: 14, color: '#dc2626'}}>
-                                                {conversationError}
-                                            </Typography>
-                                        </Box>
-                                    ) : conversationItems.length === 0 ? (
-                                        <Box sx={{px: 2, py: 4, textAlign: 'center'}}>
-                                            <ChatBubbleRoundedIcon sx={{fontSize: 30, color: '#94a3b8'}}/>
-                                            <Typography sx={{fontSize: 14, color: '#475569', mt: 1}}>
-                                                Chưa có tin nhắn nào
-                                            </Typography>
-                                        </Box>
-                                    ) : (
-                                        <Box sx={{maxHeight: 420, overflowY: 'auto'}}>
-                                            {conversationItems.map((conversation, index) => {
-                                                const conversationId = conversation?.id || conversation?.conversationId;
-                                                const conversationName = conversation?.title || conversation?.name || conversation?.schoolName || conversation?.participantName || 'Cuộc trò chuyện';
-                                                const latestMessage = conversation?.lastMessage?.content || conversation?.lastMessage || conversation?.latestMessage || 'Chưa có nội dung';
-                                                const unreadCount = Number(conversation?.unreadCount ?? conversation?.unreadMessages ?? 0) || 0;
+                                    {!selectedConversation ? (
+                                        <>
+                                            {conversationLoading && conversationItems.length === 0 ? (
+                                                <Box sx={{display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4}}>
+                                                    <CircularProgress size={24}/>
+                                                </Box>
+                                            ) : conversationError ? (
+                                                <Box sx={{px: 2, py: 3}}>
+                                                    <Typography sx={{fontSize: 14, color: '#dc2626'}}>
+                                                        {conversationError}
+                                                    </Typography>
+                                                </Box>
+                                            ) : conversationItems.length === 0 ? (
+                                                <Box sx={{px: 2, py: 4, textAlign: 'center'}}>
+                                                    <ChatBubbleRoundedIcon sx={{fontSize: 30, color: '#94a3b8'}}/>
+                                                    <Typography sx={{fontSize: 14, color: '#475569', mt: 1}}>
+                                                        Chưa có tin nhắn nào
+                                                    </Typography>
+                                                </Box>
+                                            ) : (
+                                                <Box sx={{maxHeight: 420, overflowY: 'auto'}}>
+                                                    {conversationItems.map((conversation, index) => {
+                                                        const conversationId = conversation?.id || conversation?.conversationId;
+                                                        const conversationName = conversation?.title || conversation?.name || conversation?.schoolName || conversation?.participantName || 'Cuộc trò chuyện';
+                                                        const latestMessage = conversation?.lastMessage?.content || conversation?.lastMessage || conversation?.latestMessage || 'Chưa có nội dung';
+                                                        const unreadCount = Number(conversation?.unreadCount ?? conversation?.unreadMessages ?? 0) || 0;
 
-                                                return (
-                                                    <Box
-                                                        key={conversationId || `${conversationName}-${index}`}
-                                                        onClick={() => {
-                                                            handleMessageMenuClose();
-                                                            window.location.href = conversationId ? `/messages/${conversationId}` : '/messages';
-                                                        }}
+                                                        return (
+                                                            <Box
+                                                                key={conversationId || `${conversationName}-${index}`}
+                                                                onClick={() => handleSelectConversation(conversation)}
+                                                                sx={{
+                                                                    px: 2,
+                                                                    py: 1.25,
+                                                                    borderBottom: '1px solid rgba(15,23,42,0.06)',
+                                                                    display: 'flex',
+                                                                    alignItems: 'center',
+                                                                    gap: 1.5,
+                                                                    cursor: 'pointer',
+                                                                    transition: 'background-color 0.2s ease',
+                                                                    '&:hover': {
+                                                                        bgcolor: 'rgba(25,118,210,0.08)'
+                                                                    }
+                                                                }}
+                                                            >
+                                                                <Avatar sx={{width: 38, height: 38, bgcolor: '#1d4ed8', fontSize: 14, fontWeight: 700}}>
+                                                                    {conversationName.charAt(0).toUpperCase()}
+                                                                </Avatar>
+                                                                <Box sx={{minWidth: 0, flex: 1}}>
+                                                                    <Typography noWrap sx={{fontSize: 14, fontWeight: 700, color: '#0f172a'}}>
+                                                                        {conversationName}
+                                                                    </Typography>
+                                                                    <Typography noWrap sx={{fontSize: 13, color: '#475569'}}>
+                                                                        {latestMessage}
+                                                                    </Typography>
+                                                                </Box>
+                                                                {unreadCount > 0 && (
+                                                                    <Badge
+                                                                        badgeContent={unreadCount}
+                                                                        color="error"
+                                                                        sx={{
+                                                                            '& .MuiBadge-badge': {
+                                                                                right: 0,
+                                                                                top: 0
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                )}
+                                                            </Box>
+                                                        );
+                                                    })}
+                                                </Box>
+                                            )}
+
+                                            {hasMoreConversations && (
+                                                <Box sx={{px: 2, py: 1.25, borderTop: '1px solid rgba(15,23,42,0.08)'}}>
+                                                    <Button
+                                                        fullWidth
+                                                        size="small"
+                                                        variant="text"
+                                                        disabled={conversationLoading}
+                                                        onClick={() => loadConversations(nextCursorId)}
                                                         sx={{
-                                                            px: 2,
-                                                            py: 1.25,
-                                                            borderBottom: '1px solid rgba(15,23,42,0.06)',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            gap: 1.5,
-                                                            cursor: 'pointer',
-                                                            transition: 'background-color 0.2s ease',
+                                                            textTransform: 'none',
+                                                            fontWeight: 600,
+                                                            color: '#1976d2',
                                                             '&:hover': {
                                                                 bgcolor: 'rgba(25,118,210,0.08)'
                                                             }
                                                         }}
                                                     >
-                                                        <Avatar sx={{width: 38, height: 38, bgcolor: '#1d4ed8', fontSize: 14, fontWeight: 700}}>
-                                                            {conversationName.charAt(0).toUpperCase()}
-                                                        </Avatar>
-                                                        <Box sx={{minWidth: 0, flex: 1}}>
-                                                            <Typography noWrap sx={{fontSize: 14, fontWeight: 700, color: '#0f172a'}}>
-                                                                {conversationName}
-                                                            </Typography>
-                                                            <Typography noWrap sx={{fontSize: 13, color: '#475569'}}>
-                                                                {latestMessage}
-                                                            </Typography>
-                                                        </Box>
-                                                        {unreadCount > 0 && (
-                                                            <Badge
-                                                                badgeContent={unreadCount}
-                                                                color="error"
-                                                                sx={{
-                                                                    '& .MuiBadge-badge': {
-                                                                        right: 0,
-                                                                        top: 0
-                                                                    }
-                                                                }}
-                                                            />
-                                                        )}
-                                                    </Box>
-                                                );
-                                            })}
-                                        </Box>
-                                    )}
-
-                                    {hasMoreConversations && (
-                                        <Box sx={{px: 2, py: 1.25, borderTop: '1px solid rgba(15,23,42,0.08)'}}>
-                                            <Button
-                                                fullWidth
-                                                size="small"
-                                                variant="text"
-                                                disabled={conversationLoading}
-                                                onClick={() => loadConversations(nextCursorId)}
+                                                        {conversationLoading ? 'Đang tải...' : 'Xem thêm'}
+                                                    </Button>
+                                                </Box>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <Box sx={{display: 'flex', flexDirection: 'column', height: 470}}>
+                                            <Box sx={{display: 'flex', alignItems: 'center', gap: 1, px: 1.5, py: 1, borderBottom: '1px solid rgba(15,23,42,0.08)'}}>
+                                                <IconButton size="small" onClick={() => setSelectedConversation(null)}>
+                                                    <ArrowBackIosNewIcon sx={{fontSize: 16}}/>
+                                                </IconButton>
+                                                <Typography sx={{fontSize: 14, fontWeight: 700, color: '#0f172a'}} noWrap>
+                                                    {selectedConversation?.title || selectedConversation?.name || selectedConversation?.schoolName || 'Cuộc trò chuyện'}
+                                                </Typography>
+                                            </Box>
+                                            <Box
+                                                ref={chatListRef}
+                                                onScroll={handleChatScroll}
                                                 sx={{
-                                                    textTransform: 'none',
-                                                    fontWeight: 600,
-                                                    color: '#1976d2',
-                                                    '&:hover': {
-                                                        bgcolor: 'rgba(25,118,210,0.08)'
-                                                    }
+                                                    flex: 1,
+                                                    px: 1.5,
+                                                    py: 1,
+                                                    overflowY: 'auto',
+                                                    bgcolor: '#f8fafc'
                                                 }}
                                             >
-                                                {conversationLoading ? 'Đang tải...' : 'Xem thêm'}
-                                            </Button>
+                                                {messageLoading && messageItems.length === 0 ? (
+                                                    <Box sx={{display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4}}>
+                                                        <CircularProgress size={22}/>
+                                                    </Box>
+                                                ) : messageError ? (
+                                                    <Typography sx={{fontSize: 13, color: '#dc2626'}}>{messageError}</Typography>
+                                                ) : messageItems.length === 0 ? (
+                                                    <Typography sx={{fontSize: 13, color: '#64748b', textAlign: 'center', mt: 2}}>
+                                                        Chưa có tin nhắn nào trong cuộc trò chuyện này
+                                                    </Typography>
+                                                ) : (
+                                                    messageItems.map((msg) => {
+                                                        const isMine = userIdentitySet.has((msg.sender || '').toLowerCase());
+                                                        return (
+                                                            <Box key={msg.id} sx={{display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', mb: 1}}>
+                                                                <Box
+                                                                    sx={{
+                                                                        maxWidth: '78%',
+                                                                        px: 1.2,
+                                                                        py: 0.9,
+                                                                        borderRadius: 2,
+                                                                        bgcolor: isMine ? '#1976d2' : '#ffffff',
+                                                                        color: isMine ? '#ffffff' : '#0f172a',
+                                                                        boxShadow: '0 1px 2px rgba(15,23,42,0.12)'
+                                                                    }}
+                                                                >
+                                                                    <Typography sx={{fontSize: 13, whiteSpace: 'pre-wrap'}}>
+                                                                        {msg.text}
+                                                                    </Typography>
+                                                                    {msg.sentAt && (
+                                                                        <Typography
+                                                                            sx={{
+                                                                                mt: 0.5,
+                                                                                fontSize: 11,
+                                                                                textAlign: 'right',
+                                                                                color: isMine ? 'rgba(255,255,255,0.85)' : '#64748b'
+                                                                            }}
+                                                                        >
+                                                                            {formatMessageTime(msg.sentAt)}
+                                                                        </Typography>
+                                                                    )}
+                                                                </Box>
+                                                            </Box>
+                                                        );
+                                                    })
+                                                )}
+                                            </Box>
+                                            <Box sx={{px: 1.25, py: 1, borderTop: '1px solid rgba(15,23,42,0.08)', bgcolor: '#fff'}}>
+                                                <Box sx={{display: 'flex', alignItems: 'center', gap: 1, border: '1px solid rgba(15,23,42,0.14)', borderRadius: 999, px: 1}}>
+                                                    <InputBase
+                                                        value={chatInput}
+                                                        onChange={(e) => setChatInput(e.target.value)}
+                                                        onFocus={handleMarkRead}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                e.preventDefault();
+                                                                handleSendMessage();
+                                                            }
+                                                        }}
+                                                        placeholder="Aa"
+                                                        sx={{flex: 1, fontSize: 14, py: 0.7}}
+                                                    />
+                                                    <IconButton size="small" onClick={handleSendMessage} sx={{color: '#1976d2'}}>
+                                                        <SendRoundedIcon fontSize="small"/>
+                                                    </IconButton>
+                                                </Box>
+                                            </Box>
                                         </Box>
                                     )}
                                 </Menu>
