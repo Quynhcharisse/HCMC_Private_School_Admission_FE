@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Avatar,
   Box,
@@ -13,85 +13,309 @@ import {
   Typography,
   Tooltip,
   Badge,
+  CircularProgress,
 } from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import SearchIcon from "@mui/icons-material/Search";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 
-const mockConversations = [
-  {
-    id: 1,
-    name: "Nguyễn Thị Mai",
-    lastMessage: "Cô cho em xin thêm thông tin về chương trình 2 buổi/tuần ạ?",
-    time: "Vừa xong",
-    unread: 2,
-    avatarColor: "#f97316",
-  },
-  {
-    id: 2,
-    name: "Trần Văn Long",
-    lastMessage: "Dạ em đã nhận được lịch tư vấn, cảm ơn cô.",
-    time: "1 giờ trước",
-    unread: 0,
-    avatarColor: "#6366f1",
-  },
-  {
-    id: 3,
-    name: "Lê Hồng Anh",
-    lastMessage: "Thầy cho em xin học phí dự kiến giúp em với ạ.",
-    time: "3 giờ trước",
-    unread: 0,
-    avatarColor: "#ec4899",
-  },
-  {
-    id: 4,
-    name: "Phạm Minh Khoa",
-    lastMessage: "Em sẽ sắp xếp cho bé tới tham quan trường vào tuần sau.",
-    time: "Hôm qua",
-    unread: 0,
-    avatarColor: "#22c55e",
-  },
-];
+import { getCounsellorConversations } from "../../../services/ConversationService.jsx";
+import {
+  getCounsellorMessagesHistory,
+  markCounsellorMessagesRead,
+} from "../../../services/MessageService.jsx";
+import { connectPrivateMessageSocket, disconnect, sendMessage } from "../../../services/WebSocketService.jsx";
 
-const mockMessages = [
-  {
-    id: 1,
-    from: "parent",
-    time: "10:15",
-    text: "Chào thầy/cô, em muốn tìm hiểu thêm về chương trình học dành cho bé lớp 6.",
-  },
-  {
-    id: 2,
-    from: "counsellor",
-    time: "10:17",
-    text: "Chào anh/chị, em rất vui được hỗ trợ. Anh/chị quan tâm nhiều hơn về chương trình học hay môi trường ngoại khoá ạ?",
-  },
-  {
-    id: 3,
-    from: "parent",
-    time: "10:19",
-    text: "Cả hai ạ, em muốn chương trình không quá nặng mà vẫn giúp bé phát triển tốt.",
-  },
-  {
-    id: 4,
-    from: "counsellor",
-    time: "10:22",
-    text: "Dạ, em sẽ gửi anh/chị lộ trình học chi tiết và một số hoạt động ngoại khoá nổi bật của trường để mình tham khảo thêm nhé.",
-  },
-];
+const fallbackAvatarColors = ["#f97316", "#6366f1", "#ec4899", "#22c55e", "#0ea5e9", "#a855f7"];
+
+const formatMessageTime = (value) => {
+  if (!value) return "";
+  if (typeof value === "string") return value.length <= 6 ? value : value;
+  try {
+    return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return String(value);
+  }
+};
+
+const mergeUniqueMessages = (messages) => {
+  const map = new Map();
+  (messages || []).forEach((m) => {
+    const id = m?.id ?? m?.messageId ?? m?.clientMessageId;
+    if (id != null) map.set(String(id), m);
+  });
+  const arr = Array.from(map.values());
+  return arr.sort((a, b) => {
+    const aTimeRaw = a?.sentAt ? new Date(a.sentAt).getTime() : 0;
+    const bTimeRaw = b?.sentAt ? new Date(b.sentAt).getTime() : 0;
+    const aTime = Number.isFinite(aTimeRaw) ? aTimeRaw : 0;
+    const bTime = Number.isFinite(bTimeRaw) ? bTimeRaw : 0;
+    return aTime - bTime;
+  });
+};
 
 export default function CounsellorParentConsultation() {
-  const [selectedId, setSelectedId] = useState(null);
-  const [inputValue, setInputValue] = useState("");
+  const userInfo = useMemo(() => {
+    try {
+      const raw = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const usernameForRead = userInfo?.email || userInfo?.username || userInfo?.userName;
+
+  const [conversations, setConversations] = useState([]);
+  const [conversationsLoading, setConversationsLoading] = useState(false);
+  const [conversationsError, setConversationsError] = useState("");
+  const [selectedConversationId, setSelectedConversationId] = useState(null);
 
   const selectedConversation = useMemo(
-    () => mockConversations.find((c) => c.id === selectedId) || null,
-    [selectedId]
+    () => conversations.find((c) => c?.conversationId === selectedConversationId) || null,
+    [conversations, selectedConversationId]
   );
+
+  const [inputValue, setInputValue] = useState("");
+  const [messageItems, setMessageItems] = useState([]);
+  const [messageLoading, setMessageLoading] = useState(false);
+  const [messageError, setMessageError] = useState("");
+  const [messageNextCursorId, setMessageNextCursorId] = useState(null);
+  const [messageHasMore, setMessageHasMore] = useState(false);
+
+  const loadingMoreRef = useRef(false);
+  const hasMarkedReadRef = useRef(false);
+  const messageListRef = useRef(null);
+  const selectedConversationIdRef = useRef(selectedConversationId);
+
+  useEffect(() => {
+    selectedConversationIdRef.current = selectedConversationId;
+  }, [selectedConversationId]);
+
+  useEffect(() => {
+    const node = messageListRef.current;
+    if (!node) return;
+    if (loadingMoreRef.current) return;
+    node.scrollTop = node.scrollHeight;
+  }, [selectedConversationId, messageItems.length]);
+
+  const parseConversationResponse = (response) => {
+    const payload = response?.data?.body?.body || response?.data?.body || response?.data || {};
+    return {
+      items: Array.isArray(payload?.items) ? payload.items : [],
+      nextCursorId: payload?.nextCursorId ?? payload?.cursorId ?? null,
+      hasMore: !!payload?.hasMore,
+    };
+  };
+
+  const parseHistoryResponse = (response) => {
+    const payload = response?.data?.body?.body || response?.data?.body || response?.data || {};
+    return {
+      items: Array.isArray(payload?.items) ? payload.items : [],
+      nextCursorId: payload?.nextCursorId ?? payload?.cursorId ?? null,
+      hasMore: !!payload?.hasMore,
+    };
+  };
+
+  const normalizeConversation = (c, index) => {
+    const conversationId = c?.conversationId ?? c?.id ?? c?.conversation?.id;
+    const parentEmail =
+      c?.parentEmail ?? c?.participantEmail ?? c?.parent?.email ?? c?.participant?.email;
+    const counsellorEmail =
+      c?.counsellorEmail ??
+      c?.participantCounsellorEmail ??
+      c?.counsellor?.email ??
+      c?.counsellorEmailAddress;
+
+    return {
+      conversationId,
+      name: c?.name ?? c?.parentName ?? c?.participantName ?? c?.parent?.name ?? "Phụ huynh",
+      avatarColor: c?.avatarColor ?? fallbackAvatarColors[index % fallbackAvatarColors.length],
+      lastMessage: c?.lastMessage ?? c?.lastText ?? c?.lastContent ?? c?.last?.content ?? "",
+      time: c?.time ?? c?.lastMessageTime ?? c?.last?.sentAt ?? "",
+      unreadCount: Number(c?.unreadCount ?? c?.unreadMessages ?? c?.unread ?? 0) || 0,
+      parentEmail,
+      counsellorEmail,
+      raw: c,
+    };
+  };
+
+  const normalizeMessage = (m) => {
+    const id = m?.id ?? m?.messageId ?? m?.clientMessageId ?? `${m?.sentAt || Date.now()}-${Math.random()}`;
+    const text = m?.content ?? m?.message ?? m?.text ?? "";
+    const sender =
+      m?.senderEmail ?? m?.sender ?? m?.from ?? m?.username ?? m?.createdBy ?? m?.senderId ?? "";
+    const sentAt = m?.sentAt ?? m?.createdAt ?? m?.timestamp ?? m?.time ?? null;
+    return { id: String(id), text, sender, sentAt, raw: m };
+  };
+
+  const getConversationEmails = (conversation) => {
+    const parentEmail =
+      conversation?.parentEmail ?? conversation?.participantEmail ?? conversation?.parent?.email ?? "";
+    const counsellorEmail =
+      conversation?.counsellorEmail ?? conversation?.counsellor?.email ?? userInfo?.email ?? "";
+    return { parentEmail, counsellorEmail };
+  };
+
+  const handleSelectConversation = async (conversation) => {
+    if (!conversation?.conversationId) return;
+    setSelectedConversationId(conversation.conversationId);
+    hasMarkedReadRef.current = false;
+    setMessageItems([]);
+    setMessageNextCursorId(null);
+    setMessageHasMore(false);
+    setMessageError("");
+    await loadMessageHistory({ conversation });
+    await handleMarkRead({ conversation });
+  };
+
+  const loadConversations = async ({ cursorId } = {}) => {
+    setConversationsLoading(true);
+    setConversationsError("");
+    try {
+      const response = await getCounsellorConversations(cursorId);
+      if (response?.status === 200) {
+        const parsed = parseConversationResponse(response);
+        const normalized = parsed.items.map((c, idx) => normalizeConversation(c, idx));
+        setConversations(normalized);
+      } else {
+        setConversationsError("Không thể tải danh sách cuộc trò chuyện.");
+      }
+    } catch (e) {
+      console.error(e);
+      setConversationsError("Không thể tải danh sách cuộc trò chuyện.");
+    } finally {
+      setConversationsLoading(false);
+    }
+  };
+
+  const loadMessageHistory = async ({ conversation, cursorId }) => {
+    if (!conversation) return;
+    setMessageLoading(true);
+    setMessageError("");
+    try {
+      const { parentEmail, counsellorEmail } = getConversationEmails(conversation);
+      if (!parentEmail || !counsellorEmail) {
+        setMessageError("Thiếu thông tin email để tải lịch sử.");
+        return;
+      }
+
+      const response = await getCounsellorMessagesHistory({
+        parentEmail,
+        counsellorEmail,
+        cursorId,
+      });
+
+      if (response?.status === 200) {
+        const parsed = parseHistoryResponse(response);
+        const normalized = parsed.items.map(normalizeMessage);
+        setMessageItems((prev) =>
+          cursorId ? mergeUniqueMessages([...normalized, ...prev]) : mergeUniqueMessages(normalized)
+        );
+        setMessageNextCursorId(parsed.nextCursorId);
+        setMessageHasMore(parsed.hasMore);
+      } else {
+        setMessageError("Không thể tải lịch sử tin nhắn.");
+      }
+    } catch (error) {
+      console.error("Error fetching message history:", error);
+      setMessageError("Không thể tải lịch sử tin nhắn.");
+    } finally {
+      setMessageLoading(false);
+    }
+  };
+
+  const handleMarkRead = async ({ conversation } = {}) => {
+    const targetConversation = conversation || selectedConversation;
+    if (!targetConversation || !targetConversation.conversationId) return;
+    if (hasMarkedReadRef.current) return;
+    if (!usernameForRead) return;
+
+    try {
+      await markCounsellorMessagesRead({
+        conversationId: targetConversation.conversationId,
+        username: usernameForRead,
+      });
+      hasMarkedReadRef.current = true;
+      setConversations((prev) =>
+        prev.map((item) => {
+          if (item?.conversationId !== targetConversation.conversationId) return item;
+          return { ...item, unreadCount: 0 };
+        })
+      );
+    } catch (error) {
+      console.error("Error marking messages as read:", error);
+    }
+  };
 
   const handleSend = () => {
     if (!inputValue.trim() || !selectedConversation) return;
+
+    const { parentEmail, counsellorEmail } = getConversationEmails(selectedConversation);
+    const payload = {
+      conversationId: selectedConversation.conversationId,
+      content: inputValue.trim(),
+      senderEmail: counsellorEmail || userInfo?.email,
+      receiverEmail: parentEmail,
+    };
+
+    const sent = sendMessage(payload);
+    if (!sent) return;
     setInputValue("");
+  };
+
+  useEffect(() => {
+    loadConversations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const client = connectPrivateMessageSocket({
+      onMessage: (payload) => {
+        const conversationId = payload?.conversationId ?? payload?.conversation?.id;
+        if (!conversationId) return;
+
+        const normalizedIncoming = normalizeMessage(payload);
+
+        setConversations((prev) =>
+          prev.map((item) => {
+            if (item?.conversationId !== conversationId) return item;
+            const currentSelectedId = selectedConversationIdRef.current;
+            const shouldIncreaseUnread = !(currentSelectedId && currentSelectedId === conversationId);
+            return {
+              ...item,
+              lastMessage: normalizedIncoming.text || item.lastMessage,
+              time: normalizedIncoming.sentAt || item.time,
+              unreadCount: shouldIncreaseUnread ? Number(item.unreadCount || 0) + 1 : item.unreadCount || 0,
+            };
+          })
+        );
+
+        if (selectedConversationIdRef.current === conversationId) {
+          setMessageItems((prev) => mergeUniqueMessages([...prev, normalizedIncoming]));
+        }
+      },
+    });
+
+    return () => {
+      if (client?.active) disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleMessageScroll = async (event) => {
+    if (!messageHasMore || loadingMoreRef.current || !selectedConversation) return;
+    const node = event.currentTarget;
+    if (node.scrollTop > 60) return;
+
+    loadingMoreRef.current = true;
+    const previousHeight = node.scrollHeight;
+    await loadMessageHistory({ conversation: selectedConversation, cursorId: messageNextCursorId });
+    requestAnimationFrame(() => {
+      const newHeight = node.scrollHeight;
+      node.scrollTop = Math.max(newHeight - previousHeight, 0);
+      loadingMoreRef.current = false;
+    });
   };
 
   return (
@@ -167,11 +391,26 @@ export default function CounsellorParentConsultation() {
               px: 0,
             }}
           >
-            {mockConversations.map((c) => {
-              const isActive = c.id === selectedId;
-              return (
+            {conversationsLoading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+                <CircularProgress size={22} />
+              </Box>
+            ) : conversationsError ? (
+              <Box sx={{ px: 2, py: 2 }}>
+                <Typography sx={{ fontSize: 13, color: "#dc2626" }}>{conversationsError}</Typography>
+              </Box>
+            ) : conversations.length === 0 ? (
+              <Box sx={{ px: 2, py: 2 }}>
+                <Typography sx={{ fontSize: 13, color: "#64748b" }}>
+                  Chưa có cuộc trò chuyện nào.
+                </Typography>
+              </Box>
+            ) : (
+              conversations.map((c) => {
+                const isActive = c?.conversationId === selectedConversationId;
+                return (
                 <ListItem
-                  key={c.id}
+                  key={c.conversationId}
                   disablePadding
                   sx={{
                     px: 0,
@@ -179,7 +418,7 @@ export default function CounsellorParentConsultation() {
                   }}
                 >
                   <Paper
-                    onClick={() => setSelectedId(c.id)}
+                    onClick={() => handleSelectConversation(c)}
                     elevation={0}
                     sx={{
                       px: 1.5,
@@ -204,7 +443,7 @@ export default function CounsellorParentConsultation() {
                       <Badge
                         color="error"
                         overlap="circular"
-                        variant={c.unread ? "dot" : "standard"}
+                        variant={c.unreadCount ? "dot" : "standard"}
                         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
                       >
                         <Avatar
@@ -215,7 +454,7 @@ export default function CounsellorParentConsultation() {
                             bgcolor: c.avatarColor,
                           }}
                         >
-                          {c.name.charAt(0).toUpperCase()}
+                          {(c.name || "P").charAt(0).toUpperCase()}
                         </Avatar>
                       </Badge>
                     </ListItemAvatar>
@@ -235,7 +474,9 @@ export default function CounsellorParentConsultation() {
                           >
                             {c.name}
                           </Typography>
-                          <Typography sx={{ fontSize: 11, color: "#94a3b8", flexShrink: 0 }}>{c.time}</Typography>
+                          <Typography sx={{ fontSize: 11, color: "#94a3b8", flexShrink: 0 }}>
+                            {c.time}
+                          </Typography>
                         </Box>
                       }
                       secondary={
@@ -256,8 +497,9 @@ export default function CounsellorParentConsultation() {
                     />
                   </Paper>
                 </ListItem>
-              );
-            })}
+                );
+              })
+            )}
           </List>
         </Box>
 
@@ -314,52 +556,70 @@ export default function CounsellorParentConsultation() {
                 overflowY: "auto",
                 bgcolor: "#f8fafc",
               }}
+              onScroll={handleMessageScroll}
+              ref={messageListRef}
             >
-              <Typography
-                align="center"
-                sx={{ fontSize: 11, color: "#94a3b8", mb: 2 }}
-              >
+              <Typography align="center" sx={{ fontSize: 11, color: "#94a3b8", mb: 2 }}>
                 Hôm nay
               </Typography>
-              {mockMessages.map((m) => {
-                const isMe = m.from === "counsellor";
-                return (
-                  <Box
-                    key={m.id}
-                    sx={{
-                      display: "flex",
-                      justifyContent: isMe ? "flex-end" : "flex-start",
-                      mb: 1.5,
-                    }}
-                  >
+
+              {messageLoading && messageItems.length === 0 ? (
+                <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+                  <CircularProgress size={22} />
+                </Box>
+              ) : messageError ? (
+                <Typography sx={{ fontSize: 13, color: "#dc2626" }}>{messageError}</Typography>
+              ) : messageItems.length === 0 ? (
+                <Typography sx={{ fontSize: 13, color: "#64748b", textAlign: "center", mt: 1 }}>
+                  Chưa có tin nhắn.
+                </Typography>
+              ) : (
+                messageItems.map((m) => {
+                  const { counsellorEmail } = getConversationEmails(selectedConversation);
+                  const sender = (m?.sender || "").toString().toLowerCase();
+                  const isMe =
+                    (counsellorEmail && sender === counsellorEmail.toLowerCase()) ||
+                    sender === "counsellor" ||
+                    sender.includes("counsellor");
+
+                  return (
                     <Box
+                      key={m.id}
                       sx={{
-                        maxWidth: "70%",
-                        bgcolor: isMe ? "#2563eb" : "#e5e7eb",
-                        color: isMe ? "#ffffff" : "#111827",
-                        px: 1.75,
-                        py: 1,
-                        borderRadius: 2,
-                        borderTopRightRadius: isMe ? 4 : 2,
-                        borderTopLeftRadius: isMe ? 2 : 4,
-                        boxShadow: "0 1px 4px rgba(15,23,42,0.15)",
+                        display: "flex",
+                        justifyContent: isMe ? "flex-end" : "flex-start",
+                        mb: 1.5,
                       }}
                     >
-                      <Typography sx={{ fontSize: 13 }}>{m.text}</Typography>
-                      <Typography
+                      <Box
                         sx={{
-                          fontSize: 10,
-                          textAlign: "right",
-                          opacity: 0.8,
-                          mt: 0.25,
+                          maxWidth: "70%",
+                          bgcolor: isMe ? "#2563eb" : "#e5e7eb",
+                          color: isMe ? "#ffffff" : "#111827",
+                          px: 1.75,
+                          py: 1,
+                          borderRadius: 2,
+                          borderTopRightRadius: isMe ? 4 : 2,
+                          borderTopLeftRadius: isMe ? 2 : 4,
+                          boxShadow: "0 1px 4px rgba(15,23,42,0.15)",
                         }}
                       >
-                        {m.time}
-                      </Typography>
+                        <Typography sx={{ fontSize: 13, whiteSpace: "pre-wrap" }}>{m.text}</Typography>
+                        <Typography
+                          sx={{
+                            fontSize: 10,
+                            textAlign: "right",
+                            opacity: 0.8,
+                            mt: 0.25,
+                          }}
+                        >
+                          {formatMessageTime(m.sentAt)}
+                        </Typography>
+                      </Box>
                     </Box>
-                  </Box>
-                );
-              })}
+                  );
+                })
+              )}
             </Box>
           ) : (
             <Box
@@ -409,6 +669,7 @@ export default function CounsellorParentConsultation() {
                 value={inputValue}
                 disabled={!selectedConversation}
                 onChange={(e) => setInputValue(e.target.value)}
+                onFocus={() => handleMarkRead()}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
                     e.preventDefault();

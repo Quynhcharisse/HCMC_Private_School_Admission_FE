@@ -2,12 +2,14 @@ import {Client} from "@stomp/stompjs";
 import SockJS from "sockjs-client/dist/sockjs";
 
 let stompClient = null;
+const messageListeners = new Set();
 
 const getWsHttpBase = () => import.meta.env.VITE_SERVER_BE || "http://localhost:8080";
 const getWsEndpoint = () => import.meta.env.VITE_WS_ENDPOINT || "/ws";
 
 export const connectPrivateMessageSocket = ({onMessage}) => {
     if (stompClient?.active) {
+        if (onMessage) messageListeners.add(onMessage);
         return stompClient;
     }
 
@@ -23,7 +25,7 @@ export const connectPrivateMessageSocket = ({onMessage}) => {
                 stompClient.subscribe(destination, (frame) => {
                     try {
                         const payload = JSON.parse(frame.body || "{}");
-                        onMessage?.(payload);
+                        messageListeners.forEach((listener) => listener?.(payload));
                     } catch (error) {
                         console.error("Invalid websocket payload:", error);
                     }
@@ -35,6 +37,7 @@ export const connectPrivateMessageSocket = ({onMessage}) => {
         }
     });
 
+    if (onMessage) messageListeners.add(onMessage);
     stompClient.activate();
     return stompClient;
 };
@@ -53,4 +56,5 @@ export const disconnect = () => {
     if (stompClient) {
         stompClient.deactivate();
     }
+    messageListeners.clear();
 };
