@@ -95,7 +95,15 @@ export default function CounsellorParentConsultation() {
   };
 
   return (
-    <Box sx={{ height: "calc(100vh - 110px)", display: "flex", flexDirection: "column" }}>
+    <Box
+      sx={{
+        height: "calc(100vh - 110px)",
+        display: "flex",
+        flexDirection: "column",
+        bgcolor: "radial-gradient(circle at top left, #dbeafe 0, #eff6ff 35%, #f9fafb 70%, #ffffff 100%)",
+        px: { xs: 0, md: 1 },
+      }}
+    >
       <Box sx={{ mb: 2 }}>
         <Typography variant="h5" sx={{ fontWeight: 700, color: "#0f172a", mb: 0.5 }}>
           Tư vấn Phụ Huynh
@@ -108,10 +116,12 @@ export default function CounsellorParentConsultation() {
           flex: 1,
           display: "grid",
           gridTemplateColumns: { xs: "1fr", md: "320px 1fr" },
-          borderRadius: 3,
+          borderRadius: 4,
           overflow: "hidden",
-          border: "1px solid #e2e8f0",
-          bgcolor: "#ffffff",
+          border: "1px solid rgba(59,130,246,0.45)",
+          boxShadow: "0 22px 55px rgba(15, 23, 42, 0.14)",
+          bgcolor: "rgba(255,255,255,0.98)",
+          backdropFilter: "blur(6px)",
         }}
       >
         <Box
@@ -123,8 +133,8 @@ export default function CounsellorParentConsultation() {
             px: 2,
           }}
         >
-          <Box sx={{ pt: 2, pb: 1.5 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#475569", mb: 1 }}>
+          <Box sx={{ pt: 2.25, pb: 1.75 }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0f172a", mb: 1 }}>
               Tin nhắn
             </Typography>
             <Paper
@@ -135,8 +145,9 @@ export default function CounsellorParentConsultation() {
                 px: 1.5,
                 py: 0.75,
                 borderRadius: 999,
-                borderColor: "#e2e8f0",
+                borderColor: "rgba(148,163,184,0.8)",
                 bgcolor: "#ffffff",
+                boxShadow: "0 8px 22px rgba(15,23,42,0.12)",
               }}
             >
               <SearchIcon fontSize="small" sx={{ color: "#94a3b8", mr: 1 }} />
@@ -173,16 +184,19 @@ export default function CounsellorParentConsultation() {
                     sx={{
                       px: 1.5,
                       py: 1,
-                      borderRadius: 2,
+                      borderRadius: 2.5,
                       display: "flex",
                       alignItems: "center",
                       width: "100%",
                       cursor: "pointer",
                       bgcolor: isActive ? "rgba(59,130,246,0.08)" : "transparent",
-                      border: isActive ? "1px solid rgba(59,130,246,0.35)" : "1px solid transparent",
-                      transition: "background 0.15s ease, border-color 0.15s ease",
+                      border: isActive ? "1px solid rgba(59,130,246,0.4)" : "1px solid transparent",
+                      boxShadow: isActive ? "0 8px 20px rgba(37,99,235,0.20)" : "none",
+                      transition:
+                        "background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.08s ease",
                       "&:hover": {
                         bgcolor: isActive ? "rgba(59,130,246,0.12)" : "#f1f5f9",
+                        transform: "translateY(-1px)",
                       },
                     }}
                   >
@@ -353,7 +367,7 @@ export default function CounsellorParentConsultation() {
                 flex: 1,
                 px: 3,
                 py: 2,
-                bgcolor: "#f8fafc",
+                bgcolor: "linear-gradient(135deg, #f8fafc 0, #f1f5f9 40%, #e5e7eb 100%)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
