@@ -511,6 +511,90 @@ function MainHeader() {
                                         transform: 'translateY(-1px)',
                                     }
                                 }}
+                                onClick={() => window.location.href = '/login'}
+                            >
+                                Trường đã lưu
+                            </Button>
+                            <Button
+                                color="inherit"
+                                sx={{
+                                    fontWeight: 600,
+                                    color: '#333',
+                                    fontSize: 16,
+                                    px: 2,
+                                    py: 1,
+                                    borderRadius: 2,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                        color: '#1976d2',
+                                        bgcolor: 'rgba(25,118,210,0.08)',
+                                        transform: 'translateY(-1px)',
+                                    }
+                                }}
+                                onClick={() => window.location.href = '/login'}
+                            >
+                                Yêu cầu tư vấn
+                            </Button>
+                            <Button
+                                color="inherit"
+                                sx={{
+                                    fontWeight: 600,
+                                    color: '#333',
+                                    fontSize: 16,
+                                    px: 2,
+                                    py: 1,
+                                    borderRadius: 2,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                        color: '#1976d2',
+                                        bgcolor: 'rgba(25,118,210,0.08)',
+                                        transform: 'translateY(-1px)',
+                                    }
+                                }}
+                                onClick={() => window.location.href = '/admission-news'}
+                            >
+                                Tin tuyển sinh
+                            </Button>
+                        </Box>
+                    ) : !isSignedIn ? (
+                        // Navigation cho guest (chưa đăng nhập) giống role PARENT
+                        <Box sx={{display: {xs: 'none', md: 'flex'}, gap: 1}}>
+                            <Button
+                                color="inherit"
+                                sx={{
+                                    fontWeight: 600,
+                                    color: '#333',
+                                    fontSize: 16,
+                                    px: 2,
+                                    py: 1,
+                                    borderRadius: 2,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                        color: '#1976d2',
+                                        bgcolor: 'rgba(25,118,210,0.08)',
+                                        transform: 'translateY(-1px)',
+                                    }
+                                }}
+                                onClick={() => window.location.href = '/'}
+                            >
+                                Tìm trường
+                            </Button>
+                            <Button
+                                color="inherit"
+                                sx={{
+                                    fontWeight: 600,
+                                    color: '#333',
+                                    fontSize: 16,
+                                    px: 2,
+                                    py: 1,
+                                    borderRadius: 2,
+                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                                    '&:hover': {
+                                        color: '#1976d2',
+                                        bgcolor: 'rgba(25,118,210,0.08)',
+                                        transform: 'translateY(-1px)',
+                                    }
+                                }}
                                 onClick={() => window.location.href = '/saved-schools'}
                             >
                                 Trường đã lưu
@@ -554,90 +638,6 @@ function MainHeader() {
                                 onClick={() => window.location.href = '/admission-news'}
                             >
                                 Tin tuyển sinh
-                            </Button>
-                        </Box>
-                    ) : isHomePage && !isSignedIn ? (
-                        // Navigation cho guest ở homepage
-                        <Box sx={{display: {xs: 'none', md: 'flex'}, gap: 1}}>
-                            <Button
-                                color="inherit"
-                                sx={{
-                                    fontWeight: 600,
-                                    color: '#333',
-                                    fontSize: 16,
-                                    px: 2,
-                                    py: 1,
-                                    borderRadius: 2,
-                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    '&:hover': {
-                                        color: '#1976d2',
-                                        bgcolor: 'rgba(25,118,210,0.08)',
-                                        transform: 'translateY(-1px)',
-                                    }
-                                }}
-                                onClick={() => smoothScrollToSection('trường-nổi-bật')}
-                            >
-                                Trường nổi bật
-                            </Button>
-                            <Button
-                                color="inherit"
-                                sx={{
-                                    fontWeight: 600,
-                                    color: '#333',
-                                    fontSize: 16,
-                                    px: 2,
-                                    py: 1,
-                                    borderRadius: 2,
-                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    '&:hover': {
-                                        color: '#1976d2',
-                                        bgcolor: 'rgba(25,118,210,0.08)',
-                                        transform: 'translateY(-1px)',
-                                    }
-                                }}
-                                onClick={() => smoothScrollToSection('quy-trình')}
-                            >
-                                Quy trình
-                            </Button>
-                            <Button
-                                color="inherit"
-                                sx={{
-                                    fontWeight: 600,
-                                    color: '#333',
-                                    fontSize: 16,
-                                    px: 2,
-                                    py: 1,
-                                    borderRadius: 2,
-                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    '&:hover': {
-                                        color: '#1976d2',
-                                        bgcolor: 'rgba(25,118,210,0.08)',
-                                        transform: 'translateY(-1px)',
-                                    }
-                                }}
-                                onClick={() => smoothScrollToSection('tin-tuyen-sinh')}
-                            >
-                                Tin Tuyển Sinh
-                            </Button>
-                            <Button
-                                color="inherit"
-                                sx={{
-                                    fontWeight: 600,
-                                    color: '#333',
-                                    fontSize: 16,
-                                    px: 2,
-                                    py: 1,
-                                    borderRadius: 2,
-                                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                                    '&:hover': {
-                                        color: '#1976d2',
-                                        bgcolor: 'rgba(25,118,210,0.08)',
-                                        transform: 'translateY(-1px)',
-                                    }
-                                }}
-                                onClick={() => smoothScrollToSection('tu-van-ngay')}
-                            >
-                                Tư vấn ngay
                             </Button>
                         </Box>
                     ) : !isHomePage && (
@@ -1257,19 +1257,19 @@ function MainHeader() {
                                         <ListItemText primary="Tin tuyển sinh" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
                                 </>
-                            ) : isHomePage && !isSignedIn ? (
+                            ) : !isSignedIn ? (
                                 <>
-                                    <ListItem onClick={() => smoothScrollToSection('trường-nổi-bật')}>
-                                        <ListItemText primary="Trường nổi bật" sx={{color: '#1976d2', fontWeight: 600}}/>
+                                    <ListItem onClick={() => window.location.href = '/'}>
+                                        <ListItemText primary="Tìm trường" sx={{color: '#1976d2', fontWeight: 600}}/>
                                     </ListItem>
-                                    <ListItem onClick={() => smoothScrollToSection('quy-trình')}>
-                                        <ListItemText primary="Quy trình" sx={{color: '#333', fontWeight: 600}}/>
+                                    <ListItem onClick={() => window.location.href = '/saved-schools'}>
+                                        <ListItemText primary="Trường đã lưu" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
-                                    <ListItem onClick={() => smoothScrollToSection('tin-tuyen-sinh')}>
-                                        <ListItemText primary="Tin Tuyển Sinh" sx={{color: '#333', fontWeight: 600}}/>
+                                    <ListItem onClick={() => window.location.href = '/consultation-requests'}>
+                                        <ListItemText primary="Yêu cầu tư vấn" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
-                                    <ListItem onClick={() => smoothScrollToSection('tu-van-ngay')}>
-                                        <ListItemText primary="Tư vấn ngay" sx={{color: '#333', fontWeight: 600}}/>
+                                    <ListItem onClick={() => window.location.href = '/admission-news'}>
+                                        <ListItemText primary="Tin tuyển sinh" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
                                 </>
                             ) : !isHomePage && (
