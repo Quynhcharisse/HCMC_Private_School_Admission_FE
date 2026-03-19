@@ -37,6 +37,7 @@ const CounsellorParentConsultation = lazy(() =>
     import("./components/Page/counsellor/CounsellorParentConsultation.jsx")
 );
 const SchoolCurriculums = lazy(() => import("./components/Page/school/SchoolCurriculums.jsx"));
+const SchoolPrograms = lazy(() => import("./components/Page/school/SchoolPrograms.jsx"));
 const ParentProfile = lazy(() => import("./components/auth/ParentProfile.jsx"));
 
 const LoadingFallback = () => {
@@ -259,6 +260,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <SchoolCurriculums/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'programs',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolPrograms/>
                     </Suspense>
                 )
             },
