@@ -1089,9 +1089,10 @@ function MainHeader() {
                                                 )}
                                                 {userInfo?.role && (
                                                     <Typography sx={{fontSize: 11, color: '#1976d2', mt: 0.5}}>
-                                                        {userInfo.role === 'STUDENT' ? 'Học sinh' : 
-                                                         userInfo.role === 'SCHOOL' ? 'Trường học' : 
-                                                         userInfo.role === 'ADMIN' ? 'Quản trị viên' : userInfo.role}
+                                                        {userInfo.role === 'STUDENT' ? 'Học sinh' :
+                                                         userInfo.role === 'SCHOOL' ? 'Trường học' :
+                                                         userInfo.role === 'ADMIN' ? 'Quản trị viên' :
+                                                         userInfo.role === 'COUNSELLOR' ? 'Tư vấn viên' : userInfo.role}
                                                     </Typography>
                                                 )}
                                             </Box>
@@ -1153,6 +1154,8 @@ function MainHeader() {
                                                     window.location.href = '/school/dashboard';
                                                 } else if (userInfo.role === 'ADMIN') {
                                                     window.location.href = '/admin/dashboard';
+                                                } else if (userInfo.role === 'COUNSELLOR') {
+                                                    window.location.href = '/counsellor/dashboard';
                                                 } else {
                                                     window.location.href = '/home';
                                                 }
@@ -1352,6 +1355,8 @@ function MainHeader() {
                                                     window.location.href = '/school/dashboard';
                                                 } else if (userInfo.role === 'ADMIN') {
                                                     window.location.href = '/admin/dashboard';
+                                                } else if (userInfo.role === 'COUNSELLOR') {
+                                                    window.location.href = '/counsellor/dashboard';
                                                 } else {
                                                     window.location.href = '/home';
                                                 }

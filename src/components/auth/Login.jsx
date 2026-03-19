@@ -21,6 +21,8 @@ export default function Login() {
                 return '/admin/dashboard';
             case 'SCHOOL':
                 return '/school/dashboard';
+            case 'COUNSELLOR':
+                return '/counsellor/dashboard';
             case 'STUDENT':
                 return '/student/dashboard';
             case 'PARENT':
