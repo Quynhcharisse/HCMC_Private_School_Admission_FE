@@ -20,6 +20,7 @@ import {
 } from "@mui/material";
 import ApartmentIcon from "@mui/icons-material/Apartment";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import {useNavigate, useParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {getSchoolCampuses} from "../../../services/AdminService.jsx";
@@ -72,10 +73,16 @@ export default function AdminSchoolCampuses() {
         return <Chip label={status} size="small"/>;
     };
 
-    const handleRowClick = (campus) => {
+    const handleOpenConsultants = (campus) => {
         const campusId = campus?.campusId;
         if (!campusId) return;
-        navigate(`/admin/campuses/${campusId}/consultants`);
+        navigate(`/admin/campuses/${campusId}/consultants?schoolId=${schoolId}`, {
+            state: {
+                schoolId,
+                schoolLabel: breadcrumbSchoolLabel,
+                campusName: campus?.campusName,
+            },
+        });
     };
 
     const breadcrumbSchoolLabel = `School ${schoolId}`;
@@ -92,6 +99,7 @@ export default function AdminSchoolCampuses() {
                     Users
                 </Link>
                 <Typography color="text.primary">{breadcrumbSchoolLabel}</Typography>
+                <Typography color="text.primary">Campus</Typography>
             </Breadcrumbs>
 
             <Box sx={{display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2}}>
@@ -162,6 +170,12 @@ export default function AdminSchoolCampuses() {
                                             align="center"
                                             sx={{fontWeight: 700, color: "#1e293b", width: 140}}
                                         >
+                                            Tư vấn viên
+                                        </TableCell>
+                                        <TableCell
+                                            align="center"
+                                            sx={{fontWeight: 700, color: "#1e293b", width: 140}}
+                                        >
                                             Trạng thái
                                         </TableCell>
                                     </TableRow>
@@ -171,8 +185,6 @@ export default function AdminSchoolCampuses() {
                                             <TableRow
                                                 key={campus.campusId || index}
                                                 hover
-                                                sx={{cursor: "pointer"}}
-                                                onClick={() => handleRowClick(campus)}
                                             >
                                                 <TableCell align="center">
                                                     {pagination.page * pagination.pageSize + index + 1}
@@ -203,6 +215,16 @@ export default function AdminSchoolCampuses() {
                                                     <Typography sx={{fontSize: 13}}>
                                                         {campus.phoneNumber}
                                                     </Typography>
+                                                </TableCell>
+                                                <TableCell align="center">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => handleOpenConsultants(campus)}
+                                                        disabled={!campus?.campusId}
+                                                        aria-label="Xem tư vấn viên"
+                                                    >
+                                                        <VisibilityIcon fontSize="small"/>
+                                                    </IconButton>
                                                 </TableCell>
                                                 <TableCell align="center">
                                                     {renderStatusChip(campus.status)}
