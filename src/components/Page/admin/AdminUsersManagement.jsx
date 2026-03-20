@@ -1,10 +1,10 @@
 import React, {useEffect, useState} from "react";
 import {
+    Avatar,
     Box,
     Card,
     CardContent,
     Chip,
-    Divider,
     IconButton,
     InputAdornment,
     Tab,
@@ -21,11 +21,18 @@ import {
     Link,
     TextField,
     Button,
+    Stack,
 } from "@mui/material";
 import PeopleIcon from '@mui/icons-material/People';
 import SearchIcon from '@mui/icons-material/Search';
-import RefreshIcon from '@mui/icons-material/Refresh';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import AddIcon from '@mui/icons-material/Add';
+import FavoriteBorderIcon from '@mui/icons-material/FavoriteBorder';
+import SchoolIcon from '@mui/icons-material/School';
+import VerifiedUserIcon from '@mui/icons-material/VerifiedUser';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import DownloadIcon from '@mui/icons-material/Download';
 import {useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {getUsersByRole} from "../../../services/AdminService.jsx";
@@ -97,171 +104,366 @@ export default function AdminUsersManagement() {
     const renderStatusChip = (status) => {
         if (!status) return <Chip label="Không xác định" size="small"/>;
         if (status === "ACCOUNT_ACTIVE") {
-            return <Chip label="Hoạt động" size="small" color="success"/>;
+            return (
+                <Chip
+                    label="Hoạt động"
+                    size="small"
+                    sx={{
+                        bgcolor: "rgba(16,185,129,0.16)",
+                        color: "#34d399",
+                        border: "1px solid rgba(52,211,153,0.35)",
+                        fontWeight: 600,
+                    }}
+                />
+            );
         }
         if (status === "ACCOUNT_PENDING_VERIFY") {
-            return <Chip label="Chờ xác minh" size="small" color="warning"/>;
+            return (
+                <Chip
+                    label="Chờ duyệt"
+                    size="small"
+                    sx={{
+                        bgcolor: "rgba(245,158,11,0.16)",
+                        color: "#fbbf24",
+                        border: "1px solid rgba(251,191,36,0.35)",
+                        fontWeight: 600,
+                    }}
+                />
+            );
         }
         if (status === "ACCOUNT_RESTRICTED") {
-            return <Chip label="Bị hạn chế" size="small" color="error"/>;
+            return (
+                <Chip
+                    label="Bị hạn chế"
+                    size="small"
+                    sx={{
+                        bgcolor: "rgba(239,68,68,0.16)",
+                        color: "#f87171",
+                        border: "1px solid rgba(248,113,113,0.35)",
+                        fontWeight: 600,
+                    }}
+                />
+            );
         }
-        return <Chip label={status} size="small"/>;
+        return (
+            <Chip
+                label={status}
+                size="small"
+                sx={{
+                    bgcolor: "rgba(148,163,184,0.2)",
+                    color: "#cbd5e1",
+                    border: "1px solid rgba(203,213,225,0.3)",
+                }}
+            />
+        );
     };
 
+    const activeCount = users.filter((u) => (u.overallStatus || u.status || u.primaryCampus?.status) === "ACCOUNT_ACTIVE").length;
+    const parentCount = roleTab === "PARENT" ? pagination.totalItems : "-";
+    const schoolCount = roleTab === "SCHOOL" ? pagination.totalItems : "-";
+    const statCards = [
+        {
+            label: "Tổng người dùng",
+            value: pagination.totalItems || 0,
+            trend: `Trang ${pagination.page + 1}/${Math.max(1, pagination.totalPages || 1)}`,
+            icon: <PeopleIcon sx={{fontSize: 22}}/>,
+            iconColor: "#2563eb",
+            iconBg: "#dbeafe",
+            cardBg: "#eef7ff",
+            cardBorder: "#dbeafe",
+        },
+        {
+            label: "Đang hoạt động",
+            value: activeCount,
+            trend: "Theo dữ liệu trang hiện tại",
+            icon: <FavoriteBorderIcon sx={{fontSize: 22}}/>,
+            iconColor: "#16a34a",
+            iconBg: "#dcfce7",
+            cardBg: "#effcf5",
+            cardBorder: "#d6f5e4",
+        },
+        {
+            label: "Phụ huynh",
+            value: parentCount,
+            trend: roleTab === "PARENT" ? "Đang xem" : "Chuyển tab để xem",
+            icon: <VerifiedUserIcon sx={{fontSize: 22}}/>,
+            iconColor: "#f97316",
+            iconBg: "#ffedd5",
+            cardBg: "#fff7ec",
+            cardBorder: "#fde7c7",
+        },
+        {
+            label: "Nhà trường",
+            value: schoolCount,
+            trend: roleTab === "SCHOOL" ? "Đang xem" : "Chuyển tab để xem",
+            icon: <SchoolIcon sx={{fontSize: 22}}/>,
+            iconColor: "#0ea5e9",
+            iconBg: "#e0f2fe",
+            cardBg: "#eef7ff",
+            cardBorder: "#bae6fd",
+        },
+    ];
+
     return (
-        <Box>
-            <Breadcrumbs separator="›" aria-label="breadcrumb" sx={{mb: 1}}>
-                <Link underline="hover" color="inherit" onClick={() => navigate("/admin/users")} sx={{cursor: "pointer"}}>
+        <Box
+            sx={{
+                p: {xs: 1, md: 2},
+                borderRadius: 4,
+                bgcolor: "#ffffff",
+                color: "#0f172a",
+            }}
+        >
+            <Breadcrumbs separator="›" aria-label="breadcrumb" sx={{mb: 1, color: "#64748b"}}>
+                <Link underline="hover" color="inherit" onClick={() => navigate("/admin/users")} sx={{cursor: "pointer", color: "#2563eb"}}>
                     Users
                 </Link>
             </Breadcrumbs>
 
-            <Box sx={{display: 'flex', alignItems: 'center', justifyContent: "space-between", gap: 2, mb: 2}}>
+            <Box sx={{display: 'flex', alignItems: 'center', justifyContent: "space-between", gap: 2, mb: 2.5, flexWrap: "wrap"}}>
                 <Box sx={{display: 'flex', alignItems: 'center', gap: 2}}>
-                    <PeopleIcon sx={{fontSize: 32, color: '#1d4ed8'}}/>
-                    <Typography variant="h4" sx={{fontWeight: 700, color: '#1e293b'}}>
-                        Quản Lý Người Dùng
-                    </Typography>
+                    <Avatar sx={{bgcolor: "#7c3aed", width: 44, height: 44}}>
+                        <PeopleIcon sx={{fontSize: 24, color: '#f5f3ff'}}/>
+                    </Avatar>
+                    <Box>
+                        <Typography variant="h4" sx={{fontWeight: 700, color: '#0f172a', letterSpacing: "-0.02em"}}>
+                            Quản Lý Người Dùng
+                        </Typography>
+                        <Typography variant="body2" sx={{color: "#64748b"}}>
+                            Hệ thống quản lý thông minh và hiện đại
+                        </Typography>
+                    </Box>
                 </Box>
+                <Button
+                    variant="contained"
+                    startIcon={<AddIcon/>}
+                    sx={{
+                        borderRadius: 999,
+                        textTransform: "none",
+                        fontWeight: 700,
+                        bgcolor: "#8b5cf6",
+                        boxShadow: "0 8px 20px rgba(139,92,246,0.45)",
+                        "&:hover": {bgcolor: "#7c3aed"},
+                    }}
+                >
+                    Thêm mới
+                </Button>
+            </Box>
+
+            <Box
+                sx={{
+                    mb: 2.5,
+                    display: "grid",
+                    gridTemplateColumns: {
+                        xs: "1fr",
+                        sm: "repeat(2, minmax(0, 1fr))",
+                        lg: "repeat(4, minmax(0, 1fr))",
+                    },
+                    gap: 2,
+                    width: "100%",
+                }}
+            >
+                {statCards.map((item) => (
+                    <Box key={item.label}>
+                        <Card
+                            elevation={0}
+                            sx={{
+                                borderRadius: 3,
+                                border: `1px solid ${item.cardBorder}`,
+                                bgcolor: item.cardBg,
+                                minHeight: 132,
+                            }}
+                        >
+                            <CardContent
+                                sx={{
+                                    py: 2,
+                                    px: 2.25,
+                                    height: "100%",
+                                    display: "flex",
+                                    alignItems: "flex-start",
+                                    justifyContent: "space-between",
+                                }}
+                            >
+                                <Box>
+                                    <Box>
+                                        <Typography sx={{fontSize: 12, color: "#64748b"}}>
+                                            {item.label}
+                                        </Typography>
+                                        <Typography sx={{fontSize: 30, lineHeight: 1.2, fontWeight: 800, color: "#0f172a"}}>
+                                            {item.value}
+                                        </Typography>
+                                        <Typography sx={{fontSize: 12, color: "#22d3ee"}}>
+                                            {item.trend}
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                                <Avatar
+                                    sx={{
+                                        width: 42,
+                                        height: 42,
+                                        borderRadius: "50%",
+                                        bgcolor: item.iconBg,
+                                        color: item.iconColor,
+                                        mt: 0.5,
+                                    }}
+                                >
+                                    {item.icon}
+                                </Avatar>
+                            </CardContent>
+                        </Card>
+                    </Box>
+                ))}
             </Box>
 
             <Card
-                elevation={2}
+                elevation={0}
                 sx={{
-                    borderRadius: 3,
-                    border: '1px solid #e0e7ff',
+                    borderRadius: 4,
+                    border: '1px solid #e2e8f0',
+                    bgcolor: "#ffffff",
+                    overflow: "hidden",
                 }}
             >
-                <CardContent>
-                    <Tabs
-                        value={roleTab}
-                        onChange={handleTabChange}
-                        sx={{mb: 2}}
-                        textColor="primary"
-                        indicatorColor="primary"
-                    >
-                        <Tab label="Parent" value="PARENT"/>
-                        <Tab label="School" value="SCHOOL"/>
-                    </Tabs>
-
+                <CardContent sx={{p: {xs: 1.5, md: 2.5}}}>
                     <Box
-                        component="form"
-                        onSubmit={handleSearchSubmit}
                         sx={{
                             display: "flex",
-                            flexWrap: "wrap",
-                            gap: 1.5,
-                            mb: 2,
                             alignItems: "center",
                             justifyContent: "space-between",
+                            gap: 1.5,
+                            mb: 2,
+                            flexWrap: "wrap",
                         }}
                     >
-                        <TextField
-                            size="small"
-                            placeholder="Tìm theo tên hoặc địa chỉ..."
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
+                        <Tabs
+                            value={roleTab}
+                            onChange={handleTabChange}
                             sx={{
-                                minWidth: {xs: "100%", sm: 260},
-                                maxWidth: 360,
-                                "& .MuiOutlinedInput-root": {
-                                    borderRadius: 2,
-                                    bgcolor: "white",
-                                },
+                                minHeight: 40,
+                                bgcolor: "#f8fafc",
+                                border: "1px solid #e2e8f0",
+                                borderRadius: 999,
+                                p: 0.5,
+                                "& .MuiTabs-indicator": {display: "none"},
                             }}
-                            InputProps={{
-                                startAdornment: (
-                                    <InputAdornment position="start">
-                                        <SearchIcon fontSize="small" sx={{color: "#64748b"}}/>
-                                    </InputAdornment>
-                                ),
-                            }}
-                        />
-                        <Box sx={{display: "flex", gap: 1}}>
-                            {/* Nút tìm kiếm & làm mới đã được bỏ theo yêu cầu */}
+                        >
+                            <Tab
+                                label="Phụ huynh"
+                                value="PARENT"
+                                sx={{
+                                    minHeight: 34,
+                                    px: 2,
+                                    borderRadius: 999,
+                                    textTransform: "none",
+                                    color: "#64748b",
+                                    fontWeight: 700,
+                                    "&.Mui-selected": {color: "#0f172a", bgcolor: "#ede9fe"},
+                                }}
+                            />
+                            <Tab
+                                label="Nhà trường"
+                                value="SCHOOL"
+                                sx={{
+                                    minHeight: 34,
+                                    px: 2,
+                                    borderRadius: 999,
+                                    textTransform: "none",
+                                    color: "#64748b",
+                                    fontWeight: 700,
+                                    "&.Mui-selected": {color: "#0f172a", bgcolor: "#e0f2fe"},
+                                }}
+                            />
+                        </Tabs>
+
+                        <Box
+                            component="form"
+                            onSubmit={handleSearchSubmit}
+                            sx={{display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap"}}
+                        >
+                            <TextField
+                                size="small"
+                                placeholder="Tìm theo tên hoặc địa chỉ..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                sx={{
+                                    minWidth: {xs: "100%", sm: 300},
+                                    "& .MuiOutlinedInput-root": {
+                                        borderRadius: 999,
+                                        bgcolor: "#ffffff",
+                                        color: "#0f172a",
+                                        "& fieldset": {borderColor: "#cbd5e1"},
+                                        "&:hover fieldset": {borderColor: "#7dd3fc"},
+                                        "&.Mui-focused fieldset": {borderColor: "#38bdf8"},
+                                    },
+                                }}
+                                InputProps={{
+                                    startAdornment: (
+                                        <InputAdornment position="start">
+                                            <SearchIcon fontSize="small" sx={{color: "#64748b"}}/>
+                                        </InputAdornment>
+                                    ),
+                                }}
+                            />
+                            <IconButton sx={{color: "#64748b", border: "1px solid #cbd5e1"}}>
+                                <FilterListIcon fontSize="small"/>
+                            </IconButton>
+                            <IconButton sx={{color: "#64748b", border: "1px solid #cbd5e1"}}>
+                                <DownloadIcon fontSize="small"/>
+                            </IconButton>
                         </Box>
                     </Box>
 
-                    <Divider sx={{mb: 2}}/>
-
-                    <TableContainer component={Paper} elevation={0}>
+                    <TableContainer
+                        component={Paper}
+                        elevation={0}
+                        sx={{bgcolor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 3}}
+                    >
                         <Table size="small">
                             <TableHead>
                                 <TableRow sx={{bgcolor: '#f8fafc'}}>
-                                    <TableCell
-                                        align="center"
-                                        sx={{fontWeight: 700, color: '#1e293b', width: 60}}
-                                    >
+                                    <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 60}}>
                                         STT
                                     </TableCell>
                                     {roleTab === "SCHOOL" && (
                                         <>
-                                            <TableCell
-                                                align="center"
-                                                sx={{fontWeight: 700, color: '#1e293b', minWidth: 160}}
-                                            >
+                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 160}}>
                                                 Tên trường
                                             </TableCell>
-                                            <TableCell
-                                                align="center"
-                                                sx={{fontWeight: 700, color: '#1e293b', minWidth: 200}}
-                                            >
+                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 200}}>
                                                 Website
                                             </TableCell>
-                                            <TableCell
-                                                align="center"
-                                                sx={{fontWeight: 700, color: '#1e293b', width: 160}}
-                                            >
+                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 160}}>
                                                 Hotline
                                             </TableCell>
-                                            <TableCell
-                                                align="center"
-                                                sx={{fontWeight: 700, color: '#1e293b', width: 180}}
-                                            >
+                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 180}}>
                                                 Mã số thuế
-                                            </TableCell>
-                                            <TableCell
-                                                align="center"
-                                                sx={{fontWeight: 700, color: '#1e293b', width: 120}}
-                                            >
-                                                Campus
                                             </TableCell>
                                         </>
                                     )}
                                     {roleTab === "PARENT" && (
                                         <>
-                                            <TableCell
-                                                align="center"
-                                                sx={{fontWeight: 700, color: '#1e293b', minWidth: 200}}
-                                            >
+                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 220}}>
                                                 Email
                                             </TableCell>
-                                            <TableCell
-                                                align="center"
-                                                sx={{fontWeight: 700, color: '#1e293b', minWidth: 160}}
-                                            >
+                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 160}}>
                                                 Mối quan hệ
                                             </TableCell>
-                                            <TableCell
-                                                align="center"
-                                                sx={{fontWeight: 700, color: '#1e293b', minWidth: 160}}
-                                            >
+                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 160}}>
                                                 Tên
                                             </TableCell>
                                         </>
                                     )}
-                                    <TableCell
-                                        align="center"
-                                        sx={{fontWeight: 700, color: '#1e293b', width: 140}}
-                                    >
-                                        Trạng Thái
+                                    <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 150}}>
+                                        Trạng thái
+                                    </TableCell>
+                                    <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 90}}>
+                                        Thao tác
                                     </TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {loading ? (
                                     <TableRow>
-                                        <TableCell colSpan={roleTab === "SCHOOL" ? 7 : 5} align="center" sx={{py: 4}}>
+                                        <TableCell colSpan={roleTab === "SCHOOL" ? 7 : 6} align="center" sx={{py: 4, color: "#64748b"}}>
                                             <Typography variant="body2" sx={{color: "#64748b"}}>
                                                 Đang tải dữ liệu...
                                             </Typography>
@@ -269,7 +471,7 @@ export default function AdminUsersManagement() {
                                     </TableRow>
                                 ) : users.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={roleTab === "SCHOOL" ? 7 : 5} align="center" sx={{py: 4}}>
+                                        <TableCell colSpan={roleTab === "SCHOOL" ? 7 : 6} align="center" sx={{py: 4}}>
                                             <Typography variant="body1" sx={{color: '#64748b'}}>
                                                 Chưa có dữ liệu người dùng
                                             </Typography>
@@ -280,14 +482,29 @@ export default function AdminUsersManagement() {
                                         <TableRow
                                             key={user.accountId || user.schoolId || index}
                                             hover
+                                            sx={{
+                                                "& td": {borderBottomColor: "#e2e8f0", color: "#334155"},
+                                                "&:hover": {bgcolor: "#f8fafc"},
+                                            }}
                                         >
                                             <TableCell align="center">
-                                                {pagination.page * pagination.pageSize + index + 1}
+                                                <Chip
+                                                    label={pagination.page * pagination.pageSize + index + 1}
+                                                    size="small"
+                                                    sx={{
+                                                        width: 28,
+                                                        height: 24,
+                                                        fontWeight: 700,
+                                                        bgcolor: "rgba(139,92,246,0.22)",
+                                                        color: "#7c3aed",
+                                                        border: "1px solid rgba(196,181,253,0.3)",
+                                                    }}
+                                                />
                                             </TableCell>
                                             {roleTab === "SCHOOL" && (
                                                 <>
                                                     <TableCell align="center">
-                                                        <Typography sx={{fontWeight: 600, fontSize: 14}}>
+                                                        <Typography sx={{fontWeight: 600, fontSize: 14, color: "#0f172a"}}>
                                                             {user.schoolName || "Trường chưa đặt tên"}
                                                         </Typography>
                                                     </TableCell>
@@ -295,7 +512,7 @@ export default function AdminUsersManagement() {
                                                         <Typography
                                                             sx={{
                                                                 fontSize: 13,
-                                                                color: "#2563eb",
+                                                                color: "#38bdf8",
                                                                 textDecoration: user.websiteUrl ? "underline" : "none",
                                                                 wordBreak: "break-all",
                                                                 cursor: user.websiteUrl ? "pointer" : "default",
@@ -305,7 +522,6 @@ export default function AdminUsersManagement() {
                                                             target={user.websiteUrl ? "_blank" : undefined}
                                                             rel={user.websiteUrl ? "noopener noreferrer" : undefined}
                                                             onClick={(e) => {
-                                                                // Không trigger onClick row khi bấm vào link
                                                                 e.stopPropagation();
                                                             }}
                                                         >
@@ -313,31 +529,21 @@ export default function AdminUsersManagement() {
                                                         </Typography>
                                                     </TableCell>
                                                     <TableCell align="center">
-                                                        <Typography sx={{fontSize: 14}}>
+                                                        <Typography sx={{fontSize: 14, color: "#334155"}}>
                                                             {user.hotline || "-"}
                                                         </Typography>
                                                     </TableCell>
                                                     <TableCell align="center">
-                                                        <Typography sx={{fontSize: 14}}>
+                                                        <Typography sx={{fontSize: 14, color: "#334155"}}>
                                                             {user.taxCode || "-"}
                                                         </Typography>
-                                                    </TableCell>
-                                                    <TableCell align="center">
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={() => handleOpenCampuses(user?.schoolId)}
-                                                            disabled={!user?.schoolId}
-                                                            aria-label="Xem campus"
-                                                        >
-                                                            <VisibilityIcon fontSize="small"/>
-                                                        </IconButton>
                                                     </TableCell>
                                                 </>
                                             )}
                                             {roleTab === "PARENT" && (
                                                 <>
                                                     <TableCell align="center">
-                                                        <Typography sx={{fontSize: 14}}>
+                                                        <Typography sx={{fontSize: 14, color: "#334155"}}>
                                                             {user.primaryCampus?.account?.email ||
                                                              user.email ||
                                                              user.account?.email ||
@@ -345,12 +551,12 @@ export default function AdminUsersManagement() {
                                                         </Typography>
                                                     </TableCell>
                                                     <TableCell align="center">
-                                                        <Typography sx={{fontSize: 14}}>
+                                                        <Typography sx={{fontSize: 14, color: "#334155"}}>
                                                             {user.relationship || user.relationshipToStudent || "-"}
                                                         </Typography>
                                                     </TableCell>
                                                     <TableCell align="center">
-                                                        <Typography sx={{fontSize: 14}}>
+                                                        <Typography sx={{fontSize: 14, fontWeight: 600, color: "#0f172a"}}>
                                                             {user.name || user.representativeName || "-"}
                                                         </Typography>
                                                     </TableCell>
@@ -361,6 +567,23 @@ export default function AdminUsersManagement() {
                                                     user.overallStatus ||
                                                     user.status ||
                                                     user.primaryCampus?.status
+                                                )}
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                {roleTab === "SCHOOL" ? (
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => handleOpenCampuses(user?.schoolId)}
+                                                        disabled={!user?.schoolId}
+                                                        aria-label="Xem campus"
+                                                        sx={{color: "#38bdf8"}}
+                                                    >
+                                                        <VisibilityIcon fontSize="small"/>
+                                                    </IconButton>
+                                                ) : (
+                                                    <IconButton size="small" sx={{color: "#64748b"}}>
+                                                        <MoreVertIcon fontSize="small"/>
+                                                    </IconButton>
                                                 )}
                                             </TableCell>
                                         </TableRow>
