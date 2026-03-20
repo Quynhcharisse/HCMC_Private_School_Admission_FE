@@ -40,7 +40,7 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import { enqueueSnackbar } from "notistack";
 
-import { getCurriculumList, saveCurriculum } from "../../../services/CurriculumService.jsx";
+import { activateCurriculum, getCurriculumList, saveCurriculum } from "../../../services/CurriculumService.jsx";
 
 const modalPaperSx = {
     borderRadius: "16px",
@@ -119,7 +119,7 @@ function mapCurriculumFromApi(item) {
         curriculumType: item.curriculumType,
         methodLearning: item.methodLearning,
         enrollmentYear: item.enrollmentYear,
-        curriculumStatus: item.curriculumStatus,
+        curriculumStatus: item.curriculumStatus ?? item.status,
         isLatest: item.isLatest,
         versionDisplay: item.versionDisplay,
         version: item.version,
@@ -131,7 +131,27 @@ function mapCurriculumFromApi(item) {
         groupCode: item.groupCode,
         programCount: Number(item.programCount) || 0,
         linkedProgramNames: Array.isArray(item.linkedProgramNames) ? item.linkedProgramNames : [],
+        canEditIdentity: item.canEditIdentity,
     };
+}
+
+function extractCurriculumIdFromResponse(res) {
+    // BE có thể trả ID ở nhiều vị trí khác nhau.
+    const location = res?.headers?.location ?? res?.headers?.Location ?? null;
+    if (location) {
+        const match = String(location).match(/\/(\d+)(?:\/)?$/);
+        if (match?.[1]) return Number(match[1]);
+    }
+
+    return (
+        res?.data?.body?.id ??
+        res?.data?.body?.curriculumId ??
+        res?.data?.body?.draftId ??
+        res?.data?.body?.createdId ??
+        res?.data?.id ??
+        res?.data?.curriculumId ??
+        null
+    );
 }
 
 function mapSubjectOptionsForApi(subjectOptions) {
@@ -182,6 +202,7 @@ export default function SchoolCurriculums() {
     const [viewCurriculum, setViewCurriculum] = useState(null);
 
     const [submitLoading, setSubmitLoading] = useState(false);
+    const [evolveLoading, setEvolveLoading] = useState(false);
     const [confirmEvolveOpen, setConfirmEvolveOpen] = useState(false);
     const [curriculumToEditAfterConfirm, setCurriculumToEditAfterConfirm] = useState(null);
     const [pendingScrollSubjectIndex, setPendingScrollSubjectIndex] = useState(null);
@@ -301,19 +322,19 @@ export default function SchoolCurriculums() {
         return Object.keys(errors).length === 0;
     };
 
-    const getCreatePayload = (publishNow) => ({
+    const getCreatePayload = () => ({
         subTypeName: String(formValues.subTypeName || "").trim(),
         description: String(formValues.description || "").trim(),
         curriculumType: formValues.curriculumType,
         methodLearning: formValues.methodLearning,
         enrollmentYear: Number(formValues.enrollmentYear),
-        publishNow: publishNow !== undefined ? !!publishNow : !!formValues.publishNow,
+        publishNow: false,
         subjectOptions: mapSubjectOptionsForApi(formValues.subjectOptions),
     });
 
-    const getUpdatePayload = (publishNow) => ({
+    const getUpdatePayload = () => ({
         curriculumId: selectedCurriculum?.id,
-        ...getCreatePayload(publishNow),
+        ...getCreatePayload(),
     });
 
     const handleOpenCreate = () => {
@@ -339,14 +360,14 @@ export default function SchoolCurriculums() {
         setSelectedCurriculum(curriculum);
         setViewCurriculum(null);
 
-        const isActive = isActiveStatus(curriculum?.curriculumStatus);
         setFormValues({
             subTypeName: curriculum?.subTypeName || "",
             description: curriculum?.description || "",
             curriculumType: curriculum?.curriculumType || "",
             methodLearning: curriculum?.methodLearning || "",
             enrollmentYear: curriculum?.enrollmentYear ?? "",
-            publishNow: isActive,
+            // Luôn lưu/update theo chế độ "draft" ở client; publish do PATCH activate thực hiện.
+            publishNow: false,
             subjectOptions:
                 Array.isArray(curriculum?.subjects) && curriculum.subjects.length > 0
                     ? curriculum.subjects.map((s) => ({
@@ -364,6 +385,10 @@ export default function SchoolCurriculums() {
     };
 
     const handleEditClick = (curriculum) => {
+        if (normalizeStatus(curriculum?.curriculumStatus) === "CUR_ARCHIVED") {
+            enqueueSnackbar("Chương trình đã lưu trữ, không thể chỉnh sửa.", { variant: "warning" });
+            return;
+        }
         if (isActiveStatus(curriculum?.curriculumStatus)) {
             setCurriculumToEditAfterConfirm(curriculum);
             setConfirmEvolveOpen(true);
@@ -372,12 +397,42 @@ export default function SchoolCurriculums() {
         }
     };
 
-    const handleConfirmEvolve = () => {
-        if (curriculumToEditAfterConfirm) {
-            handleOpenEdit(curriculumToEditAfterConfirm);
+    const handleConfirmEvolve = async () => {
+        if (!curriculumToEditAfterConfirm) return;
+        setEvolveLoading(true);
+        try {
+            const base = curriculumToEditAfterConfirm;
+            const draftRes = await saveCurriculum({
+                curriculumId: base.id,
+                subTypeName: String(base.subTypeName || base.name || "").trim(),
+                description: String(base.description || "").trim(),
+                curriculumType: base.curriculumType,
+                methodLearning: base.methodLearning,
+                enrollmentYear: Number(base.enrollmentYear),
+                publishNow: false,
+                subjectOptions: mapSubjectOptionsForApi(base.subjects),
+            });
+
+            const newDraftId = extractCurriculumIdFromResponse(draftRes);
+            if (!newDraftId) {
+                enqueueSnackbar(
+                    draftRes?.data?.message ||
+                        "Tạo bản nháp từ curriculum đang hoạt động thành công, nhưng không lấy được ID bản nháp. Bạn vẫn có thể chỉnh sửa và công bố từ màn hình hiện tại.",
+                    { variant: "warning" }
+                );
+            }
+            const draftCurriculum = newDraftId
+                ? { ...base, id: newDraftId, curriculumStatus: "CUR_DRAFT" }
+                : { ...base, id: base.id, curriculumStatus: "CUR_DRAFT" };
+            handleOpenEdit(draftCurriculum);
             setCurriculumToEditAfterConfirm(null);
+        } catch (err) {
+            console.error("Evolve curriculum error:", err);
+            enqueueSnackbar(err?.response?.data?.message || "Lỗi khi tạo bản nháp từ curriculum đang hoạt động.", { variant: "error" });
+        } finally {
+            setEvolveLoading(false);
+            setConfirmEvolveOpen(false);
         }
-        setConfirmEvolveOpen(false);
     };
 
     const handleCloseCreate = () => {
@@ -402,21 +457,31 @@ export default function SchoolCurriculums() {
         setViewModalOpen(true);
     };
 
-    const handleCreateSubmit = async (publishNow) => {
+    const handleCreateSubmit = async (shouldActivate) => {
         if (!validateForm()) return;
         setSubmitLoading(true);
         try {
-            const payload = getCreatePayload(publishNow);
-            const res = await saveCurriculum(payload);
-            if (res?.status === 200 || res?.data?.message) {
-                enqueueSnackbar(res?.data?.message || "Tạo curriculum thành công", { variant: "success" });
-                setCreateModalOpen(false);
-                setFormErrors({});
-                setPage(0);
-                await loadData(0, rowsPerPage);
+            const payload = getCreatePayload();
+            const draftRes = await saveCurriculum(payload);
+            const newDraftId = extractCurriculumIdFromResponse(draftRes);
+
+            if (!shouldActivate) {
+                enqueueSnackbar(draftRes?.data?.message || "Tạo bản nháp curriculum thành công", { variant: "success" });
+            } else if (newDraftId) {
+                const actRes = await activateCurriculum(newDraftId);
+                enqueueSnackbar(actRes?.data?.message || "Curriculum đã được công bố", { variant: "success" });
             } else {
-                enqueueSnackbar(res?.data?.message || "Tạo curriculum thất bại", { variant: "error" });
+                enqueueSnackbar(
+                    draftRes?.data?.message ||
+                        "Đã tạo bản nháp thành công, nhưng không lấy được ID để công bố tự động. Vui lòng mở bản nháp và bấm 'Công bố' lại.",
+                    { variant: "warning" }
+                );
             }
+
+            setCreateModalOpen(false);
+            setFormErrors({});
+            setPage(0);
+            await loadData(0, rowsPerPage);
         } catch (err) {
             console.error("Create curriculum error:", err);
             enqueueSnackbar(err?.response?.data?.message || "Lỗi khi tạo curriculum", { variant: "error" });
@@ -425,22 +490,41 @@ export default function SchoolCurriculums() {
         }
     };
 
-    const handleEditSubmit = async (publishNow) => {
+    const handleEditSubmit = async (shouldActivate) => {
         if (!selectedCurriculum) return;
         if (!validateForm()) return;
         setSubmitLoading(true);
         try {
-            const payload = getUpdatePayload(publishNow);
-            const res = await saveCurriculum(payload);
-            if (res?.status === 200 || res?.data?.message) {
-                enqueueSnackbar(res?.data?.message || "Cập nhật curriculum thành công", { variant: "success" });
+            const payload = getUpdatePayload();
+            const draftRes = await saveCurriculum(payload);
+
+            if (!shouldActivate) {
+                enqueueSnackbar(draftRes?.data?.message || "Cập nhật bản nháp thành công", { variant: "success" });
                 setEditModalOpen(false);
                 setFormErrors({});
                 setSelectedCurriculum(null);
                 await loadData(page, rowsPerPage);
-            } else {
-                enqueueSnackbar(res?.data?.message || "Cập nhật curriculum thất bại", { variant: "error" });
+                return;
             }
+
+            const isActive = isActiveStatus(selectedCurriculum?.curriculumStatus);
+            const newDraftId = extractCurriculumIdFromResponse(draftRes);
+            const activateId = isActive ? newDraftId || selectedCurriculum.id : selectedCurriculum.id;
+
+            if (activateId) {
+                const actRes = await activateCurriculum(activateId);
+                enqueueSnackbar(actRes?.data?.message || "Curriculum đã được công bố", { variant: "success" });
+            } else {
+                enqueueSnackbar(
+                    draftRes?.data?.message || "Đã lưu bản nháp nhưng không thể công bố tự động (thiếu ID).",
+                    { variant: "warning" }
+                );
+            }
+
+            setEditModalOpen(false);
+            setFormErrors({});
+            setSelectedCurriculum(null);
+            await loadData(page, rowsPerPage);
         } catch (err) {
             console.error("Update curriculum error:", err);
             enqueueSnackbar(err?.response?.data?.message || "Lỗi khi cập nhật curriculum", { variant: "error" });
@@ -849,7 +933,11 @@ export default function SchoolCurriculums() {
             {/* Confirm Edit Active (Evolve) Dialog */}
             <Dialog
                 open={confirmEvolveOpen}
-                onClose={() => { setConfirmEvolveOpen(false); setCurriculumToEditAfterConfirm(null); }}
+                onClose={() => {
+                    if (evolveLoading) return;
+                    setConfirmEvolveOpen(false);
+                    setCurriculumToEditAfterConfirm(null);
+                }}
                 maxWidth="xs"
                 fullWidth
                 PaperProps={{ sx: { borderRadius: 3 } }}
@@ -861,11 +949,24 @@ export default function SchoolCurriculums() {
                     </Typography>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, py: 2 }}>
-                    <Button onClick={() => { setConfirmEvolveOpen(false); setCurriculumToEditAfterConfirm(null); }} sx={{ textTransform: "none" }}>
+                    <Button
+                        onClick={() => {
+                            if (evolveLoading) return;
+                            setConfirmEvolveOpen(false);
+                            setCurriculumToEditAfterConfirm(null);
+                        }}
+                        disabled={evolveLoading}
+                        sx={{ textTransform: "none" }}
+                    >
                         Hủy
                     </Button>
-                    <Button variant="contained" onClick={handleConfirmEvolve} sx={{ textTransform: "none", borderRadius: 2 }}>
-                        Tiếp tục
+                    <Button
+                        variant="contained"
+                        onClick={handleConfirmEvolve}
+                        disabled={evolveLoading}
+                        sx={{ textTransform: "none", borderRadius: 2 }}
+                    >
+                        {evolveLoading ? "Đang tạo..." : "Tiếp tục"}
                     </Button>
                 </DialogActions>
             </Dialog>

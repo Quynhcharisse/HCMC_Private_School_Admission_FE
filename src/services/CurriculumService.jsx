@@ -45,10 +45,27 @@ export const saveCurriculum = async ({
         publishNow: !!publishNow,
         subjectOptions: subjectOptions || [],
     };
-    if (curriculumId != null && curriculumId !== "") {
-        body.curriculumId = curriculumId;
+    // BE: curriculumId = 0 (hoặc không truyền) => tạo mới DRAFT
+    const numericId = curriculumId === null || curriculumId === undefined || curriculumId === "" ? null : Number(curriculumId);
+    if (numericId !== null && !Number.isNaN(numericId) && numericId !== 0) {
+        body.curriculumId = numericId;
     }
     const response = await axiosClient.post("/school/curriculum", body, {
+        headers: {
+            "X-Device-Type": "web",
+        },
+    });
+    return response || null;
+};
+
+/**
+ * PATCH /api/v1/school/{id}/activate/curriculum
+ * Activate (publish) a curriculum by its curriculumId.
+ *
+ * @param {number|string} id
+ */
+export const activateCurriculum = async (id) => {
+    const response = await axiosClient.patch(`/school/${id}/activate/curriculum`, {}, {
         headers: {
             "X-Device-Type": "web",
         },
