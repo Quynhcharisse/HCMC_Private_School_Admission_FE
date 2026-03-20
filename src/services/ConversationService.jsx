@@ -1,11 +1,11 @@
 import axiosClient from "../configs/APIConfig.jsx";
 
 export const getParentConversations = async (cursorId) => {
-    const payload = cursorId ? {cursorId} : undefined;
+    const params = cursorId ? {cursorId} : undefined;
     const response = await axiosClient.request({
         url: "/parent/conversations",
         method: "get",
-        data: payload,
+        params,
         headers: {
             "X-Device-Type": "web"
         }
@@ -15,11 +15,11 @@ export const getParentConversations = async (cursorId) => {
 };
 
 export const getCounsellorConversations = async (cursorId) => {
-    const payload = cursorId ? {cursorId} : undefined;
+    const params = cursorId ? {cursorId} : undefined;
     const response = await axiosClient.request({
         url: "/counsellor/conversations",
         method: "get",
-        data: payload,
+        params,
         headers: {
             "X-Device-Type": "web"
         }

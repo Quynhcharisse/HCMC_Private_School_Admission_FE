@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Box, Drawer, Fade } from "@mui/material";
 import { ThemeProvider, createTheme, useTheme } from "@mui/material/styles";
 import { Outlet, useLocation } from "react-router-dom";
-import AuthHeader from "../partials/AuthHeader.jsx";
+import CounsellorAuthHeader from "../Page/counsellor/CounsellorAuthHeader.jsx";
 import CounsellorSidebar from "../partials/CounsellorSidebar.jsx";
 
 const SIDEBAR_WIDTH_EXPANDED = 240;
@@ -69,7 +69,7 @@ export default function CounsellorLayout() {
         </Drawer>
 
         <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-          <AuthHeader headerLeftOffset={sidebarWidth} />
+          <CounsellorAuthHeader headerLeftOffset={sidebarWidth} />
           <Fade in key={location.pathname} timeout={{ enter: 250, exit: 150 }}>
             <Box
               component="main"

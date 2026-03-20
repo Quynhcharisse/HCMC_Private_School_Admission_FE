@@ -8,7 +8,7 @@ export const getParentMessagesHistory = async ({parentEmail, counsellorEmail, cu
     const response = await axiosClient.request({
         url: endpoint,
         method: "get",
-        data: cursorId ? {cursorId} : undefined,
+        params: cursorId ? {cursorId} : undefined,
         headers: {
             "X-Device-Type": "web"
         }
@@ -39,7 +39,7 @@ export const getCounsellorMessagesHistory = async ({parentEmail, counsellorEmail
     const response = await axiosClient.request({
         url: endpoint,
         method: "get",
-        data: cursorId ? {cursorId} : undefined,
+        params: cursorId ? {cursorId} : undefined,
         headers: {
             "X-Device-Type": "web"
         }

@@ -37,6 +37,7 @@ const CounsellorDashboard = lazy(() => import("./components/Page/counsellor/Coun
 const CounsellorParentConsultation = lazy(() =>
     import("./components/Page/counsellor/CounsellorParentConsultation.jsx")
 );
+const CounsellorProfile = lazy(() => import("./components/Page/counsellor/CounsellorProfile.jsx"));
 const SchoolCurriculums = lazy(() => import("./components/Page/school/SchoolCurriculums.jsx"));
 const SchoolPrograms = lazy(() => import("./components/Page/school/SchoolPrograms.jsx"));
 const ParentProfile = lazy(() => import("./components/auth/ParentProfile.jsx"));
@@ -412,7 +413,7 @@ const router = createBrowserRouter([
                 path: 'profile',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
-                        <UserProfilePage/>
+                        <CounsellorProfile/>
                     </Suspense>
                 )
             }
