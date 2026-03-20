@@ -38,3 +38,11 @@ export const showInfoSnackbar = (message, options = {}) => {
     });
 };
 
+export const showWarningSnackbar = (message, options = {}) => {
+    enqueueSnackbar(message, {
+        autoHideDuration: 3000,
+        ...options,
+        content: buildAlertContent('warning'),
+    });
+};
+

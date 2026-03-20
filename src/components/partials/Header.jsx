@@ -619,7 +619,7 @@ function MainHeader() {
                                 }}
                                 onClick={() => goTo('/login')}
                             >
-                                Yêu cầu tư vấn
+                                So sánh trường
                             </Button>
                             <Button
                                 color="inherit"
@@ -700,7 +700,7 @@ function MainHeader() {
                                 }}
                                 onClick={() => goTo('/consultation-requests')}
                             >
-                                Yêu cầu tư vấn
+                                So sánh trường
                             </Button>
                             <Button
                                 color="inherit"
@@ -1404,7 +1404,7 @@ function MainHeader() {
                                         <ListItemText primary="Trường đã lưu" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
                                     <ListItem onClick={() => goTo('/consultation-requests')}>
-                                        <ListItemText primary="Yêu cầu tư vấn" sx={{color: '#333', fontWeight: 600}}/>
+                                        <ListItemText primary="So sánh trường" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
                                     <ListItem onClick={() => goTo('/admission-news')}>
                                         <ListItemText primary="Tin tuyển sinh" sx={{color: '#333', fontWeight: 600}}/>
@@ -1422,7 +1422,7 @@ function MainHeader() {
                                         <ListItemText primary="Trường đã lưu" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
                                     <ListItem onClick={() => goTo('/consultation-requests')}>
-                                        <ListItemText primary="Yêu cầu tư vấn" sx={{color: '#333', fontWeight: 600}}/>
+                                        <ListItemText primary="So sánh trường" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
                                     <ListItem onClick={() => goTo('/admission-news')}>
                                         <ListItemText primary="Tin tuyển sinh" sx={{color: '#333', fontWeight: 600}}/>
