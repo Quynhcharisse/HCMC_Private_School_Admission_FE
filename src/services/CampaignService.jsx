@@ -57,15 +57,18 @@ export const updateCampaignTemplateStatus = async (id, targetStatus) => {
 };
 
 /**
- * GET campaign offerings by campus
+ * GET campaign offerings by campus (paginated)
  * @param {number} campusId
- * @param {number} [admissionCampaignId] - optional filter by campaign
+ * @param {{ page: number, pageSize: number, admissionCampaignId?: number }} params
  */
-export const getCampaignOfferingsByCampus = async (campusId, admissionCampaignId) => {
-    const url = admissionCampaignId
-        ? `/school/${campusId}/campaign/offering/list?admissionCampaignId=${admissionCampaignId}`
-        : `/school/${campusId}/campaign/offering/list`;
-    const response = await axiosClient.get(url);
+export const getCampaignOfferingsByCampus = async (campusId, { page = 0, pageSize = 10, admissionCampaignId } = {}) => {
+    const response = await axiosClient.get(`/school/${campusId}/campaign/offering/list`, {
+        params: {
+            page,
+            pageSize,
+            ...(admissionCampaignId != null ? { admissionCampaignId } : {}),
+        },
+    });
     return response || null;
 };
 
@@ -85,6 +88,25 @@ export const getCampaignOfferingsByCampus = async (campusId, admissionCampaignId
  */
 export const createCampaignOffering = async (body) => {
     const response = await axiosClient.post("/school/campaign/offering", {
+        admissionCampaignId: Number(body.admissionCampaignId),
+        campusId: Number(body.campusId),
+        programId: Number(body.programId),
+        quota: Number(body.quota) || 0,
+        learningMode: body.learningMode ?? "DAY_SCHOOL",
+        tuitionFee: Number(body.tuitionFee) || 0,
+        applicationStatus: body.applicationStatus ?? "",
+        openDate: body.openDate ?? "",
+        closeDate: body.closeDate ?? "",
+    });
+    return response || null;
+};
+
+/**
+ * PUT update campaign offering (bulk list endpoint)
+ */
+export const updateCampaignOffering = async (body) => {
+    const response = await axiosClient.put("/school/campaign/offering/list", {
+        id: Number(body.id),
         admissionCampaignId: Number(body.admissionCampaignId),
         campusId: Number(body.campusId),
         programId: Number(body.programId),

@@ -22,7 +22,6 @@ import {
     TableHead,
     TableRow,
     TextField,
-    Tooltip,
     Typography,
 } from "@mui/material";
 import Pagination from "@mui/material/Pagination";
@@ -30,19 +29,12 @@ import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
-import ListIcon from "@mui/icons-material/List";
-import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import CloseIcon from "@mui/icons-material/Close";
 import {useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import { useSchool } from "../../../contexts/SchoolContext.jsx";
-import {
-    getCampaignTemplatesByYear,
-    createCampaignTemplate,
-    updateCampaignTemplate,
-    updateCampaignTemplateStatus,
-} from "../../../services/CampaignService.jsx";
+import { getCampaignTemplatesByYear, createCampaignTemplate } from "../../../services/CampaignService.jsx";
 
 const modalPaperSx = {
     borderRadius: "16px",
@@ -123,24 +115,19 @@ export default function SchoolCampaigns() {
     const [loading, setLoading] = useState(true);
     const [submitLoading, setSubmitLoading] = useState(false);
     const [search, setSearch] = useState("");
-    const [yearFilter, setYearFilter] = useState("all");
+    const [yearFilter, setYearFilter] = useState(String(CURRENT_YEAR));
     const [statusFilter, setStatusFilter] = useState("all");
     const [createModalOpen, setCreateModalOpen] = useState(false);
-    const [editModalOpen, setEditModalOpen] = useState(false);
-    const [selectedCampaign, setSelectedCampaign] = useState(null);
     const [formValues, setFormValues] = useState(emptyForm);
     const [formErrors, setFormErrors] = useState({});
     const [page, setPage] = useState(0);
     const rowsPerPage = 10;
-    const [statusDialogOpen, setStatusDialogOpen] = useState(false);
-    const [statusTargetCampaign, setStatusTargetCampaign] = useState(null);
-    const [statusValue, setStatusValue] = useState("OPEN");
-
     useEffect(() => {
         let cancelled = false;
-        const year = yearFilter === "all" ? 0 : parseInt(yearFilter, 10);
+        const year = parseInt(yearFilter, 10);
+        const yearParam = Number.isFinite(year) ? year : CURRENT_YEAR;
         setLoading(true);
-        getCampaignTemplatesByYear(year)
+        getCampaignTemplatesByYear(yearParam)
             .then((res) => {
                 if (cancelled) return;
                 const raw = res?.data?.body ?? res?.data;
@@ -167,6 +154,10 @@ export default function SchoolCampaigns() {
         return () => { cancelled = true; };
     }, [yearFilter]);
 
+    useEffect(() => {
+        setPage(0);
+    }, [yearFilter, search, statusFilter]);
+
     const years = useMemo(() => YEAR_OPTIONS, []);
 
     const handleChange = (e) => {
@@ -183,15 +174,11 @@ export default function SchoolCampaigns() {
         if (q) {
             list = list.filter((c) => c.name?.toLowerCase().includes(q));
         }
-        if (yearFilter !== "all") {
-            const y = parseInt(yearFilter, 10);
-            list = list.filter((c) => c.year === y);
-        }
         if (statusFilter !== "all") {
             list = list.filter((c) => String(c.status).toUpperCase() === statusFilter);
         }
         return list;
-    }, [campaigns, search, yearFilter, statusFilter]);
+    }, [campaigns, search, statusFilter]);
 
     const paginatedCampaigns = useMemo(() => {
         const start = page * rowsPerPage;
@@ -220,16 +207,7 @@ export default function SchoolCampaigns() {
         endDate: formValues.endDate?.trim() || "",
     });
 
-    const getUpdatePayload = () => ({
-        admissionCampaignTemplateId: selectedCampaign?.admissionCampaignTemplateId ?? selectedCampaign?.id,
-        name: formValues.name.trim(),
-        description: formValues.description?.trim() || "",
-        startDate: formValues.startDate?.trim() || "",
-        endDate: formValues.endDate?.trim() || "",
-    });
-
     const handleOpenCreate = () => {
-        setSelectedCampaign(null);
         setFormValues({
             ...emptyForm,
             year: new Date().getFullYear(),
@@ -247,8 +225,13 @@ export default function SchoolCampaigns() {
             if (res?.status === 200 || res?.data?.message) {
                 enqueueSnackbar(res?.data?.message || "Tạo chiến dịch thành công", { variant: "success" });
                 setCreateModalOpen(false);
-                const year = yearFilter === "all" ? 0 : parseInt(yearFilter, 10);
-                const refetch = await getCampaignTemplatesByYear(year);
+                const createdYear = Number(payload.year);
+                if (Number.isFinite(createdYear) && createdYear !== parseInt(yearFilter, 10)) {
+                    setYearFilter(String(createdYear));
+                }
+                const refetch = await getCampaignTemplatesByYear(
+                    Number.isFinite(createdYear) ? createdYear : parseInt(yearFilter, 10)
+                );
                 const raw = refetch?.data?.body ?? refetch?.data;
                 let list = [];
                 if (Array.isArray(raw)) {
@@ -280,56 +263,8 @@ export default function SchoolCampaigns() {
     };
 
     const handleOpenEdit = (campaign) => {
-        setSelectedCampaign(campaign);
-        setFormValues({
-            name: campaign.name || "",
-            description: campaign.description || "",
-            year: campaign.year || new Date().getFullYear(),
-            startDate: campaign.startDate || "",
-            endDate: campaign.endDate || "",
-        });
-        setFormErrors({});
-        setEditModalOpen(true);
-    };
-
-    const handleEditSubmit = async () => {
-        if (!selectedCampaign || !validateForm()) return;
-        setSubmitLoading(true);
-        try {
-            const payload = getUpdatePayload();
-            const res = await updateCampaignTemplate(payload);
-            if (res?.status === 200 || res?.data) {
-                enqueueSnackbar("Cập nhật chiến dịch thành công", { variant: "success" });
-                setEditModalOpen(false);
-                const year = yearFilter === "all" ? 0 : parseInt(yearFilter, 10);
-                const refetch = await getCampaignTemplatesByYear(year);
-                const raw = refetch?.data?.body ?? refetch?.data;
-                let list = [];
-                if (Array.isArray(raw)) {
-                    list = raw;
-                } else if (raw) {
-                    list = [raw];
-                }
-                const mapped = list.map(mapTemplate).filter(Boolean);
-                setCampaigns(mapped);
-            } else {
-                enqueueSnackbar(
-                    getCampaignErrorMessage(res?.data?.message, "Cập nhật chiến dịch thất bại"),
-                    { variant: "error" }
-                );
-            }
-        } catch (err) {
-            enqueueSnackbar(
-                getCampaignErrorMessage(err?.response?.data?.message, "Cập nhật chiến dịch thất bại"),
-                { variant: "error" }
-            );
-        } finally {
-            setSubmitLoading(false);
-        }
-    };
-
-    const handleManageOfferings = (campaign) => {
-        navigate(`/school/campaigns/offerings/${campaign.id}`);
+        const id = campaign.id ?? campaign.admissionCampaignTemplateId;
+        navigate(`/school/campaigns/detail/${id}`, { state: { campaign } });
     };
 
     const getStatusLabel = (status) => {
@@ -347,56 +282,17 @@ export default function SchoolCampaigns() {
         return {bg: "rgba(148, 163, 184, 0.18)", color: "#64748b"};
     };
 
-    const handleOpenStatusDialog = (campaign) => {
-        setStatusTargetCampaign(campaign);
-        setStatusValue(String(campaign.status || "OPEN").toUpperCase());
-        setStatusDialogOpen(true);
-    };
-
-    const handleConfirmStatusChange = async () => {
-        if (!statusTargetCampaign) return;
-        setSubmitLoading(true);
-        try {
-            const id =
-                statusTargetCampaign.admissionCampaignTemplateId ?? statusTargetCampaign.id;
-            const res = await updateCampaignTemplateStatus(id, statusValue);
-            if (res?.status === 200 || res?.data) {
-                enqueueSnackbar("Cập nhật trạng thái chiến dịch thành công", {
-                    variant: "success",
-                });
-                setStatusDialogOpen(false);
-                const year = yearFilter === "all" ? 0 : parseInt(yearFilter, 10);
-                const refetch = await getCampaignTemplatesByYear(year);
-                const raw = refetch?.data?.body ?? refetch?.data;
-                let list = [];
-                if (Array.isArray(raw)) {
-                    list = raw;
-                } else if (raw) {
-                    list = [raw];
-                }
-                const mapped = list.map(mapTemplate).filter(Boolean);
-                setCampaigns(mapped);
-            } else {
-                enqueueSnackbar("Cập nhật trạng thái chiến dịch thất bại", {
-                    variant: "error",
-                });
-            }
-        } catch (err) {
-            enqueueSnackbar(
-                getCampaignErrorMessage(
-                    err?.response?.data?.message,
-                    "Cập nhật trạng thái chiến dịch thất bại"
-                ),
-                { variant: "error" }
-            );
-        } finally {
-            setSubmitLoading(false);
-        }
-    };
-
     return (
-        <Box sx={{display: "flex", flexDirection: "column", gap: 3, width: "100%"}}>
-            {/* Header */}
+        <Box
+            sx={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 3,
+                width: "100%",
+                fontFamily: '"Inter", "SF Pro Display", system-ui, sans-serif',
+            }}
+        >
+            {/* Header — cùng style trang Cơ sở */}
             <Box
                 sx={{
                     background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
@@ -424,12 +320,12 @@ export default function SchoolCampaigns() {
                                 textShadow: "0 1px 2px rgba(0,0,0,0.1)",
                             }}
                         >
-                            Chiến dịch tuyển sinh
+                            Quản lý chiến dịch tuyển sinh
                         </Typography>
                         <Typography variant="body2" sx={{mt: 0.5, opacity: 0.95}}>
                             {isPrimaryBranch
-                                ? "Quản lý chiến dịch tuyển sinh của trường"
-                                : "Xem kế hoạch tuyển sinh (admission plan)"}
+                                ? "Theo dõi và cấu hình chiến dịch tuyển sinh của trường"
+                                : "Xem kế hoạch tuyển sinh"}
                         </Typography>
                     </Box>
                     {isPrimaryBranch && (
@@ -462,10 +358,10 @@ export default function SchoolCampaigns() {
             <Card
                 elevation={0}
                 sx={{
-                    borderRadius: 3,
+                    borderRadius: "16px",
                     border: "1px solid #e2e8f0",
-                    boxShadow: "0 4px 20px rgba(13, 100, 222, 0.06)",
-                    bgcolor: "#F8FAFC",
+                    boxShadow: "0 4px 24px rgba(15,23,42,0.06)",
+                    bgcolor: "#fff",
                 }}
             >
                 <CardContent sx={{p: 2.5}}>
@@ -484,7 +380,7 @@ export default function SchoolCampaigns() {
                                 flex: 1,
                                 minWidth: 200,
                                 maxWidth: {md: 280},
-                                "& .MuiOutlinedInput-root": {borderRadius: 2, bgcolor: "white"},
+                                "& .MuiOutlinedInput-root": {borderRadius: "12px", bgcolor: "#f8fafc"},
                             }}
                             InputProps={{
                                 startAdornment: (
@@ -500,9 +396,9 @@ export default function SchoolCampaigns() {
                                 value={yearFilter}
                                 label="Năm"
                                 onChange={(e) => setYearFilter(e.target.value)}
-                                sx={{borderRadius: 2, bgcolor: "white"}}
+                                sx={{borderRadius: "12px", bgcolor: "#f8fafc"}}
                             >
-                                <MenuItem value="all">Tất cả năm</MenuItem>
+                                <MenuItem value="0">Tất cả năm</MenuItem>
                                 {years.map((y) => (
                                     <MenuItem key={y} value={String(y)}>
                                         {y}
@@ -516,9 +412,9 @@ export default function SchoolCampaigns() {
                                 value={statusFilter}
                                 label="Trạng thái"
                                 onChange={(e) => setStatusFilter(e.target.value)}
-                                sx={{borderRadius: 2, bgcolor: "white"}}
+                                sx={{borderRadius: "12px", bgcolor: "#f8fafc"}}
                             >
-                                <MenuItem value="all">Tất cả</MenuItem>
+                                <MenuItem value="all">Tất cả trạng thái</MenuItem>
                                 {STATUS_OPTIONS.map((opt) => (
                                     <MenuItem key={opt.value} value={opt.value}>
                                         {opt.label}
@@ -534,34 +430,25 @@ export default function SchoolCampaigns() {
             <Card
                 elevation={0}
                 sx={{
-                    borderRadius: 3,
+                    borderRadius: "16px",
                     border: "1px solid #e2e8f0",
-                    boxShadow: "0 4px 20px rgba(13, 100, 222, 0.06)",
+                    boxShadow: "0 4px 24px rgba(15,23,42,0.06)",
                     overflow: "hidden",
-                    bgcolor: "#F8FAFC",
+                    bgcolor: "#fff",
                 }}
             >
                 <TableContainer>
                     <Table>
                         <TableHead>
-                            <TableRow sx={{bgcolor: "#f1f5f9"}}>
+                            <TableRow sx={{bgcolor: "#f8fafc"}}>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
                                     Tên chiến dịch
-                                </TableCell>
-                                <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Mô tả
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
                                     Năm
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Ngày bắt đầu
-                                </TableCell>
-                                <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Ngày kết thúc
-                                </TableCell>
-                                <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
-                                    Số chỉ tiêu
+                                    Bắt đầu — Kết thúc
                                 </TableCell>
                                 <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>
                                     Trạng thái
@@ -581,18 +468,15 @@ export default function SchoolCampaigns() {
                                 Array.from({ length: 5 }).map((_, i) => (
                                     <TableRow key={i}>
                                         <TableCell><Skeleton variant="text" width="80%" /></TableCell>
-                                        <TableCell><Skeleton variant="text" width="60%" /></TableCell>
                                         <TableCell><Skeleton variant="text" width={40} /></TableCell>
-                                        <TableCell><Skeleton variant="text" width={70} /></TableCell>
-                                        <TableCell><Skeleton variant="text" width={70} /></TableCell>
-                                        <TableCell><Skeleton variant="text" width={32} /></TableCell>
+                                        <TableCell><Skeleton variant="text" width="70%" /></TableCell>
                                         <TableCell><Skeleton variant="rounded" width={70} height={24} /></TableCell>
                                         {isPrimaryBranch && <TableCell><Skeleton variant="rounded" width={100} height={32} /></TableCell>}
                                     </TableRow>
                                 ))
                             ) : paginatedCampaigns.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={isPrimaryBranch ? 8 : 7} align="center" sx={{py: 8}}>
+                                    <TableCell colSpan={isPrimaryBranch ? 5 : 4} align="center" sx={{py: 8}}>
                                         <Box
                                             sx={{
                                                 display: "flex",
@@ -606,13 +490,13 @@ export default function SchoolCampaigns() {
                                                 variant="h6"
                                                 sx={{color: "#64748b", fontWeight: 600}}
                                             >
-                                                Chưa có chiến dịch nào
+                                                Chưa có chiến dịch
                                             </Typography>
                                             <Typography variant="body2" sx={{color: "#94a3b8"}}>
                                                 {filteredCampaigns.length === 0 && campaigns.length > 0
                                                     ? "Không có kết quả phù hợp với tìm kiếm hoặc bộ lọc."
                                                     : isPrimaryBranch
-                                                        ? "Tạo chiến dịch tuyển sinh đầu tiên của bạn."
+                                                        ? "Chưa có chiến dịch cho năm đã chọn — nhấn «+ Tạo chiến dịch» để bắt đầu."
                                                         : "Chưa có kế hoạch tuyển sinh."}
                                             </Typography>
                                             {campaigns.length === 0 && isPrimaryBranch && (
@@ -642,7 +526,9 @@ export default function SchoolCampaigns() {
                                         <TableRow
                                             key={row.id}
                                             hover
+                                            onClick={() => handleOpenView(row)}
                                             sx={{
+                                                cursor: "pointer",
                                                 "&:hover": {
                                                     bgcolor: "rgba(122, 169, 235, 0.06)",
                                                 },
@@ -653,22 +539,11 @@ export default function SchoolCampaigns() {
                                                     {row.name}
                                                 </Typography>
                                             </TableCell>
-                                            <TableCell sx={{color: "#64748b", maxWidth: 200}}>
-                                                <Typography noWrap title={row.description}>
-                                                    {row.description || "—"}
-                                                </Typography>
-                                            </TableCell>
                                             <TableCell sx={{color: "#64748b"}}>{row.year}</TableCell>
-                                            <TableCell sx={{color: "#64748b"}}>
-                                                {formatDate(row.startDate)}
+                                            <TableCell sx={{color: "#64748b", whiteSpace: "nowrap"}}>
+                                                {formatDate(row.startDate)} — {formatDate(row.endDate)}
                                             </TableCell>
-                                            <TableCell sx={{color: "#64748b"}}>
-                                                {formatDate(row.endDate)}
-                                            </TableCell>
-                                            <TableCell sx={{color: "#64748b"}}>
-                                                {row.numberOfOfferings ?? 0}
-                                            </TableCell>
-                                            <TableCell onClick={() => handleOpenStatusDialog(row)}>
+                                            <TableCell>
                                                 <Box
                                                     component="span"
                                                     sx={{
@@ -679,22 +554,26 @@ export default function SchoolCampaigns() {
                                                         fontWeight: 600,
                                                         bgcolor: statusStyle.bg,
                                                         color: statusStyle.color,
-                                                        cursor: "pointer",
                                                     }}
                                                 >
                                                     {getStatusLabel(row.status)}
                                                 </Box>
                                             </TableCell>
                                             {isPrimaryBranch && (
-                                                <TableCell align="right">
+                                                <TableCell
+                                                    align="right"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
                                                     <Stack
                                                         direction="row"
-                                                        spacing={0.5}
+                                                        spacing={0.25}
                                                         justifyContent="flex-end"
                                                     >
                                                         <IconButton
                                                             size="small"
                                                             onClick={() => handleOpenView(row)}
+                                                            title="Xem chi tiết"
+                                                            aria-label="Xem chi tiết"
                                                             sx={{
                                                                 color: "#64748b",
                                                                 "&:hover": {
@@ -702,43 +581,14 @@ export default function SchoolCampaigns() {
                                                                     bgcolor: "rgba(13, 100, 222, 0.08)",
                                                                 },
                                                             }}
-                                                            title="Xem chi tiết"
                                                         >
-                                                            <VisibilityIcon fontSize="small"/>
+                                                            <VisibilityIcon fontSize="small" />
                                                         </IconButton>
                                                         <IconButton
                                                             size="small"
                                                             onClick={() => handleOpenEdit(row)}
-                                                            sx={{
-                                                                color: "#64748b",
-                                                                "&:hover": {
-                                                                    color: "#0D64DE",
-                                                                    bgcolor: "rgba(13, 100, 222, 0.08)",
-                                                                },
-                                                            }}
                                                             title="Chỉnh sửa"
-                                                        >
-                                                            <EditIcon fontSize="small"/>
-                                                        </IconButton>
-                                                        <Tooltip title="Đổi trạng thái">
-                                                            <IconButton
-                                                                size="small"
-                                                                onClick={() => handleOpenStatusDialog(row)}
-                                                                sx={{
-                                                                    color: "#64748b",
-                                                                    "&:hover": {
-                                                                        color: "#0D64DE",
-                                                                        bgcolor: "rgba(13, 100, 222, 0.08)",
-                                                                    },
-                                                                }}
-                                                                aria-label="Đổi trạng thái"
-                                                            >
-                                                                <SwapHorizIcon fontSize="small"/>
-                                                            </IconButton>
-                                                        </Tooltip>
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={() => handleManageOfferings(row)}
+                                                            aria-label="Chỉnh sửa"
                                                             sx={{
                                                                 color: "#64748b",
                                                                 "&:hover": {
@@ -746,9 +596,8 @@ export default function SchoolCampaigns() {
                                                                     bgcolor: "rgba(13, 100, 222, 0.08)",
                                                                 },
                                                             }}
-                                                            title="Quản lý chỉ tiêu"
                                                         >
-                                                            <ListIcon fontSize="small"/>
+                                                            <EditIcon fontSize="small" />
                                                         </IconButton>
                                                     </Stack>
                                                 </TableCell>
@@ -820,16 +669,32 @@ export default function SchoolCampaigns() {
                 </Box>
                 <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 1}}>
                     <Stack spacing={2.5}>
-                        <TextField
-                            label="Tên chiến dịch"
-                            name="name"
-                            fullWidth
-                            value={formValues.name}
-                            onChange={handleChange}
-                            error={!!formErrors.name}
-                            helperText={formErrors.name}
-                            required
-                        />
+                        <Stack direction={{xs: "column", sm: "row"}} spacing={2}>
+                            <TextField
+                                label="Tên chiến dịch"
+                                name="name"
+                                fullWidth
+                                value={formValues.name}
+                                onChange={handleChange}
+                                error={!!formErrors.name}
+                                helperText={formErrors.name}
+                                required
+                                sx={{"& .MuiOutlinedInput-root": {borderRadius: "12px"}}}
+                            />
+                            <TextField
+                                label="Năm"
+                                name="year"
+                                type="number"
+                                fullWidth
+                                value={formValues.year}
+                                onChange={handleChange}
+                                inputProps={{min: 2020, max: 2035}}
+                                sx={{
+                                    maxWidth: {sm: 160},
+                                    "& .MuiOutlinedInput-root": {borderRadius: "12px"},
+                                }}
+                            />
+                        </Stack>
                         <TextField
                             label="Mô tả"
                             name="description"
@@ -838,40 +703,36 @@ export default function SchoolCampaigns() {
                             rows={3}
                             value={formValues.description}
                             onChange={handleChange}
+                            sx={{"& .MuiOutlinedInput-root": {borderRadius: "12px"}}}
                         />
-                        <TextField
-                            label="Năm"
-                            name="year"
-                            type="number"
-                            fullWidth
-                            value={formValues.year}
-                            onChange={handleChange}
-                            inputProps={{min: 2020, max: 2030}}
-                        />
-                        <TextField
-                            label="Ngày bắt đầu"
-                            name="startDate"
-                            type="date"
-                            fullWidth
-                            value={formValues.startDate}
-                            onChange={handleChange}
-                            error={!!formErrors.startDate}
-                            helperText={formErrors.startDate}
-                            InputLabelProps={{shrink: true}}
-                            required
-                        />
-                        <TextField
-                            label="Ngày kết thúc"
-                            name="endDate"
-                            type="date"
-                            fullWidth
-                            value={formValues.endDate}
-                            onChange={handleChange}
-                            error={!!formErrors.endDate}
-                            helperText={formErrors.endDate}
-                            InputLabelProps={{shrink: true}}
-                            required
-                        />
+                        <Stack direction={{xs: "column", sm: "row"}} spacing={2}>
+                            <TextField
+                                label="Ngày bắt đầu"
+                                name="startDate"
+                                type="date"
+                                fullWidth
+                                value={formValues.startDate}
+                                onChange={handleChange}
+                                error={!!formErrors.startDate}
+                                helperText={formErrors.startDate}
+                                InputLabelProps={{shrink: true}}
+                                required
+                                sx={{"& .MuiOutlinedInput-root": {borderRadius: "12px"}}}
+                            />
+                            <TextField
+                                label="Ngày kết thúc"
+                                name="endDate"
+                                type="date"
+                                fullWidth
+                                value={formValues.endDate}
+                                onChange={handleChange}
+                                error={!!formErrors.endDate}
+                                helperText={formErrors.endDate}
+                                InputLabelProps={{shrink: true}}
+                                required
+                                sx={{"& .MuiOutlinedInput-root": {borderRadius: "12px"}}}
+                            />
+                        </Stack>
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
@@ -892,187 +753,10 @@ export default function SchoolCampaigns() {
                             fontWeight: 600,
                             borderRadius: 2,
                             px: 3,
-                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
+                            bgcolor: "#0D64DE",
                         }}
                     >
-                        {submitLoading ? "Đang tạo…" : "Tạo chiến dịch"}
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* Edit Campaign Modal */}
-            <Dialog
-                open={editModalOpen}
-                onClose={() => setEditModalOpen(false)}
-                fullWidth
-                maxWidth="sm"
-                PaperProps={{sx: modalPaperSx}}
-                slotProps={{backdrop: {sx: modalBackdropSx}}}
-            >
-                <Box sx={{px: 3, pt: 3, pb: 0}}>
-                    <Box
-                        sx={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            justifyContent: "space-between",
-                            gap: 2,
-                        }}
-                    >
-                        <Box>
-                            <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
-                                Chỉnh sửa chiến dịch
-                            </Typography>
-                            <Typography variant="body2" sx={{color: "#64748b", mt: 0.5}}>
-                                Cập nhật thông tin chiến dịch.
-                            </Typography>
-                        </Box>
-                        <IconButton
-                            onClick={() => setEditModalOpen(false)}
-                            size="small"
-                            sx={{mt: -0.5, mr: -0.5}}
-                            aria-label="Đóng"
-                        >
-                            <CloseIcon fontSize="small"/>
-                        </IconButton>
-                    </Box>
-                </Box>
-                <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 1}}>
-                    <Stack spacing={2.5}>
-                        <TextField
-                            label="Tên chiến dịch"
-                            name="name"
-                            fullWidth
-                            value={formValues.name}
-                            onChange={handleChange}
-                            error={!!formErrors.name}
-                            helperText={formErrors.name}
-                        />
-                        <TextField
-                            label="Mô tả"
-                            name="description"
-                            fullWidth
-                            multiline
-                            rows={3}
-                            value={formValues.description}
-                            onChange={handleChange}
-                        />
-                        <TextField
-                            label="Năm"
-                            name="year"
-                            type="number"
-                            fullWidth
-                            value={formValues.year}
-                            onChange={handleChange}
-                            inputProps={{min: 2020, max: 2030}}
-                        />
-                        <TextField
-                            label="Ngày bắt đầu"
-                            name="startDate"
-                            type="date"
-                            fullWidth
-                            value={formValues.startDate}
-                            onChange={handleChange}
-                            error={!!formErrors.startDate}
-                            helperText={formErrors.startDate}
-                            InputLabelProps={{shrink: true}}
-                        />
-                        <TextField
-                            label="Ngày kết thúc"
-                            name="endDate"
-                            type="date"
-                            fullWidth
-                            value={formValues.endDate}
-                            onChange={handleChange}
-                            error={!!formErrors.endDate}
-                            helperText={formErrors.endDate}
-                            InputLabelProps={{shrink: true}}
-                        />
-                    </Stack>
-                </DialogContent>
-                <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
-                    <Button
-                        onClick={() => setEditModalOpen(false)}
-                        variant="text"
-                        color="inherit"
-                        sx={{textTransform: "none", fontWeight: 500}}
-                    >
-                        Hủy
-                    </Button>
-                    <Button
-                        onClick={handleEditSubmit}
-                        variant="contained"
-                        disabled={submitLoading}
-                        sx={{
-                            textTransform: "none",
-                            fontWeight: 600,
-                            borderRadius: 2,
-                            px: 3,
-                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
-                        }}
-                    >
-                        {submitLoading ? "Đang lưu…" : "Lưu"}
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* Change Status Dialog */}
-            <Dialog
-                open={statusDialogOpen}
-                onClose={() => setStatusDialogOpen(false)}
-                fullWidth
-                maxWidth="xs"
-                PaperProps={{sx: modalPaperSx}}
-                slotProps={{backdrop: {sx: modalBackdropSx}}}
-            >
-                <Box sx={{px: 3, pt: 3, pb: 0}}>
-                    <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
-                        Thay đổi trạng thái chiến dịch
-                    </Typography>
-                    {statusTargetCampaign && (
-                        <Typography variant="body2" sx={{color: "#64748b", mt: 0.5}}>
-                            {statusTargetCampaign.name}
-                        </Typography>
-                    )}
-                </Box>
-                <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 1}}>
-                    <FormControl fullWidth size="small">
-                        <InputLabel>Trạng thái</InputLabel>
-                        <Select
-                            label="Trạng thái"
-                            value={statusValue}
-                            onChange={(e) => setStatusValue(e.target.value)}
-                            sx={{borderRadius: 2}}
-                        >
-                            {STATUS_OPTIONS.map((opt) => (
-                                <MenuItem key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                </MenuItem>
-                            ))}
-                        </Select>
-                    </FormControl>
-                </DialogContent>
-                <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
-                    <Button
-                        onClick={() => setStatusDialogOpen(false)}
-                        variant="text"
-                        color="inherit"
-                        sx={{textTransform: "none", fontWeight: 500}}
-                    >
-                        Hủy
-                    </Button>
-                    <Button
-                        onClick={handleConfirmStatusChange}
-                        variant="contained"
-                        disabled={submitLoading}
-                        sx={{
-                            textTransform: "none",
-                            fontWeight: 600,
-                            borderRadius: 2,
-                            px: 3,
-                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
-                        }}
-                    >
-                        {submitLoading ? "Đang cập nhật…" : "Xác nhận"}
+                        {submitLoading ? "Đang tạo…" : "Lưu"}
                     </Button>
                 </DialogActions>
             </Dialog>

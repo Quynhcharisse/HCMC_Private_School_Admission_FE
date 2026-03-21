@@ -1,0 +1,698 @@
+import React, { useState, useEffect, useMemo } from "react";
+import {
+    Box,
+    Button,
+    Card,
+    CardContent,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    FormControl,
+    IconButton,
+    InputLabel,
+    MenuItem,
+    Select,
+    Skeleton,
+    Stack,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    TextField,
+    Typography,
+    Pagination,
+} from "@mui/material";
+import AddIcon from "@mui/icons-material/Add";
+import CloseIcon from "@mui/icons-material/Close";
+import EditIcon from "@mui/icons-material/Edit";
+import { enqueueSnackbar } from "notistack";
+import { listCampuses } from "../../../services/CampusService.jsx";
+import { getProgramList } from "../../../services/ProgramService.jsx";
+import {
+    getCampaignOfferingsByCampus,
+    createCampaignOffering,
+    updateCampaignOffering,
+} from "../../../services/CampaignService.jsx";
+
+const LEARNING_MODES = [
+    { value: "DAY_SCHOOL", label: "Bán trú (ngày)" },
+    { value: "BOARDING", label: "Nội trú" },
+    { value: "SEMI_BOARDING", label: "Bán trú có chỗ ở" },
+    { value: "HALF_DAY", label: "Nửa ngày" },
+];
+
+const APPLICATION_STATUS_OPTIONS = [
+    { value: "OPEN", label: "Đang mở" },
+    { value: "CLOSED", label: "Đã đóng" },
+    { value: "PAUSED", label: "Tạm dừng" },
+];
+
+function formatDate(dateStr) {
+    if (!dateStr) return "—";
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("vi-VN");
+}
+
+function formatCurrency(n) {
+    if (n == null || n === "") return "—";
+    return new Intl.NumberFormat("vi-VN", {
+        style: "currency",
+        currency: "VND",
+        maximumFractionDigits: 0,
+    }).format(Number(n));
+}
+
+const emptyForm = {
+    campusId: "",
+    programId: "",
+    learningMode: "DAY_SCHOOL",
+    quota: "",
+    tuitionFee: "",
+    applicationStatus: "OPEN",
+    openDate: "",
+    closeDate: "",
+};
+
+/**
+ * @param {{
+ *   campaignId: number,
+ *   campaignPaused: boolean,
+ *   canMutate: boolean,
+ * }} props
+ */
+export default function CampaignOfferingsSection({
+    campaignId,
+    campaignPaused,
+    canMutate,
+}) {
+    const [campuses, setCampuses] = useState([]);
+    const [programs, setPrograms] = useState([]);
+    const [campusesLoading, setCampusesLoading] = useState(true);
+    const [programsLoading, setProgramsLoading] = useState(true);
+    const [campusFilter, setCampusFilter] = useState("");
+    const [programFilter, setProgramFilter] = useState("all");
+    const [statusFilter, setStatusFilter] = useState("all");
+    const [page, setPage] = useState(0);
+    const pageSize = 8;
+    const [rawItems, setRawItems] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [listNonce, setListNonce] = useState(0);
+    const [modalOpen, setModalOpen] = useState(false);
+    const [editingRow, setEditingRow] = useState(null);
+    const [submitLoading, setSubmitLoading] = useState(false);
+    const [formValues, setFormValues] = useState(emptyForm);
+    const [formErrors, setFormErrors] = useState({});
+
+    useEffect(() => {
+        let cancelled = false;
+        setCampusesLoading(true);
+        listCampuses()
+            .then((res) => {
+                if (cancelled) return;
+                const body = res?.data?.body ?? res?.data;
+                const list = body?.items ?? body;
+                const arr = Array.isArray(list)
+                    ? list.map((c) => ({ id: c.id ?? c.campusId, name: c.name ?? "Cơ sở" }))
+                    : [];
+                setCampuses(arr);
+                if (arr.length > 0 && !campusFilter) setCampusFilter(String(arr[0].id));
+            })
+            .catch(() => {
+                if (!cancelled) enqueueSnackbar("Không tải được danh sách cơ sở", { variant: "error" });
+            })
+            .finally(() => {
+                if (!cancelled) setCampusesLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        setProgramsLoading(true);
+        getProgramList(0, 200)
+            .then((res) => {
+                if (cancelled) return;
+                const body = res?.data?.body ?? res?.data;
+                const list = body?.items ?? body;
+                const arr = Array.isArray(list)
+                    ? list.map((p) => ({
+                          id: p.id ?? p.programId,
+                          name: p.programName ?? p.name ?? `Chương trình #${p.id}`,
+                      }))
+                    : [];
+                setPrograms(arr.filter((p) => p.id != null));
+            })
+            .catch(() => {
+                if (!cancelled) enqueueSnackbar("Không tải được chương trình", { variant: "error" });
+            })
+            .finally(() => {
+                if (!cancelled) setProgramsLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!campusFilter || !campaignId) {
+            setRawItems([]);
+            return;
+        }
+        let cancelled = false;
+        setLoading(true);
+        const aggregatePages = async () => {
+            const acc = [];
+            let p = 0;
+            const batchSize = 50;
+            try {
+                while (!cancelled) {
+                    const res = await getCampaignOfferingsByCampus(parseInt(campusFilter, 10), {
+                        page: p,
+                        pageSize: batchSize,
+                        admissionCampaignId: campaignId,
+                    });
+                    const body = res?.data?.body ?? res?.data;
+                    const chunk = Array.isArray(body) ? body : body?.items ?? [];
+                    const forCampaign = chunk.filter(
+                        (row) => Number(row.campaignId) === Number(campaignId)
+                    );
+                    acc.push(...forCampaign);
+                    if (chunk.length === 0) break;
+                    if (chunk.length < batchSize) break;
+                    if (body?.hasNext === false) break;
+                    p += 1;
+                    if (p > 40) break;
+                }
+                if (!cancelled) setRawItems(acc);
+            } catch (err) {
+                if (!cancelled) {
+                    console.error("Fetch offerings error:", err);
+                    enqueueSnackbar(
+                        err?.response?.data?.message || "Không tải được danh sách chỉ tiêu",
+                        { variant: "error" }
+                    );
+                    setRawItems([]);
+                }
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        };
+        aggregatePages();
+        return () => {
+            cancelled = true;
+        };
+    }, [campusFilter, campaignId, listNonce]);
+
+    const filteredItems = useMemo(() => {
+        let list = rawItems;
+        if (programFilter !== "all") {
+            const pid = parseInt(programFilter, 10);
+            list = list.filter((r) => Number(r.programId) === pid);
+        }
+        if (statusFilter !== "all") {
+            list = list.filter(
+                (r) =>
+                    String(r.applicationStatus || "").toUpperCase() === statusFilter ||
+                    String(r.status || "").toUpperCase() === statusFilter
+            );
+        }
+        return list;
+    }, [rawItems, programFilter, statusFilter]);
+
+    const items = useMemo(() => {
+        const start = page * pageSize;
+        return filteredItems.slice(start, start + pageSize);
+    }, [filteredItems, page, pageSize]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+
+    useEffect(() => {
+        setPage(0);
+    }, [campusFilter, programFilter, statusFilter]);
+
+    const getLearningModeLabel = (mode) =>
+        LEARNING_MODES.find((m) => m.value === mode)?.label ?? mode ?? "—";
+    const getApplicationStatusLabel = (s) =>
+        APPLICATION_STATUS_OPTIONS.find((o) => o.value === s)?.label ?? s ?? "—";
+
+    const getProgramName = (id) =>
+        programs.find((p) => Number(p.id) === Number(id))?.name ?? id ?? "—";
+
+    const validateForm = () => {
+        const errors = {};
+        if (!formValues.campusId) errors.campusId = "Vui lòng chọn cơ sở";
+        if (!formValues.programId) errors.programId = "Vui lòng chọn chương trình";
+        if (formValues.quota === "" || Number(formValues.quota) < 0) errors.quota = "Chỉ tiêu không hợp lệ";
+        setFormErrors(errors);
+        return Object.keys(errors).length === 0;
+    };
+
+    const openCreate = () => {
+        setEditingRow(null);
+        setFormValues({
+            ...emptyForm,
+            campusId: campusFilter || (campuses[0]?.id != null ? String(campuses[0].id) : ""),
+        });
+        setFormErrors({});
+        setModalOpen(true);
+    };
+
+    const openEdit = (row) => {
+        setEditingRow(row);
+        setFormValues({
+            campusId: String(row.campusId ?? ""),
+            programId: String(row.programId ?? ""),
+            learningMode: row.learningMode || "DAY_SCHOOL",
+            quota: row.quota != null ? String(row.quota) : "",
+            tuitionFee: row.tuitionFee != null ? String(row.tuitionFee) : "",
+            applicationStatus: row.applicationStatus || "OPEN",
+            openDate: row.openDate?.slice(0, 10) || "",
+            closeDate: row.closeDate?.slice(0, 10) || "",
+        });
+        setFormErrors({});
+        setModalOpen(true);
+    };
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormValues((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = async () => {
+        if (!validateForm() || !campaignId) return;
+        setSubmitLoading(true);
+        try {
+            if (editingRow) {
+                const res = await updateCampaignOffering({
+                    id: editingRow.id,
+                    admissionCampaignId: campaignId,
+                    campusId: Number(formValues.campusId),
+                    programId: Number(formValues.programId),
+                    quota: Number(formValues.quota) || 0,
+                    learningMode: formValues.learningMode || "DAY_SCHOOL",
+                    tuitionFee: Number(formValues.tuitionFee) || 0,
+                    applicationStatus: formValues.applicationStatus || "OPEN",
+                    openDate: formValues.openDate || "",
+                    closeDate: formValues.closeDate || "",
+                });
+                if (res?.status === 200 || res?.data?.message) {
+                    enqueueSnackbar(res?.data?.message || "Cập nhật chỉ tiêu thành công", {
+                        variant: "success",
+                    });
+                    setModalOpen(false);
+                    setListNonce((n) => n + 1);
+                } else {
+                    enqueueSnackbar(res?.data?.message || "Cập nhật chỉ tiêu thất bại", { variant: "error" });
+                }
+            } else {
+                const res = await createCampaignOffering({
+                    admissionCampaignId: campaignId,
+                    campusId: Number(formValues.campusId),
+                    programId: Number(formValues.programId),
+                    quota: Number(formValues.quota) || 0,
+                    learningMode: formValues.learningMode || "DAY_SCHOOL",
+                    tuitionFee: Number(formValues.tuitionFee) || 0,
+                    applicationStatus: formValues.applicationStatus || "OPEN",
+                    openDate: formValues.openDate || "",
+                    closeDate: formValues.closeDate || "",
+                });
+                if (res?.status === 200 || res?.data) {
+                    enqueueSnackbar(res?.data?.message || "Tạo chỉ tiêu thành công", { variant: "success" });
+                    setModalOpen(false);
+                    setPage(0);
+                    setListNonce((n) => n + 1);
+                } else {
+                    enqueueSnackbar(res?.data?.message || "Tạo chỉ tiêu thất bại", { variant: "error" });
+                }
+            }
+        } catch (err) {
+            enqueueSnackbar(err?.response?.data?.message || "Thao tác thất bại", { variant: "error" });
+        } finally {
+            setSubmitLoading(false);
+        }
+    };
+
+    const rowMuted = campaignPaused;
+
+    const programOptions = useMemo(() => programs, [programs]);
+
+    return (
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Box
+                sx={{
+                    display: "flex",
+                    flexDirection: { xs: "column", sm: "row" },
+                    alignItems: { xs: "stretch", sm: "center" },
+                    justifyContent: "space-between",
+                    gap: 2,
+                }}
+            >
+                <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b" }}>
+                    Chỉ tiêu tuyển sinh
+                </Typography>
+                {canMutate && (
+                    <Button
+                        variant="contained"
+                        startIcon={<AddIcon />}
+                        onClick={openCreate}
+                        disabled={!campusFilter}
+                        sx={{
+                            textTransform: "none",
+                            fontWeight: 600,
+                            borderRadius: 2,
+                            bgcolor: "#0D64DE",
+                            alignSelf: { xs: "stretch", sm: "auto" },
+                        }}
+                    >
+                        Thêm chỉ tiêu
+                    </Button>
+                )}
+            </Box>
+
+            <Card
+                elevation={0}
+                sx={{
+                    borderRadius: 2,
+                    border: "1px solid #e2e8f0",
+                    bgcolor: "#fff",
+                    boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
+                }}
+            >
+                <CardContent sx={{ py: 2 }}>
+                    <Stack direction={{ xs: "column", md: "row" }} spacing={2} flexWrap="wrap">
+                        <FormControl size="small" sx={{ minWidth: 200 }} disabled={campusesLoading}>
+                            <InputLabel>Cơ sở</InputLabel>
+                            <Select
+                                value={campusFilter}
+                                label="Cơ sở"
+                                onChange={(e) => setCampusFilter(e.target.value)}
+                                sx={{ borderRadius: 2, bgcolor: "#f8fafc" }}
+                            >
+                                {campuses.map((c) => (
+                                    <MenuItem key={c.id} value={String(c.id)}>
+                                        {c.name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <FormControl size="small" sx={{ minWidth: 200 }} disabled={programsLoading}>
+                            <InputLabel>Chương trình</InputLabel>
+                            <Select
+                                value={programFilter}
+                                label="Chương trình"
+                                onChange={(e) => setProgramFilter(e.target.value)}
+                                sx={{ borderRadius: 2, bgcolor: "#f8fafc" }}
+                            >
+                                <MenuItem value="all">Tất cả</MenuItem>
+                                {programOptions.map((p) => (
+                                    <MenuItem key={p.id} value={String(p.id)}>
+                                        {p.name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <FormControl size="small" sx={{ minWidth: 180 }}>
+                            <InputLabel>Trạng thái hồ sơ</InputLabel>
+                            <Select
+                                value={statusFilter}
+                                label="Trạng thái hồ sơ"
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                sx={{ borderRadius: 2, bgcolor: "#f8fafc" }}
+                            >
+                                <MenuItem value="all">Tất cả</MenuItem>
+                                {APPLICATION_STATUS_OPTIONS.map((o) => (
+                                    <MenuItem key={o.value} value={o.value}>
+                                        {o.label}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                    </Stack>
+                </CardContent>
+            </Card>
+
+            <Card
+                elevation={0}
+                sx={{
+                    borderRadius: 2,
+                    border: "1px solid #e2e8f0",
+                    overflow: "hidden",
+                    bgcolor: "#fff",
+                    boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
+                }}
+            >
+                <TableContainer>
+                    <Table size="small">
+                        <TableHead>
+                            <TableRow sx={{ bgcolor: "#f8fafc" }}>
+                                <TableCell sx={{ fontWeight: 700 }}>Cơ sở</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>Chương trình</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>Hình thức</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>Chỉ tiêu / Còn lại</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>Học phí</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>Hồ sơ</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>Trạng thái</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>Mở — Đóng</TableCell>
+                                {canMutate && (
+                                    <TableCell align="right" sx={{ fontWeight: 700 }}>
+                                        Thao tác
+                                    </TableCell>
+                                )}
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {loading ? (
+                                Array.from({ length: 4 }).map((_, i) => (
+                                    <TableRow key={i}>
+                                        {Array.from({ length: canMutate ? 9 : 8 }).map((__, j) => (
+                                            <TableCell key={j}>
+                                                <Skeleton variant="text" width="80%" />
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                ))
+                            ) : items.length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={canMutate ? 9 : 8} align="center" sx={{ py: 6 }}>
+                                        <Typography color="text.secondary">Chưa có chỉ tiêu cho bộ lọc này.</Typography>
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                items.map((row) => (
+                                    <TableRow
+                                        key={row.id}
+                                        hover
+                                        sx={{
+                                            opacity: rowMuted ? 0.72 : 1,
+                                            bgcolor: rowMuted ? "rgba(250, 204, 21, 0.06)" : "inherit",
+                                        }}
+                                    >
+                                        <TableCell>{row.campusName ?? "—"}</TableCell>
+                                        <TableCell>{row.programName ?? getProgramName(row.programId)}</TableCell>
+                                        <TableCell>{getLearningModeLabel(row.learningMode)}</TableCell>
+                                        <TableCell>
+                                            {row.quota ?? "—"} / {row.remainingQuota ?? "—"}
+                                        </TableCell>
+                                        <TableCell>{formatCurrency(row.tuitionFee)}</TableCell>
+                                        <TableCell>
+                                            {getApplicationStatusLabel(row.applicationStatus)}
+                                        </TableCell>
+                                        <TableCell>
+                                            {campaignPaused
+                                                ? "Tạm dừng"
+                                                : String(row.status || "").toUpperCase() === "PAUSED"
+                                                  ? "Tạm dừng"
+                                                  : row.status ?? "—"}
+                                        </TableCell>
+                                        <TableCell>
+                                            {formatDate(row.openDate)} — {formatDate(row.closeDate)}
+                                        </TableCell>
+                                        {canMutate && (
+                                            <TableCell align="right">
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => openEdit(row)}
+                                                    aria-label="Sửa chỉ tiêu"
+                                                    sx={{ color: "#0D64DE" }}
+                                                >
+                                                    <EditIcon fontSize="small" />
+                                                </IconButton>
+                                            </TableCell>
+                                        )}
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+                {filteredItems.length > pageSize && (
+                    <Box
+                        sx={{
+                            display: "flex",
+                            justifyContent: "flex-end",
+                            p: 2,
+                            borderTop: "1px solid #e2e8f0",
+                        }}
+                    >
+                        <Pagination
+                            count={totalPages}
+                            page={page + 1}
+                            onChange={(_, p) => setPage(p - 1)}
+                            color="primary"
+                            shape="rounded"
+                        />
+                    </Box>
+                )}
+            </Card>
+
+            <Dialog
+                open={modalOpen}
+                onClose={() => setModalOpen(false)}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{
+                    sx: { borderRadius: "16px", boxShadow: "0 24px 48px rgba(0,0,0,0.12)" },
+                }}
+                slotProps={{ backdrop: { sx: { backdropFilter: "blur(6px)" } } }}
+            >
+                <Box sx={{ px: 3, pt: 3, display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        {editingRow ? "Sửa chỉ tiêu" : "Thêm chỉ tiêu"}
+                    </Typography>
+                    <IconButton size="small" onClick={() => setModalOpen(false)} aria-label="Đóng">
+                        <CloseIcon />
+                    </IconButton>
+                </Box>
+                <DialogContent>
+                    <Stack spacing={2}>
+                        <FormControl fullWidth size="small" error={!!formErrors.campusId}>
+                            <InputLabel>Cơ sở</InputLabel>
+                            <Select
+                                name="campusId"
+                                value={formValues.campusId}
+                                label="Cơ sở"
+                                onChange={handleChange}
+                                disabled={!!editingRow}
+                                sx={{ borderRadius: 2 }}
+                            >
+                                {campuses.map((c) => (
+                                    <MenuItem key={c.id} value={String(c.id)}>
+                                        {c.name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <FormControl fullWidth size="small" error={!!formErrors.programId}>
+                            <InputLabel>Chương trình</InputLabel>
+                            <Select
+                                name="programId"
+                                value={formValues.programId}
+                                label="Chương trình"
+                                onChange={handleChange}
+                                disabled={!!editingRow}
+                                sx={{ borderRadius: 2 }}
+                            >
+                                {programs.map((p) => (
+                                    <MenuItem key={p.id} value={String(p.id)}>
+                                        {p.name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <FormControl fullWidth size="small">
+                            <InputLabel>Hình thức học</InputLabel>
+                            <Select
+                                name="learningMode"
+                                value={formValues.learningMode}
+                                label="Hình thức học"
+                                onChange={handleChange}
+                                sx={{ borderRadius: 2 }}
+                            >
+                                {LEARNING_MODES.map((m) => (
+                                    <MenuItem key={m.value} value={m.value}>
+                                        {m.label}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <TextField
+                            label="Chỉ tiêu"
+                            name="quota"
+                            type="number"
+                            fullWidth
+                            size="small"
+                            value={formValues.quota}
+                            onChange={handleChange}
+                            error={!!formErrors.quota}
+                            helperText={formErrors.quota}
+                            inputProps={{ min: 0 }}
+                        />
+                        <TextField
+                            label="Học phí (VNĐ)"
+                            name="tuitionFee"
+                            type="number"
+                            fullWidth
+                            size="small"
+                            value={formValues.tuitionFee}
+                            onChange={handleChange}
+                            inputProps={{ min: 0 }}
+                        />
+                        <FormControl fullWidth size="small">
+                            <InputLabel>Trạng thái hồ sơ</InputLabel>
+                            <Select
+                                name="applicationStatus"
+                                value={formValues.applicationStatus}
+                                label="Trạng thái hồ sơ"
+                                onChange={handleChange}
+                                sx={{ borderRadius: 2 }}
+                            >
+                                {APPLICATION_STATUS_OPTIONS.map((o) => (
+                                    <MenuItem key={o.value} value={o.value}>
+                                        {o.label}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <TextField
+                            label="Ngày mở"
+                            name="openDate"
+                            type="date"
+                            fullWidth
+                            size="small"
+                            value={formValues.openDate}
+                            onChange={handleChange}
+                            InputLabelProps={{ shrink: true }}
+                        />
+                        <TextField
+                            label="Ngày đóng"
+                            name="closeDate"
+                            type="date"
+                            fullWidth
+                            size="small"
+                            value={formValues.closeDate}
+                            onChange={handleChange}
+                            InputLabelProps={{ shrink: true }}
+                        />
+                    </Stack>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, py: 2, borderTop: "1px solid #e2e8f0" }}>
+                    <Button onClick={() => setModalOpen(false)} sx={{ textTransform: "none" }}>
+                        Hủy
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={handleSubmit}
+                        disabled={submitLoading}
+                        sx={{ textTransform: "none", fontWeight: 600, bgcolor: "#0D64DE", borderRadius: 2 }}
+                    >
+                        {submitLoading ? "Đang lưu…" : editingRow ? "Lưu" : "Tạo"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </Box>
+    );
+}
