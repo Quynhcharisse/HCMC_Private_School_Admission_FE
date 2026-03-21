@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+    Alert,
     Box,
     Button,
     Card,
@@ -41,6 +42,7 @@ import DoneAllIcon from "@mui/icons-material/DoneAll";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import { enqueueSnackbar } from "notistack";
 
+import { useSchool } from "../../../contexts/SchoolContext.jsx";
 import { activateCurriculum, getCurriculumList, saveCurriculum } from "../../../services/CurriculumService.jsx";
 
 const modalPaperSx = {
@@ -206,6 +208,7 @@ function ChipStatus({ status }) {
 }
 
 export default function SchoolCurriculums() {
+    const { isPrimaryBranch } = useSchool();
     const [loading, setLoading] = useState(true);
     const [curriculums, setCurriculums] = useState([]);
     const [totalItems, setTotalItems] = useState(0);
@@ -367,6 +370,7 @@ export default function SchoolCurriculums() {
     });
 
     const handleOpenCreate = () => {
+        if (!isPrimaryBranch) return;
         const defaultCurriculumType = "INTEGRATED";
         const defaultMethodLearning = "STEM_STEAM";
         setSelectedCurriculum(null);
@@ -386,6 +390,7 @@ export default function SchoolCurriculums() {
     };
 
     const handleOpenEdit = (curriculum) => {
+        if (!isPrimaryBranch) return;
         setSelectedCurriculum(curriculum);
         setViewCurriculum(null);
 
@@ -414,6 +419,10 @@ export default function SchoolCurriculums() {
     };
 
     const handleEditClick = (curriculum) => {
+        if (!isPrimaryBranch) {
+            handleOpenView(curriculum);
+            return;
+        }
         if (normalizeStatus(curriculum?.curriculumStatus) === "CUR_ARCHIVED") {
             enqueueSnackbar("Chương trình đã lưu trữ, không thể chỉnh sửa.", { variant: "warning" });
             return;
@@ -427,6 +436,7 @@ export default function SchoolCurriculums() {
     };
 
     const handleConfirmEvolve = async () => {
+        if (!isPrimaryBranch) return;
         if (!curriculumToEditAfterConfirm) return;
         setEvolveLoading(true);
         try {
@@ -487,6 +497,7 @@ export default function SchoolCurriculums() {
     };
 
     const handlePublishFromView = async () => {
+        if (!isPrimaryBranch) return;
         if (!viewCurriculum) return;
         if (publishLoading) return;
 
@@ -509,6 +520,7 @@ export default function SchoolCurriculums() {
     };
 
     const handleCreateSubmit = async (shouldActivate) => {
+        if (!isPrimaryBranch) return;
         if (!validateForm()) return;
         setSubmitLoading(true);
         try {
@@ -542,6 +554,7 @@ export default function SchoolCurriculums() {
     };
 
     const handleEditSubmit = async (shouldActivate) => {
+        if (!isPrimaryBranch) return;
         if (!selectedCurriculum) return;
         if (!validateForm()) return;
         setSubmitLoading(true);
@@ -625,6 +638,8 @@ export default function SchoolCurriculums() {
 
     const isEditFieldsLocked = (selectedCurriculum?.programCount ?? 0) > 0;
 
+    const tableColSpan = isPrimaryBranch ? 7 : 6;
+
     return (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 3, width: "100%" }}>
             {/* Header */}
@@ -658,28 +673,32 @@ export default function SchoolCurriculums() {
                             Quản lý chương trình học
                         </Typography>
                         <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.95 }}>
-                            Tạo mới, cập nhật và quản lý trạng thái công bố của các chương trình học.
+                            {isPrimaryBranch
+                                ? "Tạo mới, cập nhật và quản lý trạng thái công bố của các chương trình học."
+                                : "Xem chương trình học của trường (cơ sở phụ không được tạo/sửa/công bố)."}
                         </Typography>
                     </Box>
 
-                    <Button
-                        variant="contained"
-                        startIcon={<AddIcon />}
-                        onClick={handleOpenCreate}
-                        sx={{
-                            bgcolor: "rgba(255,255,255,0.95)",
-                            color: "#0D64DE",
-                            borderRadius: 2,
-                            textTransform: "none",
-                            fontWeight: 700,
-                            px: 3,
-                            py: 1.5,
-                            boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
-                            "&:hover": { bgcolor: "white", boxShadow: "0 6px 20px rgba(0,0,0,0.2)" },
-                        }}
-                    >
-                        Tạo chương trình
-                    </Button>
+                    {isPrimaryBranch && (
+                        <Button
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            onClick={handleOpenCreate}
+                            sx={{
+                                bgcolor: "rgba(255,255,255,0.95)",
+                                color: "#0D64DE",
+                                borderRadius: 2,
+                                textTransform: "none",
+                                fontWeight: 700,
+                                px: 3,
+                                py: 1.5,
+                                boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
+                                "&:hover": { bgcolor: "white", boxShadow: "0 6px 20px rgba(0,0,0,0.2)" },
+                            }}
+                        >
+                            Tạo chương trình
+                        </Button>
+                    )}
                 </Box>
             </Box>
 
@@ -802,9 +821,11 @@ export default function SchoolCurriculums() {
                                 <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Năm tuyển sinh</TableCell>
                                 <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Số chương trình</TableCell>
                                 <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Trạng thái</TableCell>
-                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }} align="right">
-                                    Thao tác
-                                </TableCell>
+                                {isPrimaryBranch && (
+                                    <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }} align="right">
+                                        Thao tác
+                                    </TableCell>
+                                )}
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -817,12 +838,16 @@ export default function SchoolCurriculums() {
                                         <TableCell><Skeleton variant="text" width={60} /></TableCell>
                                         <TableCell><Skeleton variant="text" width={40} /></TableCell>
                                         <TableCell><Skeleton variant="rounded" width={90} height={24} /></TableCell>
-                                        <TableCell align="right"><Skeleton variant="rounded" width={80} height={32} /></TableCell>
+                                        {isPrimaryBranch && (
+                                            <TableCell align="right">
+                                                <Skeleton variant="rounded" width={80} height={32} />
+                                            </TableCell>
+                                        )}
                                     </TableRow>
                                 ))
                             ) : paginatedCurriculums.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={7} align="center" sx={{ py: 8 }}>
+                                    <TableCell colSpan={tableColSpan} align="center" sx={{ py: 8 }}>
                                         <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5 }}>
                                             <SchoolIcon sx={{ fontSize: 56, color: "#cbd5e1" }} />
                                             <Typography variant="h6" sx={{ color: "#64748b", fontWeight: 700 }}>
@@ -831,9 +856,11 @@ export default function SchoolCurriculums() {
                                             <Typography variant="body2" sx={{ color: "#94a3b8", maxWidth: 420 }}>
                                                 {filteredCurriculums.length === 0 && curriculums.length > 0
                                                     ? "Không có kết quả phù hợp với tìm kiếm hoặc bộ lọc."
-                                                    : "Chưa có chương trình nào. Hãy tạo chương trình đầu tiên để bắt đầu."}
+                                                    : curriculums.length === 0 && isPrimaryBranch
+                                                      ? "Chưa có chương trình nào. Hãy tạo chương trình đầu tiên để bắt đầu."
+                                                      : "Chưa có chương trình nào."}
                                             </Typography>
-                                            {curriculums.length === 0 && (
+                                            {curriculums.length === 0 && isPrimaryBranch && (
                                                 <Button
                                                     variant="contained"
                                                     startIcon={<AddIcon />}
@@ -857,7 +884,11 @@ export default function SchoolCurriculums() {
                                     <TableRow
                                         key={row.id}
                                         hover
-                                        sx={{ "&:hover": { bgcolor: "rgba(122, 169, 235, 0.06)" } }}
+                                        onClick={() => handleOpenView(row)}
+                                        sx={{
+                                            cursor: "pointer",
+                                            "&:hover": { bgcolor: "rgba(122, 169, 235, 0.06)" },
+                                        }}
                                     >
                                         <TableCell>
                                             <Stack direction="row" spacing={1.5} alignItems="center">
@@ -920,32 +951,40 @@ export default function SchoolCurriculums() {
                                         <TableCell>
                                             <ChipStatus status={row.curriculumStatus} />
                                         </TableCell>
-                                        <TableCell align="right">
-                                            <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => handleOpenView(row)}
-                                                    sx={{
-                                                        color: "#64748b",
-                                                        "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" },
-                                                    }}
-                                                    title="Xem"
-                                                >
-                                                    <VisibilityIcon fontSize="small" />
-                                                </IconButton>
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => handleEditClick(row)}
-                                                    sx={{
-                                                        color: "#64748b",
-                                                        "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" },
-                                                    }}
-                                                    title="Sửa"
-                                                >
-                                                    <EditIcon fontSize="small" />
-                                                </IconButton>
-                                            </Stack>
-                                        </TableCell>
+                                        {isPrimaryBranch && (
+                                            <TableCell align="right">
+                                                <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleOpenView(row);
+                                                        }}
+                                                        sx={{
+                                                            color: "#64748b",
+                                                            "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" },
+                                                        }}
+                                                        title="Xem"
+                                                    >
+                                                        <VisibilityIcon fontSize="small" />
+                                                    </IconButton>
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleEditClick(row);
+                                                        }}
+                                                        sx={{
+                                                            color: "#64748b",
+                                                            "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" },
+                                                        }}
+                                                        title="Sửa"
+                                                    >
+                                                        <EditIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Stack>
+                                            </TableCell>
+                                        )}
                                     </TableRow>
                                 ))
                             )}
@@ -1069,6 +1108,11 @@ export default function SchoolCurriculums() {
 
                         return (
                             <Stack spacing={2.5}>
+                                {!isPrimaryBranch ? (
+                                    <Alert severity="info" sx={{ py: 0.75 }}>
+                                        Cơ sở phụ chỉ xem được thông tin. Tạo, chỉnh sửa và công bố chỉ thực hiện tại cơ sở chính.
+                                    </Alert>
+                                ) : null}
                                 {/* Hero section */}
                                 <Box
                                     sx={{
@@ -1307,7 +1351,7 @@ export default function SchoolCurriculums() {
                         gap: 1,
                     }}
                 >
-                    {normalizeStatus(viewCurriculum?.curriculumStatus) === "CUR_DRAFT" && (
+                    {isPrimaryBranch && normalizeStatus(viewCurriculum?.curriculumStatus) === "CUR_DRAFT" && (
                         <Button
                             onClick={handlePublishFromView}
                             variant="contained"

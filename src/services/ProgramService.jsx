@@ -14,10 +14,10 @@ export const getProgramList = async (page = 0, pageSize = 10) => {
 
 /**
  * POST /api/v1/school/program
- * Create (programId: null) or Update (programId: number)
+ * Create: omit programId (or programId <= 0). Update: include programId > 0.
  */
 export const saveProgram = async ({
-    programId = null,
+    programId,
     curriculumId,
     graduationStandard,
     targetStudentDescription,
@@ -25,13 +25,17 @@ export const saveProgram = async ({
     isActive,
 }) => {
     const body = {
-        programId: programId ?? null,
         curriculumId,
         graduationStandard,
         targetStudentDescription,
         baseTuitionFee: Number(baseTuitionFee),
         isActive: !!isActive,
     };
+
+    const id = programId != null ? Number(programId) : 0;
+    if (Number.isFinite(id) && id > 0) {
+        body.programId = id;
+    }
 
     const response = await axiosClient.post("/school/program", body, {
         headers: {
