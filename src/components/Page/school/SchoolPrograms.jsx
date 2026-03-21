@@ -34,6 +34,7 @@ import Pagination from "@mui/material/Pagination";
 import Divider from "@mui/material/Divider";
 import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
+import VisibilityIcon from "@mui/icons-material/Visibility";
 import CloseIcon from "@mui/icons-material/Close";
 import SchoolIcon from "@mui/icons-material/School";
 import SearchIcon from "@mui/icons-material/Search";
@@ -41,6 +42,7 @@ import VerifiedIcon from "@mui/icons-material/Verified";
 
 import { enqueueSnackbar } from "notistack";
 
+import { useSchool } from "../../../contexts/SchoolContext.jsx";
 import { getCurriculumList } from "../../../services/CurriculumService.jsx";
 import { getProgramList, saveProgram } from "../../../services/ProgramService.jsx";
 
@@ -127,13 +129,26 @@ function mapCurriculumForProgramSelect(item) {
     };
 }
 
+const MAX_TEXT_FIELD_LEN = 2000;
+
+function tuitionFeeToDigitString(value) {
+    if (value === "" || value == null) return "";
+    const n = Math.trunc(Number(value));
+    if (!Number.isFinite(n) || n < 0) return "";
+    return String(n);
+}
+
 function mapProgramFromApi(item) {
     if (!item) return null;
     const rawStatus = normalizeStatus(item.isActive);
+    const programStatus = normalizeStatus(item.programStatus);
     const isActiveBool =
         typeof item.isActive === "boolean"
             ? item.isActive
-            : rawStatus === "PRO_ACTIVE" || rawStatus === "ACTIVE" || rawStatus === "TRUE";
+            : programStatus === "PRO_ACTIVE" ||
+              rawStatus === "PRO_ACTIVE" ||
+              rawStatus === "ACTIVE" ||
+              rawStatus === "TRUE";
 
     return {
         id: item.id,
@@ -150,9 +165,14 @@ function mapProgramFromApi(item) {
         curriculumName: item.curriculumName ?? item.curriculum ?? "",
         enrollmentYear: item.enrollmentYear ?? "",
         curriculumType: item.curriculumType ?? "",
+        curriculumStatus: item.curriculumStatus ?? "",
+        programStatus: item.programStatus ?? "",
         baseTuitionFee: Number(item.baseTuitionFee ?? 0),
         targetStudentDescription: item.targetStudentDescription ?? "",
         graduationStandard: item.graduationStandard ?? "",
+        offeringCount: Number(item.offeringCount ?? 0),
+        effectiveOfferingCount: Number(item.effectiveOfferingCount ?? 0),
+        schoolId: item.schoolId ?? null,
         isActiveRaw: item.isActive,
         isActiveBool,
         createdAt:
@@ -203,6 +223,7 @@ function safeString(v) {
 }
 
 export default function SchoolPrograms() {
+    const { isPrimaryBranch } = useSchool();
     const [loading, setLoading] = useState(true);
     const [programs, setPrograms] = useState([]);
     const [totalItems, setTotalItems] = useState(0);
@@ -217,7 +238,7 @@ export default function SchoolPrograms() {
 
     // Modal
     const [programModalOpen, setProgramModalOpen] = useState(false);
-    const [modalMode, setModalMode] = useState("create"); // 'create' | 'edit'
+    const [modalMode, setModalMode] = useState("create"); // 'create' | 'edit' | 'view'
     const [activeStep, setActiveStep] = useState(0);
 
     const [submitLoading, setSubmitLoading] = useState(false);
@@ -272,6 +293,8 @@ export default function SchoolPrograms() {
         }
         return list;
     }, [programs, search, enrollmentYearFilter, curriculumTypeFilter, statusFilter]);
+
+    const tableColSpan = isPrimaryBranch ? 6 : 5;
 
     const loadData = async (pageParam = page, pageSizeParam = rowsPerPage) => {
         setLoading(true);
@@ -375,6 +398,7 @@ export default function SchoolPrograms() {
     }, [programModalOpen, modalMode, selectedProgram, curriculumOptions, curriculumOptionsLoading]);
 
     const handleOpenCreate = async () => {
+        if (!isPrimaryBranch) return;
         setModalMode("create");
         setActiveStep(0);
         setSelectedProgram(null);
@@ -394,16 +418,22 @@ export default function SchoolPrograms() {
     };
 
     const handleOpenEdit = async (program) => {
+        if (!isPrimaryBranch) return;
         setModalMode("edit");
         setActiveStep(0);
         setSelectedProgram(program);
         setOriginalCurriculumId(program.curriculumId ?? null);
-        setDisableCurriculumSelection(false);
-        setCurriculumSelectionWarning("");
+        const hasOfferingHistory = Number(program.offeringCount) > 0;
+        setDisableCurriculumSelection(hasOfferingHistory);
+        setCurriculumSelectionWarning(
+            hasOfferingHistory
+                ? "Chương trình đã có lịch sử tuyển sinh (offering). Không thể thay đổi khung chương trình (Curriculum)."
+                : ""
+        );
         setSelectedCurriculum(null);
         setFormErrors({});
         setFormValues({
-            baseTuitionFee: program.baseTuitionFee ?? "",
+            baseTuitionFee: tuitionFeeToDigitString(program.baseTuitionFee),
             graduationStandard: program.graduationStandard ?? "",
             targetStudentDescription: program.targetStudentDescription ?? "",
             isActive: !!program.isActiveBool,
@@ -411,6 +441,24 @@ export default function SchoolPrograms() {
         setProgramModalOpen(true);
         await ensureCurriculumOptionsLoaded();
         // selection will be picked by useEffect after options load
+    };
+
+    const handleOpenView = (program) => {
+        setModalMode("view");
+        setActiveStep(0);
+        setSelectedProgram(program);
+        setOriginalCurriculumId(null);
+        setDisableCurriculumSelection(false);
+        setCurriculumSelectionWarning("");
+        setSelectedCurriculum(null);
+        setFormErrors({});
+        setFormValues({
+            baseTuitionFee: tuitionFeeToDigitString(program.baseTuitionFee),
+            graduationStandard: program.graduationStandard ?? "",
+            targetStudentDescription: program.targetStudentDescription ?? "",
+            isActive: !!program.isActiveBool,
+        });
+        setProgramModalOpen(true);
     };
 
     const handleCloseProgramModal = () => {
@@ -442,10 +490,18 @@ export default function SchoolPrograms() {
 
     const validateStep2 = () => {
         const errors = {};
-        const fee = Number(formValues.baseTuitionFee);
-        if (!Number.isFinite(fee) || fee <= 0) errors.baseTuitionFee = "Học phí gốc phải > 0.";
-        if (!safeString(formValues.graduationStandard).trim()) errors.graduationStandard = "Tiêu chuẩn đầu ra là bắt buộc.";
-        if (!safeString(formValues.targetStudentDescription).trim()) errors.targetStudentDescription = "Đối tượng học sinh là bắt buộc.";
+        const feeDigits = safeString(formValues.baseTuitionFee).replace(/\D/g, "");
+        const fee = feeDigits === "" ? NaN : Number(feeDigits);
+        if (feeDigits === "" || !Number.isFinite(fee)) errors.baseTuitionFee = "Học phí gốc là bắt buộc.";
+        else if (fee < 0) errors.baseTuitionFee = "Học phí gốc phải ≥ 0.";
+        const gs = safeString(formValues.graduationStandard).trim();
+        if (!gs) errors.graduationStandard = "Tiêu chuẩn đầu ra là bắt buộc.";
+        else if (gs.length > MAX_TEXT_FIELD_LEN)
+            errors.graduationStandard = `Tối đa ${MAX_TEXT_FIELD_LEN} ký tự.`;
+        const td = safeString(formValues.targetStudentDescription).trim();
+        if (!td) errors.targetStudentDescription = "Đối tượng học sinh là bắt buộc.";
+        else if (td.length > MAX_TEXT_FIELD_LEN)
+            errors.targetStudentDescription = `Tối đa ${MAX_TEXT_FIELD_LEN} ký tự.`;
         setFormErrors((prev) => ({ ...prev, ...errors }));
         return Object.keys(errors).length === 0;
     };
@@ -465,18 +521,26 @@ export default function SchoolPrograms() {
 
     const buildPayload = (curriculumIdOverride) => {
         const curriculumId = curriculumIdOverride ?? effectiveCurriculumId;
-        return {
-            programId: modalMode === "create" ? null : selectedProgram?.id ?? null,
+        const feeDigits = safeString(formValues.baseTuitionFee).replace(/\D/g, "");
+        const payload = {
             curriculumId,
             graduationStandard: safeString(formValues.graduationStandard).trim(),
             targetStudentDescription: safeString(formValues.targetStudentDescription).trim(),
-            baseTuitionFee: Number(formValues.baseTuitionFee),
+            baseTuitionFee: feeDigits === "" ? 0 : Number(feeDigits),
             isActive: !!formValues.isActive,
         };
+        if (modalMode === "edit" && selectedProgram?.id != null) {
+            const pid = Number(selectedProgram.id);
+            if (Number.isFinite(pid) && pid > 0) {
+                payload.programId = pid;
+            }
+        }
+        return payload;
     };
 
     const handleSubmit = async () => {
         if (submitLoading) return;
+        if (!isPrimaryBranch) return;
 
         // Validate before submit always
         if (activeStep === 0) {
@@ -496,7 +560,8 @@ export default function SchoolPrograms() {
         try {
             const payload = buildPayload(curriculumId);
             const res = await saveProgram(payload);
-            if (res?.status === 200 || res?.data?.message) {
+            const ok = res?.status >= 200 && res?.status < 300;
+            if (ok || res?.data?.message) {
                 enqueueSnackbar(res?.data?.message || "Tạo/cập nhật program thành công", { variant: "success" });
                 setProgramModalOpen(false);
                 setFormErrors({});
@@ -513,7 +578,16 @@ export default function SchoolPrograms() {
             enqueueSnackbar(res?.data?.message || "Lỗi khi lưu program", { variant: "error" });
         } catch (err) {
             console.error("Submit program error:", err);
-            const backendMsg = err?.response?.data?.message || "Lỗi khi lưu program";
+            const status = err?.response?.status;
+            let backendMsg = err?.response?.data?.message;
+            if (!backendMsg) {
+                if (status === 400) backendMsg = "Dữ liệu không hợp lệ. Vui lòng kiểm tra các trường hoặc Curriculum chưa Active.";
+                else if (status === 403)
+                    backendMsg = "Không có quyền (chỉ cơ sở chính mới thực hiện được, hoặc tài khoản bị hạn chế).";
+                else if (status === 404) backendMsg = "Không tìm thấy Program hoặc Curriculum trong phạm vi trường.";
+                else if (status === 409) backendMsg = "Trùng tiêu chuẩn đầu ra trong cùng một Curriculum.";
+                else backendMsg = "Lỗi khi lưu program";
+            }
             const normalized = String(backendMsg || "").toLowerCase();
 
             const cannotChange =
@@ -522,7 +596,7 @@ export default function SchoolPrograms() {
             if (cannotChange) {
                 setDisableCurriculumSelection(true);
                 setCurriculumSelectionWarning(
-                        "Chương trình này đã có lớp học, bạn không thể thay đổi Khung chương trình (Curriculum) nhưng vẫn có thể sửa Học phí và Tiêu chuẩn đầu ra."
+                    "Chương trình này đã có lớp học, bạn không thể thay đổi Khung chương trình (Curriculum) nhưng vẫn có thể sửa Học phí và Tiêu chuẩn đầu ra."
                 );
                 enqueueSnackbar(backendMsg, { variant: "error" });
 
@@ -548,6 +622,9 @@ export default function SchoolPrograms() {
     const curriculumPreview = disableCurriculumSelection
         ? (originalCurriculumId ? curriculumOptions.find((c) => c.id === originalCurriculumId) : selectedCurriculum)
         : selectedCurriculum;
+
+    const lockActiveSwitch =
+        modalMode === "edit" && selectedProgram != null && Number(selectedProgram.effectiveOfferingCount) > 0;
 
     return (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 3, width: "100%" }}>
@@ -575,28 +652,32 @@ export default function SchoolPrograms() {
                             Quản lý Program
                         </Typography>
                         <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.95 }}>
-                            Tạo mới, cập nhật và bật/tắt trạng thái các program.
+                            {isPrimaryBranch
+                                ? "Tạo mới, cập nhật và bật/tắt trạng thái các program."
+                                : "Xem danh sách program của trường (cơ sở phụ không được tạo/sửa)."}
                         </Typography>
                     </Box>
 
-                    <Button
-                        variant="contained"
-                        startIcon={<AddIcon />}
-                        onClick={handleOpenCreate}
-                        sx={{
-                            bgcolor: "rgba(255,255,255,0.95)",
-                            color: "#0D64DE",
-                            borderRadius: 2,
-                            textTransform: "none",
-                            fontWeight: 800,
-                            px: 3,
-                            py: 1.5,
-                            boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
-                            "&:hover": { bgcolor: "white", boxShadow: "0 6px 20px rgba(0,0,0,0.2)" },
-                        }}
-                    >
-                        Tạo Program
-                    </Button>
+                    {isPrimaryBranch && (
+                        <Button
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            onClick={handleOpenCreate}
+                            sx={{
+                                bgcolor: "rgba(255,255,255,0.95)",
+                                color: "#0D64DE",
+                                borderRadius: 2,
+                                textTransform: "none",
+                                fontWeight: 800,
+                                px: 3,
+                                py: 1.5,
+                                boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
+                                "&:hover": { bgcolor: "white", boxShadow: "0 6px 20px rgba(0,0,0,0.2)" },
+                            }}
+                        >
+                            Tạo Program
+                        </Button>
+                    )}
                 </Box>
             </Box>
 
@@ -702,12 +783,12 @@ export default function SchoolPrograms() {
                                 <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Năm tuyển sinh</TableCell>
                                 <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Loại khung chương trình</TableCell>
                                 <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Học phí gốc</TableCell>
-                                <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Đối tượng học sinh</TableCell>
-                                <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Tiêu chuẩn đầu ra</TableCell>
                                 <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Trạng thái</TableCell>
-                                <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }} align="right">
-                                    Thao tác
-                                </TableCell>
+                                {isPrimaryBranch && (
+                                    <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }} align="right">
+                                        Thao tác
+                                    </TableCell>
+                                )}
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -727,22 +808,18 @@ export default function SchoolPrograms() {
                                             <Skeleton variant="text" width="45%" />
                                         </TableCell>
                                         <TableCell>
-                                            <Skeleton variant="text" width="40%" />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Skeleton variant="text" width="35%" />
-                                        </TableCell>
-                                        <TableCell>
                                             <Skeleton variant="rounded" width={90} height={24} />
                                         </TableCell>
-                                        <TableCell align="right">
-                                            <Skeleton variant="rounded" width={100} height={32} />
-                                        </TableCell>
+                                        {isPrimaryBranch && (
+                                            <TableCell align="right">
+                                                <Skeleton variant="rounded" width={100} height={32} />
+                                            </TableCell>
+                                        )}
                                     </TableRow>
                                 ))
                             ) : filteredPrograms.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={8} align="center" sx={{ py: 8 }}>
+                                    <TableCell colSpan={tableColSpan} align="center" sx={{ py: 8 }}>
                                         <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5 }}>
                                             <SchoolIcon sx={{ fontSize: 56, color: "#cbd5e1" }} />
                                             <Typography variant="h6" sx={{ color: "#64748b", fontWeight: 800 }}>
@@ -750,10 +827,12 @@ export default function SchoolPrograms() {
                                             </Typography>
                                             <Typography variant="body2" sx={{ color: "#94a3b8", maxWidth: 420 }}>
                                                 {programs.length === 0
-                                                    ? "Hãy tạo program đầu tiên để bắt đầu."
+                                                    ? isPrimaryBranch
+                                                        ? "Hãy tạo program đầu tiên để bắt đầu."
+                                                        : "Chưa có program nào."
                                                     : "Không có kết quả phù hợp với tìm kiếm hoặc bộ lọc."}
                                             </Typography>
-                                            {programs.length === 0 && (
+                                            {programs.length === 0 && isPrimaryBranch && (
                                                 <Button
                                                     variant="contained"
                                                     startIcon={<AddIcon />}
@@ -777,7 +856,7 @@ export default function SchoolPrograms() {
                                     <TableRow
                                         key={row.id}
                                         hover
-                                        onClick={() => handleOpenEdit(row)}
+                                        onClick={() => handleOpenView(row)}
                                         sx={{
                                             cursor: "pointer",
                                             "&:hover": { bgcolor: "rgba(122, 169, 235, 0.06)" },
@@ -793,41 +872,43 @@ export default function SchoolPrograms() {
                                         <TableCell sx={{ color: "#64748b" }}>{row.enrollmentYear || "—"}</TableCell>
                                         <TableCell sx={{ color: "#64748b" }}>{toCurriculumTypeLabel(row.curriculumType)}</TableCell>
                                         <TableCell sx={{ color: "#64748b" }}>{formatVND(row.baseTuitionFee)}</TableCell>
-                                        <TableCell sx={{ color: "#64748b", maxWidth: 240 }}>
-                                            <Tooltip title={row.targetStudentDescription}>
-                                                <Typography noWrap variant="body2">
-                                                    {row.targetStudentDescription || "—"}
-                                                </Typography>
-                                            </Tooltip>
-                                        </TableCell>
-                                        <TableCell sx={{ color: "#64748b", maxWidth: 260 }}>
-                                            <Tooltip title={row.graduationStandard}>
-                                                <Typography noWrap variant="body2">
-                                                    {row.graduationStandard || "—"}
-                                                </Typography>
-                                            </Tooltip>
-                                        </TableCell>
                                         <TableCell>
                                             <ProgramStatusBadge isActiveBool={row.isActiveBool} />
                                         </TableCell>
-                                        <TableCell align="right">
-                                            <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleOpenEdit(row);
-                                                    }}
-                                                    sx={{
-                                                        color: "#64748b",
-                                                        "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" },
-                                                    }}
-                                                    title="Edit"
-                                                >
-                                                    <EditIcon fontSize="small" />
-                                                </IconButton>
-                                            </Stack>
-                                        </TableCell>
+                                        {isPrimaryBranch && (
+                                            <TableCell align="right">
+                                                <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleOpenView(row);
+                                                        }}
+                                                        sx={{
+                                                            color: "#64748b",
+                                                            "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" },
+                                                        }}
+                                                        title="Xem chi tiết"
+                                                    >
+                                                        <VisibilityIcon fontSize="small" />
+                                                    </IconButton>
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleOpenEdit(row);
+                                                        }}
+                                                        sx={{
+                                                            color: "#64748b",
+                                                            "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" },
+                                                        }}
+                                                        title="Chỉnh sửa"
+                                                    >
+                                                        <EditIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Stack>
+                                            </TableCell>
+                                        )}
                                     </TableRow>
                                 ))
                             )}
@@ -867,28 +948,102 @@ export default function SchoolPrograms() {
                 slotProps={{ backdrop: { sx: modalBackdropSx } }}
             >
                 <DialogTitle sx={{ fontWeight: 900, color: "#1e293b", px: 3, pt: 2.6, pb: 0 }}>
-                    {modalMode === "create" ? "Tạo Program" : "Chỉnh sửa Program"}
+                    {modalMode === "create" ? "Tạo Program" : modalMode === "edit" ? "Chỉnh sửa Program" : "Chi tiết Program"}
                 </DialogTitle>
 
                 <DialogContent dividers={false} sx={{ px: 3, pt: 1.6, pb: 1 }}>
-                    <Stepper activeStep={activeStep} sx={{ pt: 1.5, pb: 1.8 }}>
-                        <Step>
-                            <StepLabel>Chọn Curriculum</StepLabel>
-                        </Step>
-                        <Step>
-                            <StepLabel>Nhập thông tin</StepLabel>
-                        </Step>
-                        <Step>
-                            <StepLabel>Xem lại & Gửi yêu cầu</StepLabel>
-                        </Step>
-                    </Stepper>
+                    {modalMode === "view" && selectedProgram ? (
+                        <Stack spacing={2.2} sx={{ mt: 0.5 }}>
+                            {!isPrimaryBranch ? (
+                                <Alert severity="info" sx={{ py: 0.75 }}>
+                                    Cơ sở phụ chỉ xem được thông tin. Tạo và cập nhật program chỉ thực hiện tại cơ sở chính.
+                                </Alert>
+                            ) : null}
+                            <Card
+                                elevation={0}
+                                sx={{
+                                    border: "1px solid #e2e8f0",
+                                    borderRadius: 3,
+                                    bgcolor: "#F8FAFC",
+                                }}
+                            >
+                                <CardContent sx={{ p: 2.6 }}>
+                                    <Stack spacing={1.5}>
+                                        <Box>
+                                            <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                Khung chương trình
+                                            </Typography>
+                                            <Typography sx={{ fontWeight: 900, color: "#1e293b" }}>
+                                                {selectedProgram.curriculumName || "—"}
+                                            </Typography>
+                                            <Typography variant="body2" sx={{ color: "#64748b" }}>
+                                                {selectedProgram.enrollmentYear || "—"} • {toCurriculumTypeLabel(selectedProgram.curriculumType)}
+                                            </Typography>
+                                        </Box>
 
-                    <Stack spacing={2.2} sx={{ mt: 0.5 }}>
+                                        <Divider />
+
+                                        <Box>
+                                            <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                Học phí gốc
+                                            </Typography>
+                                            <Typography sx={{ fontWeight: 950, color: "#1e293b" }}>{formatVND(formValues.baseTuitionFee)}</Typography>
+                                        </Box>
+
+                                        <Box>
+                                            <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                Đối tượng học sinh
+                                            </Typography>
+                                            <Typography sx={{ color: "#334155", whiteSpace: "pre-wrap" }}>
+                                                {formValues.targetStudentDescription || "—"}
+                                            </Typography>
+                                        </Box>
+
+                                        <Box>
+                                            <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                Tiêu chuẩn đầu ra
+                                            </Typography>
+                                            <Typography sx={{ color: "#334155", whiteSpace: "pre-wrap" }}>
+                                                {formValues.graduationStandard || "—"}
+                                            </Typography>
+                                        </Box>
+
+                                        <Box>
+                                            <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                Trạng thái
+                                            </Typography>
+                                            <ProgramStatusBadge isActiveBool={!!formValues.isActive} />
+                                        </Box>
+                                    </Stack>
+                                </CardContent>
+                            </Card>
+                        </Stack>
+                    ) : (
+                        <>
+                            <Stepper activeStep={activeStep} sx={{ pt: 1.5, pb: 1.8 }}>
+                                <Step>
+                                    <StepLabel>Chọn Curriculum</StepLabel>
+                                </Step>
+                                <Step>
+                                    <StepLabel>Nhập thông tin</StepLabel>
+                                </Step>
+                                <Step>
+                                    <StepLabel>Xem lại & Gửi yêu cầu</StepLabel>
+                                </Step>
+                            </Stepper>
+
+                            <Stack spacing={2.2} sx={{ mt: 0.5 }}>
                         {activeStep === 0 && (
                             <>
                                 <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
                                     Step 1. Chọn khung chương trình (Curriculum)
                                 </Typography>
+
+                                {curriculumSelectionWarning ? (
+                                    <Alert severity="warning" sx={{ py: 0.75 }}>
+                                        {curriculumSelectionWarning}
+                                    </Alert>
+                                ) : null}
 
                                 <Autocomplete
                                     value={selectedCurriculum}
@@ -1046,19 +1201,25 @@ export default function SchoolPrograms() {
                                 <TextField
                                     label="Học phí gốc"
                                     fullWidth
-                                    value={formValues.baseTuitionFee}
+                                    value={
+                                        formValues.baseTuitionFee === ""
+                                            ? ""
+                                            : Number(formValues.baseTuitionFee).toLocaleString("vi-VN")
+                                    }
                                     onChange={(e) => {
-                                        const v = e.target.value;
+                                        const digits = e.target.value.replace(/\D/g, "");
                                         setFormValues((prev) => ({
                                             ...prev,
-                                            baseTuitionFee: v === "" ? "" : Number(v),
+                                            baseTuitionFee: digits,
                                         }));
                                         setFormErrors((prev) => ({ ...prev, baseTuitionFee: undefined }));
                                     }}
-                                    type="number"
-                                    inputProps={{ min: 0, step: 1000 }}
+                                    inputProps={{ inputMode: "numeric", maxLength: 18 }}
                                     error={!!formErrors.baseTuitionFee}
-                                    helperText={formErrors.baseTuitionFee || "Nhập số học phí gốc (VND)."}
+                                    helperText={
+                                        formErrors.baseTuitionFee ||
+                                        "Nhập học phí gốc (VND). Hiển thị phân cách hàng nghìn để dễ đọc."
+                                    }
                                     InputProps={{
                                         startAdornment: currencyInputAdornment,
                                     }}
@@ -1074,8 +1235,12 @@ export default function SchoolPrograms() {
                                     }}
                                     multiline
                                     rows={3}
+                                    inputProps={{ maxLength: MAX_TEXT_FIELD_LEN }}
                                     error={!!formErrors.graduationStandard}
-                                    helperText={formErrors.graduationStandard || "Mô tả các chứng chỉ/kỹ năng đạt được."}
+                                    helperText={
+                                        formErrors.graduationStandard ||
+                                        `Mô tả các chứng chỉ/kỹ năng đạt được. Tối đa ${MAX_TEXT_FIELD_LEN} ký tự.`
+                                    }
                                 />
 
                                 <TextField
@@ -1088,29 +1253,47 @@ export default function SchoolPrograms() {
                                     }}
                                     multiline
                                     rows={3}
+                                    inputProps={{ maxLength: MAX_TEXT_FIELD_LEN }}
                                     error={!!formErrors.targetStudentDescription}
                                     helperText={
-                                        formErrors.targetStudentDescription || "Ví dụ: học sinh giỏi, định hướng du học..."
+                                        formErrors.targetStudentDescription ||
+                                        `Ví dụ: học sinh giỏi, định hướng du học... Tối đa ${MAX_TEXT_FIELD_LEN} ký tự.`
                                     }
                                 />
 
                                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2 }}>
                                     <Box>
                                         <Typography variant="subtitle2" sx={{ fontWeight: 900, color: "#1e293b" }}>
-                                            Trang thai hoat dong
+                                            Trạng thái hoạt động
                                         </Typography>
                                         <Typography variant="body2" sx={{ color: "#64748b" }}>
                                             ON: Hoạt động • OFF: Không hoạt động
                                         </Typography>
                                     </Box>
-                                    <Switch
-                                        checked={!!formValues.isActive}
-                                        onChange={(e) => setFormValues((prev) => ({ ...prev, isActive: e.target.checked }))}
-                                        sx={{
-                                            "& .MuiSwitch-switchBase.Mui-checked": { color: "#16a34a" },
-                                            "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": { backgroundColor: "#16a34a" },
-                                        }}
-                                    />
+                                    <Tooltip
+                                        title={
+                                            lockActiveSwitch
+                                                ? "Có gói tuyển sinh hiệu lực (Mở / Tạm dừng / Đầy chỗ) — không thể tắt trạng thái hoạt động."
+                                                : ""
+                                        }
+                                        disableHoverListener={!lockActiveSwitch}
+                                    >
+                                        <span>
+                                            <Switch
+                                                checked={!!formValues.isActive}
+                                                disabled={lockActiveSwitch}
+                                                onChange={(e) =>
+                                                    setFormValues((prev) => ({ ...prev, isActive: e.target.checked }))
+                                                }
+                                                sx={{
+                                                    "& .MuiSwitch-switchBase.Mui-checked": { color: "#16a34a" },
+                                                    "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
+                                                        backgroundColor: "#16a34a",
+                                                    },
+                                                }}
+                                            />
+                                        </span>
+                                    </Tooltip>
                                 </Box>
                             </>
                         )}
@@ -1186,56 +1369,87 @@ export default function SchoolPrograms() {
                                 </Card>
                             </>
                         )}
-                    </Stack>
+                            </Stack>
+                        </>
+                    )}
                 </DialogContent>
 
                 <DialogActions sx={{ px: 3, py: 2.2, borderTop: "1px solid #e2e8f0", gap: 1 }}>
-                    <Button onClick={handleCloseProgramModal} variant="text" color="inherit" sx={{ textTransform: "none", fontWeight: 800 }} disabled={submitLoading}>
-                        Hủy
-                    </Button>
-
-                    {activeStep > 0 ? (
-                        <Button onClick={handleBack} variant="outlined" disabled={submitLoading} sx={{ textTransform: "none", fontWeight: 800, borderRadius: 2, px: 3 }}>
-                            Quay lại
-                        </Button>
-                    ) : (
-                        <Box sx={{ flex: 1 }} />
-                    )}
-
-                    {activeStep < 2 ? (
+                    {modalMode === "view" ? (
                         <Button
-                            onClick={handleNext}
+                            onClick={handleCloseProgramModal}
                             variant="contained"
-                            disabled={submitLoading}
                             sx={{
                                 textTransform: "none",
-                                fontWeight: 950,
+                                fontWeight: 800,
                                 borderRadius: 2,
                                 px: 3,
                                 background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                             }}
                         >
-                            Tiếp tục
+                            Đóng
                         </Button>
                     ) : (
-                        <Button
-                            onClick={handleSubmit}
-                            variant="contained"
-                            disabled={submitLoading}
-                            sx={{
-                                textTransform: "none",
-                                fontWeight: 950,
-                                borderRadius: 2,
-                                px: 3,
-                                background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
-                            }}
-                        >
-                            {submitLoading
-                                ? "Đang gửi..."
-                                : modalMode === "create"
-                                  ? "Tạo Program"
-                                  : "Cập nhật Program"}
-                        </Button>
+                        <>
+                            <Button
+                                onClick={handleCloseProgramModal}
+                                variant="text"
+                                color="inherit"
+                                sx={{ textTransform: "none", fontWeight: 800 }}
+                                disabled={submitLoading}
+                            >
+                                Hủy
+                            </Button>
+
+                            {activeStep > 0 ? (
+                                <Button
+                                    onClick={handleBack}
+                                    variant="outlined"
+                                    disabled={submitLoading}
+                                    sx={{ textTransform: "none", fontWeight: 800, borderRadius: 2, px: 3 }}
+                                >
+                                    Quay lại
+                                </Button>
+                            ) : (
+                                <Box sx={{ flex: 1 }} />
+                            )}
+
+                            {activeStep < 2 ? (
+                                <Button
+                                    onClick={handleNext}
+                                    variant="contained"
+                                    disabled={submitLoading}
+                                    sx={{
+                                        textTransform: "none",
+                                        fontWeight: 950,
+                                        borderRadius: 2,
+                                        px: 3,
+                                        background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
+                                    }}
+                                >
+                                    Tiếp tục
+                                </Button>
+                            ) : (
+                                <Button
+                                    onClick={handleSubmit}
+                                    variant="contained"
+                                    disabled={submitLoading}
+                                    sx={{
+                                        textTransform: "none",
+                                        fontWeight: 950,
+                                        borderRadius: 2,
+                                        px: 3,
+                                        background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
+                                    }}
+                                >
+                                    {submitLoading
+                                        ? "Đang gửi..."
+                                        : modalMode === "create"
+                                          ? "Tạo Program"
+                                          : "Cập nhật Program"}
+                                </Button>
+                            )}
+                        </>
                     )}
                 </DialogActions>
             </Dialog>
