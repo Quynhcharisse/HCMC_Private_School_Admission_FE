@@ -26,8 +26,10 @@ import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 import LockIcon from "@mui/icons-material/Lock";
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import { enqueueSnackbar } from "notistack";
 import { getProfile, updateProfile } from "../../../services/AccountService.jsx";
+import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
 
 const SectionHeader = ({ icon: Icon, title }) => (
     <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
@@ -75,8 +77,15 @@ export default function SchoolProfile() {
         address: "",
         schoolName: "",
         logoUrl: "",
+        websiteUrl: "",
+        representativeName: "",
+        hotline: "",
+        businessLicenseUrl: "",
+        foundingDate: "",
         coverUrl: "",
         itemList: [],
+        facilityOverview: "",
+        facilityItemList: [],
     });
 
     useEffect(() => {
@@ -86,8 +95,11 @@ export default function SchoolProfile() {
                 const body = res?.data?.body;
                 setProfile(body);
                 const campus = body?.campus || {};
+                const schoolData = campus.schoolData || {};
+                const facilityJson = campus.facilityJson || campus.facility || {};
                 const imageJson = campus.imageJson || {};
                 const list = imageJson.itemList && Array.isArray(imageJson.itemList) ? imageJson.itemList : [];
+                const facilityList = facilityJson.itemList && Array.isArray(facilityJson.itemList) ? facilityJson.itemList : [];
                 setFormValues({
                     campusName: campus.name || "",
                     phoneNumber: campus.phoneNumber || "",
@@ -95,11 +107,24 @@ export default function SchoolProfile() {
                     address: campus.address || "",
                     schoolName: campus.schoolName || "",
                     logoUrl: campus.schoolData?.logoUrl || "",
+                    websiteUrl: schoolData.websiteUrl || "",
+                    representativeName: schoolData.representativeName || "",
+                    hotline: schoolData.hotline || "",
+                    businessLicenseUrl: schoolData.businessLicenseUrl || "",
+                    foundingDate: schoolData.foundingDate || "",
                     coverUrl: imageJson.coverUrl || "",
                     itemList: list.map((item) => ({
                         name: item.name || "",
                         url: item.url || "",
                         altName: item.altName || "",
+                    })),
+                    facilityOverview: facilityJson.overview || "",
+                    facilityItemList: facilityList.map((f) => ({
+                        facilityCode: f.facilityCode || "",
+                        name: f.name || "",
+                        value: f.value || "",
+                        unit: f.unit || "",
+                        category: f.category || "",
                     })),
                 });
             } catch {
@@ -124,6 +149,22 @@ export default function SchoolProfile() {
         setFormValues((p) => ({ ...p, itemList: p.itemList.filter((_, i) => i !== index) }));
     };
 
+    const handleFacilityItemChange = (index, field) => (e) => {
+        const next = formValues.facilityItemList.map((item, i) => (i === index ? { ...item, [field]: e.target.value } : item));
+        setFormValues((p) => ({ ...p, facilityItemList: next }));
+    };
+
+    const handleAddFacilityItem = () => {
+        setFormValues((p) => ({
+            ...p,
+            facilityItemList: [...p.facilityItemList, { facilityCode: "", name: "", value: "", unit: "", category: "" }],
+        }));
+    };
+
+    const handleRemoveFacilityItem = (index) => {
+        setFormValues((p) => ({ ...p, facilityItemList: p.facilityItemList.filter((_, i) => i !== index) }));
+    };
+
     const handleSaveProfile = async () => {
         setSaving(true);
         try {
@@ -136,25 +177,43 @@ export default function SchoolProfile() {
                     uploadDate: new Date().toISOString(),
                     usage: true,
                 }));
+            const facilityItemListPayload = formValues.facilityItemList.map((item) => ({
+                facilityCode: item.facilityCode?.trim() || "",
+                name: item.name?.trim() || "",
+                value: item.value?.trim() || "",
+                unit: item.unit?.trim() || "",
+                category: item.category?.trim() || "",
+            }));
             const payload = {
                 campusData: {
                     name: formValues.campusName?.trim() || undefined,
                     phoneNumber: formValues.phoneNumber?.trim() || undefined,
                     policyDetail: formValues.policyDetail?.trim() || undefined,
                     address: formValues.address?.trim() || undefined,
-                    schoolData: formValues.schoolName || formValues.logoUrl ? { name: formValues.schoolName?.trim() || undefined, logoUrl: formValues.logoUrl?.trim() || undefined } : undefined,
+                    schoolData: {
+                        name: formValues.schoolName?.trim() || "",
+                        logoUrl: formValues.logoUrl?.trim() || "",
+                        websiteUrl: formValues.websiteUrl?.trim() || "",
+                        representativeName: formValues.representativeName?.trim() || "",
+                        hotline: formValues.hotline?.trim() || "",
+                        businessLicenseUrl: formValues.businessLicenseUrl?.trim() || "",
+                        foundingDate: formValues.foundingDate?.trim() || "",
+                    },
+                    facilityJson: {
+                        overview: formValues.facilityOverview?.trim() || "",
+                        itemList: facilityItemListPayload,
+                    },
                     imageJson:
                         formValues.coverUrl?.trim() || itemListPayload.length > 0
                             ? {
                                   coverUrl: formValues.coverUrl?.trim() || undefined,
-                                  itemList: itemListPayload.length > 0 ? itemListPayload : undefined,
+                                  itemList: itemListPayload,
                               }
                             : undefined,
                 },
             };
             if (payload.campusData.imageJson) {
                 if (!payload.campusData.imageJson.coverUrl) delete payload.campusData.imageJson.coverUrl;
-                if (!payload.campusData.imageJson.itemList?.length) delete payload.campusData.imageJson.itemList;
                 if (Object.keys(payload.campusData.imageJson).length === 0) delete payload.campusData.imageJson;
             }
             const res = await updateProfile(payload);
@@ -174,6 +233,8 @@ export default function SchoolProfile() {
     };
 
     const campus = profile?.campus || {};
+    const facility = campus.facility ?? campus.facilityJson ?? { overview: "", itemList: [] };
+    const facilityItemList = facility.itemList ?? [];
 
     if (loading) {
         return (
@@ -279,6 +340,9 @@ export default function SchoolProfile() {
                         <InfoRow label="Số điện thoại" value={campus.phoneNumber} />
                         <InfoRow label="Đại diện" value={campus.schoolData?.representativeName} />
                         <InfoRow label="Hotline" value={campus.schoolData?.hotline} />
+                        <InfoRow label="Website URL" value={campus.schoolData?.websiteUrl} />
+                        <InfoRow label="Giấy phép kinh doanh" value={campus.schoolData?.businessLicenseUrl} />
+                        <InfoRow label="Ngày thành lập" value={campus.schoolData?.foundingDate} />
                     </Box>
                 </CardContent>
             </Card>
@@ -349,6 +413,56 @@ export default function SchoolProfile() {
                                     ))}
                                 </Box>
                             </Box>
+                        )}
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Cơ sở vật chất: facility.overview + facility.itemList */}
+            {(facility?.overview || facilityItemList.length > 0) && (
+                <Card
+                    elevation={0}
+                    sx={{
+                        borderRadius: 3,
+                        border: "1px solid #e2e8f0",
+                        boxShadow: "0 4px 20px rgba(13, 100, 222, 0.06)",
+                        bgcolor: "#F8FAFC",
+                    }}
+                >
+                    <CardContent sx={{ p: 3 }}>
+                        <SectionHeader icon={SettingsIcon} title="Cơ sở vật chất" />
+                        {facility?.overview && <InfoRow label="Tổng quan" value={facility.overview} />}
+                        {facilityItemList.length > 0 ? (
+                            <Box sx={{ mt: 2, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 2 }}>
+                                {facilityItemList.map((item, index) => (
+                                    <Box
+                                        key={index}
+                                        sx={{
+                                            p: 2,
+                                            borderRadius: 2,
+                                            border: "1px solid #e2e8f0",
+                                            bgcolor: "#f8fafc",
+                                        }}
+                                    >
+                                        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5 }}>
+                                            {item.name || item.facilityCode || "Facility"}
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ color: "#1e293b" }}>
+                                            {item.value || "—"}
+                                            {item.unit ? ` ${item.unit}` : ""}
+                                        </Typography>
+                                        {(item.category || item.facilityCode) && (
+                                            <Typography variant="caption" sx={{ display: "block", color: "#64748b", mt: 0.5 }}>
+                                                {item.category ? `Category: ${item.category}` : `Code: ${item.facilityCode}`}
+                                            </Typography>
+                                        )}
+                                    </Box>
+                                ))}
+                            </Box>
+                        ) : (
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                                Chưa có dữ liệu facility.
+                            </Typography>
                         )}
                     </CardContent>
                 </Card>
@@ -435,12 +549,107 @@ export default function SchoolProfile() {
                         <TextField label="Số điện thoại" value={formValues.phoneNumber} onChange={(e) => setFormValues((p) => ({ ...p, phoneNumber: e.target.value }))} fullWidth size="small" />
                         <TextField label="Địa chỉ" value={formValues.address} onChange={(e) => setFormValues((p) => ({ ...p, address: e.target.value }))} fullWidth size="small" multiline rows={2} />
                         <TextField label="Mô tả chính sách" value={formValues.policyDetail} onChange={(e) => setFormValues((p) => ({ ...p, policyDetail: e.target.value }))} fullWidth size="small" multiline rows={2} placeholder="policyDetail" />
-                        <TextField label="URL logo" value={formValues.logoUrl} onChange={(e) => setFormValues((p) => ({ ...p, logoUrl: e.target.value }))} fullWidth size="small" placeholder="https://..." />
+                        <TextField label="Website URL" value={formValues.websiteUrl} onChange={(e) => setFormValues((p) => ({ ...p, websiteUrl: e.target.value }))} fullWidth size="small" placeholder="https://..." />
+                        <TextField label="Đại diện" value={formValues.representativeName} onChange={(e) => setFormValues((p) => ({ ...p, representativeName: e.target.value }))} fullWidth size="small" />
+                        <TextField label="Hotline" value={formValues.hotline} onChange={(e) => setFormValues((p) => ({ ...p, hotline: e.target.value }))} fullWidth size="small" />
+                        <TextField label="Ngày thành lập" type="date" InputLabelProps={{ shrink: true }} value={formValues.foundingDate} onChange={(e) => setFormValues((p) => ({ ...p, foundingDate: e.target.value }))} fullWidth size="small" />
+                        <Box>
+                            <TextField
+                                label="URL giấy phép kinh doanh"
+                                value={formValues.businessLicenseUrl}
+                                onChange={(e) => setFormValues((p) => ({ ...p, businessLicenseUrl: e.target.value }))}
+                                fullWidth
+                                size="small"
+                                placeholder="https://... hoặc file PDF"
+                            />
+                            <CloudinaryUpload
+                                inputId="school-profile-business-license"
+                                accept="image/*,application/pdf"
+                                multiple={false}
+                                onSuccess={([f]) => {
+                                    if (f?.url) {
+                                        setFormValues((p) => ({ ...p, businessLicenseUrl: f.url }));
+                                        enqueueSnackbar("Đã tải giấy phép lên Cloudinary", { variant: "success" });
+                                    }
+                                }}
+                                onError={(m) => enqueueSnackbar(m, { variant: "error" })}
+                            >
+                                {({ inputId, loading }) => (
+                                    <Button
+                                        component="label"
+                                        htmlFor={inputId}
+                                        disabled={loading}
+                                        size="small"
+                                        variant="outlined"
+                                        sx={{ mt: 1, textTransform: "none" }}
+                                    >
+                                        {loading ? "Đang tải..." : "Tải giấy phép (Cloudinary)"}
+                                    </Button>
+                                )}
+                            </CloudinaryUpload>
+                        </Box>
+                        <Box>
+                            <TextField label="URL logo" value={formValues.logoUrl} onChange={(e) => setFormValues((p) => ({ ...p, logoUrl: e.target.value }))} fullWidth size="small" placeholder="https://..." />
+                            <CloudinaryUpload
+                                inputId="school-profile-logo"
+                                accept="image/*"
+                                multiple={false}
+                                onSuccess={([f]) => {
+                                    if (f?.url) {
+                                        setFormValues((p) => ({ ...p, logoUrl: f.url }));
+                                        enqueueSnackbar("Đã tải logo lên Cloudinary", { variant: "success" });
+                                    }
+                                }}
+                                onError={(m) => enqueueSnackbar(m, { variant: "error" })}
+                            >
+                                {({ inputId, loading }) => (
+                                    <Button
+                                        component="label"
+                                        htmlFor={inputId}
+                                        disabled={loading}
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={<CloudUploadIcon />}
+                                        sx={{ mt: 1, textTransform: "none" }}
+                                    >
+                                        {loading ? "Đang tải..." : "Tải logo (Cloudinary)"}
+                                    </Button>
+                                )}
+                            </CloudinaryUpload>
+                        </Box>
 
                         <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b", pt: 1 }}>
                             Hình ảnh (imageJson)
                         </Typography>
-                        <TextField label="URL ảnh bìa (coverUrl)" value={formValues.coverUrl} onChange={(e) => setFormValues((p) => ({ ...p, coverUrl: e.target.value }))} fullWidth size="small" placeholder="https://..." />
+                        <Box>
+                            <TextField label="URL ảnh bìa (coverUrl)" value={formValues.coverUrl} onChange={(e) => setFormValues((p) => ({ ...p, coverUrl: e.target.value }))} fullWidth size="small" placeholder="https://..." />
+                            <CloudinaryUpload
+                                inputId="school-profile-cover"
+                                accept="image/*"
+                                multiple={false}
+                                onSuccess={([f]) => {
+                                    if (f?.url) {
+                                        setFormValues((p) => ({ ...p, coverUrl: f.url }));
+                                        enqueueSnackbar("Đã tải ảnh bìa lên Cloudinary", { variant: "success" });
+                                    }
+                                }}
+                                onError={(m) => enqueueSnackbar(m, { variant: "error" })}
+                            >
+                                {({ inputId, loading }) => (
+                                    <Button
+                                        component="label"
+                                        htmlFor={inputId}
+                                        disabled={loading}
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={<CloudUploadIcon />}
+                                        sx={{ mt: 1, textTransform: "none" }}
+                                    >
+                                        {loading ? "Đang tải..." : "Tải ảnh bìa (Cloudinary)"}
+                                    </Button>
+                                )}
+                            </CloudinaryUpload>
+                        </Box>
 
                         <Box>
                             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
@@ -469,6 +678,34 @@ export default function SchoolProfile() {
                                                 </IconButton>
                                             </Box>
                                             <TextField label="URL ảnh" value={item.url} onChange={handleImageItemChange(index, "url")} fullWidth size="small" placeholder="https://..." />
+                                            <CloudinaryUpload
+                                                inputId={`school-profile-gallery-${index}`}
+                                                accept="image/*"
+                                                multiple={false}
+                                                onSuccess={([f]) => {
+                                                    if (!f?.url) return;
+                                                    const next = formValues.itemList.map((it, i) =>
+                                                        i === index ? { ...it, url: f.url } : it
+                                                    );
+                                                    setFormValues((p) => ({ ...p, itemList: next }));
+                                                    enqueueSnackbar("Đã tải ảnh lên Cloudinary", { variant: "success" });
+                                                }}
+                                                onError={(m) => enqueueSnackbar(m, { variant: "error" })}
+                                            >
+                                                {({ inputId, loading }) => (
+                                                    <Button
+                                                        component="label"
+                                                        htmlFor={inputId}
+                                                        disabled={loading}
+                                                        size="small"
+                                                        variant="outlined"
+                                                        startIcon={<CloudUploadIcon />}
+                                                        sx={{ textTransform: "none", alignSelf: "flex-start" }}
+                                                    >
+                                                        {loading ? "Đang tải..." : "Tải ảnh (Cloudinary)"}
+                                                    </Button>
+                                                )}
+                                            </CloudinaryUpload>
                                             <TextField label="Tên" value={item.name} onChange={handleImageItemChange(index, "name")} fullWidth size="small" />
                                             <TextField label="Alt / Mô tả" value={item.altName} onChange={handleImageItemChange(index, "altName")} fullWidth size="small" />
                                         </Stack>
@@ -477,6 +714,70 @@ export default function SchoolProfile() {
                                 {formValues.itemList.length === 0 && (
                                     <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>
                                         Chưa có ảnh. Bấm &quot;Thêm ảnh&quot; để thêm.
+                                    </Typography>
+                                )}
+                            </Stack>
+                        </Box>
+
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b", pt: 1 }}>
+                            Cơ sở vật chất (facilityJson)
+                        </Typography>
+                        <TextField
+                            label="Overview"
+                            value={formValues.facilityOverview}
+                            onChange={(e) => setFormValues((p) => ({ ...p, facilityOverview: e.target.value }))}
+                            fullWidth
+                            size="small"
+                            multiline
+                            rows={2}
+                        />
+
+                        <Box>
+                            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                                <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
+                                    Danh sách facility (itemList)
+                                </Typography>
+                                <Button size="small" startIcon={<AddPhotoAlternateIcon />} onClick={handleAddFacilityItem} sx={{ textTransform: "none", fontWeight: 600 }}>
+                                    Thêm facility
+                                </Button>
+                            </Box>
+                            <Stack spacing={2}>
+                                {formValues.facilityItemList.map((item, index) => (
+                                    <Box
+                                        key={index}
+                                        sx={{
+                                            p: 1.5,
+                                            borderRadius: 2,
+                                            border: "1px solid #e2e8f0",
+                                            bgcolor: "#f8fafc",
+                                        }}
+                                    >
+                                        <Stack spacing={1.5}>
+                                            <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                                                <IconButton size="small" onClick={() => handleRemoveFacilityItem(index)} aria-label="Xóa facility" sx={{ color: "#64748b" }}>
+                                                    <DeleteOutlineIcon fontSize="small" />
+                                                </IconButton>
+                                            </Box>
+                                            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5 }}>
+                                                <TextField label="Facility code" value={item.facilityCode} onChange={handleFacilityItemChange(index, "facilityCode")} fullWidth size="small" />
+                                                <TextField label="Tên" value={item.name} onChange={handleFacilityItemChange(index, "name")} fullWidth size="small" />
+                                                <TextField label="Giá trị" value={item.value} onChange={handleFacilityItemChange(index, "value")} fullWidth size="small" />
+                                                <TextField label="Đơn vị" value={item.unit} onChange={handleFacilityItemChange(index, "unit")} fullWidth size="small" />
+                                                <TextField
+                                                    label="Category"
+                                                    value={item.category}
+                                                    onChange={handleFacilityItemChange(index, "category")}
+                                                    fullWidth
+                                                    size="small"
+                                                    sx={{ gridColumn: { xs: "auto", sm: "1 / -1" } }}
+                                                />
+                                            </Box>
+                                        </Stack>
+                                    </Box>
+                                ))}
+                                {formValues.facilityItemList.length === 0 && (
+                                    <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>
+                                        Chưa có facility. Bấm &quot;Thêm facility&quot; để thêm.
                                     </Typography>
                                 )}
                             </Stack>

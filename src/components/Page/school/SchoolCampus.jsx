@@ -43,6 +43,7 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import {enqueueSnackbar} from "notistack";
 import {useSchool} from "../../../contexts/SchoolContext.jsx";
 import {listCampuses, createCampus} from "../../../services/CampusService.jsx";
+import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
 
 const modalPaperSx = {
     borderRadius: "16px",
@@ -115,7 +116,6 @@ const emptyForm = {
     longitude: "",
     boardingType: "NONE",
     description: "",
-    imageFile: null,
     imagePreview: null,
     status: true,
 };
@@ -165,26 +165,27 @@ export default function SchoolCampus() {
         setFormValues((prev) => ({...prev, status: e.target.checked}));
     };
 
-    const handleImageChange = (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const preview = URL.createObjectURL(file);
-        setFormValues((prev) => ({
-            ...prev,
-            imageFile: file,
-            imagePreview: preview,
-        }));
-    };
-
     const clearImagePreview = () => {
-        if (formValues.imagePreview) {
+        if (formValues.imagePreview?.startsWith?.("blob:")) {
             URL.revokeObjectURL(formValues.imagePreview);
         }
         setFormValues((prev) => ({
             ...prev,
-            imageFile: null,
             imagePreview: null,
         }));
+    };
+
+    const handleCampusImageUploaded = (files) => {
+        const first = files?.[0];
+        if (!first?.url) return;
+        if (formValues.imagePreview?.startsWith?.("blob:")) {
+            URL.revokeObjectURL(formValues.imagePreview);
+        }
+        setFormValues((prev) => ({
+            ...prev,
+            imagePreview: first.url,
+        }));
+        enqueueSnackbar("Tải ảnh lên thành công", {variant: "success"});
     };
 
     const filteredCampuses = useMemo(() => {
@@ -329,7 +330,6 @@ export default function SchoolCampus() {
             longitude: campus.longitude ?? "",
             boardingType: campus.boardingType || "NONE",
             description: campus.description || "",
-            imageFile: null,
             imagePreview: campus.imageUrl || null,
             status: campus.status === "active",
         });
@@ -1537,20 +1537,26 @@ export default function SchoolCampus() {
                             <Typography variant="body2" sx={{mb: 1, color: "#64748b"}}>
                                 Ảnh cơ sở
                             </Typography>
-                            <Button
-                                component="label"
-                                variant="outlined"
-                                startIcon={<CloudUploadIcon/>}
-                                sx={{borderRadius: 2, textTransform: "none"}}
+                            <CloudinaryUpload
+                                inputId="school-campus-edit-image"
+                                accept="image/*"
+                                multiple={false}
+                                onSuccess={handleCampusImageUploaded}
+                                onError={(msg) => enqueueSnackbar(msg, {variant: "error"})}
                             >
-                                Tải ảnh lên
-                                <input
-                                    type="file"
-                                    hidden
-                                    accept="image/*"
-                                    onChange={handleImageChange}
-                                />
-                            </Button>
+                                {({inputId, loading}) => (
+                                    <Button
+                                        component="label"
+                                        htmlFor={inputId}
+                                        variant="outlined"
+                                        startIcon={<CloudUploadIcon/>}
+                                        disabled={loading}
+                                        sx={{borderRadius: 2, textTransform: "none"}}
+                                    >
+                                        {loading ? "Đang tải..." : "Tải ảnh lên (Cloudinary)"}
+                                    </Button>
+                                )}
+                            </CloudinaryUpload>
                             {(formValues.imagePreview || selectedCampus?.imageUrl) && (
                                 <Box
                                     component="img"
