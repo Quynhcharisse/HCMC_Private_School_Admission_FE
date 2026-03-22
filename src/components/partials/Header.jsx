@@ -35,9 +35,11 @@ import {enqueueSnackbar} from "notistack";
 import {signout, getProfile} from "../../services/AccountService.jsx";
 import {getParentConversations} from "../../services/ConversationService.jsx";
 import {getParentMessagesHistory, markParentMessagesRead} from "../../services/MessageService.jsx";
-import {connectPrivateMessageSocket, disconnect, sendMessage} from "../../services/WebSocketService.jsx";
+import {buildPrivateChatPayload, connectPrivateMessageSocket, disconnect, sendMessage} from "../../services/WebSocketService.jsx";
 import logo from "../../assets/logo.png";
 import {useLocation, useNavigate} from "react-router-dom";
+
+const isSameConversationId = (a, b) => a != null && b != null && String(a) === String(b);
 
 function MainHeader() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -129,19 +131,32 @@ function MainHeader() {
     };
 
     const parseHistoryResponse = (response) => {
-        const payload = response?.data?.body?.body || response?.data?.body || {};
+        const payload = response?.data?.body?.body || response?.data?.body || response?.data || {};
+        const items = Array.isArray(payload?.messages)
+            ? payload.messages
+            : Array.isArray(payload?.items)
+              ? payload.items
+              : [];
         return {
-            items: Array.isArray(payload?.items) ? payload.items : [],
-            nextCursorId: payload?.nextCursorId ?? null,
+            items,
+            nextCursorId: payload?.nextCursorId ?? payload?.cursorId ?? null,
             hasMore: !!payload?.hasMore
         };
     };
 
     const normalizeMessage = (message) => {
         const id = message?.id || message?.messageId || message?.clientMessageId || `${message?.sentAt || Date.now()}-${Math.random()}`;
-        const text = message?.content || message?.message || "";
-        const sender = message?.sender || message?.senderEmail || message?.from || message?.username || message?.createdBy || "";
-        const sentAt = message?.sentAt || message?.createdAt || message?.timestamp || null;
+        const text = message?.content || message?.message || message?.text || "";
+        // BE thường lưu email trong senderName/receiverName — cần để nhận diện tin của mình (bubble phải)
+        const sender =
+            message?.senderEmail ||
+            message?.sender ||
+            message?.senderName ||
+            message?.from ||
+            message?.username ||
+            message?.createdBy ||
+            "";
+        const sentAt = message?.sentAt || message?.createdAt || message?.timestamp || message?.time || null;
         return {id, text, sender, sentAt, raw: message};
     };
 
@@ -165,6 +180,40 @@ function MainHeader() {
         if (Number.isNaN(date.getTime())) return "";
         return date.toLocaleTimeString("vi-VN", {hour: "2-digit", minute: "2-digit"});
     };
+
+    /** Phụ huynh: tin của mình bên phải (xanh), giống counsellor. senderName trên BE thường là email. */
+    const isParentMessageMine = React.useCallback(
+        (msg) => {
+            const lower = (v) => (v ?? "").toString().trim().toLowerCase();
+            const r = msg?.raw || {};
+            const nested = r.sender && typeof r.sender === "object" ? r.sender : null;
+            const candidates = [
+                r.senderEmail,
+                r.senderName,
+                nested?.email,
+                nested?.name,
+                typeof r.sender === "string" ? r.sender : null,
+                msg.sender,
+                r.from,
+                r.username,
+                r.createdBy,
+                r.userEmail,
+            ]
+                .map(lower)
+                .filter(Boolean);
+
+            for (const c of candidates) {
+                if (userIdentitySet.has(c)) return true;
+            }
+
+            const myName = lower(userInfo?.name || userInfo?.fullName);
+            const senderDisplay = lower(r.senderName || r.senderDisplayName);
+            if (myName && senderDisplay && myName === senderDisplay) return true;
+
+            return false;
+        },
+        [userIdentitySet, userInfo]
+    );
 
     const loadConversations = async (cursorId = null) => {
         setConversationLoading(true);
@@ -195,17 +244,19 @@ function MainHeader() {
         return {parentEmail, counsellorEmail};
     };
 
-    const loadMessageHistory = async ({conversation, cursorId = null}) => {
+    const loadMessageHistory = async ({conversation, cursorId = null, silent = false}) => {
         if (!conversation) return;
         const {parentEmail, counsellorEmail} = resolveConversationEmails(conversation);
 
         if (!parentEmail || !counsellorEmail) {
-            setMessageError('Thiếu thông tin email để tải lịch sử tin nhắn.');
+            if (!silent) setMessageError('Thiếu thông tin email để tải lịch sử tin nhắn.');
             return;
         }
 
-        setMessageLoading(true);
-        setMessageError('');
+        if (!silent) {
+            setMessageLoading(true);
+            setMessageError('');
+        }
         try {
             const response = await getParentMessagesHistory({
                 parentEmail,
@@ -224,16 +275,27 @@ function MainHeader() {
                 });
                 setMessageNextCursorId(parsed.nextCursorId);
                 setMessageHasMore(parsed.hasMore);
-            } else {
+            } else if (!silent) {
                 setMessageError('Không thể tải lịch sử tin nhắn.');
             }
         } catch (error) {
             console.error('Error fetching message history:', error);
-            setMessageError('Không thể tải lịch sử tin nhắn.');
+            if (!silent) setMessageError('Không thể tải lịch sử tin nhắn.');
         } finally {
-            setMessageLoading(false);
+            if (!silent) setMessageLoading(false);
         }
     };
+
+    /** Phụ huynh: đồng bộ REST khi WS trễ (cửa sổ chat đang mở). */
+    useEffect(() => {
+        if (!isSignedIn || !isParent || !chatWindowOpen || !selectedConversation) return;
+        const intervalId = setInterval(() => {
+            if (document.visibilityState !== 'visible') return;
+            loadMessageHistory({conversation: selectedConversationRef.current, cursorId: null, silent: true});
+        }, 3500);
+        return () => clearInterval(intervalId);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isSignedIn, isParent, chatWindowOpen, selectedConversation?.conversationId]);
 
     const handleSelectConversation = async (conversation) => {
         setSelectedConversation(conversation);
@@ -289,12 +351,20 @@ function MainHeader() {
         const trimmed = chatInput.trim();
         if (!trimmed || !selectedConversation) return;
 
-        const payload = {
+        const {parentEmail, counsellorEmail} = resolveConversationEmails(selectedConversation);
+        // Trùng principal Spring cho convertAndSendToUser — email, không phải tên hiển thị
+        const senderName = (parentEmail || userInfo?.email || '').trim();
+        const receiverName = (counsellorEmail || '').trim();
+        if (!senderName || !receiverName) {
+            enqueueSnackbar('Thiếu email phụ huynh hoặc tư vấn viên để gửi tin.', {variant: 'warning'});
+            return;
+        }
+        const payload = buildPrivateChatPayload({
             conversationId: selectedConversation?.conversationId || selectedConversation?.id,
-            content: trimmed,
-            senderEmail: userInfo?.email,
-            receiverEmail: selectedConversation?.counsellorEmail || selectedConversation?.otherUser || selectedConversation?.participantEmail
-        };
+            message: trimmed,
+            senderName,
+            receiverName,
+        });
         const sent = sendMessage(payload);
         if (!sent) {
             enqueueSnackbar('WebSocket chưa sẵn sàng, vui lòng thử lại.', {variant: 'warning'});
@@ -341,26 +411,34 @@ function MainHeader() {
 
         const client = connectPrivateMessageSocket({
             onMessage: (payload) => {
-                const conversationId = payload?.conversationId || payload?.conversation?.id;
+                const conversationId = payload?.conversationId ?? payload?.conversation?.id;
+                if (conversationId == null || conversationId === "") return;
+
+                const previewText = payload?.message ?? payload?.content ?? "";
+                const previewTime = payload?.timestamp ?? payload?.sentAt ?? payload?.time ?? null;
+
                 setConversationItems((prev) =>
                     prev.map((item) => {
                         const id = item?.conversationId || item?.id;
-                        if (id !== conversationId) return item;
+                        if (!isSameConversationId(id, conversationId)) return item;
                         const currentUnread = Number(item?.unreadCount ?? item?.unreadMessages ?? 0) || 0;
                         const currentSelected = selectedConversationRef.current;
                         const selectedId = currentSelected?.conversationId || currentSelected?.id;
-                        const shouldIncreaseUnread = !(selectedId && selectedId === conversationId);
+                        const shouldIncreaseUnread = !(
+                            selectedId != null && isSameConversationId(selectedId, conversationId)
+                        );
                         return {
                             ...item,
-                            lastMessage: payload?.content || payload?.message || item?.lastMessage,
-                            unreadCount: shouldIncreaseUnread ? currentUnread + 1 : currentUnread
+                            lastMessage: previewText || item?.lastMessage,
+                            ...(previewTime != null ? {time: previewTime, updatedAt: previewTime} : {}),
+                            unreadCount: shouldIncreaseUnread ? currentUnread + 1 : currentUnread,
                         };
                     })
                 );
 
                 const currentSelected = selectedConversationRef.current;
                 const selectedId = currentSelected?.conversationId || currentSelected?.id;
-                if (selectedId && selectedId === conversationId) {
+                if (selectedId != null && isSameConversationId(selectedId, conversationId)) {
                     setMessageItems((prev) => mergeUniqueMessages([...prev, normalizeMessage(payload)]));
                 }
             }
@@ -920,8 +998,10 @@ function MainHeader() {
                                             onScroll={handleChatScroll}
                                             sx={{
                                                 flex: 1,
+                                                minHeight: 0,
                                                 px: 1.25,
-                                                py: 1.25,
+                                                pt: 1.25,
+                                                pb: 2,
                                                 overflowY: 'auto',
                                                 bgcolor: '#f8fbff'
                                             }}
@@ -938,30 +1018,35 @@ function MainHeader() {
                                                 </Typography>
                                             ) : (
                                                 messageItems.map((msg) => {
-                                                    const isMine = userIdentitySet.has((msg.sender || '').toLowerCase());
+                                                    const isMine = isParentMessageMine(msg);
                                                     return (
-                                                        <Box key={msg.id} sx={{display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', mb: 1.1}}>
-                                                            <Box
-                                                                sx={{
-                                                                    maxWidth: '80%',
-                                                                    px: 1.3,
-                                                                    py: 0.9,
-                                                                    borderRadius: 3,
-                                                                    bgcolor: isMine ? '#2563eb' : '#eaf2ff',
-                                                                    color: isMine ? '#ffffff' : '#0f172a',
-                                                                    border: isMine ? 'none' : '1px solid rgba(37,99,235,0.2)'
-                                                                }}
-                                                            >
-                                                                <Typography sx={{fontSize: 13, whiteSpace: 'pre-wrap'}}>
-                                                                    {msg.text}
-                                                                </Typography>
+                                                        <Box key={msg.id} sx={{display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', mb: 0.5}}>
+                                                            <Box sx={{maxWidth: '78%'}}>
+                                                                <Box
+                                                                    sx={{
+                                                                        px: 1.75,
+                                                                        py: 1.05,
+                                                                        borderRadius: '18px',
+                                                                        borderBottomRightRadius: isMine ? '4px' : '18px',
+                                                                        borderBottomLeftRadius: isMine ? '18px' : '4px',
+                                                                        bgcolor: isMine ? '#0084ff' : '#e5e5ea',
+                                                                        color: isMine ? '#ffffff' : '#0f172a',
+                                                                        border: 'none',
+                                                                        boxShadow: isMine ? '0 1px 1px rgba(0,0,0,0.08)' : 'none'
+                                                                    }}
+                                                                >
+                                                                    <Typography sx={{fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.5}}>
+                                                                        {msg.text}
+                                                                    </Typography>
+                                                                </Box>
                                                                 {msg.sentAt && (
                                                                     <Typography
                                                                         sx={{
-                                                                            mt: 0.5,
-                                                                            fontSize: 10,
-                                                                            textAlign: 'right',
-                                                                            color: isMine ? 'rgba(255,255,255,0.82)' : '#64748b'
+                                                                            mt: 0.25,
+                                                                            fontSize: 10.5,
+                                                                            textAlign: isMine ? 'right' : 'left',
+                                                                            color: '#64748b',
+                                                                            lineHeight: 1.2
                                                                         }}
                                                                     >
                                                                         {formatMessageTime(msg.sentAt)}

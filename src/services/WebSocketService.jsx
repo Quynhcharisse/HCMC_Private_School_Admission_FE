@@ -7,6 +7,32 @@ const messageListeners = new Set();
 const getWsHttpBase = () => import.meta.env.VITE_SERVER_BE || "http://localhost:8080";
 const getWsEndpoint = () => import.meta.env.VITE_WS_ENDPOINT || "/ws";
 
+/** Local ISO-8601 date-time (no zone) for Jackson LocalDateTime on the server. */
+export const toLocalDateTimeIso = (date = new Date()) => {
+    const pad = (n) => String(n).padStart(2, "0");
+    const ms = String(date.getMilliseconds()).padStart(3, "0");
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}.${ms}`;
+};
+
+/**
+ * Body for {@code /app/private-message} — must match the server DTO (senderName, receiverName, message, conversationId, timestamp).
+ * Spring {@code convertAndSendToUser(username, "/private", ...)} dùng {@code username} trùng principal (thường là email) — gửi email, không gửi tên hiển thị.
+ * Includes {@code content} / {@code sentAt} aliases for older handlers.
+ */
+export const buildPrivateChatPayload = ({conversationId, message, senderName, receiverName}) => {
+    const text = message ?? "";
+    const ts = toLocalDateTimeIso();
+    return {
+        senderName: senderName ?? "",
+        receiverName: receiverName ?? "",
+        message: text,
+        conversationId,
+        timestamp: ts,
+        content: text,
+        sentAt: ts,
+    };
+};
+
 export const connectPrivateMessageSocket = ({onMessage}) => {
     if (stompClient?.active) {
         if (onMessage) messageListeners.add(onMessage);
@@ -21,7 +47,8 @@ export const connectPrivateMessageSocket = ({onMessage}) => {
         heartbeatIncoming: 10000,
         heartbeatOutgoing: 10000,
         onConnect: () => {
-            ["/user/queue/private-messages", "/user/queue/messages"].forEach((destination) => {
+            // Spring convertAndSendToUser(..., "/private", ...) thường tới /user/queue/private
+            ["/user/queue/private", "/user/queue/private-messages", "/user/queue/messages"].forEach((destination) => {
                 stompClient.subscribe(destination, (frame) => {
                     try {
                         const payload = JSON.parse(frame.body || "{}");

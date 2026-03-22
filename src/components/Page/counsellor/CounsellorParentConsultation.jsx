@@ -31,15 +31,21 @@ import {
   getCounsellorMessagesHistory,
   markCounsellorMessagesRead,
 } from "../../../services/MessageService.jsx";
-import { connectPrivateMessageSocket, disconnect, sendMessage } from "../../../services/WebSocketService.jsx";
+import {
+  buildPrivateChatPayload,
+  connectPrivateMessageSocket,
+  disconnect,
+  sendMessage,
+} from "../../../services/WebSocketService.jsx";
 
 const fallbackAvatarColors = ["#f97316", "#6366f1", "#ec4899", "#22c55e", "#0ea5e9", "#a855f7"];
 
 const formatMessageTime = (value) => {
   if (!value) return "";
-  if (typeof value === "string") return value.length <= 6 ? value : value;
   try {
-    return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
   } catch {
     return String(value);
   }
@@ -55,10 +61,6 @@ const formatSectionDate = (value) => {
   return date.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
 };
 
-const getRoleTag = (conversation) => {
-  if (!conversation) return "";
-  return "Parent";
-};
 
 const mergeUniqueMessages = (messages) => {
   const map = new Map();
@@ -75,6 +77,8 @@ const mergeUniqueMessages = (messages) => {
     return aTime - bTime;
   });
 };
+
+const isSameConversationId = (a, b) => a != null && b != null && String(a) === String(b);
 
 export default function CounsellorParentConsultation() {
   const userInfo = useMemo(() => {
@@ -110,6 +114,7 @@ export default function CounsellorParentConsultation() {
   const hasMarkedReadRef = useRef(false);
   const messageListRef = useRef(null);
   const selectedConversationIdRef = useRef(selectedConversationId);
+  const selectedConversationRef = useRef(selectedConversation);
 
   const filteredConversations = useMemo(() => {
     const keyword = searchValue.trim().toLowerCase();
@@ -145,10 +150,20 @@ export default function CounsellorParentConsultation() {
   }, [selectedConversationId]);
 
   useEffect(() => {
+    selectedConversationRef.current = selectedConversation;
+  }, [selectedConversation]);
+
+  useEffect(() => {
     const node = messageListRef.current;
     if (!node) return;
     if (loadingMoreRef.current) return;
-    node.scrollTop = node.scrollHeight;
+    const scrollEnd = () => {
+      node.scrollTop = node.scrollHeight;
+    };
+    scrollEnd();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(scrollEnd);
+    });
   }, [selectedConversationId, messageItems.length]);
 
   const parseConversationResponse = (response) => {
@@ -203,8 +218,16 @@ export default function CounsellorParentConsultation() {
   const normalizeMessage = (m) => {
     const id = m?.id ?? m?.messageId ?? m?.clientMessageId ?? `${m?.sentAt || Date.now()}-${Math.random()}`;
     const text = m?.content ?? m?.message ?? m?.text ?? "";
+    // BE lưu email trong senderName/receiverName — cần map vào sender để căn trái/phải đúng
     const sender =
-      m?.senderEmail ?? m?.sender ?? m?.from ?? m?.username ?? m?.createdBy ?? m?.senderId ?? "";
+      m?.senderEmail ??
+      m?.sender ??
+      m?.senderName ??
+      m?.from ??
+      m?.username ??
+      m?.createdBy ??
+      m?.senderId ??
+      "";
     const sentAt = m?.sentAt ?? m?.createdAt ?? m?.timestamp ?? m?.time ?? null;
     return { id: String(id), text, sender, sentAt, raw: m };
   };
@@ -219,6 +242,62 @@ export default function CounsellorParentConsultation() {
     const counsellorEmail =
       conversation?.counsellorEmail ?? conversation?.counsellor?.email ?? userInfo?.email ?? "";
     return { parentEmail, counsellorEmail };
+  };
+
+  /**
+   * Tin do tư vấn viên gửi (bên phải / xanh). BE thường lưu senderName/receiverName, không phải email.
+   */
+  const isCounsellorOutgoingMessage = (m, conv) => {
+    const lower = (v) => (v ?? "").toString().trim().toLowerCase();
+    const r = m?.raw || {};
+    const { parentEmail, counsellorEmail } = getConversationEmails(conv);
+    const pe = lower(parentEmail);
+    const ce = lower(counsellorEmail);
+    const myEmail = lower(userInfo?.email);
+    const myName = lower(userInfo?.name || userInfo?.fullName || userInfo?.username);
+    const parentDisplay = lower(conv?.name);
+
+    const nested = r.sender && typeof r.sender === "object" ? r.sender : null;
+    const emailCandidates = [
+      r.senderEmail,
+      r.senderName && String(r.senderName).includes("@") ? r.senderName : null,
+      nested?.email,
+      typeof r.sender === "string" && r.sender.includes("@") ? r.sender : null,
+      m.sender,
+      r.from,
+      r.userEmail,
+    ]
+      .map(lower)
+      .filter(Boolean);
+
+    for (const e of emailCandidates) {
+      if (pe && e === pe) return false;
+      if ((ce && e === ce) || (myEmail && e === myEmail)) return true;
+    }
+
+    const nameCandidates = [
+      r.senderName,
+      r.senderDisplayName,
+      typeof r.sender === "string" && !r.sender.includes("@") ? r.sender : null,
+    ]
+      .map(lower)
+      .filter(Boolean);
+
+    for (const n of nameCandidates) {
+      if (pe && n === pe) return false;
+      if (parentDisplay && n === parentDisplay) return false;
+      if (myName && n === myName) return true;
+    }
+
+    const flatSender = lower(m.sender);
+    if (flatSender) {
+      if (pe && flatSender === pe) return false;
+      if ((ce && flatSender === ce) || (myEmail && flatSender === myEmail)) return true;
+      if (flatSender.includes("counsellor") && !flatSender.includes("parent")) return true;
+      if (flatSender.includes("parent")) return false;
+    }
+
+    return false;
   };
 
   const handleSelectConversation = async (conversation) => {
@@ -253,14 +332,16 @@ export default function CounsellorParentConsultation() {
     }
   };
 
-  const loadMessageHistory = async ({ conversation, cursorId }) => {
+  const loadMessageHistory = async ({ conversation, cursorId, silent = false }) => {
     if (!conversation) return;
-    setMessageLoading(true);
-    setMessageError("");
+    if (!silent) {
+      setMessageLoading(true);
+      setMessageError("");
+    }
     try {
       const { parentEmail, counsellorEmail } = getConversationEmails(conversation);
       if (!parentEmail || !counsellorEmail) {
-        setMessageError("Thiếu thông tin email để tải lịch sử.");
+        if (!silent) setMessageError("Thiếu thông tin email để tải lịch sử.");
         return;
       }
 
@@ -284,16 +365,29 @@ export default function CounsellorParentConsultation() {
         );
         setMessageNextCursorId(parsed.nextCursorId);
         setMessageHasMore(parsed.hasMore);
-      } else {
+      } else if (!silent) {
         setMessageError("Không thể tải lịch sử tin nhắn.");
       }
     } catch (error) {
       console.error("Error fetching message history:", error);
-      setMessageError("Không thể tải lịch sử tin nhắn.");
+      if (!silent) setMessageError("Không thể tải lịch sử tin nhắn.");
     } finally {
-      setMessageLoading(false);
+      if (!silent) setMessageLoading(false);
     }
   };
+
+  /** Khi WS trễ / lỡ — đồng bộ REST mỗi vài giây khi đang mở cuộc trò chuyện (không hiện spinner). */
+  useEffect(() => {
+    if (!selectedConversationId) return;
+    const intervalId = setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      const conv = selectedConversationRef.current;
+      if (!conv) return;
+      loadMessageHistory({ conversation: conv, cursorId: null, silent: true });
+    }, 3500);
+    return () => clearInterval(intervalId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConversationId]);
 
   const handleMarkRead = async ({ conversation } = {}) => {
     const targetConversation = conversation || selectedConversation;
@@ -321,17 +415,45 @@ export default function CounsellorParentConsultation() {
   const handleSend = () => {
     if (!inputValue.trim() || !selectedConversation) return;
 
+    const text = inputValue.trim();
     const { parentEmail, counsellorEmail } = getConversationEmails(selectedConversation);
-    const payload = {
+    // Trùng principal Spring cho convertAndSendToUser — dùng email, không dùng tên hiển thị
+    const senderName = (counsellorEmail || userInfo?.email || "").trim();
+    const receiverName = (parentEmail || "").trim();
+    if (!senderName || !receiverName) return;
+
+    const payload = buildPrivateChatPayload({
       conversationId: selectedConversation.conversationId,
-      content: inputValue.trim(),
-      senderEmail: counsellorEmail || userInfo?.email,
-      receiverEmail: parentEmail,
-    };
+      message: text,
+      senderName,
+      receiverName,
+    });
 
     const sent = sendMessage(payload);
     if (!sent) return;
     setInputValue("");
+
+    // BE thường chỉ broadcast tới queue người nhận — người gửi không nhận echo → hiển thị ngay (optimistic).
+    const optimisticId = `optimistic-${Date.now()}`;
+    const optimisticRaw = {
+      id: optimisticId,
+      messageId: optimisticId,
+      message: text,
+      content: text,
+      senderEmail: senderName,
+      senderName,
+      conversationId: selectedConversation.conversationId,
+      timestamp: payload.timestamp,
+      sentAt: new Date().toISOString(),
+    };
+    const optimisticMsg = normalizeMessage(optimisticRaw);
+    setMessageItems((prev) => mergeUniqueMessages([...prev, optimisticMsg]));
+    setConversations((prev) =>
+      prev.map((item) => {
+        if (!isSameConversationId(item?.conversationId, selectedConversation.conversationId)) return item;
+        return { ...item, lastMessage: text, time: optimisticMsg.sentAt };
+      })
+    );
   };
 
   useEffect(() => {
@@ -343,15 +465,17 @@ export default function CounsellorParentConsultation() {
     const client = connectPrivateMessageSocket({
       onMessage: (payload) => {
         const conversationId = payload?.conversationId ?? payload?.conversation?.id;
-        if (!conversationId) return;
+        if (conversationId == null || conversationId === "") return;
 
         const normalizedIncoming = normalizeMessage(payload);
 
         setConversations((prev) =>
           prev.map((item) => {
-            if (item?.conversationId !== conversationId) return item;
+            if (!isSameConversationId(item?.conversationId, conversationId)) return item;
             const currentSelectedId = selectedConversationIdRef.current;
-            const shouldIncreaseUnread = !(currentSelectedId && currentSelectedId === conversationId);
+            const shouldIncreaseUnread = !(
+              currentSelectedId != null && isSameConversationId(currentSelectedId, conversationId)
+            );
             return {
               ...item,
               lastMessage: normalizedIncoming.text || item.lastMessage,
@@ -361,8 +485,18 @@ export default function CounsellorParentConsultation() {
           })
         );
 
-        if (selectedConversationIdRef.current === conversationId) {
-          setMessageItems((prev) => mergeUniqueMessages([...prev, normalizedIncoming]));
+        if (isSameConversationId(selectedConversationIdRef.current, conversationId)) {
+          setMessageItems((prev) => {
+            let replacedOptimistic = false;
+            const withoutMatchingOptimistic = prev.filter((m) => {
+              if (!String(m.id).startsWith("optimistic-")) return true;
+              if (!normalizedIncoming.text || m.text !== normalizedIncoming.text) return true;
+              if (replacedOptimistic) return true;
+              replacedOptimistic = true;
+              return false;
+            });
+            return mergeUniqueMessages([...withoutMatchingOptimistic, normalizedIncoming]);
+          });
         }
       },
     });
@@ -402,8 +536,13 @@ export default function CounsellorParentConsultation() {
         elevation={0}
         sx={{
           flex: 1,
+          minHeight: 0,
+          height: "100%",
           display: "grid",
-          gridTemplateColumns: { xs: "1fr", lg: "30% 70%" },
+          // md+: hai cột (dashboard tư vấn). lg-only khiến tablet/laptop nhỏ thành 1 cột giống chat parent.
+          gridTemplateColumns: { xs: "1fr", md: "minmax(280px, 34%) minmax(0, 1fr)" },
+          gridTemplateRows: { xs: "auto minmax(0, 1fr)", md: "minmax(0, 1fr)" },
+          alignItems: "stretch",
           borderRadius: 4.5,
           overflow: "hidden",
           border: "1px solid rgba(79,70,229,0.16)",
@@ -414,16 +553,25 @@ export default function CounsellorParentConsultation() {
       >
         <Box
           sx={{
-            borderRight: { xs: "none", lg: "1px solid #e2e8f0" },
+            borderRight: { xs: "none", md: "1px solid rgba(79,70,229,0.12)" },
             display: "flex",
             flexDirection: "column",
-            bgcolor: "rgba(248,250,252,0.8)",
+            minHeight: 0,
+            height: "100%",
+            overflow: "hidden",
+            bgcolor: {
+              xs: "rgba(248,250,252,0.8)",
+              md: "linear-gradient(180deg, rgba(79,70,229,0.07) 0%, rgba(248,250,252,0.98) 48%, #f8fafc 100%)",
+            },
             px: 2,
           }}
         >
           <Box sx={{ pt: 2.25, pb: 1.75 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0f172a", mb: 1 }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0f172a", mb: 0.25 }}>
               Tin nhắn
+            </Typography>
+            <Typography sx={{ fontSize: 11, color: "#64748b", mb: 1, fontWeight: 500 }}>
+              Tư vấn viên · Danh sách phụ huynh
             </Typography>
             <Paper
               variant="outlined"
@@ -452,6 +600,7 @@ export default function CounsellorParentConsultation() {
           <List
             sx={{
               flex: 1,
+              minHeight: 0,
               overflowY: "auto",
               py: 0.5,
               px: 0,
@@ -569,7 +718,18 @@ export default function CounsellorParentConsultation() {
           </List>
         </Box>
 
-        <Box sx={{ display: "flex", flexDirection: "column" }}>
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            flex: 1,
+            minHeight: 0,
+            minWidth: 0,
+            height: "100%",
+            maxHeight: "100%",
+            overflow: "hidden",
+          }}
+        >
           <Box
             sx={{
               px: 3,
@@ -579,6 +739,7 @@ export default function CounsellorParentConsultation() {
               alignItems: "center",
               justifyContent: "space-between",
               bgcolor: "rgba(255,255,255,0.9)",
+              flexShrink: 0,
             }}
           >
             {selectedConversation ? (
@@ -598,19 +759,35 @@ export default function CounsellorParentConsultation() {
                     <Typography sx={{ fontSize: 15, fontWeight: 600, color: "#0f172a" }}>
                       {selectedConversation.name}
                     </Typography>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      <Chip
-                        size="small"
-                        label={getRoleTag(selectedConversation)}
-                        sx={{
-                          height: 20,
-                          borderRadius: 2,
-                          fontSize: 11,
-                          bgcolor: "rgba(79,70,229,0.1)",
-                          color: "#4338ca",
-                          fontWeight: 600,
-                        }}
-                      />
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                      <Tooltip title="Bạn đang dùng tư cách tư vấn viên">
+                        <Chip
+                          size="small"
+                          label="Bạn · Tư vấn"
+                          sx={{
+                            height: 20,
+                            borderRadius: 2,
+                            fontSize: 11,
+                            bgcolor: "rgba(79,70,229,0.14)",
+                            color: "#4338ca",
+                            fontWeight: 600,
+                          }}
+                        />
+                      </Tooltip>
+                      <Tooltip title="Tài khoản đối phương trong cuộc trò chuyện này">
+                        <Chip
+                          size="small"
+                          label="Phụ huynh"
+                          sx={{
+                            height: 20,
+                            borderRadius: 2,
+                            fontSize: 11,
+                            bgcolor: "rgba(148,163,184,0.2)",
+                            color: "#334155",
+                            fontWeight: 600,
+                          }}
+                        />
+                      </Tooltip>
                       <Typography sx={{ fontSize: 12, color: "#22c55e" }}>
                         <Box
                           component="span"
@@ -657,10 +834,14 @@ export default function CounsellorParentConsultation() {
           {selectedConversation ? (
             <Box
               sx={{
-                flex: 1,
+                flex: "1 1 0%",
+                minHeight: 0,
                 px: 3,
-                py: 2,
+                pt: 2,
+                pb: 6,
+                overflowX: "hidden",
                 overflowY: "auto",
+                WebkitOverflowScrolling: "touch",
                 bgcolor: "linear-gradient(180deg, rgba(238,242,255,0.55) 0%, rgba(248,250,252,0.95) 100%)",
                 scrollBehavior: "smooth",
               }}
@@ -679,61 +860,45 @@ export default function CounsellorParentConsultation() {
                 </Typography>
               ) : (
                 groupedMessages.map((group) => (
-                  <Box key={group.key} sx={{ mb: 2.25 }}>
+                  <Box key={group.key} sx={{ mb: 1.25 }}>
                     <Typography
                       align="center"
                       sx={{
                         fontSize: 11,
                         color: "#64748b",
-                        mb: 1.25,
+                        mb: 0.75,
                         fontWeight: 500,
                       }}
                     >
                       {group.label}
                     </Typography>
                     {group.items.map((m) => {
-                      const { counsellorEmail } = getConversationEmails(selectedConversation);
-                      const sender = (m?.sender || "").toString().toLowerCase();
-                      const isSenderParent =
-                        sender.includes("parent") ||
-                        (selectedConversation?.parentEmail &&
-                          sender === selectedConversation.parentEmail.toLowerCase());
-                      const isMe = !isSenderParent && (
-                        (counsellorEmail && sender === counsellorEmail.toLowerCase()) ||
-                        sender === "counsellor" ||
-                        sender.includes("counsellor")
-                      );
+                      const isMine = isCounsellorOutgoingMessage(m, selectedConversation);
 
                       return (
                         <Box
                           key={m.id}
                           sx={{
                             display: "flex",
-                            justifyContent: isSenderParent ? "flex-end" : "flex-start",
-                            mb: 1.5,
-                            ".msg-actions": {
-                              opacity: 0,
-                              transform: "translateY(2px)",
-                              transition: "all 0.2s ease-in-out",
-                            },
-                            "&:hover .msg-actions": {
-                              opacity: 1,
-                              transform: "translateY(0)",
-                            },
+                            justifyContent: isMine ? "flex-end" : "flex-start",
+                            mb: 0.5,
+                            // opacity:0 vẫn giữ chỗ — chỉ hiện khi hover để khỏi giãn dòng
+                            ".msg-actions": { display: "none" },
+                            "&:hover .msg-actions": { display: "flex" },
                           }}
                         >
-                          <Box sx={{ maxWidth: "76%" }}>
+                          <Box sx={{ maxWidth: "78%" }}>
                             <Box
                               sx={{
-                                bgcolor: isSenderParent ? "#4F46E5" : "#eef2ff",
-                                color: isSenderParent ? "#ffffff" : "#111827",
+                                bgcolor: isMine ? "#0084ff" : "#e5e5ea",
+                                color: isMine ? "#ffffff" : "#0f172a",
                                 px: 1.75,
-                                py: 1.1,
-                                borderRadius: 2,
-                                borderTopRightRadius: isSenderParent ? 0.8 : 2,
-                                borderTopLeftRadius: isSenderParent ? 2 : 0.8,
-                                boxShadow: "0 6px 14px rgba(15,23,42,0.08)",
-                                border: isSenderParent ? "none" : "1px solid rgba(148,163,184,0.25)",
+                                py: 1.05,
+                                borderRadius: "18px",
+                                borderBottomRightRadius: isMine ? "4px" : "18px",
+                                borderBottomLeftRadius: isMine ? "18px" : "4px",
+                                boxShadow: isMine ? "0 1px 1px rgba(0,0,0,0.08)" : "none",
+                                border: "none",
                               }}
                             >
                               <Typography sx={{ fontSize: 13, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>
@@ -748,16 +913,18 @@ export default function CounsellorParentConsultation() {
 
                             <Box
                               sx={{
-                                mt: 0.5,
+                                mt: 0.25,
                                 display: "flex",
-                                justifyContent: isSenderParent ? "flex-end" : "flex-start",
+                                justifyContent: isMine ? "flex-end" : "flex-start",
                                 alignItems: "center",
                                 gap: 0.75,
                               }}
                             >
-                              <Typography sx={{ fontSize: 10.5, color: "#64748b" }}>{formatMessageTime(m.sentAt)}</Typography>
-                              {isMe ? (
-                                <Typography sx={{ fontSize: 10.5, color: "#22c55e", fontWeight: 500 }}>
+                              <Typography sx={{ fontSize: 10.5, color: "#64748b", lineHeight: 1.2 }}>
+                                {formatMessageTime(m.sentAt)}
+                              </Typography>
+                              {isMine ? (
+                                <Typography sx={{ fontSize: 10.5, color: "#22c55e", fontWeight: 500, lineHeight: 1.2 }}>
                                   Seen
                                 </Typography>
                               ) : null}
@@ -766,9 +933,8 @@ export default function CounsellorParentConsultation() {
                             <Box
                               className="msg-actions"
                               sx={{
-                                mt: 0.35,
-                                display: "flex",
-                                justifyContent: isSenderParent ? "flex-end" : "flex-start",
+                                mt: 0.25,
+                                justifyContent: isMine ? "flex-end" : "flex-start",
                                 gap: 0.25,
                               }}
                             >
@@ -792,7 +958,8 @@ export default function CounsellorParentConsultation() {
           ) : (
             <Box
               sx={{
-                flex: 1,
+                flex: "1 1 0%",
+                minHeight: 0,
                 px: 3,
                 py: 2,
                 bgcolor: "linear-gradient(135deg, #f8fafc 0, #eef2ff 40%, #e0f2fe 100%)",
@@ -813,9 +980,7 @@ export default function CounsellorParentConsultation() {
               py: 1.5,
               borderTop: "1px solid #e2e8f0",
               bgcolor: "rgba(255,255,255,0.94)",
-              position: "sticky",
-              bottom: 0,
-              zIndex: 2,
+              flexShrink: 0,
             }}
           >
             <Paper
