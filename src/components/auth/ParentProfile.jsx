@@ -90,6 +90,9 @@ const ParentProfile = ({onBack}) => {
 
     const handleInputChange = (e) => {
         const {name, value} = e.target;
+        if (name === 'idCardNumber') {
+            return;
+        }
         setFormData(prev => ({
             ...prev,
             [name]: value,
@@ -167,7 +170,7 @@ const ParentProfile = ({onBack}) => {
                     relationship: formData.relationship,
                     workplace: formData.workplace.trim(),
                     occupation: formData.occupation.trim(),
-                    idCardNumber: formData.idCardNumber.trim(),
+                    idCardNumber: (initialData?.idCardNumber || formData.idCardNumber || '').trim(),
                     currentAddress: formData.currentAddress.trim(),
                     phone: formData.phone.trim(),
                 },
@@ -265,17 +268,6 @@ const ParentProfile = ({onBack}) => {
                                 </Typography>
                             </Box>
 
-                            <Typography
-                                variant="body2"
-                                sx={{
-                                    color: '#64748b',
-                                    textAlign: 'center',
-                                    mb: 1,
-                                }}
-                            >
-                                Xem và cập nhật hồ sơ phụ huynh của bạn.
-                            </Typography>
-
                             {loading ? (
                                 <Box sx={{display: 'flex', justifyContent: 'center', py: 6}}>
                                     <CircularProgress />
@@ -329,16 +321,18 @@ const ParentProfile = ({onBack}) => {
 
                                     <Grid size={6}>
                                         <TextField
-                                            label="Số CMND/CCCD *"
+                                            label="Số CMND/CCCD"
                                             name="idCardNumber"
                                             value={formData.idCardNumber}
                                             onChange={handleInputChange}
                                             fullWidth
                                             size="small"
                                             error={!!formErrors.idCardNumber}
-                                            helperText={formErrors.idCardNumber}
-                                            placeholder="Nhập số CMND/CCCD"
-                                            disabled={isDisabled}
+                                            helperText={
+                                                formErrors.idCardNumber ||
+                                                'Thông tin cố định, không thể chỉnh sửa tại đây.'
+                                            }
+                                            disabled
                                             sx={{
                                                 '& .MuiOutlinedInput-root': {
                                                     borderRadius: 2,
