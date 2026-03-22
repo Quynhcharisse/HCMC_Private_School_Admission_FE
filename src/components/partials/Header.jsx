@@ -38,6 +38,7 @@ import {getParentMessagesHistory, markParentMessagesRead} from "../../services/M
 import {buildPrivateChatPayload, connectPrivateMessageSocket, disconnect, sendMessage} from "../../services/WebSocketService.jsx";
 import logo from "../../assets/logo.png";
 import {useLocation, useNavigate} from "react-router-dom";
+import {BRAND_AQUA, BRAND_NAVY, BRAND_SKY, BRAND_SKY_LIGHT} from "../../constants/homeLandingTheme";
 
 const isSameConversationId = (a, b) => a != null && b != null && String(a) === String(b);
 
@@ -571,13 +572,17 @@ function MainHeader() {
     const displayEmail = profileBody?.email || userInfo?.email || '';
     const avatarUrl = profileBody?.picture || userInfo?.picture || null;
     const isActivePath = (path) => location.pathname === path;
-    const brandIndigo = '#4f46e5';
+    const brandIndigo = BRAND_NAVY;
 
     const navButtonSx = (path) => {
         const active = isActivePath(path);
+        const hero = isHomeHeroTransparent;
+        const inactiveColor = hero ? 'rgba(255,255,255,0.88)' : '#475569';
+        const activeColor = hero ? '#ffffff' : brandIndigo;
+        const underlineBg = hero ? BRAND_AQUA : BRAND_SKY;
         return {
             fontWeight: 700,
-            color: active ? brandIndigo : '#475569',
+            color: active ? activeColor : inactiveColor,
             fontSize: 15,
             textTransform: 'none',
             px: 2,
@@ -595,13 +600,13 @@ function MainHeader() {
                 bottom: 6,
                 height: 3,
                 borderRadius: 2,
-                bgcolor: '#6366f1',
+                bgcolor: underlineBg,
                 opacity: active ? 1 : 0,
                 transform: active ? 'scaleX(1)' : 'scaleX(0.3)',
                 transition: 'opacity 0.25s ease, transform 0.25s cubic-bezier(0.22, 0.61, 0.36, 1)'
             },
             '&:hover': {
-                color: brandIndigo,
+                color: hero ? '#ffffff' : brandIndigo,
                 bgcolor: 'transparent',
                 backgroundColor: 'transparent',
                 '&::after': {
@@ -614,10 +619,10 @@ function MainHeader() {
 
     const navMobileItemSx = (path) => ({
         cursor: 'pointer',
-        bgcolor: isActivePath(path) ? 'rgba(99,102,241,0.1)' : 'transparent',
-        border: isActivePath(path) ? '1px solid rgba(99,102,241,0.25)' : '1px solid transparent',
+        bgcolor: isActivePath(path) ? 'rgba(45,95,115,0.1)' : 'transparent',
+        border: isActivePath(path) ? '1px solid rgba(85,179,217,0.35)' : '1px solid transparent',
         borderRadius: 2,
-        borderLeft: isActivePath(path) ? '3px solid #6366f1' : '3px solid transparent'
+        borderLeft: isActivePath(path) ? `3px solid ${BRAND_SKY}` : '3px solid transparent'
     });
     const navMobileTextSx = (path) => ({
         color: isActivePath(path) ? brandIndigo : '#334155',
@@ -673,10 +678,10 @@ function MainHeader() {
                                 borderRadius: '50%',
                                 p: 0.75,
                                 boxShadow: isHomeHeroTransparent
-                                    ? '0 4px 16px rgba(15,23,42,0.1)'
+                                    ? '0 4px 20px rgba(15,23,42,0.15)'
                                     : headerElevated
-                                        ? '0 4px 18px rgba(79,70,229,0.22)'
-                                        : '0 6px 22px rgba(79,70,229,0.28)',
+                                        ? '0 4px 18px rgba(45,95,115,0.22)'
+                                        : '0 6px 22px rgba(45,95,115,0.24)',
                                 border: '2px solid rgba(255,255,255,0.95)',
                                 transition: 'box-shadow 0.35s ease'
                             }}
@@ -689,10 +694,17 @@ function MainHeader() {
                                 fontWeight: 800,
                                 letterSpacing: 0.4,
                                 fontSize: {xs: '1.15rem', sm: '1.35rem'},
-                                background: 'linear-gradient(120deg, #4f46e5 0%, #7c3aed 55%, #a855f7 100%)',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                backgroundClip: 'text'
+                                ...(isHomeHeroTransparent
+                                    ? {
+                                        color: '#ffffff',
+                                        textShadow: '0 2px 18px rgba(15,23,42,0.2)'
+                                    }
+                                    : {
+                                        background: `linear-gradient(120deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 50%, ${BRAND_SKY_LIGHT} 100%)`,
+                                        WebkitBackgroundClip: 'text',
+                                        WebkitTextFillColor: 'transparent',
+                                        backgroundClip: 'text'
+                                    })
                             }}
                         >
                             EduBridgeHCM
@@ -812,16 +824,30 @@ function MainHeader() {
                                             sx={{
                                                 width: 42,
                                                 height: 42,
-                                                bgcolor: 'rgba(99,102,241,0.14)',
-                                                color: '#4f46e5',
-                                                border: '1px solid rgba(99,102,241,0.28)',
-                                                transition: 'all 0.2s ease',
-                                                '&:hover': {
-                                                    bgcolor: 'rgba(99,102,241,0.22)',
-                                                    color: '#4338ca',
-                                                    transform: 'translateY(-1px)',
-                                                    boxShadow: '0 4px 14px rgba(79,70,229,0.25)'
-                                                }
+                                                ...(isHomeHeroTransparent
+                                                    ? {
+                                                        bgcolor: 'rgba(255,255,255,0.16)',
+                                                        color: '#ffffff',
+                                                        border: '1px solid rgba(255,255,255,0.35)',
+                                                        '&:hover': {
+                                                            bgcolor: 'rgba(255,255,255,0.26)',
+                                                            color: '#ffffff',
+                                                            transform: 'translateY(-1px)',
+                                                            boxShadow: '0 4px 14px rgba(15,23,42,0.2)'
+                                                        }
+                                                    }
+                                                    : {
+                                                        bgcolor: 'rgba(45,95,115,0.1)',
+                                                        color: BRAND_NAVY,
+                                                        border: '1px solid rgba(85,179,217,0.35)',
+                                                        '&:hover': {
+                                                            bgcolor: 'rgba(45,95,115,0.16)',
+                                                            color: '#265a6b',
+                                                            transform: 'translateY(-1px)',
+                                                            boxShadow: '0 4px 14px rgba(45,95,115,0.28)'
+                                                        }
+                                                    }),
+                                                transition: 'all 0.2s ease'
                                             }}
                                         >
                                             <ChatBubbleRoundedIcon sx={{fontSize: 22}}/>
@@ -839,7 +865,7 @@ function MainHeader() {
                                         paper: {
                                             sx: {
                                                 borderRadius: 3,
-                                                border: '1px solid rgba(79,70,229,0.18)',
+                                                border: '1px solid rgba(45,95,115,0.18)',
                                                 boxShadow: '0 22px 48px rgba(15,23,42,0.16), 0 0 0 1px rgba(255,255,255,0.6) inset',
                                                 minWidth: 360,
                                                 maxWidth: 380,
@@ -856,7 +882,7 @@ function MainHeader() {
                                         sx={{
                                             px: 2,
                                             py: 1.75,
-                                            borderBottom: '1px solid rgba(79,70,229,0.1)',
+                                            borderBottom: '1px solid rgba(45,95,115,0.1)',
                                             background: 'linear-gradient(135deg, rgba(238,242,255,0.95) 0%, rgba(255,255,255,0.98) 100%)'
                                         }}
                                     >
@@ -871,8 +897,8 @@ function MainHeader() {
                                                 px: 1.25,
                                                 py: 0.85,
                                                 borderRadius: 999,
-                                                bgcolor: 'rgba(79,70,229,0.06)',
-                                                border: '1px solid rgba(79,70,229,0.12)',
+                                                bgcolor: 'rgba(45,95,115,0.06)',
+                                                border: '1px solid rgba(45,95,115,0.12)',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 gap: 1
@@ -925,11 +951,11 @@ function MainHeader() {
                                                                 cursor: 'pointer',
                                                                 transition: 'background-color 0.2s ease',
                                                                 '&:hover': {
-                                                                    bgcolor: 'rgba(79,70,229,0.08)'
+                                                                    bgcolor: 'rgba(45,95,115,0.08)'
                                                                 }
                                                             }}
                                                         >
-                                                            <Avatar sx={{width: 40, height: 40, bgcolor: '#4f46e5', fontSize: 15, fontWeight: 700, boxShadow: '0 4px 12px rgba(79,70,229,0.35)'}}>
+                                                            <Avatar sx={{width: 40, height: 40, bgcolor: BRAND_NAVY, fontSize: 15, fontWeight: 700, boxShadow: '0 4px 12px rgba(45,95,115,0.35)'}}>
                                                                 {conversationName.charAt(0).toUpperCase()}
                                                             </Avatar>
                                                             <Box sx={{minWidth: 0, flex: 1}}>
@@ -969,9 +995,9 @@ function MainHeader() {
                                                     sx={{
                                                         textTransform: 'none',
                                                         fontWeight: 600,
-                                                        color: '#4f46e5',
+                                                        color: BRAND_NAVY,
                                                         '&:hover': {
-                                                            bgcolor: 'rgba(79,70,229,0.08)'
+                                                            bgcolor: 'rgba(45,95,115,0.08)'
                                                         }
                                                     }}
                                                 >
@@ -995,7 +1021,7 @@ function MainHeader() {
                                             display: 'flex',
                                             flexDirection: 'column',
                                             bgcolor: '#f8fafc',
-                                            border: '1px solid rgba(79,70,229,0.2)',
+                                            border: '1px solid rgba(45,95,115,0.2)',
                                             boxShadow: '0 24px 56px rgba(15,23,42,0.18), 0 0 0 1px rgba(255,255,255,0.5) inset'
                                         }}
                                     >
@@ -1006,7 +1032,7 @@ function MainHeader() {
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'space-between',
-                                                background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 55%, #7c3aed 100%)',
+                                                background: `linear-gradient(135deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 55%, ${BRAND_SKY_LIGHT} 100%)`,
                                                 borderBottom: '1px solid rgba(255,255,255,0.12)',
                                                 flexShrink: 0
                                             }}
@@ -1062,13 +1088,13 @@ function MainHeader() {
                                         >
                                             {messageLoading && messageItems.length === 0 ? (
                                                 <Box sx={{display: 'flex', justifyContent: 'center', alignItems: 'center', py: 5}}>
-                                                    <CircularProgress size={24} sx={{color: '#4f46e5'}}/>
+                                                    <CircularProgress size={24} sx={{color: BRAND_NAVY}}/>
                                                 </Box>
                                             ) : messageError ? (
                                                 <Typography sx={{fontSize: 13, color: '#dc2626'}}>{messageError}</Typography>
                                             ) : messageItems.length === 0 ? (
                                                 <Box sx={{textAlign: 'center', py: 4, px: 2}}>
-                                                    <ChatBubbleRoundedIcon sx={{fontSize: 40, color: 'rgba(79,70,229,0.35)', mb: 1}}/>
+                                                    <ChatBubbleRoundedIcon sx={{fontSize: 40, color: 'rgba(45,95,115,0.35)', mb: 1}}/>
                                                     <Typography sx={{fontSize: 13, color: '#64748b', lineHeight: 1.55}}>
                                                         Chưa có tin nhắn. Hãy chào tư vấn viên để bắt đầu cuộc trò chuyện.
                                                     </Typography>
@@ -1123,8 +1149,8 @@ function MainHeader() {
                                                                                         height: 32,
                                                                                         fontSize: 13,
                                                                                         fontWeight: 700,
-                                                                                        bgcolor: '#4f46e5',
-                                                                                        boxShadow: '0 2px 8px rgba(79,70,229,0.35)'
+                                                                                        bgcolor: BRAND_NAVY,
+                                                                                        boxShadow: '0 2px 8px rgba(45,95,115,0.35)'
                                                                                     }}
                                                                                 >
                                                                                     {peerLabel.charAt(0).toUpperCase()}
@@ -1143,12 +1169,12 @@ function MainHeader() {
                                                                                 borderTopLeftRadius: !isMine ? (stackTight ? 2.25 : 0.5) : 2.25,
                                                                                 borderTopRightRadius: isMine ? (stackTight ? 2.25 : 0.5) : 2.25,
                                                                                 background: isMine
-                                                                                    ? 'linear-gradient(145deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%)'
+                                                                                    ? `linear-gradient(145deg, ${BRAND_SKY} 0%, ${BRAND_NAVY} 50%, #265a6b 100%)`
                                                                                     : '#ffffff',
                                                                                 color: isMine ? '#ffffff' : '#0f172a',
                                                                                 border: isMine ? 'none' : '1px solid rgba(148,163,184,0.4)',
                                                                                 boxShadow: isMine
-                                                                                    ? '0 2px 8px rgba(79,70,229,0.28), 0 1px 0 rgba(255,255,255,0.12) inset'
+                                                                                    ? '0 2px 8px rgba(45,95,115,0.3), 0 1px 0 rgba(255,255,255,0.12) inset'
                                                                                     : '0 1px 3px rgba(15,23,42,0.06)'
                                                                             }}
                                                                         >
@@ -1183,7 +1209,7 @@ function MainHeader() {
                                             sx={{
                                                 px: 1.25,
                                                 py: 1,
-                                                borderTop: '1px solid rgba(79,70,229,0.12)',
+                                                borderTop: '1px solid rgba(45,95,115,0.12)',
                                                 bgcolor: 'rgba(255,255,255,0.96)',
                                                 backdropFilter: 'blur(8px)',
                                                 flexShrink: 0
@@ -1197,8 +1223,8 @@ function MainHeader() {
                                                     borderRadius: 2.5,
                                                     px: 1.35,
                                                     py: 0.55,
-                                                    bgcolor: 'rgba(79,70,229,0.06)',
-                                                    border: '1px solid rgba(79,70,229,0.15)',
+                                                    bgcolor: 'rgba(45,95,115,0.06)',
+                                                    border: '1px solid rgba(45,95,115,0.15)',
                                                     boxShadow: '0 1px 0 rgba(255,255,255,0.8) inset'
                                                 }}
                                             >
@@ -1220,9 +1246,9 @@ function MainHeader() {
                                                     onClick={handleSendMessage}
                                                     disabled={!chatInput.trim()}
                                                     sx={{
-                                                        color: chatInput.trim() ? '#4f46e5' : 'rgba(79,70,229,0.35)',
-                                                        bgcolor: chatInput.trim() ? 'rgba(79,70,229,0.12)' : 'transparent',
-                                                        '&:hover': {bgcolor: chatInput.trim() ? 'rgba(79,70,229,0.2)' : 'transparent'}
+                                                        color: chatInput.trim() ? BRAND_NAVY : 'rgba(45,95,115,0.35)',
+                                                        bgcolor: chatInput.trim() ? 'rgba(85,179,217,0.15)' : 'transparent',
+                                                        '&:hover': {bgcolor: chatInput.trim() ? 'rgba(85,179,217,0.22)' : 'transparent'}
                                                     }}
                                                 >
                                                     <SendRoundedIcon fontSize="small"/>
@@ -1265,8 +1291,8 @@ function MainHeader() {
                                                 sx={{
                                                     width: 56,
                                                     height: 56,
-                                                    bgcolor: '#4f46e5',
-                                                    boxShadow: '0 10px 28px rgba(79,70,229,0.45)',
+                                                    bgcolor: BRAND_NAVY,
+                                                    boxShadow: '0 10px 28px rgba(45,95,115,0.45)',
                                                     border: '2px solid rgba(255,255,255,0.35)'
                                                 }}
                                             >
@@ -1314,7 +1340,7 @@ function MainHeader() {
                                         borderRadius: '50%',
                                         transition: 'background 0.2s',
                                         '&:hover': {
-                                            bgcolor: 'rgba(99,102,241,0.1)'
+                                            bgcolor: isHomeHeroTransparent ? 'rgba(255,255,255,0.14)' : 'rgba(45,95,115,0.1)'
                                         }
                                     }}
                                 >
@@ -1323,8 +1349,8 @@ function MainHeader() {
                                         sx={{
                                             width: 40,
                                             height: 40,
-                                            bgcolor: '#4f46e5',
-                                            boxShadow: '0 4px 14px rgba(79,70,229,0.35)'
+                                            bgcolor: BRAND_NAVY,
+                                            boxShadow: '0 4px 14px rgba(45,95,115,0.35)'
                                         }}
                                     >
                                         {!avatarUrl && (displayName.charAt(0).toUpperCase())}
@@ -1367,7 +1393,7 @@ function MainHeader() {
                                                 sx={{
                                                     width: 48,
                                                     height: 48,
-                                                    bgcolor: '#4f46e5'
+                                                    bgcolor: BRAND_NAVY
                                                 }}
                                             >
                                                 {!avatarUrl && (displayName.charAt(0).toUpperCase())}
@@ -1382,7 +1408,7 @@ function MainHeader() {
                                                     </Typography>
                                                 )}
                                                 {userInfo?.role && (
-                                                    <Typography sx={{fontSize: 11, color: '#4f46e5', mt: 0.5}}>
+                                                    <Typography sx={{fontSize: 11, color: BRAND_NAVY, mt: 0.5}}>
                                                         {userInfo.role === 'STUDENT' ? 'Học sinh' :
                                                          userInfo.role === 'SCHOOL' ? 'Trường học' :
                                                          userInfo.role === 'ADMIN' ? 'Quản trị viên' :
@@ -1402,18 +1428,18 @@ function MainHeader() {
                                                 sx={{
                                                     fontSize: 15,
                                                     fontWeight: 500,
-                                                    color: '#4f46e5',
+                                                    color: BRAND_NAVY,
                                                     borderRadius: 1,
                                                     gap: 1.5,
                                                     mt: 0.5,
                                                     '&:hover': {
-                                                        bgcolor: 'rgba(79,70,229,0.08)',
-                                                        color: '#4338ca',
+                                                        bgcolor: 'rgba(45,95,115,0.08)',
+                                                        color: '#265a6b',
                                                     },
                                                     transition: 'background 0.2s, color 0.2s',
                                                 }}
                                             >
-                                                <PersonIcon sx={{color: '#4f46e5', fontSize: 20}}/> Hồ sơ cá nhân
+                                                <PersonIcon sx={{color: BRAND_NAVY, fontSize: 20}}/> Hồ sơ cá nhân
                                             </MenuItem>
                                             <MenuItem
                                                 onClick={() => {
@@ -1423,18 +1449,18 @@ function MainHeader() {
                                                 sx={{
                                                     fontSize: 15,
                                                     fontWeight: 500,
-                                                    color: '#4f46e5',
+                                                    color: BRAND_NAVY,
                                                     borderRadius: 1,
                                                     gap: 1.5,
                                                     mt: 0.5,
                                                     '&:hover': {
-                                                        bgcolor: 'rgba(79,70,229,0.08)',
-                                                        color: '#4338ca',
+                                                        bgcolor: 'rgba(45,95,115,0.08)',
+                                                        color: '#265a6b',
                                                     },
                                                     transition: 'background 0.2s, color 0.2s',
                                                 }}
                                             >
-                                                <AccountCircleIcon sx={{color: '#4f46e5', fontSize: 20}}/> Thông tin con
+                                                <AccountCircleIcon sx={{color: BRAND_NAVY, fontSize: 20}}/> Thông tin con
                                             </MenuItem>
                                         </>
                                     ) : (
@@ -1458,18 +1484,18 @@ function MainHeader() {
                                         sx={{
                                             fontSize: 15,
                                             fontWeight: 500,
-                                            color: '#4f46e5',
+                                            color: BRAND_NAVY,
                                             borderRadius: 1,
                                             gap: 1.5,
                                             mt: 0.5,
                                             '&:hover': {
-                                                bgcolor: 'rgba(79,70,229,0.08)',
-                                                color: '#4338ca',
+                                                bgcolor: 'rgba(45,95,115,0.08)',
+                                                color: '#265a6b',
                                             },
                                             transition: 'background 0.2s, color 0.2s',
                                         }}
                                     >
-                                        <DashboardIcon sx={{color: '#4f46e5', fontSize: 20}}/> Bảng Điều Khiển
+                                        <DashboardIcon sx={{color: BRAND_NAVY, fontSize: 20}}/> Bảng Điều Khiển
                                     </MenuItem>
                                     )}
                                     <MenuItem
@@ -1500,19 +1526,31 @@ function MainHeader() {
                                 variant="contained"
                                 sx={{
                                     ml: {xs: 0, sm: 1},
-                                    color: '#fff',
                                     fontWeight: 700,
                                     borderRadius: 999,
                                     px: {xs: 3, sm: 3.5},
                                     py: 1.15,
                                     fontSize: 15,
                                     textTransform: 'none',
-                                    background: 'linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%)',
-                                    boxShadow: '0 8px 24px rgba(79, 70, 229, 0.38)',
-                                    '&:hover': {
-                                        background: 'linear-gradient(90deg, #4338ca 0%, #6d28d9 100%)',
-                                        boxShadow: '0 12px 32px rgba(79, 70, 229, 0.45)'
-                                    }
+                                    ...(isHomeHeroTransparent
+                                        ? {
+                                            color: BRAND_NAVY,
+                                            bgcolor: '#ffffff',
+                                            boxShadow: '0 8px 24px rgba(15, 23, 42, 0.18)',
+                                            '&:hover': {
+                                                bgcolor: 'rgba(136,232,242,0.25)',
+                                                boxShadow: '0 12px 32px rgba(15, 23, 42, 0.22)'
+                                            }
+                                        }
+                                        : {
+                                            color: '#fff',
+                                            background: `linear-gradient(90deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 100%)`,
+                                            boxShadow: '0 8px 24px rgba(45, 95, 115, 0.35)',
+                                            '&:hover': {
+                                                background: `linear-gradient(90deg, #265a6b 0%, ${BRAND_NAVY} 100%)`,
+                                                boxShadow: '0 12px 32px rgba(45, 95, 115, 0.42)'
+                                            }
+                                        })
                                 }}
                                 onClick={handleButtonClick}
                             >
@@ -1524,10 +1562,19 @@ function MainHeader() {
                         color="inherit"
                         sx={{
                             display: {md: 'none'},
-                            color: '#4f46e5',
-                            border: '1px solid rgba(99,102,241,0.35)',
-                            bgcolor: 'rgba(255,255,255,0.6)',
-                            '&:hover': {bgcolor: 'rgba(99,102,241,0.1)'}
+                            ...(isHomeHeroTransparent
+                                ? {
+                                    color: '#ffffff',
+                                    border: '1px solid rgba(255,255,255,0.45)',
+                                    bgcolor: 'rgba(255,255,255,0.12)',
+                                    '&:hover': {bgcolor: 'rgba(255,255,255,0.2)'}
+                                }
+                                : {
+                                    color: BRAND_NAVY,
+                                    border: '1px solid rgba(85,179,217,0.45)',
+                                    bgcolor: 'rgba(255,255,255,0.6)',
+                                    '&:hover': {bgcolor: 'rgba(45,95,115,0.08)'}
+                                })
                         }}
                         onClick={handleMobileMenuToggle}
                     >
@@ -1604,7 +1651,7 @@ function MainHeader() {
                                                 sx={{
                                                     width: 48,
                                                     height: 48,
-                                                    bgcolor: '#4f46e5'
+                                                    bgcolor: BRAND_NAVY
                                                 }}
                                             >
                                                 {!avatarUrl && (displayName.charAt(0).toUpperCase())}
@@ -1619,7 +1666,7 @@ function MainHeader() {
                                                     </Typography>
                                                 )}
                                                 {userInfo?.role && (
-                                                    <Typography sx={{fontSize: 11, color: '#4f46e5', mt: 0.5}}>
+                                                    <Typography sx={{fontSize: 11, color: BRAND_NAVY, mt: 0.5}}>
                                                         {userInfo.role === 'STUDENT' ? 'Học sinh' : 
                                                          userInfo.role === 'SCHOOL' ? 'Trường học' : 
                                                          userInfo.role === 'ADMIN' ? 'Quản trị viên' :
@@ -1638,7 +1685,7 @@ function MainHeader() {
                                             >
                                                 <ListItemText 
                                                     primary="Hồ sơ cá nhân"
-                                                    sx={{color: '#4f46e5', fontWeight: 600}}
+                                                    sx={{color: BRAND_NAVY, fontWeight: 600}}
                                                 />
                                             </ListItem>
                                             <ListItem 
@@ -1647,7 +1694,7 @@ function MainHeader() {
                                             >
                                                 <ListItemText 
                                                     primary="Thông tin con"
-                                                    sx={{color: '#4f46e5', fontWeight: 600}}
+                                                    sx={{color: BRAND_NAVY, fontWeight: 600}}
                                                 />
                                             </ListItem>
                                         </>
@@ -1672,7 +1719,7 @@ function MainHeader() {
                                     >
                                         <ListItemText 
                                             primary="Bảng Điều Khiển"
-                                            sx={{color: '#4f46e5', fontWeight: 600}}
+                                            sx={{color: BRAND_NAVY, fontWeight: 600}}
                                         />
                                     </ListItem>
                                     )}

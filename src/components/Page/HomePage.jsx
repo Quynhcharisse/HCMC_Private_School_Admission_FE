@@ -41,7 +41,14 @@ import {
     AutoAwesome as SparkleIcon
 } from "@mui/icons-material";
 import {useNavigate} from "react-router-dom";
-import {HOME_HERO_SHELF_GRADIENT, landingSectionShadow} from "../../constants/homeLandingTheme";
+import {
+    BRAND_BLUE_GRADIENT_OVERLAY,
+    BRAND_NAVY,
+    BRAND_SKY,
+    BRAND_SKY_LIGHT,
+    HOME_HERO_SHELF_GRADIENT,
+    landingSectionShadow
+} from "../../constants/homeLandingTheme";
 import Chatbot from "../ui/Chatbot";
 
 const ADMISSION_CAROUSEL_INTERVAL_MS = 7000;
@@ -296,7 +303,7 @@ function BlogCard({title, description, image, date, tags, variant = 'featured'})
                         textTransform: 'none',
                         fontSize: '0.82rem',
                         fontWeight: 700,
-                        color: '#2563eb',
+                        color: BRAND_NAVY,
                         px: 0,
                         minWidth: 0,
                         '&:hover': {bgcolor: 'transparent', textDecoration: 'underline'}
@@ -840,14 +847,14 @@ export default function HomePage() {
                         disabled={isSubmittingParentForm}
                         sx={{
                             textTransform: 'none',
-                            bgcolor: '#1976d2',
+                            bgcolor: BRAND_NAVY,
                             fontWeight: 600,
                             px: 3,
                             '&:hover': {
-                                bgcolor: '#1565c0',
+                                bgcolor: '#265a6b',
                             },
                             '&:disabled': {
-                                bgcolor: '#90caf9',
+                                bgcolor: BRAND_SKY_LIGHT,
                             }
                         }}
                     >
@@ -866,27 +873,13 @@ export default function HomePage() {
                     pb: {xs: 9, md: 12},
                     overflow: 'hidden',
                     background: HOME_HERO_SHELF_GRADIENT,
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14)',
                     '&::before': {
                         content: '""',
                         position: 'absolute',
-                        width: 420,
-                        height: 420,
-                        borderRadius: '50%',
-                        top: '-12%',
-                        right: '-8%',
-                        background: 'radial-gradient(circle, rgba(255,255,255,0.55) 0%, transparent 70%)',
-                        pointerEvents: 'none'
-                    },
-                    '&::after': {
-                        content: '""',
-                        position: 'absolute',
-                        width: 320,
-                        height: 320,
-                        borderRadius: '50%',
-                        bottom: '-18%',
-                        left: '-6%',
-                        background: 'radial-gradient(circle, rgba(255,255,255,0.4) 0%, transparent 70%)',
-                        pointerEvents: 'none'
+                        inset: 0,
+                        pointerEvents: 'none',
+                        background: BRAND_BLUE_GRADIENT_OVERLAY
                     }
                 }}
             >
@@ -911,14 +904,14 @@ export default function HomePage() {
                                         px: 2.25,
                                         py: 0.85,
                                         borderRadius: 999,
-                                        bgcolor: 'rgba(255,255,255,0.72)',
+                                        bgcolor: 'rgba(255,255,255,0.18)',
                                         backdropFilter: 'blur(10px)',
-                                        border: '1px solid rgba(255,255,255,0.9)',
-                                        boxShadow: landingSectionShadow(2)
+                                        border: '1px solid rgba(255,255,255,0.35)',
+                                        boxShadow: '0 8px 28px rgba(15,23,42,0.12)'
                                     }}
                                 >
-                                    <SparkleIcon sx={{fontSize: 20, color: '#7c3aed'}}/>
-                                    <Typography sx={{fontSize: '0.8125rem', fontWeight: 700, letterSpacing: '0.06em', color: '#312e81'}}>
+                                    <SparkleIcon sx={{fontSize: 20, color: '#e0f2fe'}}/>
+                                    <Typography sx={{fontSize: '0.8125rem', fontWeight: 700, letterSpacing: '0.06em', color: '#f8fafc'}}>
                                         TƯ VẤN TUYỂN SINH THÔNG MINH
                                     </Typography>
                                 </Box>
@@ -930,10 +923,8 @@ export default function HomePage() {
                                         fontSize: {xs: '2.2rem', sm: '2.75rem', md: '3.25rem'},
                                         lineHeight: 1.08,
                                         letterSpacing: '-0.03em',
-                                        background: 'linear-gradient(120deg, #1e1b4b 0%, #4f46e5 45%, #7c3aed 100%)',
-                                        WebkitBackgroundClip: 'text',
-                                        WebkitTextFillColor: 'transparent',
-                                        backgroundClip: 'text'
+                                        color: '#ffffff',
+                                        textShadow: '0 2px 28px rgba(15,23,42,0.18)'
                                     }}
                                 >
                                     Kết nối phụ huynh và nhà trường
@@ -946,12 +937,12 @@ export default function HomePage() {
                                         fontWeight: 400,
                                         fontSize: {xs: '1.05rem', md: '1.2rem'},
                                         lineHeight: 1.75,
-                                        color: '#475569',
+                                        color: 'rgba(255,255,255,0.9)',
                                         maxWidth: 520,
                                         mx: {xs: 'auto', md: 0}
                                     }}
                                 >
-                                    So sánh trường, đặt lịch tư vấn và theo dõi hành trình tuyển sinh — giao diện pastel, thao tác rõ ràng cho phụ huynh bận rộn.
+                                    So sánh trường, đặt lịch tư vấn và theo dõi hành trình tuyển sinh — giao diện hiện đại, thao tác rõ ràng cho phụ huynh bận rộn.
                                 </Typography>
                                 <Stack
                                     direction={{xs: 'column', sm: 'row'}}
@@ -964,20 +955,20 @@ export default function HomePage() {
                                             size="large"
                                             onClick={handleRegisterClick}
                                             sx={{
-                                                background: 'linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%)',
-                                                color: '#fff',
+                                                bgcolor: '#ffffff',
+                                                color: BRAND_NAVY,
                                                 px: 3.5,
                                                 py: 1.35,
                                                 fontSize: '1rem',
                                                 fontWeight: 700,
                                                 borderRadius: 999,
                                                 textTransform: 'none',
-                                                boxShadow: '0 14px 36px rgba(79, 70, 229, 0.38)',
+                                                boxShadow: '0 14px 36px rgba(15, 23, 42, 0.18)',
                                                 minWidth: {xs: '100%', sm: 200},
                                                 transition: `transform 0.35s ${consultMotionEase}, box-shadow 0.35s ease`,
                                                 '&:hover': {
-                                                    background: 'linear-gradient(90deg, #4338ca 0%, #6d28d9 100%)',
-                                                    boxShadow: '0 18px 44px rgba(79, 70, 229, 0.45)',
+                                                    bgcolor: '#eff6ff',
+                                                    boxShadow: '0 18px 44px rgba(15, 23, 42, 0.22)',
                                                     transform: 'translateY(-2px)'
                                                 }
                                             }}
@@ -988,7 +979,7 @@ export default function HomePage() {
                                     <Button
                                         variant="outlined"
                                         size="large"
-                                        startIcon={<SearchIcon />}
+                                        startIcon={<SearchIcon sx={{color: 'inherit'}}/>}
                                         onClick={() => navigate('/search-schools')}
                                         sx={{
                                             borderRadius: 999,
@@ -996,13 +987,13 @@ export default function HomePage() {
                                             fontWeight: 700,
                                             px: 3,
                                             py: 1.35,
-                                            borderColor: 'rgba(79,70,229,0.45)',
-                                            color: '#4338ca',
-                                            bgcolor: 'rgba(255,255,255,0.5)',
+                                            borderColor: 'rgba(255,255,255,0.55)',
+                                            color: '#ffffff',
+                                            bgcolor: 'rgba(255,255,255,0.12)',
                                             minWidth: {xs: '100%', sm: 200},
                                             '&:hover': {
-                                                borderColor: '#4f46e5',
-                                                bgcolor: 'rgba(255,255,255,0.85)'
+                                                borderColor: '#ffffff',
+                                                bgcolor: 'rgba(255,255,255,0.22)'
                                             }
                                         }}
                                     >
@@ -1016,8 +1007,8 @@ export default function HomePage() {
                                     sx={{justifyContent: {xs: 'center', md: 'flex-start'}, gap: 1.5}}
                                 >
                                     {[
-                                        {icon: <VerifiedIcon sx={{fontSize: 18, color: '#4f46e5'}}/>, t: 'Thông tin đã kiểm duyệt'},
-                                        {icon: <ChatIcon sx={{fontSize: 18, color: '#7c3aed'}}/>, t: 'Chat tư vấn 24/7'}
+                                        {icon: <VerifiedIcon sx={{fontSize: 18, color: '#e0f2fe'}}/>, t: 'Thông tin đã kiểm duyệt'},
+                                        {icon: <ChatIcon sx={{fontSize: 18, color: '#e0f2fe'}}/>, t: 'Chat tư vấn 24/7'}
                                     ].map((x) => (
                                         <Box
                                             key={x.t}
@@ -1028,12 +1019,12 @@ export default function HomePage() {
                                                 px: 1.5,
                                                 py: 0.75,
                                                 borderRadius: 999,
-                                                bgcolor: 'rgba(255,255,255,0.55)',
-                                                border: '1px solid rgba(255,255,255,0.8)'
+                                                bgcolor: 'rgba(255,255,255,0.16)',
+                                                border: '1px solid rgba(255,255,255,0.35)'
                                             }}
                                         >
                                             {x.icon}
-                                            <Typography sx={{fontSize: '0.8rem', fontWeight: 600, color: '#334155'}}>
+                                            <Typography sx={{fontSize: '0.8rem', fontWeight: 600, color: '#f8fafc'}}>
                                                 {x.t}
                                             </Typography>
                                         </Box>
@@ -1061,20 +1052,20 @@ export default function HomePage() {
                                     backdropFilter: 'blur(14px)',
                                     WebkitBackdropFilter: 'blur(14px)',
                                     border: '1px solid rgba(255,255,255,0.95)',
-                                    boxShadow: '0 24px 60px rgba(79, 70, 229, 0.18), 0 0 0 1px rgba(255,255,255,0.5) inset',
+                                    boxShadow: '0 24px 60px rgba(15, 23, 42, 0.2), 0 0 0 1px rgba(255,255,255,0.45) inset',
                                     '&::before': {
                                         content: '""',
                                         position: 'absolute',
                                         inset: -2,
                                         borderRadius: 5,
-                                        background: 'linear-gradient(135deg, rgba(129,140,248,0.35), rgba(244,114,182,0.25))',
+                                        background: `linear-gradient(135deg, rgba(85,179,217,0.45), rgba(45,95,115,0.35))`,
                                         zIndex: -1,
                                         filter: 'blur(2px)'
                                     }
                                 }}
                             >
                                 <Stack spacing={0} sx={{mb: 2}}>
-                                    <Typography sx={{fontWeight: 800, fontSize: '0.95rem', color: '#1e1b4b'}}>
+                                    <Typography sx={{fontWeight: 800, fontSize: '0.95rem', color: '#0f172a'}}>
                                         Trò chuyện với EduBridge
                                     </Typography>
                                     <Typography sx={{fontSize: '0.78rem', color: '#64748b'}}>
@@ -1104,9 +1095,9 @@ export default function HomePage() {
                                             px: 2,
                                             py: 1.25,
                                             borderRadius: '16px 16px 4px 16px',
-                                            background: 'linear-gradient(120deg, #6366f1 0%, #8b5cf6 100%)',
+                                            background: `linear-gradient(125deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 50%, ${BRAND_SKY_LIGHT} 100%)`,
                                             color: '#fff',
-                                            boxShadow: '0 8px 24px rgba(99,102,241,0.35)'
+                                            boxShadow: '0 8px 24px rgba(45,95,115,0.35)'
                                         }}
                                     >
                                         <Typography sx={{fontSize: '0.875rem', lineHeight: 1.55, fontWeight: 500}}>
@@ -1171,7 +1162,8 @@ export default function HomePage() {
                                             borderRadius: 2,
                                             textTransform: 'none',
                                             fontWeight: 700,
-                                            background: 'linear-gradient(90deg, #4f46e5, #7c3aed)'
+                                            background: `linear-gradient(90deg, ${BRAND_NAVY}, ${BRAND_SKY})`,
+                                            '&:hover': {background: `linear-gradient(90deg, #265a6b, ${BRAND_NAVY})`}
                                         }}
                                     >
                                         Gửi
@@ -1353,11 +1345,11 @@ export default function HomePage() {
                                 sx={{
                                                 width: 100,
                                                 height: 100,
-                                                bgcolor: '#1976d2',
+                                                bgcolor: BRAND_NAVY,
                                                 fontSize: '2rem',
                                                 fontWeight: 700,
-                                                boxShadow: '0 4px 16px rgba(25,118,210,0.3)',
-                                                background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
+                                                boxShadow: '0 4px 16px rgba(45,95,115,0.35)',
+                                                background: `linear-gradient(135deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 100%)`,
                                                 transition: 'transform 0.3s ease'
                                             }}
                                         >
