@@ -64,20 +64,20 @@ export default function TuitionFilter({ tuitionMin = 0, tuitionMax = 30, onChang
                 marks={marks}
                 disableSwap
                 sx={{
-                    color: '#1976d2',
+                    color: '#4f46e5',
                     height: 6,
                     mb: 1,
                     '& .MuiSlider-thumb': {
                         width: 18,
                         height: 18,
-                        backgroundColor: '#1976d2',
+                        backgroundColor: '#4f46e5',
                         border: '2px solid white',
-                        boxShadow: '0 2px 8px rgba(25,118,210,0.3)',
+                        boxShadow: '0 2px 8px rgba(79,70,229,0.35)',
                         '&:hover': {
-                            boxShadow: '0 4px 12px rgba(25,118,210,0.4)',
+                            boxShadow: '0 4px 12px rgba(79,70,229,0.45)',
                         },
                         '&.Mui-active': {
-                            boxShadow: '0 4px 16px rgba(25,118,210,0.5)',
+                            boxShadow: '0 4px 16px rgba(79,70,229,0.5)',
                         },
                         '&:first-of-type': {
                             cursor: 'not-allowed',
@@ -85,15 +85,15 @@ export default function TuitionFilter({ tuitionMin = 0, tuitionMax = 30, onChang
                         },
                     },
                     '& .MuiSlider-track': {
-                        backgroundColor: '#1976d2',
+                        backgroundColor: '#4f46e5',
                         border: 'none',
                     },
                     '& .MuiSlider-rail': {
-                        backgroundColor: '#e3f2fd',
+                        backgroundColor: '#e0e7ff',
                         opacity: 1,
                     },
                     '& .MuiSlider-mark': {
-                        backgroundColor: '#e3f2fd',
+                        backgroundColor: '#e0e7ff',
                         width: 2,
                         height: 8,
                         borderRadius: 1,

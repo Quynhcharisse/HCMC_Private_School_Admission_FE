@@ -41,16 +41,8 @@ import {
     AutoAwesome as SparkleIcon
 } from "@mui/icons-material";
 import {useNavigate} from "react-router-dom";
-import {HOME_HERO_SHELF_GRADIENT} from "../../constants/homeLandingTheme";
+import {HOME_HERO_SHELF_GRADIENT, landingSectionShadow} from "../../constants/homeLandingTheme";
 import Chatbot from "../ui/Chatbot";
-
-/** Nền section landing — đổ bóng nhẹ, tách lớp */
-function landingSectionShadow(depth = 3) {
-    const y = depth <= 2 ? 10 : depth <= 4 ? 18 : 24;
-    const blur = depth <= 2 ? 28 : depth <= 4 ? 40 : 52;
-    const alpha = depth <= 2 ? 0.06 : depth <= 4 ? 0.08 : 0.1;
-    return `0 ${y}px ${blur}px rgba(15, 23, 42, ${alpha})`;
-}
 
 const ADMISSION_CAROUSEL_INTERVAL_MS = 7000;
 const ADMISSION_ANIM_MS = 1400;

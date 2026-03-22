@@ -15,7 +15,13 @@ import {
     TextField,
     Typography
 } from "@mui/material";
-import {Bookmark as BookmarkIcon, BookmarkBorder as BookmarkBorderIcon, Search as SearchIcon} from "@mui/icons-material";
+import {
+    AutoAwesome as SparkleIcon,
+    Bookmark as BookmarkIcon,
+    BookmarkBorder as BookmarkBorderIcon,
+    Search as SearchIcon
+} from "@mui/icons-material";
+import {HOME_PAGE_BODY_GRADIENT, landingSectionShadow} from "../../constants/homeLandingTheme";
 import TuitionFilter from "../ui/TuitionFilter";
 import {showSuccessSnackbar, showWarningSnackbar} from "../ui/AppSnackbar.jsx";
 import {
@@ -154,22 +160,23 @@ export default function SchoolSearchPage() {
     };
 
     const filterChipSx = (isSelected) => ({
-        borderRadius: 2,
-        fontWeight: isSelected ? 700 : 500,
-        color: isSelected ? '#0f4fbf' : '#334155',
-        bgcolor: isSelected ? '#eff6ff' : '#ffffff',
-        border: `1px solid ${isSelected ? '#93c5fd' : '#cbd5e1'}`,
+        borderRadius: 999,
+        fontWeight: isSelected ? 700 : 600,
+        fontSize: '0.8125rem',
+        color: isSelected ? '#4338ca' : '#475569',
+        bgcolor: isSelected ? 'rgba(79, 70, 229, 0.12)' : 'rgba(255,255,255,0.9)',
+        border: `1px solid ${isSelected ? 'rgba(79,70,229,0.45)' : 'rgba(15,23,42,0.10)'}`,
         cursor: 'pointer',
-        px: 0.6,
-        py: 0.2,
-        transition: 'all 0.22s ease',
-        boxShadow: isSelected ? '0 2px 8px rgba(37,99,235,0.12)' : 'none',
+        px: 1,
+        py: 0.35,
+        transition: 'all 0.22s cubic-bezier(0.22, 0.61, 0.36, 1)',
+        boxShadow: isSelected ? '0 4px 14px rgba(79, 70, 229, 0.18)' : 'none',
         '&:hover': {
-            bgcolor: isSelected ? '#bfdbfe' : '#eff6ff',
-            color: '#1d4ed8',
-            borderColor: isSelected ? '#3b82f6' : '#93c5fd',
+            bgcolor: isSelected ? 'rgba(79, 70, 229, 0.18)' : 'rgba(255,255,255,1)',
+            color: '#4f46e5',
+            borderColor: isSelected ? '#6366f1' : 'rgba(79,70,229,0.28)',
             transform: 'translateY(-1px)',
-            boxShadow: '0 6px 14px rgba(15,23,42,0.10)'
+            boxShadow: landingSectionShadow(3)
         }
     });
 
@@ -229,25 +236,111 @@ export default function SchoolSearchPage() {
     };
 
     return (
-        <Box sx={{pt: '80px', minHeight: '100vh', bgcolor: '#f7fbff'}}>
-            <Container maxWidth={false} sx={{maxWidth: '1400px', px: {xs: 2, md: 4}, pt: 2, pb: 4}}>
+        <Box
+            sx={{
+                pt: {xs: 'calc(72px + 16px)', md: 'calc(80px + 24px)'},
+                minHeight: '100vh',
+                background: HOME_PAGE_BODY_GRADIENT,
+                position: 'relative',
+                overflow: 'hidden',
+                '&::before': {
+                    content: '""',
+                    position: 'absolute',
+                    width: {xs: 280, md: 420},
+                    height: {xs: 280, md: 420},
+                    borderRadius: '50%',
+                    top: '-8%',
+                    right: '-10%',
+                    background: 'radial-gradient(circle, rgba(199,210,254,0.45) 0%, transparent 68%)',
+                    pointerEvents: 'none'
+                },
+                '&::after': {
+                    content: '""',
+                    position: 'absolute',
+                    width: {xs: 220, md: 320},
+                    height: {xs: 220, md: 320},
+                    borderRadius: '50%',
+                    bottom: '12%',
+                    left: '-6%',
+                    background: 'radial-gradient(circle, rgba(252,231,243,0.5) 0%, transparent 70%)',
+                    pointerEvents: 'none'
+                }
+            }}
+        >
+            <Container maxWidth={false} sx={{maxWidth: '1400px', px: {xs: 2, md: 4}, pt: 2, pb: 6, position: 'relative', zIndex: 1}}>
+                <Box
+                    sx={{
+                        mb: 3,
+                        p: {xs: 2.25, md: 2.75},
+                        borderRadius: 4,
+                        background: 'linear-gradient(145deg, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.5) 100%)',
+                        backdropFilter: 'blur(14px)',
+                        WebkitBackdropFilter: 'blur(14px)',
+                        border: '1px solid rgba(255,255,255,0.95)',
+                        boxShadow: landingSectionShadow(4)
+                    }}
+                >
+                    <Box sx={{display: 'inline-flex', alignItems: 'center', gap: 1, mb: 1.5}}>
+                        <Box
+                            sx={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 0.75,
+                                px: 1.75,
+                                py: 0.65,
+                                borderRadius: 999,
+                                bgcolor: 'rgba(255,255,255,0.72)',
+                                backdropFilter: 'blur(10px)',
+                                border: '1px solid rgba(255,255,255,0.9)',
+                                boxShadow: landingSectionShadow(2)
+                            }}
+                        >
+                            <SparkleIcon sx={{fontSize: 18, color: '#7c3aed'}}/>
+                            <Typography sx={{fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.06em', color: '#312e81'}}>
+                                TÌM TRƯỜNG PHÙ HỢP
+                            </Typography>
+                        </Box>
+                    </Box>
+                    <Typography
+                        sx={{
+                            fontWeight: 800,
+                            fontSize: {xs: '1.65rem', md: '2rem'},
+                            lineHeight: 1.15,
+                            letterSpacing: '-0.03em',
+                            mb: 1,
+                            background: 'linear-gradient(120deg, #1e1b4b 0%, #4f46e5 45%, #7c3aed 100%)',
+                            WebkitBackgroundClip: 'text',
+                            WebkitTextFillColor: 'transparent',
+                            backgroundClip: 'text'
+                        }}
+                    >
+                        Khám phá và so sánh trường học
+                    </Typography>
+                    <Typography sx={{color: '#475569', fontSize: {xs: '0.95rem', md: '1.02rem'}, lineHeight: 1.65, maxWidth: 720}}>
+                        Lọc theo khu vực, học phí và nhu cầu nội trú — giao diện đồng bộ với trang chủ EduBridge HCM.
+                    </Typography>
+                </Box>
+
                 <Box sx={{display: 'grid', gridTemplateColumns: {xs: '1fr', md: '300px 1fr'}, gap: 3}}>
                     <Card
                         sx={{
                             p: 2,
-                            borderRadius: 3,
-                            border: '1px solid #e2e8f0',
-                            boxShadow: '0 2px 10px rgba(15,23,42,0.06)',
+                            borderRadius: 4,
+                            border: '1px solid rgba(15,23,42,0.07)',
+                            bgcolor: 'rgba(255,255,255,0.72)',
+                            backdropFilter: 'blur(12px)',
+                            WebkitBackdropFilter: 'blur(12px)',
+                            boxShadow: landingSectionShadow(3),
                             height: 'fit-content',
                             position: {md: 'sticky'},
                             top: {md: 96}
                         }}
                     >
-                        <Typography sx={{fontWeight: 700, color: '#0f172a', mb: 1.5}}>Bộ lọc tìm trường</Typography>
-                        <Divider sx={{mb: 2}}/>
+                        <Typography sx={{fontWeight: 800, color: '#0f172a', mb: 1.5, fontSize: '1.05rem'}}>Bộ lọc tìm trường</Typography>
+                        <Divider sx={{mb: 2, borderColor: 'rgba(15,23,42,0.08)'}}/>
                         <Stack spacing={2}>
                             <Box>
-                                <Typography sx={{fontWeight: 600, fontSize: 14, mb: 1, color: '#334155'}}>Tỉnh, Thành phố</Typography>
+                                <Typography sx={{fontWeight: 700, fontSize: 13, mb: 1, color: '#334155', letterSpacing: '0.02em'}}>Tỉnh, Thành phố</Typography>
                                 <Box sx={{display: 'flex', gap: 1, flexWrap: 'wrap'}}>
                                     {PROVINCES.map((province) => (
                                         <Chip
@@ -262,7 +355,7 @@ export default function SchoolSearchPage() {
                             </Box>
                             <Divider />
                             <Box>
-                                <Typography sx={{fontWeight: 600, fontSize: 14, mb: 1, color: '#334155'}}>Khu vực (Phường/Xã)</Typography>
+                                <Typography sx={{fontWeight: 700, fontSize: 13, mb: 1, color: '#334155', letterSpacing: '0.02em'}}>Khu vực (Phường/Xã)</Typography>
                                 <TextField
                                     select
                                     size="small"
@@ -276,9 +369,10 @@ export default function SchoolSearchPage() {
                                             borderRadius: 999,
                                             height: 36,
                                             transition: 'all 0.25s ease',
-                                            '& fieldset': {borderColor: 'rgba(25,118,210,0.25)'},
-                                            '&:hover fieldset': {borderColor: 'rgba(25,118,210,0.6)'},
-                                            '&.Mui-focused fieldset': {borderColor: '#1976d2', borderWidth: 2}
+                                            bgcolor: 'rgba(255,255,255,0.9)',
+                                            '& fieldset': {borderColor: 'rgba(79,70,229,0.22)'},
+                                            '&:hover fieldset': {borderColor: 'rgba(79,70,229,0.45)'},
+                                            '&.Mui-focused fieldset': {borderColor: '#4f46e5', borderWidth: 2}
                                         },
                                         '& .MuiSelect-select': {
                                             pl: 2,
@@ -334,7 +428,7 @@ export default function SchoolSearchPage() {
                             </Box>
                             <Divider />
                             <Box>
-                                <Typography sx={{fontWeight: 600, fontSize: 14, mb: 1, color: '#334155'}}>Nội trú/Bán trú</Typography>
+                                <Typography sx={{fontWeight: 700, fontSize: 13, mb: 1, color: '#334155', letterSpacing: '0.02em'}}>Nội trú/Bán trú</Typography>
                                 <Box sx={{display: 'flex', gap: 1, flexWrap: 'wrap'}}>
                                     {['Nội trú', 'Bán trú'].map((boardingType) => (
                                         <Chip
@@ -382,57 +476,79 @@ export default function SchoolSearchPage() {
                                             <IconButton
                                                 size="small"
                                                 sx={{
-                                                    bgcolor: '#bdbdbd',
+                                                    background: 'linear-gradient(90deg, #4f46e5 0%, #7c3aed 100%)',
                                                     color: '#ffffff',
-                                                    width: 26,
-                                                    height: 26,
-                                                    '&:hover': {bgcolor: '#a8a8a8'}
+                                                    width: 34,
+                                                    height: 34,
+                                                    borderRadius: 999,
+                                                    boxShadow: '0 8px 22px rgba(79, 70, 229, 0.35)',
+                                                    '&:hover': {
+                                                        background: 'linear-gradient(90deg, #4338ca 0%, #6d28d9 100%)',
+                                                        boxShadow: '0 10px 28px rgba(79, 70, 229, 0.42)'
+                                                    }
                                                 }}
                                             >
-                                                <SearchIcon sx={{fontSize: 16}}/>
+                                                <SearchIcon sx={{fontSize: 18}}/>
                                             </IconButton>
                                         </InputAdornment>
                                     )
                                 }}
                                 sx={{
-                                    bgcolor: '#ffffff',
+                                    bgcolor: 'rgba(255,255,255,0.92)',
                                     borderRadius: 999,
                                     width: '100%',
                                     minWidth: '100%',
                                     maxWidth: '100%',
+                                    boxShadow: landingSectionShadow(2),
                                     '& .MuiOutlinedInput-root': {
                                         borderRadius: 999,
                                         pr: 0.5,
                                         '& fieldset': {
-                                            border: '1px solid #cbd5e1',
+                                            border: '1px solid rgba(79,70,229,0.2)',
                                         },
                                         '&:hover fieldset': {
-                                            border: '1px solid #94a3b8',
+                                            border: '1px solid rgba(79,70,229,0.38)',
                                         },
                                         '&.Mui-focused fieldset': {
-                                            border: '1.5px solid #94a3b8',
+                                            border: '2px solid #4f46e5',
                                         }
                                     },
                                     '& .MuiInputBase-input': {
                                         py: 1.2,
-                                        pl: 1,
+                                        pl: 1.25,
                                         color: '#334155',
-                                        fontSize: '0.9rem'
+                                        fontSize: '0.9rem',
+                                        fontWeight: 500
                                     },
                                     '& .MuiInputBase-input::placeholder': {
-                                        fontSize: '0.88rem'
+                                        fontSize: '0.88rem',
+                                        color: '#94a3b8'
                                     },
                                 }}
                             />
                         </Box>
 
                         <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 2, flexWrap: 'wrap'}}>
-                            <Typography sx={{fontWeight: 700, color: '#0f172a'}}>
+                            <Typography sx={{fontWeight: 800, color: '#0f172a', fontSize: '1rem'}}>
                                 {totalCount === 0 ? "0 trường" : `1 - ${Math.min(20, totalCount)} trên ${totalCount} trường`}
                             </Typography>
                             <Box sx={{display: 'flex', alignItems: 'center', gap: 1.5}}>
-                                <Typography sx={{fontSize: 14, color: '#64748b'}}>Sắp xếp theo</Typography>
-                                <TextField select size="small" defaultValue="fit" sx={{minWidth: 170}}>
+                                <Typography sx={{fontSize: 14, color: '#64748b', fontWeight: 600}}>Sắp xếp theo</Typography>
+                                <TextField
+                                    select
+                                    size="small"
+                                    defaultValue="fit"
+                                    sx={{
+                                        minWidth: 178,
+                                        '& .MuiOutlinedInput-root': {
+                                            borderRadius: 999,
+                                            bgcolor: 'rgba(255,255,255,0.92)',
+                                            '& fieldset': {borderColor: 'rgba(79,70,229,0.2)'},
+                                            '&:hover fieldset': {borderColor: 'rgba(79,70,229,0.38)'},
+                                            '&.Mui-focused fieldset': {borderColor: '#4f46e5', borderWidth: 2}
+                                        }
+                                    }}
+                                >
                                     <MenuItem value="fit">Phù hợp nhất</MenuItem>
                                     <MenuItem value="tuitionAsc">Học phí tăng dần</MenuItem>
                                     <MenuItem value="tuitionDesc">Học phí giảm dần</MenuItem>
@@ -454,9 +570,17 @@ export default function SchoolSearchPage() {
                                             gridTemplateColumns: {xs: '1fr', sm: '280px 1fr'},
                                             gap: 2,
                                             p: 2,
-                                            borderRadius: 3,
-                                            border: '1px solid #e2e8f0',
-                                            boxShadow: '0 2px 10px rgba(15,23,42,0.05)'
+                                            borderRadius: 4,
+                                            border: '1px solid rgba(15,23,42,0.07)',
+                                            bgcolor: 'rgba(255,255,255,0.85)',
+                                            backdropFilter: 'blur(8px)',
+                                            boxShadow: landingSectionShadow(3),
+                                            transition: 'transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1), box-shadow 0.35s ease, border-color 0.25s ease',
+                                            '&:hover': {
+                                                transform: 'translateY(-4px)',
+                                                boxShadow: landingSectionShadow(5),
+                                                borderColor: 'rgba(79,70,229,0.18)'
+                                            }
                                         }}
                                     >
                                         <IconButton
@@ -467,38 +591,80 @@ export default function SchoolSearchPage() {
                                                 top: 10,
                                                 right: 10,
                                                 zIndex: 2,
-                                                bgcolor: "rgba(255,255,255,0.85)",
-                                                border: "1px solid rgba(226,232,240,1)",
-                                                '&:hover': {bgcolor: "rgba(255,255,255,1)"},
+                                                bgcolor: "rgba(255,255,255,0.92)",
+                                                border: "1px solid rgba(79,70,229,0.15)",
+                                                '&:hover': {bgcolor: "#fff", borderColor: 'rgba(79,70,229,0.28)'},
                                                 opacity: isParent ? 1 : 0.65,
                                                 cursor: "pointer"
                                             }}
                                         >
                                             {isSaved ? (
-                                                <BookmarkIcon fontSize="small" sx={{color: "#f59e0b"}}/>
+                                                <BookmarkIcon fontSize="small" sx={{color: "#ea580c"}}/>
                                             ) : (
-                                                <BookmarkBorderIcon fontSize="small" sx={{color: "#94a3b8"}}/>
+                                                <BookmarkBorderIcon fontSize="small" sx={{color: "#64748b"}}/>
                                             )}
                                         </IconButton>
                                     <CardMedia
                                         component="img"
                                         image={DEFAULT_SCHOOL_IMAGE}
                                         alt={school.school}
-                                        sx={{height: {xs: 180, sm: 170}, borderRadius: 2}}
+                                        sx={{
+                                            height: {xs: 180, sm: 170},
+                                            borderRadius: 3,
+                                            objectFit: 'cover',
+                                            border: '1px solid rgba(15,23,42,0.06)'
+                                        }}
                                     />
                                     <Box>
-                                        <Typography sx={{fontWeight: 700, fontSize: 24, color: '#0f172a'}}>
+                                        <Typography sx={{fontWeight: 800, fontSize: {xs: '1.15rem', sm: '1.35rem'}, color: '#0f172a', lineHeight: 1.25, pr: 4}}>
                                             {school.school}
                                         </Typography>
-                                        <Typography sx={{mt: 0.75, color: '#475569'}}>
+                                        <Typography sx={{mt: 0.75, color: '#475569', fontSize: '0.95rem'}}>
                                             {school.province} - {school.ward}
                                         </Typography>
                                         <Box sx={{display: 'flex', gap: 1, mt: 1.5, flexWrap: 'wrap'}}>
-                                            <Chip label={school.ward} size="small" />
-                                            <Chip label={school.province} size="small" color="primary" variant="outlined" />
+                                            <Chip
+                                                label={school.ward}
+                                                size="small"
+                                                sx={{
+                                                    borderRadius: 999,
+                                                    fontWeight: 600,
+                                                    bgcolor: 'rgba(241,245,249,0.95)',
+                                                    border: '1px solid rgba(15,23,42,0.08)',
+                                                    color: '#475569'
+                                                }}
+                                            />
+                                            <Chip
+                                                label={school.province}
+                                                size="small"
+                                                variant="outlined"
+                                                sx={{
+                                                    borderRadius: 999,
+                                                    fontWeight: 600,
+                                                    borderColor: 'rgba(79,70,229,0.35)',
+                                                    color: '#4f46e5',
+                                                    bgcolor: 'rgba(79,70,229,0.06)'
+                                                }}
+                                            />
                                         </Box>
                                         <Box sx={{display: 'flex', justifyContent: 'flex-end', mt: 2}}>
-                                            <Button size="small" variant="outlined" sx={{textTransform: 'none'}}>
+                                            <Button
+                                                size="small"
+                                                variant="outlined"
+                                                sx={{
+                                                    textTransform: 'none',
+                                                    fontWeight: 700,
+                                                    borderRadius: 999,
+                                                    px: 2,
+                                                    borderColor: 'rgba(79,70,229,0.45)',
+                                                    color: '#4338ca',
+                                                    bgcolor: 'rgba(255,255,255,0.6)',
+                                                    '&:hover': {
+                                                        borderColor: '#4f46e5',
+                                                        bgcolor: 'rgba(255,255,255,0.95)'
+                                                    }
+                                                }}
+                                            >
                                                 Xem thêm
                                             </Button>
                                         </Box>
@@ -509,7 +675,21 @@ export default function SchoolSearchPage() {
                         </Stack>
 
                         <Box sx={{display: 'flex', justifyContent: 'center', mt: 3}}>
-                            <Pagination count={paginationCount} page={1} color="primary" />
+                            <Pagination
+                                count={paginationCount}
+                                page={1}
+                                sx={{
+                                    '& .MuiPaginationItem-root': {
+                                        borderRadius: 2,
+                                        fontWeight: 600
+                                    },
+                                    '& .Mui-selected': {
+                                        bgcolor: '#4f46e5 !important',
+                                        color: '#fff',
+                                        '&:hover': {bgcolor: '#4338ca !important'}
+                                    }
+                                }}
+                            />
                         </Box>
                     </Box>
                 </Box>
