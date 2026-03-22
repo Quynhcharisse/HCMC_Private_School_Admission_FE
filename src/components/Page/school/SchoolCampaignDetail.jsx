@@ -224,7 +224,14 @@ export default function SchoolCampaignDetail() {
                     { variant: "success" }
                 );
                 setConfirmPauseOpen(false);
-                await refreshCampaign();
+                const updated = await refreshCampaign();
+                setOfferingsRemountKey((k) => k + 1);
+                if (updated && campaignId) {
+                    navigate(`/school/campaigns/detail/${campaignId}`, {
+                        replace: true,
+                        state: { campaign: updated },
+                    });
+                }
             } else {
                 enqueueSnackbar(res?.data?.message || "Không thể tạm dừng chiến dịch", { variant: "error" });
             }
@@ -246,7 +253,14 @@ export default function SchoolCampaignDetail() {
             if (res?.status === 200 || res?.data) {
                 enqueueSnackbar("Chiến dịch đã được mở lại.", { variant: "success" });
                 setConfirmResumeOpen(false);
-                await refreshCampaign();
+                const updated = await refreshCampaign();
+                setOfferingsRemountKey((k) => k + 1);
+                if (updated && campaignId) {
+                    navigate(`/school/campaigns/detail/${campaignId}`, {
+                        replace: true,
+                        state: { campaign: updated },
+                    });
+                }
             } else {
                 enqueueSnackbar(res?.data?.message || "Không thể mở lại chiến dịch", { variant: "error" });
             }

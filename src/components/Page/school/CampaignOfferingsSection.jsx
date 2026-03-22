@@ -7,6 +7,7 @@ import {
     Dialog,
     DialogActions,
     DialogContent,
+    DialogTitle,
     FormControl,
     IconButton,
     InputLabel,
@@ -25,8 +26,13 @@ import {
     Pagination,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
+import BusinessIcon from "@mui/icons-material/Business";
+import CampaignIcon from "@mui/icons-material/Campaign";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
+import MenuBookIcon from "@mui/icons-material/MenuBook";
+import SchoolIcon from "@mui/icons-material/School";
 import { enqueueSnackbar } from "notistack";
 import { listCampuses } from "../../../services/CampusService.jsx";
 import { getProgramList } from "../../../services/ProgramService.jsx";
@@ -49,6 +55,19 @@ const APPLICATION_STATUS_OPTIONS = [
     { value: "PAUSED", label: "Tạm dừng" },
 ];
 
+/** Trạng thái vòng đời chỉ tiêu (field `status` từ API) */
+const OFFERING_STATUS_LABELS = {
+    OPEN: "Đang mở",
+    PAUSED: "Tạm dừng",
+    CLOSED: "Đã đóng",
+    EXPIRED: "Hết hạn",
+};
+
+function getOfferingStatusLabel(status) {
+    const s = String(status || "").toUpperCase();
+    return OFFERING_STATUS_LABELS[s] ?? (s || "—");
+}
+
 function formatDate(dateStr) {
     if (!dateStr) return "—";
     const d = new Date(dateStr);
@@ -64,13 +83,70 @@ function formatCurrency(n) {
     }).format(Number(n));
 }
 
+/** Nhóm nội dung trong dialog chi tiết (theo domain). */
+const DETAIL_SECTIONS = [
+    {
+        id: "campaign",
+        title: "Chiến dịch tuyển sinh",
+        Icon: CampaignIcon,
+        fields: [
+            { key: "campaignYear", label: "Năm chiến dịch" },
+            { key: "campaignName", label: "Tên chiến dịch" },
+            { key: "applicationStatus", label: "Trạng thái hồ sơ" },
+        ],
+    },
+    {
+        id: "offering",
+        title: "Chỉ tiêu tuyển sinh",
+        Icon: AssignmentTurnedInIcon,
+        fields: [
+            { key: "learningMode", label: "Hình thức học" },
+            { key: "priceAdjustmentPercentage", label: "Điều chỉnh học phí (%)" },
+            { key: "quota", label: "Chỉ tiêu" },
+            { key: "remainingQuota", label: "Chỉ tiêu còn lại" },
+            { key: "openDate", label: "Ngày mở nhận hồ sơ" },
+            { key: "closeDate", label: "Ngày đóng nhận hồ sơ" },
+            { key: "status", label: "Trạng thái chỉ tiêu" },
+            { key: "tuitionFee", label: "Học phí áp dụng" },
+        ],
+    },
+    {
+        id: "campus",
+        title: "Cơ sở",
+        Icon: BusinessIcon,
+        fields: [
+            { key: "campusName", label: "Tên cơ sở" },
+            { key: "city", label: "Thành phố" },
+            { key: "latitude", label: "Vĩ độ" },
+            { key: "longitude", label: "Kinh độ" },
+            { key: "district", label: "Quận / huyện" },
+        ],
+    },
+    {
+        id: "program",
+        title: "Chương trình",
+        Icon: SchoolIcon,
+        fields: [
+            { key: "enrollmentYear", label: "Năm nhập học" },
+            { key: "programName", label: "Tên chương trình" },
+            { key: "baseTuitionFee", label: "Học phí gốc" },
+        ],
+    },
+    {
+        id: "curriculum",
+        title: "Chương trình đào tạo",
+        Icon: MenuBookIcon,
+        fields: [{ key: "curriculumType", label: "Loại chương trình" }],
+    },
+];
+
 const emptyForm = {
     campusId: "",
     programId: "",
     learningMode: "DAY_SCHOOL",
     quota: "",
     tuitionFee: "",
-    applicationStatus: "OPEN",
+    priceAdjustmentPercentage: "0",
     openDate: "",
     closeDate: "",
 };
@@ -104,6 +180,8 @@ export default function CampaignOfferingsSection({
     const [submitLoading, setSubmitLoading] = useState(false);
     const [formValues, setFormValues] = useState(emptyForm);
     const [formErrors, setFormErrors] = useState({});
+    const [detailRow, setDetailRow] = useState(null);
+    const [detailOpen, setDetailOpen] = useState(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -177,7 +255,6 @@ export default function CampaignOfferingsSection({
                     const res = await getCampaignOfferingsByCampus(parseInt(campusFilter, 10), {
                         page: p,
                         pageSize: batchSize,
-                        admissionCampaignId: campaignId,
                     });
                     const body = res?.data?.body ?? res?.data;
                     const chunk = Array.isArray(body) ? body : body?.items ?? [];
@@ -246,6 +323,26 @@ export default function CampaignOfferingsSection({
     const getProgramName = (id) =>
         programs.find((p) => Number(p.id) === Number(id))?.name ?? id ?? "—";
 
+    const formatDetailValue = (key, value) => {
+        if (value === null || value === undefined || value === "") return "—";
+        if (key === "tuitionFee" || key === "baseTuitionFee") return formatCurrency(value);
+        if (key === "openDate" || key === "closeDate") return formatDate(value);
+        if (key === "learningMode") return getLearningModeLabel(value);
+        if (key === "applicationStatus")
+            return getApplicationStatusLabel(String(value || "").toUpperCase());
+        if (key === "status") return getOfferingStatusLabel(String(value || "").toUpperCase());
+        if (key === "priceAdjustmentPercentage") {
+            const n = Number(value);
+            return Number.isFinite(n) ? `${n}%` : String(value);
+        }
+        if (key === "latitude" || key === "longitude") {
+            const n = Number(value);
+            return Number.isFinite(n) ? n.toFixed(6) : String(value);
+        }
+        if (typeof value === "object") return JSON.stringify(value);
+        return String(value);
+    };
+
     const validateForm = () => {
         const errors = {};
         if (!formValues.campusId) errors.campusId = "Vui lòng chọn cơ sở";
@@ -273,7 +370,8 @@ export default function CampaignOfferingsSection({
             learningMode: row.learningMode || "DAY_SCHOOL",
             quota: row.quota != null ? String(row.quota) : "",
             tuitionFee: row.tuitionFee != null ? String(row.tuitionFee) : "",
-            applicationStatus: row.applicationStatus || "OPEN",
+            priceAdjustmentPercentage:
+                row.priceAdjustmentPercentage != null ? String(row.priceAdjustmentPercentage) : "0",
             openDate: row.openDate?.slice(0, 10) || "",
             closeDate: row.closeDate?.slice(0, 10) || "",
         });
@@ -299,7 +397,6 @@ export default function CampaignOfferingsSection({
                     quota: Number(formValues.quota) || 0,
                     learningMode: formValues.learningMode || "DAY_SCHOOL",
                     tuitionFee: Number(formValues.tuitionFee) || 0,
-                    applicationStatus: formValues.applicationStatus || "OPEN",
                     openDate: formValues.openDate || "",
                     closeDate: formValues.closeDate || "",
                 });
@@ -319,12 +416,11 @@ export default function CampaignOfferingsSection({
                     programId: Number(formValues.programId),
                     quota: Number(formValues.quota) || 0,
                     learningMode: formValues.learningMode || "DAY_SCHOOL",
-                    tuitionFee: Number(formValues.tuitionFee) || 0,
-                    applicationStatus: formValues.applicationStatus || "OPEN",
+                    priceAdjustmentPercentage: Number(formValues.priceAdjustmentPercentage) || 0,
                     openDate: formValues.openDate || "",
                     closeDate: formValues.closeDate || "",
                 });
-                if (res?.status === 200 || res?.data) {
+                if (res?.status === 200 || res?.data?.message != null) {
                     enqueueSnackbar(res?.data?.message || "Tạo chỉ tiêu thành công", { variant: "success" });
                     setModalOpen(false);
                     setPage(0);
@@ -355,9 +451,17 @@ export default function CampaignOfferingsSection({
                     gap: 2,
                 }}
             >
-                <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b" }}>
-                    Chỉ tiêu tuyển sinh
-                </Typography>
+                <Box>
+                    <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b" }}>
+                        Chỉ tiêu tuyển sinh
+                    </Typography>
+                    {campaignPaused && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                            Chiến dịch đang tạm dừng — cột «Trạng thái» phản ánh dữ liệu từ hệ thống (thường là Tạm
+                            dừng).
+                        </Typography>
+                    )}
+                </Box>
                 {canMutate && (
                     <Button
                         variant="contained"
@@ -490,7 +594,12 @@ export default function CampaignOfferingsSection({
                                     <TableRow
                                         key={row.id}
                                         hover
+                                        onClick={() => {
+                                            setDetailRow(row);
+                                            setDetailOpen(true);
+                                        }}
                                         sx={{
+                                            cursor: "pointer",
                                             opacity: rowMuted ? 0.72 : 1,
                                             bgcolor: rowMuted ? "rgba(250, 204, 21, 0.06)" : "inherit",
                                         }}
@@ -506,11 +615,7 @@ export default function CampaignOfferingsSection({
                                             {getApplicationStatusLabel(row.applicationStatus)}
                                         </TableCell>
                                         <TableCell>
-                                            {campaignPaused
-                                                ? "Tạm dừng"
-                                                : String(row.status || "").toUpperCase() === "PAUSED"
-                                                  ? "Tạm dừng"
-                                                  : row.status ?? "—"}
+                                            {getOfferingStatusLabel(row.status)}
                                         </TableCell>
                                         <TableCell>
                                             {formatDate(row.openDate)} — {formatDate(row.closeDate)}
@@ -519,7 +624,10 @@ export default function CampaignOfferingsSection({
                                             <TableCell align="right">
                                                 <IconButton
                                                     size="small"
-                                                    onClick={() => openEdit(row)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        openEdit(row);
+                                                    }}
                                                     aria-label="Sửa chỉ tiêu"
                                                     sx={{ color: "#0D64DE" }}
                                                 >
@@ -552,6 +660,148 @@ export default function CampaignOfferingsSection({
                     </Box>
                 )}
             </Card>
+
+            <Dialog
+                open={detailOpen}
+                onClose={() => {
+                    setDetailOpen(false);
+                    setDetailRow(null);
+                }}
+                fullWidth
+                maxWidth="lg"
+                scroll="paper"
+                PaperProps={{
+                    sx: { borderRadius: "16px", boxShadow: "0 24px 48px rgba(0,0,0,0.12)" },
+                }}
+                slotProps={{ backdrop: { sx: { backdropFilter: "blur(6px)" } } }}
+            >
+                <DialogTitle sx={{ fontWeight: 700, pr: 6 }}>Chi tiết chỉ tiêu</DialogTitle>
+                <IconButton
+                    aria-label="Đóng"
+                    onClick={() => {
+                        setDetailOpen(false);
+                        setDetailRow(null);
+                    }}
+                    sx={{ position: "absolute", right: 8, top: 8 }}
+                >
+                    <CloseIcon />
+                </IconButton>
+                <DialogContent dividers sx={{ pt: 2, pb: 2 }}>
+                    <Stack spacing={2.5}>
+                        {DETAIL_SECTIONS.map(({ id, title, Icon: SectionIcon, fields }) => (
+                            <Card
+                                key={id}
+                                elevation={0}
+                                sx={{
+                                    borderRadius: "14px",
+                                    border: "1px solid #e2e8f0",
+                                    overflow: "hidden",
+                                    boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
+                                }}
+                            >
+                                <Box
+                                    sx={{
+                                        px: 2,
+                                        py: 1.25,
+                                        borderBottom: "1px solid #e2e8f0",
+                                        bgcolor: "rgba(13, 100, 222, 0.06)",
+                                    }}
+                                >
+                                    <Stack direction="row" alignItems="center" spacing={1.5}>
+                                        <Box
+                                            sx={{
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                width: 44,
+                                                height: 44,
+                                                borderRadius: "12px",
+                                                bgcolor: "rgba(13, 100, 222, 0.14)",
+                                                color: "#0D64DE",
+                                                flexShrink: 0,
+                                            }}
+                                        >
+                                            <SectionIcon sx={{ fontSize: 26 }} aria-hidden />
+                                        </Box>
+                                        <Typography
+                                            variant="subtitle1"
+                                            sx={{ fontWeight: 700, color: "#0f172a", minWidth: 0 }}
+                                        >
+                                            {title}
+                                        </Typography>
+                                    </Stack>
+                                </Box>
+                                <CardContent sx={{ pt: 2, "&:last-child": { pb: 2 } }}>
+                                    <Box
+                                        sx={{
+                                            display: "grid",
+                                            gridTemplateColumns: {
+                                                xs: "1fr",
+                                                sm: "repeat(2, minmax(0, 1fr))",
+                                            },
+                                            gap: 1.5,
+                                        }}
+                                    >
+                                        {fields.map(({ key, label }) => (
+                                            <Box
+                                                key={key}
+                                                sx={{
+                                                    border: "1px solid #e8eef5",
+                                                    borderRadius: "12px",
+                                                    p: 1.5,
+                                                    bgcolor: "#f8fafc",
+                                                }}
+                                            >
+                                                <Typography
+                                                    variant="caption"
+                                                    color="text.secondary"
+                                                    sx={{ display: "block", mb: 0.5 }}
+                                                >
+                                                    {label}
+                                                </Typography>
+                                                <Typography
+                                                    variant="body2"
+                                                    sx={{
+                                                        fontWeight: 600,
+                                                        color: "#0f172a",
+                                                        wordBreak: "break-word",
+                                                    }}
+                                                >
+                                                    {formatDetailValue(key, detailRow?.[key])}
+                                                </Typography>
+                                            </Box>
+                                        ))}
+                                    </Box>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </Stack>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, py: 2 }}>
+                    <Button
+                        onClick={() => {
+                            setDetailOpen(false);
+                            setDetailRow(null);
+                        }}
+                        sx={{ textTransform: "none" }}
+                    >
+                        Đóng
+                    </Button>
+                    {canMutate && detailRow && (
+                        <Button
+                            variant="contained"
+                            onClick={() => {
+                                openEdit(detailRow);
+                                setDetailOpen(false);
+                                setDetailRow(null);
+                            }}
+                            sx={{ textTransform: "none", fontWeight: 600, bgcolor: "#0D64DE", borderRadius: 2 }}
+                        >
+                            Sửa chỉ tiêu
+                        </Button>
+                    )}
+                </DialogActions>
+            </Dialog>
 
             <Dialog
                 open={modalOpen}
@@ -635,32 +885,35 @@ export default function CampaignOfferingsSection({
                             helperText={formErrors.quota}
                             inputProps={{ min: 0 }}
                         />
-                        <TextField
-                            label="Học phí (VNĐ)"
-                            name="tuitionFee"
-                            type="number"
-                            fullWidth
-                            size="small"
-                            value={formValues.tuitionFee}
-                            onChange={handleChange}
-                            inputProps={{ min: 0 }}
-                        />
-                        <FormControl fullWidth size="small">
-                            <InputLabel>Trạng thái hồ sơ</InputLabel>
-                            <Select
-                                name="applicationStatus"
-                                value={formValues.applicationStatus}
-                                label="Trạng thái hồ sơ"
+                        {editingRow ? (
+                            <TextField
+                                label="Học phí (VNĐ)"
+                                name="tuitionFee"
+                                type="number"
+                                fullWidth
+                                size="small"
+                                value={formValues.tuitionFee}
                                 onChange={handleChange}
-                                sx={{ borderRadius: 2 }}
-                            >
-                                {APPLICATION_STATUS_OPTIONS.map((o) => (
-                                    <MenuItem key={o.value} value={o.value}>
-                                        {o.label}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
+                                inputProps={{ min: 0 }}
+                                helperText={
+                                    editingRow.baseTuitionFee != null
+                                        ? `Học phí gốc chương trình: ${formatCurrency(editingRow.baseTuitionFee)}`
+                                        : undefined
+                                }
+                            />
+                        ) : (
+                            <TextField
+                                label="Điều chỉnh học phí (%)"
+                                name="priceAdjustmentPercentage"
+                                type="number"
+                                fullWidth
+                                size="small"
+                                value={formValues.priceAdjustmentPercentage}
+                                onChange={handleChange}
+                                inputProps={{ min: 0, max: 100 }}
+                                helperText="Áp dụng trên học phí gốc của chương trình (API tạo chỉ tiêu)"
+                            />
+                        )}
                         <TextField
                             label="Ngày mở"
                             name="openDate"
