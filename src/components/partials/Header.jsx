@@ -1,4 +1,4 @@
-import React, {useState, useEffect} from "react";
+import React, {useState, useEffect, useMemo} from "react";
 import {
     AppBar,
     Avatar,
@@ -40,6 +40,18 @@ import logo from "../../assets/logo.png";
 import {useLocation, useNavigate} from "react-router-dom";
 
 const isSameConversationId = (a, b) => a != null && b != null && String(a) === String(b);
+
+const formatSectionDateLabel = (value) => {
+    if (!value) return "Hôm nay";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Hôm nay";
+    const now = new Date();
+    if (date.toDateString() === now.toDateString()) return "Hôm nay";
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) return "Hôm qua";
+    return date.toLocaleDateString("vi-VN", {day: "2-digit", month: "2-digit", year: "numeric"});
+};
 
 function MainHeader() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -180,6 +192,26 @@ function MainHeader() {
         if (Number.isNaN(date.getTime())) return "";
         return date.toLocaleTimeString("vi-VN", {hour: "2-digit", minute: "2-digit"});
     };
+
+    const groupedParentMessages = useMemo(() => {
+        const groups = [];
+        let currentKey = "";
+        messageItems.forEach((message) => {
+            const sentAt = message?.sentAt;
+            const key = sentAt ? new Date(sentAt).toDateString() : "unknown";
+            if (!groups.length || currentKey !== key) {
+                groups.push({
+                    key,
+                    label: formatSectionDateLabel(sentAt),
+                    items: [message],
+                });
+                currentKey = key;
+            } else {
+                groups[groups.length - 1].items.push(message);
+            }
+        });
+        return groups;
+    }, [messageItems]);
 
     /** Phụ huynh: tin của mình bên phải (xanh), giống counsellor. senderName trên BE thường là email. */
     const isParentMessageMine = React.useCallback(
@@ -806,15 +838,16 @@ function MainHeader() {
                                     slotProps={{
                                         paper: {
                                             sx: {
-                                                borderRadius: 2.5,
-                                                border: '1px solid rgba(37,99,235,0.22)',
-                                                boxShadow: '0 18px 40px rgba(15,23,42,0.22), 0 0 0 4px rgba(37,99,235,0.10)',
+                                                borderRadius: 3,
+                                                border: '1px solid rgba(79,70,229,0.18)',
+                                                boxShadow: '0 22px 48px rgba(15,23,42,0.16), 0 0 0 1px rgba(255,255,255,0.6) inset',
                                                 minWidth: 360,
                                                 maxWidth: 380,
                                                 mt: 1.2,
                                                 p: 0,
                                                 overflow: 'hidden',
-                                                backdropFilter: 'blur(2px)'
+                                                backdropFilter: 'blur(10px)',
+                                                bgcolor: 'rgba(255,255,255,0.97)'
                                             }
                                         }
                                     }}
@@ -822,31 +855,32 @@ function MainHeader() {
                                     <Box
                                         sx={{
                                             px: 2,
-                                            py: 1.5,
-                                            borderBottom: '1px solid rgba(15,23,42,0.08)',
-                                            bgcolor: '#ffffff'
+                                            py: 1.75,
+                                            borderBottom: '1px solid rgba(79,70,229,0.1)',
+                                            background: 'linear-gradient(135deg, rgba(238,242,255,0.95) 0%, rgba(255,255,255,0.98) 100%)'
                                         }}
                                     >
                                         <Box sx={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-                                            <Typography sx={{fontSize: 22, fontWeight: 800, color: '#0f172a'}}>
-                                                Đoạn chat
+                                            <Typography sx={{fontSize: 17, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em'}}>
+                                                Tin nhắn
                                             </Typography>
                                         </Box>
                                         <Box
                                             sx={{
                                                 mt: 1.5,
                                                 px: 1.25,
-                                                py: 0.9,
+                                                py: 0.85,
                                                 borderRadius: 999,
-                                                bgcolor: '#f1f5f9',
+                                                bgcolor: 'rgba(79,70,229,0.06)',
+                                                border: '1px solid rgba(79,70,229,0.12)',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 gap: 1
                                             }}
                                         >
-                                            <SearchIcon sx={{fontSize: 19, color: '#94a3b8'}}/>
-                                            <Typography sx={{fontSize: 14, color: '#64748b'}}>
-                                                Tìm kiếm trên đoạn chat
+                                            <SearchIcon sx={{fontSize: 19, color: '#818cf8'}}/>
+                                            <Typography sx={{fontSize: 13, color: '#64748b'}}>
+                                                Tìm cuộc trò chuyện
                                             </Typography>
                                         </Box>
                                     </Box>
@@ -895,7 +929,7 @@ function MainHeader() {
                                                                 }
                                                             }}
                                                         >
-                                                            <Avatar sx={{width: 38, height: 38, bgcolor: '#1d4ed8', fontSize: 14, fontWeight: 700}}>
+                                                            <Avatar sx={{width: 40, height: 40, bgcolor: '#4f46e5', fontSize: 15, fontWeight: 700, boxShadow: '0 4px 12px rgba(79,70,229,0.35)'}}>
                                                                 {conversationName.charAt(0).toUpperCase()}
                                                             </Avatar>
                                                             <Box sx={{minWidth: 0, flex: 1}}>
@@ -953,42 +987,57 @@ function MainHeader() {
                                             position: 'fixed',
                                             right: {xs: 74, sm: 100},
                                             bottom: 16,
-                                            width: {xs: 'calc(100vw - 16px)', sm: 360},
-                                            height: 520,
-                                            bgcolor: '#ffffff',
+                                            width: {xs: 'calc(100vw - 16px)', sm: 380},
+                                            height: 540,
                                             borderRadius: 3,
                                             overflow: 'hidden',
-                                            boxShadow: '0 16px 34px rgba(30,64,175,0.22)',
-                                            border: '1px solid rgba(37,99,235,0.25)',
                                             zIndex: 1500,
                                             display: 'flex',
-                                            flexDirection: 'column'
+                                            flexDirection: 'column',
+                                            bgcolor: '#f8fafc',
+                                            border: '1px solid rgba(79,70,229,0.2)',
+                                            boxShadow: '0 24px 56px rgba(15,23,42,0.18), 0 0 0 1px rgba(255,255,255,0.5) inset'
                                         }}
                                     >
                                         <Box
                                             sx={{
                                                 px: 1.5,
-                                                py: 1,
+                                                py: 1.15,
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'space-between',
-                                                bgcolor: '#eff6ff',
-                                                borderBottom: '1px solid rgba(37,99,235,0.18)'
+                                                background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 55%, #7c3aed 100%)',
+                                                borderBottom: '1px solid rgba(255,255,255,0.12)',
+                                                flexShrink: 0
                                             }}
                                         >
-                                            <Box sx={{display: 'flex', alignItems: 'center', gap: 1}}>
-                                                <Avatar sx={{width: 30, height: 30, bgcolor: '#2563eb', fontSize: 13}}>
+                                            <Box sx={{display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0}}>
+                                                <Avatar
+                                                    sx={{
+                                                        width: 36,
+                                                        height: 36,
+                                                        bgcolor: 'rgba(255,255,255,0.22)',
+                                                        fontSize: 15,
+                                                        fontWeight: 800,
+                                                        border: '2px solid rgba(255,255,255,0.35)'
+                                                    }}
+                                                >
                                                     {(selectedConversation?.title || selectedConversation?.name || 'C').charAt(0).toUpperCase()}
                                                 </Avatar>
-                                                <Typography sx={{fontSize: 14, fontWeight: 700, color: '#1e3a8a'}} noWrap>
-                                                    {selectedConversation?.title || selectedConversation?.name || selectedConversation?.schoolName || 'Cuộc trò chuyện'}
-                                                </Typography>
+                                                <Box sx={{minWidth: 0}}>
+                                                    <Typography sx={{fontSize: 14, fontWeight: 800, color: '#fff', lineHeight: 1.25}} noWrap>
+                                                        {selectedConversation?.title || selectedConversation?.name || selectedConversation?.schoolName || 'Cuộc trò chuyện'}
+                                                    </Typography>
+                                                    <Typography sx={{fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.78)', mt: 0.15}}>
+                                                        Tư vấn viên
+                                                    </Typography>
+                                                </Box>
                                             </Box>
-                                            <Box sx={{display: 'flex', alignItems: 'center', gap: 0.5}}>
-                                                <IconButton size="small" onClick={handleMinimizeChatWindow} sx={{color: '#2563eb'}}>
+                                            <Box sx={{display: 'flex', alignItems: 'center', gap: 0.25}}>
+                                                <IconButton size="small" onClick={handleMinimizeChatWindow} sx={{color: 'rgba(255,255,255,0.92)'}}>
                                                     <RemoveIcon sx={{fontSize: 18}}/>
                                                 </IconButton>
-                                                <IconButton size="small" onClick={handleCloseChatWindow} sx={{color: '#2563eb'}}>
+                                                <IconButton size="small" onClick={handleCloseChatWindow} sx={{color: 'rgba(255,255,255,0.92)'}}>
                                                     <CloseIcon sx={{fontSize: 18}}/>
                                                 </IconButton>
                                             </Box>
@@ -999,76 +1048,158 @@ function MainHeader() {
                                             sx={{
                                                 flex: 1,
                                                 minHeight: 0,
-                                                px: 1.25,
-                                                pt: 1.25,
+                                                px: 1.5,
+                                                pt: 1.5,
                                                 pb: 2,
                                                 overflowY: 'auto',
-                                                bgcolor: '#f8fbff'
+                                                overflowX: 'hidden',
+                                                background: `
+                                                    linear-gradient(180deg, rgba(238,242,255,0.65) 0%, rgba(248,250,252,0.98) 28%, #f1f5f9 100%),
+                                                    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99,102,241,0.12), transparent 55%)
+                                                `,
+                                                WebkitOverflowScrolling: 'touch'
                                             }}
                                         >
                                             {messageLoading && messageItems.length === 0 ? (
-                                                <Box sx={{display: 'flex', justifyContent: 'center', alignItems: 'center', py: 4}}>
-                                                    <CircularProgress size={22}/>
+                                                <Box sx={{display: 'flex', justifyContent: 'center', alignItems: 'center', py: 5}}>
+                                                    <CircularProgress size={24} sx={{color: '#4f46e5'}}/>
                                                 </Box>
                                             ) : messageError ? (
                                                 <Typography sx={{fontSize: 13, color: '#dc2626'}}>{messageError}</Typography>
                                             ) : messageItems.length === 0 ? (
-                                                <Typography sx={{fontSize: 13, color: '#64748b', textAlign: 'center', mt: 2}}>
-                                                    Chưa có tin nhắn nào trong cuộc trò chuyện này
-                                                </Typography>
+                                                <Box sx={{textAlign: 'center', py: 4, px: 2}}>
+                                                    <ChatBubbleRoundedIcon sx={{fontSize: 40, color: 'rgba(79,70,229,0.35)', mb: 1}}/>
+                                                    <Typography sx={{fontSize: 13, color: '#64748b', lineHeight: 1.55}}>
+                                                        Chưa có tin nhắn. Hãy chào tư vấn viên để bắt đầu cuộc trò chuyện.
+                                                    </Typography>
+                                                </Box>
                                             ) : (
-                                                messageItems.map((msg) => {
-                                                    const isMine = isParentMessageMine(msg);
-                                                    return (
-                                                        <Box key={msg.id} sx={{display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', mb: 0.5}}>
-                                                            <Box sx={{maxWidth: '78%'}}>
+                                                groupedParentMessages.map((group) => (
+                                                    <Box key={group.key} sx={{mb: 0.5}}>
+                                                        <Box sx={{display: 'flex', justifyContent: 'center', mb: 1.25, mt: 0.5}}>
+                                                            <Typography
+                                                                component="span"
+                                                                sx={{
+                                                                    fontSize: 11,
+                                                                    fontWeight: 600,
+                                                                    color: '#64748b',
+                                                                    px: 1.5,
+                                                                    py: 0.45,
+                                                                    borderRadius: 999,
+                                                                    bgcolor: 'rgba(255,255,255,0.85)',
+                                                                    border: '1px solid rgba(148,163,184,0.35)',
+                                                                    boxShadow: '0 1px 2px rgba(15,23,42,0.06)'
+                                                                }}
+                                                            >
+                                                                {group.label}
+                                                            </Typography>
+                                                        </Box>
+                                                        {group.items.map((msg, idx) => {
+                                                            const isMine = isParentMessageMine(msg);
+                                                            const prev = idx > 0 ? group.items[idx - 1] : null;
+                                                            const prevIsMine = prev ? isParentMessageMine(prev) : null;
+                                                            const showPeerAvatar = !isMine && (idx === 0 || prevIsMine === true);
+                                                            const stackTight = idx > 0 && prevIsMine === isMine;
+                                                            const peerLabel = selectedConversation?.title || selectedConversation?.name || selectedConversation?.schoolName || 'T';
+                                                            return (
                                                                 <Box
+                                                                    key={msg.id}
                                                                     sx={{
-                                                                        px: 1.75,
-                                                                        py: 1.05,
-                                                                        borderRadius: '18px',
-                                                                        borderBottomRightRadius: isMine ? '4px' : '18px',
-                                                                        borderBottomLeftRadius: isMine ? '18px' : '4px',
-                                                                        bgcolor: isMine ? '#0084ff' : '#e5e5ea',
-                                                                        color: isMine ? '#ffffff' : '#0f172a',
-                                                                        border: 'none',
-                                                                        boxShadow: isMine ? '0 1px 1px rgba(0,0,0,0.08)' : 'none'
+                                                                        display: 'flex',
+                                                                        justifyContent: isMine ? 'flex-end' : 'flex-start',
+                                                                        alignItems: 'flex-end',
+                                                                        gap: 0.75,
+                                                                        mb: stackTight ? 0.35 : 1.1,
+                                                                        pl: isMine ? 3 : 0,
+                                                                        pr: isMine ? 0 : 0
                                                                     }}
                                                                 >
-                                                                    <Typography sx={{fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.5}}>
-                                                                        {msg.text}
-                                                                    </Typography>
+                                                                    {!isMine && (
+                                                                        <Box sx={{width: 32, flexShrink: 0, display: 'flex', justifyContent: 'center', pb: 0.25}}>
+                                                                            {showPeerAvatar ? (
+                                                                                <Avatar
+                                                                                    sx={{
+                                                                                        width: 32,
+                                                                                        height: 32,
+                                                                                        fontSize: 13,
+                                                                                        fontWeight: 700,
+                                                                                        bgcolor: '#4f46e5',
+                                                                                        boxShadow: '0 2px 8px rgba(79,70,229,0.35)'
+                                                                                    }}
+                                                                                >
+                                                                                    {peerLabel.charAt(0).toUpperCase()}
+                                                                                </Avatar>
+                                                                            ) : (
+                                                                                <Box sx={{width: 32}}/>
+                                                                            )}
+                                                                        </Box>
+                                                                    )}
+                                                                    <Box sx={{maxWidth: isMine ? '82%' : 'calc(100% - 40px)', minWidth: 0}}>
+                                                                        <Box
+                                                                            sx={{
+                                                                                px: 1.6,
+                                                                                py: 1,
+                                                                                borderRadius: 2.25,
+                                                                                borderTopLeftRadius: !isMine ? (stackTight ? 2.25 : 0.5) : 2.25,
+                                                                                borderTopRightRadius: isMine ? (stackTight ? 2.25 : 0.5) : 2.25,
+                                                                                background: isMine
+                                                                                    ? 'linear-gradient(145deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%)'
+                                                                                    : '#ffffff',
+                                                                                color: isMine ? '#ffffff' : '#0f172a',
+                                                                                border: isMine ? 'none' : '1px solid rgba(148,163,184,0.4)',
+                                                                                boxShadow: isMine
+                                                                                    ? '0 2px 8px rgba(79,70,229,0.28), 0 1px 0 rgba(255,255,255,0.12) inset'
+                                                                                    : '0 1px 3px rgba(15,23,42,0.06)'
+                                                                            }}
+                                                                        >
+                                                                            <Typography sx={{fontSize: 13.5, whiteSpace: 'pre-wrap', lineHeight: 1.5, wordBreak: 'break-word'}}>
+                                                                                {msg.text}
+                                                                            </Typography>
+                                                                        </Box>
+                                                                        {msg.sentAt && (
+                                                                            <Typography
+                                                                                sx={{
+                                                                                    mt: 0.35,
+                                                                                    fontSize: 10.5,
+                                                                                    fontWeight: 500,
+                                                                                    textAlign: isMine ? 'right' : 'left',
+                                                                                    color: '#94a3b8',
+                                                                                    lineHeight: 1.2,
+                                                                                    px: 0.35
+                                                                                }}
+                                                                            >
+                                                                                {formatMessageTime(msg.sentAt)}
+                                                                            </Typography>
+                                                                        )}
+                                                                    </Box>
                                                                 </Box>
-                                                                {msg.sentAt && (
-                                                                    <Typography
-                                                                        sx={{
-                                                                            mt: 0.25,
-                                                                            fontSize: 10.5,
-                                                                            textAlign: isMine ? 'right' : 'left',
-                                                                            color: '#64748b',
-                                                                            lineHeight: 1.2
-                                                                        }}
-                                                                    >
-                                                                        {formatMessageTime(msg.sentAt)}
-                                                                    </Typography>
-                                                                )}
-                                                            </Box>
-                                                        </Box>
-                                                    );
-                                                })
+                                                            );
+                                                        })}
+                                                    </Box>
+                                                ))
                                             )}
                                         </Box>
-                                        <Box sx={{px: 1, py: 0.9, borderTop: '1px solid rgba(37,99,235,0.18)', bgcolor: '#ffffff'}}>
+                                        <Box
+                                            sx={{
+                                                px: 1.25,
+                                                py: 1,
+                                                borderTop: '1px solid rgba(79,70,229,0.12)',
+                                                bgcolor: 'rgba(255,255,255,0.96)',
+                                                backdropFilter: 'blur(8px)',
+                                                flexShrink: 0
+                                            }}
+                                        >
                                             <Box
                                                 sx={{
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     gap: 1,
-                                                    borderRadius: 999,
-                                                    px: 1.2,
-                                                    py: 0.45,
-                                                    bgcolor: '#f1f5ff',
-                                                    border: '1px solid rgba(37,99,235,0.18)'
+                                                    borderRadius: 2.5,
+                                                    px: 1.35,
+                                                    py: 0.55,
+                                                    bgcolor: 'rgba(79,70,229,0.06)',
+                                                    border: '1px solid rgba(79,70,229,0.15)',
+                                                    boxShadow: '0 1px 0 rgba(255,255,255,0.8) inset'
                                                 }}
                                             >
                                                 <InputBase
@@ -1081,10 +1212,19 @@ function MainHeader() {
                                                             handleSendMessage();
                                                         }
                                                     }}
-                                                    placeholder="Aa"
-                                                    sx={{flex: 1, fontSize: 14, color: '#0f172a'}}
+                                                    placeholder="Nhập tin nhắn…"
+                                                    sx={{flex: 1, fontSize: 14, color: '#0f172a', '& ::placeholder': {color: '#94a3b8', opacity: 1}}}
                                                 />
-                                                <IconButton size="small" onClick={handleSendMessage} sx={{color: '#60a5fa'}}>
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={handleSendMessage}
+                                                    disabled={!chatInput.trim()}
+                                                    sx={{
+                                                        color: chatInput.trim() ? '#4f46e5' : 'rgba(79,70,229,0.35)',
+                                                        bgcolor: chatInput.trim() ? 'rgba(79,70,229,0.12)' : 'transparent',
+                                                        '&:hover': {bgcolor: chatInput.trim() ? 'rgba(79,70,229,0.2)' : 'transparent'}
+                                                    }}
+                                                >
                                                     <SendRoundedIcon fontSize="small"/>
                                                 </IconButton>
                                             </Box>
@@ -1125,8 +1265,9 @@ function MainHeader() {
                                                 sx={{
                                                     width: 56,
                                                     height: 56,
-                                                    bgcolor: '#2563eb',
-                                                    boxShadow: '0 10px 24px rgba(0,0,0,0.28)'
+                                                    bgcolor: '#4f46e5',
+                                                    boxShadow: '0 10px 28px rgba(79,70,229,0.45)',
+                                                    border: '2px solid rgba(255,255,255,0.35)'
                                                 }}
                                             >
                                                 {(selectedConversation?.title || selectedConversation?.name || 'C').charAt(0).toUpperCase()}
