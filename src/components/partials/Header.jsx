@@ -38,7 +38,7 @@ import {getParentMessagesHistory, markParentMessagesRead} from "../../services/M
 import {buildPrivateChatPayload, connectPrivateMessageSocket, disconnect, sendMessage} from "../../services/WebSocketService.jsx";
 import logo from "../../assets/logo.png";
 import {useLocation, useNavigate} from "react-router-dom";
-import {BRAND_AQUA, BRAND_NAVY, BRAND_SKY, BRAND_SKY_LIGHT} from "../../constants/homeLandingTheme";
+import {BRAND_NAVY, BRAND_SKY, BRAND_SKY_LIGHT} from "../../constants/homeLandingTheme";
 
 const isSameConversationId = (a, b) => a != null && b != null && String(a) === String(b);
 
@@ -577,9 +577,9 @@ function MainHeader() {
     const navButtonSx = (path) => {
         const active = isActivePath(path);
         const hero = isHomeHeroTransparent;
-        const inactiveColor = hero ? 'rgba(255,255,255,0.88)' : '#475569';
+        const inactiveColor = hero ? 'rgba(255,255,255,0.9)' : '#475569';
         const activeColor = hero ? '#ffffff' : brandIndigo;
-        const underlineBg = hero ? BRAND_AQUA : BRAND_SKY;
+        const underlineBg = hero ? 'rgba(255,255,255,0.85)' : BRAND_SKY;
         return {
             fontWeight: 700,
             color: active ? activeColor : inactiveColor,
@@ -696,15 +696,15 @@ function MainHeader() {
                                 fontSize: {xs: '1.15rem', sm: '1.35rem'},
                                 ...(isHomeHeroTransparent
                                     ? {
-                                        color: '#ffffff',
-                                        textShadow: '0 2px 18px rgba(15,23,42,0.2)'
-                                    }
+                                          color: '#ffffff',
+                                          textShadow: '0 1px 2px rgba(15,23,42,0.35)'
+                                      }
                                     : {
-                                        background: `linear-gradient(120deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 50%, ${BRAND_SKY_LIGHT} 100%)`,
-                                        WebkitBackgroundClip: 'text',
-                                        WebkitTextFillColor: 'transparent',
-                                        backgroundClip: 'text'
-                                    })
+                                          background: `linear-gradient(120deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 50%, ${BRAND_SKY_LIGHT} 100%)`,
+                                          WebkitBackgroundClip: 'text',
+                                          WebkitTextFillColor: 'transparent',
+                                          backgroundClip: 'text'
+                                      })
                             }}
                         >
                             EduBridgeHCM
@@ -826,27 +826,27 @@ function MainHeader() {
                                                 height: 42,
                                                 ...(isHomeHeroTransparent
                                                     ? {
-                                                        bgcolor: 'rgba(255,255,255,0.16)',
-                                                        color: '#ffffff',
-                                                        border: '1px solid rgba(255,255,255,0.35)',
-                                                        '&:hover': {
-                                                            bgcolor: 'rgba(255,255,255,0.26)',
-                                                            color: '#ffffff',
-                                                            transform: 'translateY(-1px)',
-                                                            boxShadow: '0 4px 14px rgba(15,23,42,0.2)'
-                                                        }
-                                                    }
+                                                          bgcolor: 'rgba(255,255,255,0.14)',
+                                                          color: '#ffffff',
+                                                          border: '1px solid rgba(255,255,255,0.38)',
+                                                          '&:hover': {
+                                                              bgcolor: 'rgba(255,255,255,0.22)',
+                                                              color: '#ffffff',
+                                                              transform: 'translateY(-1px)',
+                                                              boxShadow: '0 4px 14px rgba(0,0,0,0.2)'
+                                                          }
+                                                      }
                                                     : {
-                                                        bgcolor: 'rgba(45,95,115,0.1)',
-                                                        color: BRAND_NAVY,
-                                                        border: '1px solid rgba(85,179,217,0.35)',
-                                                        '&:hover': {
-                                                            bgcolor: 'rgba(45,95,115,0.16)',
-                                                            color: '#265a6b',
-                                                            transform: 'translateY(-1px)',
-                                                            boxShadow: '0 4px 14px rgba(45,95,115,0.28)'
-                                                        }
-                                                    }),
+                                                          bgcolor: 'rgba(45,95,115,0.08)',
+                                                          color: BRAND_NAVY,
+                                                          border: '1px solid rgba(85,179,217,0.4)',
+                                                          '&:hover': {
+                                                              bgcolor: 'rgba(45,95,115,0.12)',
+                                                              color: '#265a6b',
+                                                              transform: 'translateY(-1px)',
+                                                              boxShadow: '0 4px 14px rgba(45,95,115,0.22)'
+                                                          }
+                                                      }),
                                                 transition: 'all 0.2s ease'
                                             }}
                                         >
@@ -1532,25 +1532,13 @@ function MainHeader() {
                                     py: 1.15,
                                     fontSize: 15,
                                     textTransform: 'none',
-                                    ...(isHomeHeroTransparent
-                                        ? {
-                                            color: BRAND_NAVY,
-                                            bgcolor: '#ffffff',
-                                            boxShadow: '0 8px 24px rgba(15, 23, 42, 0.18)',
-                                            '&:hover': {
-                                                bgcolor: 'rgba(136,232,242,0.25)',
-                                                boxShadow: '0 12px 32px rgba(15, 23, 42, 0.22)'
-                                            }
-                                        }
-                                        : {
-                                            color: '#fff',
-                                            background: `linear-gradient(90deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 100%)`,
-                                            boxShadow: '0 8px 24px rgba(45, 95, 115, 0.35)',
-                                            '&:hover': {
-                                                background: `linear-gradient(90deg, #265a6b 0%, ${BRAND_NAVY} 100%)`,
-                                                boxShadow: '0 12px 32px rgba(45, 95, 115, 0.42)'
-                                            }
-                                        })
+                                    color: '#fff',
+                                    background: `linear-gradient(90deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 100%)`,
+                                    boxShadow: '0 8px 24px rgba(45, 95, 115, 0.32)',
+                                    '&:hover': {
+                                        background: `linear-gradient(90deg, #265a6b 0%, ${BRAND_NAVY} 100%)`,
+                                        boxShadow: '0 12px 32px rgba(45, 95, 115, 0.42)'
+                                    }
                                 }}
                                 onClick={handleButtonClick}
                             >
@@ -1564,17 +1552,17 @@ function MainHeader() {
                             display: {md: 'none'},
                             ...(isHomeHeroTransparent
                                 ? {
-                                    color: '#ffffff',
-                                    border: '1px solid rgba(255,255,255,0.45)',
-                                    bgcolor: 'rgba(255,255,255,0.12)',
-                                    '&:hover': {bgcolor: 'rgba(255,255,255,0.2)'}
-                                }
+                                      color: '#ffffff',
+                                      border: '1px solid rgba(255,255,255,0.45)',
+                                      bgcolor: 'rgba(255,255,255,0.12)',
+                                      '&:hover': {bgcolor: 'rgba(255,255,255,0.2)'}
+                                  }
                                 : {
-                                    color: BRAND_NAVY,
-                                    border: '1px solid rgba(85,179,217,0.45)',
-                                    bgcolor: 'rgba(255,255,255,0.6)',
-                                    '&:hover': {bgcolor: 'rgba(45,95,115,0.08)'}
-                                })
+                                      color: BRAND_NAVY,
+                                      border: '1px solid rgba(85,179,217,0.45)',
+                                      bgcolor: 'rgba(255,255,255,0.65)',
+                                      '&:hover': {bgcolor: 'rgba(45,95,115,0.08)'}
+                                  })
                         }}
                         onClick={handleMobileMenuToggle}
                     >

@@ -2,39 +2,19 @@ import React from "react";
 import {Box, Container, Divider, Grid, Link, Typography} from "@mui/material";
 import PhoneIcon from '@mui/icons-material/Phone';
 import EmailIcon from '@mui/icons-material/Email';
-import {
-    BRAND_AQUA,
-    BRAND_BLUE_GRADIENT,
-    BRAND_BLUE_GRADIENT_OVERLAY,
-    BRAND_NAVY
-} from "../../constants/homeLandingTheme";
-
-const footerSx = {
-    position: 'relative',
-    overflow: 'hidden',
-    color: 'common.white',
-    pt: {xs: 6, md: 8},
-    pb: 3,
-    background: BRAND_BLUE_GRADIENT,
-    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.18)',
-    '&::before': {
-        content: '""',
-        position: 'absolute',
-        inset: 0,
-        pointerEvents: 'none',
-        background: BRAND_BLUE_GRADIENT_OVERLAY
-    }
-};
+import {BRAND_AQUA, HOME_PAGE_HERO_BACKDROP} from "../../constants/homeLandingTheme";
+import LayeredMountainSilhouette from "../ui/LayeredMountainSilhouette.jsx";
 
 const sectionTitleSx = {
     fontWeight: 800,
     mb: 2,
-    color: 'common.white',
+    color: '#ffffff',
     letterSpacing: '0.06em',
     fontSize: '0.95rem',
     position: 'relative',
     display: 'inline-block',
     pl: {xs: 0, md: 1.5},
+    textShadow: '0 1px 3px rgba(0,0,0,0.45)',
     '&::before': {
         content: '""',
         display: {xs: 'none', md: 'block'},
@@ -44,35 +24,63 @@ const sectionTitleSx = {
         width: 3,
         height: '1em',
         borderRadius: 1,
-        background: `linear-gradient(180deg, ${BRAND_AQUA} 0%, ${BRAND_NAVY} 100%)`
+        background: `linear-gradient(180deg, ${BRAND_AQUA} 0%, rgba(255,255,255,0.85) 100%)`
     }
 };
 
 const linkSx = {
-    color: 'rgba(255,255,255,0.92)',
+    color: 'rgba(255,255,255,0.95)',
     textDecoration: 'none',
     display: 'inline-block',
     py: 0.25,
     borderRadius: 1,
+    textShadow: '0 1px 2px rgba(0,0,0,0.35)',
     transition: 'color 0.2s ease, transform 0.2s ease, background-color 0.2s ease',
     '&:hover': {
         color: BRAND_AQUA,
         transform: 'translateX(2px)',
-        backgroundColor: 'rgba(255,255,255,0.06)'
+        backgroundColor: 'rgba(255,255,255,0.1)'
     }
 };
 
 export default function Footer() {
     return (
-        <Box sx={footerSx}>
+        <Box
+            component="footer"
+            sx={{
+                position: 'relative',
+                width: '100%',
+                overflow: 'hidden',
+                bgcolor: HOME_PAGE_HERO_BACKDROP,
+                minHeight: {xs: 480, md: 520}
+            }}
+        >
+            <LayeredMountainSilhouette variant="footer"/>
             <Container
                 maxWidth={false}
                 sx={{
-                    px: {xs: 2, md: 8},
                     position: 'relative',
-                    zIndex: 1
+                    zIndex: 1,
+                    px: {xs: 2, md: 8},
+                    minHeight: {xs: 480, md: 520},
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'flex-end',
+                    py: {xs: 4, md: 5}
                 }}
             >
+                <Box
+                    sx={{
+                        p: {xs: 2.5, md: 3.5},
+                        borderRadius: {xs: 2.5, md: 3},
+                        bgcolor: 'rgba(6, 18, 28, 0.82)',
+                        backdropFilter: 'blur(14px)',
+                        WebkitBackdropFilter: 'blur(14px)',
+                        border: '1px solid rgba(255,255,255,0.12)',
+                        boxShadow: '0 12px 40px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06)',
+                        color: 'rgba(255,255,255,0.95)'
+                    }}
+                >
                 <Grid
                     container
                     spacing={4}
@@ -112,8 +120,8 @@ export default function Footer() {
                                 mb: 0.5
                             }}
                         >
-                            <PhoneIcon sx={{fontSize: 18, color: 'rgba(186,230,253,0.95)'}}/>
-                            <Typography variant="body2" sx={{color: 'rgba(255,255,255,0.95)'}}>0839-674-767</Typography>
+                            <PhoneIcon sx={{fontSize: 18, color: BRAND_AQUA}}/>
+                            <Typography variant="body2" sx={{color: 'rgba(255,255,255,0.9)'}}>0839-674-767</Typography>
                         </Box>
                         <Box
                             sx={{
@@ -124,8 +132,8 @@ export default function Footer() {
                                 mb: 1
                             }}
                         >
-                            <EmailIcon sx={{fontSize: 18, color: 'rgba(186,230,253,0.95)'}}/>
-                            <Typography variant="body2" sx={{color: 'rgba(255,255,255,0.95)'}}>admission@hcmhighschool.edu.vn</Typography>
+                            <EmailIcon sx={{fontSize: 18, color: BRAND_AQUA}}/>
+                            <Typography variant="body2" sx={{color: 'rgba(255,255,255,0.9)'}}>admission@hcmhighschool.edu.vn</Typography>
                         </Box>
                     </Grid>
 
@@ -174,7 +182,7 @@ export default function Footer() {
                         </Box>
                     </Grid>
                 </Grid>
-                <Divider sx={{my: 4, borderColor: 'rgba(186,230,253,0.22)'}}/>
+                <Divider sx={{my: 4, borderColor: 'rgba(255,255,255,0.18)'}}/>
                 <Box sx={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -182,11 +190,12 @@ export default function Footer() {
                     justifyContent: 'center',
                     gap: 1,
                     pt: 0.5,
-                    pb: 1
+                    pb: 0.5
                 }}>
-                    <Typography variant="body2" align="center" sx={{color: 'rgba(224,242,254,0.72)', maxWidth: 560}}>
+                    <Typography variant="body2" align="center" sx={{color: 'rgba(255,255,255,0.72)', maxWidth: 560}}>
                         © {new Date().getFullYear()} EduBridgeHCM - Nền Tảng Tư Vấn Tuyển Sinh. Tất cả quyền được bảo lưu.
                     </Typography>
+                </Box>
                 </Box>
             </Container>
         </Box>

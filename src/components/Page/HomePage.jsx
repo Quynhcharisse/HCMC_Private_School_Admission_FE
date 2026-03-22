@@ -42,14 +42,17 @@ import {
 } from "@mui/icons-material";
 import {useNavigate} from "react-router-dom";
 import {
-    BRAND_BLUE_GRADIENT_OVERLAY,
     BRAND_NAVY,
     BRAND_SKY,
     BRAND_SKY_LIGHT,
-    HOME_HERO_SHELF_GRADIENT,
+    HOME_PAGE_HERO_BACKDROP,
+    HOME_PAGE_SURFACE_GRADIENT,
     landingSectionShadow
 } from "../../constants/homeLandingTheme";
 import Chatbot from "../ui/Chatbot";
+import LayeredMountainSilhouette from "../ui/LayeredMountainSilhouette.jsx";
+
+const heroMuted = 'rgba(52,102,118,0.82)';
 
 const ADMISSION_CAROUSEL_INTERVAL_MS = 7000;
 const ADMISSION_ANIM_MS = 1400;
@@ -352,7 +355,7 @@ function LatestAdmissionNewsSection() {
             id="tin-tuyen-sinh"
             sx={{
                 py: {xs: 8, md: 10},
-                background: 'linear-gradient(180deg, #f5f3ff 0%, #eef2ff 40%, #f8fafc 100%)',
+                background: 'linear-gradient(180deg, #f8f4ff 0%, #f2f4ff 40%, #fbfcfe 100%)',
                 scrollMarginTop: '80px',
                 position: 'relative'
             }}
@@ -729,7 +732,7 @@ export default function HomePage() {
                 minHeight: '100vh',
                 overflow: 'hidden',
                 pt: 0,
-                background: 'linear-gradient(180deg, #f8fafc 0%, #eef2ff 38%, #fdf2f8 72%, #ffffff 100%)'
+                background: HOME_PAGE_SURFACE_GRADIENT
             }}
         >
             <Dialog
@@ -870,20 +873,14 @@ export default function HomePage() {
                 sx={{
                     position: 'relative',
                     pt: {xs: 'calc(72px + 40px)', md: 'calc(80px + 56px)'},
-                    pb: {xs: 9, md: 12},
+                    pb: {xs: 18, md: 26},
                     overflow: 'hidden',
-                    background: HOME_HERO_SHELF_GRADIENT,
-                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.14)',
-                    '&::before': {
-                        content: '""',
-                        position: 'absolute',
-                        inset: 0,
-                        pointerEvents: 'none',
-                        background: BRAND_BLUE_GRADIENT_OVERLAY
-                    }
+                    background: HOME_PAGE_HERO_BACKDROP,
+                    boxShadow: '0 24px 48px rgba(45, 95, 115, 0.045)'
                 }}
             >
-                <Container maxWidth="lg" sx={{position: 'relative', zIndex: 1, px: {xs: 2, md: 3}}}>
+                <LayeredMountainSilhouette variant="hero"/>
+                <Container maxWidth="lg" sx={{position: 'relative', zIndex: 1, px: {xs: 2, md: 3}, py: 0}}>
                     <Box
                         sx={{
                             display: 'grid',
@@ -897,6 +894,17 @@ export default function HomePage() {
                             <Box sx={{textAlign: {xs: 'center', md: 'left'}, width: '100%'}}>
                                 <Box
                                     sx={{
+                                        p: {xs: 2.25, md: 3},
+                                        borderRadius: 4,
+                                        bgcolor: 'rgba(255,255,255,0.44)',
+                                        backdropFilter: 'blur(14px)',
+                                        WebkitBackdropFilter: 'blur(14px)',
+                                        border: '1px solid rgba(255,255,255,0.65)',
+                                        boxShadow: '0 16px 48px rgba(45,95,115,0.06)'
+                                    }}
+                                >
+                                <Box
+                                    sx={{
                                         display: 'inline-flex',
                                         alignItems: 'center',
                                         gap: 1,
@@ -904,14 +912,14 @@ export default function HomePage() {
                                         px: 2.25,
                                         py: 0.85,
                                         borderRadius: 999,
-                                        bgcolor: 'rgba(255,255,255,0.18)',
+                                        bgcolor: 'rgba(255,255,255,0.62)',
                                         backdropFilter: 'blur(10px)',
-                                        border: '1px solid rgba(255,255,255,0.35)',
-                                        boxShadow: '0 8px 28px rgba(15,23,42,0.12)'
+                                        border: `1px solid rgba(85,179,217,0.45)`,
+                                        boxShadow: '0 8px 28px rgba(45,95,115,0.08)'
                                     }}
                                 >
-                                    <SparkleIcon sx={{fontSize: 20, color: '#e0f2fe'}}/>
-                                    <Typography sx={{fontSize: '0.8125rem', fontWeight: 700, letterSpacing: '0.06em', color: '#f8fafc'}}>
+                                    <SparkleIcon sx={{fontSize: 20, color: BRAND_SKY}}/>
+                                    <Typography sx={{fontSize: '0.8125rem', fontWeight: 700, letterSpacing: '0.06em', color: BRAND_NAVY}}>
                                         TƯ VẤN TUYỂN SINH THÔNG MINH
                                     </Typography>
                                 </Box>
@@ -923,8 +931,12 @@ export default function HomePage() {
                                         fontSize: {xs: '2.2rem', sm: '2.75rem', md: '3.25rem'},
                                         lineHeight: 1.08,
                                         letterSpacing: '-0.03em',
-                                        color: '#ffffff',
-                                        textShadow: '0 2px 28px rgba(15,23,42,0.18)'
+                                        // Giữ gradient nhưng không dùng tông quá nhạt ở cuối — tránh chìm vào nền kính xanh nhạt
+                                        background: `linear-gradient(120deg, #1a4a5c 0%, ${BRAND_NAVY} 32%, #3a7d96 68%, ${BRAND_SKY} 100%)`,
+                                        WebkitBackgroundClip: 'text',
+                                        WebkitTextFillColor: 'transparent',
+                                        backgroundClip: 'text',
+                                        filter: 'drop-shadow(0 1px 0 rgba(255,255,255,0.65))'
                                     }}
                                 >
                                     Kết nối phụ huynh và nhà trường
@@ -937,7 +949,7 @@ export default function HomePage() {
                                         fontWeight: 400,
                                         fontSize: {xs: '1.05rem', md: '1.2rem'},
                                         lineHeight: 1.75,
-                                        color: 'rgba(255,255,255,0.9)',
+                                        color: heroMuted,
                                         maxWidth: 520,
                                         mx: {xs: 'auto', md: 0}
                                     }}
@@ -963,12 +975,12 @@ export default function HomePage() {
                                                 fontWeight: 700,
                                                 borderRadius: 999,
                                                 textTransform: 'none',
-                                                boxShadow: '0 14px 36px rgba(15, 23, 42, 0.18)',
+                                                boxShadow: '0 12px 32px rgba(45, 95, 115, 0.12), 0 2px 8px rgba(255,255,255,0.9) inset',
                                                 minWidth: {xs: '100%', sm: 200},
                                                 transition: `transform 0.35s ${consultMotionEase}, box-shadow 0.35s ease`,
                                                 '&:hover': {
-                                                    bgcolor: '#eff6ff',
-                                                    boxShadow: '0 18px 44px rgba(15, 23, 42, 0.22)',
+                                                    bgcolor: '#ffffff',
+                                                    boxShadow: '0 18px 44px rgba(45, 95, 115, 0.16), 0 2px 10px rgba(255,255,255,0.95) inset',
                                                     transform: 'translateY(-2px)'
                                                 }
                                             }}
@@ -987,13 +999,13 @@ export default function HomePage() {
                                             fontWeight: 700,
                                             px: 3,
                                             py: 1.35,
-                                            borderColor: 'rgba(255,255,255,0.55)',
-                                            color: '#ffffff',
-                                            bgcolor: 'rgba(255,255,255,0.12)',
+                                            borderColor: 'rgba(85,179,217,0.65)',
+                                            color: BRAND_NAVY,
+                                            bgcolor: 'rgba(255,255,255,0.45)',
                                             minWidth: {xs: '100%', sm: 200},
                                             '&:hover': {
-                                                borderColor: '#ffffff',
-                                                bgcolor: 'rgba(255,255,255,0.22)'
+                                                borderColor: BRAND_NAVY,
+                                                bgcolor: 'rgba(255,255,255,0.75)'
                                             }
                                         }}
                                     >
@@ -1007,8 +1019,8 @@ export default function HomePage() {
                                     sx={{justifyContent: {xs: 'center', md: 'flex-start'}, gap: 1.5}}
                                 >
                                     {[
-                                        {icon: <VerifiedIcon sx={{fontSize: 18, color: '#e0f2fe'}}/>, t: 'Thông tin đã kiểm duyệt'},
-                                        {icon: <ChatIcon sx={{fontSize: 18, color: '#e0f2fe'}}/>, t: 'Chat tư vấn 24/7'}
+                                        {icon: <VerifiedIcon sx={{fontSize: 18, color: BRAND_NAVY}}/>, t: 'Thông tin đã kiểm duyệt'},
+                                        {icon: <ChatIcon sx={{fontSize: 18, color: BRAND_NAVY}}/>, t: 'Chat tư vấn 24/7'}
                                     ].map((x) => (
                                         <Box
                                             key={x.t}
@@ -1019,17 +1031,18 @@ export default function HomePage() {
                                                 px: 1.5,
                                                 py: 0.75,
                                                 borderRadius: 999,
-                                                bgcolor: 'rgba(255,255,255,0.16)',
-                                                border: '1px solid rgba(255,255,255,0.35)'
+                                                bgcolor: 'rgba(255,255,255,0.5)',
+                                                border: '1px solid rgba(85,179,217,0.35)'
                                             }}
                                         >
                                             {x.icon}
-                                            <Typography sx={{fontSize: '0.8rem', fontWeight: 600, color: '#f8fafc'}}>
+                                            <Typography sx={{fontSize: '0.8rem', fontWeight: 600, color: BRAND_NAVY}}>
                                                 {x.t}
                                             </Typography>
                                         </Box>
                                     ))}
                                 </Stack>
+                                </Box>
                             </Box>
                         </Box>
                         <Box
@@ -1046,21 +1059,35 @@ export default function HomePage() {
                                     position: 'relative',
                                     width: '100%',
                                     maxWidth: {xs: 480, md: '100%'},
-                                    borderRadius: 4,
+                                    borderRadius: 3,
                                     p: {xs: 2.5, md: 3},
-                                    background: 'linear-gradient(145deg, rgba(255,255,255,0.75) 0%, rgba(255,255,255,0.45) 100%)',
-                                    backdropFilter: 'blur(14px)',
-                                    WebkitBackdropFilter: 'blur(14px)',
-                                    border: '1px solid rgba(255,255,255,0.95)',
-                                    boxShadow: '0 24px 60px rgba(15, 23, 42, 0.2), 0 0 0 1px rgba(255,255,255,0.45) inset',
+                                    background: 'linear-gradient(155deg, rgba(255,255,255,0.88) 0%, rgba(255,255,255,0.52) 100%)',
+                                    backdropFilter: 'blur(18px) saturate(1.15)',
+                                    WebkitBackdropFilter: 'blur(18px) saturate(1.15)',
+                                    border: '1px solid rgba(255,255,255,0.9)',
+                                    boxShadow: `
+                                        0 20px 50px rgba(45, 95, 115, 0.1),
+                                        0 0 0 1px rgba(255,255,255,0.65) inset,
+                                        0 1px 0 rgba(255,255,255,0.95) inset
+                                    `,
+                                    transition: 'transform 0.45s cubic-bezier(0.22, 0.61, 0.36, 1), box-shadow 0.45s ease',
+                                    '&:hover': {
+                                        transform: 'translateY(-4px)',
+                                        boxShadow: `
+                                            0 28px 60px rgba(45, 95, 115, 0.14),
+                                            0 0 0 1px rgba(255,255,255,0.75) inset,
+                                            0 1px 0 rgba(255,255,255,1) inset
+                                        `
+                                    },
                                     '&::before': {
                                         content: '""',
                                         position: 'absolute',
-                                        inset: -2,
-                                        borderRadius: 5,
-                                        background: `linear-gradient(135deg, rgba(85,179,217,0.45), rgba(45,95,115,0.35))`,
+                                        inset: -1,
+                                        borderRadius: 4,
+                                        background: `linear-gradient(135deg, rgba(85,179,217,0.35), rgba(45,95,115,0.22))`,
                                         zIndex: -1,
-                                        filter: 'blur(2px)'
+                                        filter: 'blur(8px)',
+                                        opacity: 0.85
                                     }
                                 }}
                             >
@@ -1179,7 +1206,7 @@ export default function HomePage() {
                 id="trường-nổi-bật"
                 sx={{
                     py: {xs: 8, md: 10},
-                    background: 'linear-gradient(180deg, rgba(255,247,237,0.92) 0%, #f8fafc 100%)',
+                    background: `linear-gradient(180deg, ${HOME_PAGE_HERO_BACKDROP} 0%, rgba(255,250,242,0.88) 28%, #fbfcfe 100%)`,
                     position: 'relative',
                     scrollMarginTop: '80px',
                     boxShadow: `inset 0 1px 0 rgba(255,255,255,0.8)`
@@ -1487,7 +1514,7 @@ export default function HomePage() {
                     position: 'relative',
                     overflow: 'hidden',
                     /** Nền section tách lớp rõ với phần còn lại của trang */
-                    background: 'linear-gradient(165deg, #eef2ff 0%, #f1f5f9 42%, #faf5ff 100%)',
+                    background: 'linear-gradient(165deg, #f2f4ff 0%, #f5f8fa 42%, #fcfaff 100%)',
                     boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.9)'
                 }}
             >
