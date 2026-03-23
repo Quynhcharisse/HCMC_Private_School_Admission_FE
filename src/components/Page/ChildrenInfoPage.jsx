@@ -5,7 +5,6 @@ import {
     Button,
     Card,
     CardContent,
-    Checkbox,
     CircularProgress,
     Divider,
     FormControl,
@@ -74,13 +73,14 @@ export default function ChildrenInfoPage() {
         handleChange,
         handlePersonalityListScroll,
         handlePersonalityChange,
-        handleToggleFavoriteMajor,
+        handleFavoriteMajorChange,
         handleRegularGradeChange,
         handleForeignGradeChange,
         handleForeignSubjectChange,
         addForeignLanguageRow,
         foreignOptionsForRow,
-        handleEditOrSave,
+        enterEditMode,
+        handleSave,
     } = useChildrenInfoPage();
 
     return (
@@ -135,14 +135,9 @@ export default function ChildrenInfoPage() {
                             }}
                         />
                     </Box>
-                    {!loading && (
-                        <Button
-                            variant="contained"
-                            onClick={handleEditOrSave}
-                            disabled={saving}
-                            sx={editSaveButtonSx}
-                        >
-                            {editMode ? (saving ? 'Đang lưu…' : 'Lưu') : 'Chỉnh sửa'}
+                    {!loading && !editMode && (
+                        <Button variant="contained" onClick={enterEditMode} sx={editSaveButtonSx}>
+                            Thêm
                         </Button>
                     )}
                 </Box>
@@ -207,12 +202,19 @@ export default function ChildrenInfoPage() {
                                 Chọn loại MBTI phù hợp — trích dẫn, ảnh minh họa và đặc điểm sẽ cập nhật tương ứng.
                             </Typography>
                             <Box sx={sectionAccentBarSx}/>
-                            <Grid container rowSpacing={1.75} columnSpacing={{xs: 1.75, sm: 2.5}}>
-                                <Grid size={{xs: 12, sm: 6}}>
+                            <Grid
+                                container
+                                rowSpacing={1.75}
+                                columnSpacing={{xs: 1.75, sm: 2.5}}
+                                sx={{alignItems: 'stretch'}}
+                            >
+                                <Grid size={{xs: 12, sm: 6}} sx={{display: 'flex', flexDirection: 'column'}}>
                                     <Box
                                         sx={{
-                                            height: '100%',
-                                            minHeight: {xs: 260, sm: 340},
+                                            flex: 1,
+                                            width: '100%',
+                                            minHeight: {xs: 280, sm: 360},
+                                            maxHeight: {xs: 'none', sm: 'min(82vh, 1100px)'},
                                             p: 1.75,
                                             borderRadius: 2,
                                             border: '1px solid rgba(147, 197, 253, 0.5)',
@@ -220,6 +222,7 @@ export default function ChildrenInfoPage() {
                                             display: 'flex',
                                             flexDirection: 'column',
                                             gap: 0,
+                                            overflow: 'hidden',
                                         }}
                                     >
                                         <Typography
@@ -395,31 +398,38 @@ export default function ChildrenInfoPage() {
                                         )}
                                     </Box>
                                 </Grid>
-                                <Grid size={{xs: 12, sm: 6}}>
+                                <Grid size={{xs: 12, sm: 6}} sx={{display: 'flex', flexDirection: 'column'}}>
                                     <Box
                                         sx={{
-                                            height: '100%',
-                                            minHeight: {xs: 200, sm: 280},
+                                            flex: 1,
+                                            width: '100%',
+                                            minHeight: {xs: 280, sm: 360},
+                                            maxHeight: {xs: 'none', sm: 'min(82vh, 1100px)'},
                                             p: 1.75,
                                             borderRadius: 2,
                                             border: '1px solid rgba(147, 197, 253, 0.5)',
                                             bgcolor: 'rgba(239, 246, 255, 0.75)',
                                             display: 'flex',
                                             flexDirection: 'column',
-                                            gap: 0.5,
-                                            maxHeight: {xs: 'none', sm: 'min(82vh, 1100px)'},
-                                            overflowY: {xs: 'visible', sm: 'auto'},
+                                            gap: 0,
+                                            overflow: 'hidden',
                                         }}
                                     >
+                                        <Box
+                                            sx={{
+                                                flex: 1,
+                                                minHeight: 0,
+                                                overflowY: {xs: 'visible', sm: 'auto'},
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                            }}
+                                        >
                                         {!selectedPersonality ? (
                                             <Typography sx={{fontSize: 14, color: '#64748b', lineHeight: 1.6}}>
                                                 Trích dẫn và ảnh minh họa sẽ hiển thị theo loại MBTI bạn chọn.
                                             </Typography>
                                         ) : (
-                                            <Stack
-                                                spacing={1.25}
-                                                sx={{width: '100%', pt: 0.25, flex: 1, minHeight: 0}}
-                                            >
+                                            <Stack spacing={1.25} sx={{width: '100%', pt: 0.25}}>
                                                 <Box
                                                     sx={{
                                                         display: 'flex',
@@ -696,9 +706,10 @@ export default function ChildrenInfoPage() {
                                                 ) : null}
                                             </Stack>
                                         )}
+                                        </Box>
                                         <Box
                                             sx={{
-                                                mt: 'auto',
+                                                flexShrink: 0,
                                                 pt: 1.75,
                                                 borderTop: '1px solid rgba(147, 197, 253, 0.45)',
                                             }}
@@ -781,7 +792,7 @@ export default function ChildrenInfoPage() {
                         <CardContent sx={cardContentPaddingSx}>
                             <Typography sx={sectionHeadingSx}>Nghề nghiệp yêu thích</Typography>
                             <Typography sx={{fontSize: 14, color: '#64748b', mb: 1.5, lineHeight: 1.55}}>
-                                Chọn một hoặc nhiều ngành đào tạo bạn quan tâm.
+                                Chọn một ngành đào tạo bạn quan tâm nhất.
                             </Typography>
                             <Box sx={sectionAccentBarSx}/>
                             {majorsLoading ? (
@@ -801,156 +812,155 @@ export default function ChildrenInfoPage() {
                                         mr: -0.5,
                                     }}
                                 >
-                                    <Stack spacing={2.25}>
-                                        {majorGroups.map((entry) => (
-                                            <Box
-                                                key={entry.group}
-                                                sx={{
-                                                    position: 'relative',
-                                                    pl: 1.75,
-                                                    py: 2,
-                                                    px: 2,
-                                                    borderRadius: 2.5,
-                                                    bgcolor: 'rgba(255, 255, 255, 0.42)',
-                                                    border: '1px solid rgba(226, 232, 240, 0.85)',
-                                                    boxShadow: '0 6px 22px rgba(15, 23, 42, 0.04)',
-                                                    '&::before': {
-                                                        content: '""',
-                                                        position: 'absolute',
-                                                        left: 0,
-                                                        top: 12,
-                                                        bottom: 12,
-                                                        width: 4,
-                                                        borderRadius: '0 4px 4px 0',
-                                                        background:
-                                                            'linear-gradient(180deg, #2563eb 0%, #38bdf8 55%, #7dd3fc 100%)',
-                                                    },
-                                                }}
-                                            >
-                                                <Typography
-                                                    sx={{
-                                                        fontSize: 11,
-                                                        fontWeight: 800,
-                                                        letterSpacing: 1.1,
-                                                        textTransform: 'uppercase',
-                                                        color: '#64748b',
-                                                        mb: 1.5,
-                                                    }}
-                                                >
-                                                    {entry.group}
-                                                </Typography>
-                                                <Grid container spacing={1.25}>
-                                                    {Array.isArray(entry.majors) &&
-                                                        entry.majors.map((m) => {
-                                                            const codeNum = Number(m.code);
-                                                            const checked = favoriteMajorCodes.includes(codeNum);
-                                                            return (
-                                                                <Grid size={{xs: 12, sm: 6}} key={`${entry.group}-${m.code}`}>
-                                                                    <Box
-                                                                        role="button"
-                                                                        tabIndex={fieldsDisabled ? -1 : 0}
-                                                                        onClick={() => {
-                                                                            if (fieldsDisabled) return;
-                                                                            handleToggleFavoriteMajor(m.code);
-                                                                        }}
-                                                                        onKeyDown={(e) => {
-                                                                            if (fieldsDisabled) return;
-                                                                            if (
-                                                                                e.key === 'Enter' ||
-                                                                                e.key === ' '
-                                                                            ) {
-                                                                                e.preventDefault();
-                                                                                handleToggleFavoriteMajor(m.code);
-                                                                            }
-                                                                        }}
-                                                                        sx={{
-                                                                            display: 'flex',
-                                                                            alignItems: 'flex-start',
-                                                                            gap: 1.25,
-                                                                            width: '100%',
-                                                                            p: 1.5,
-                                                                            borderRadius: 2,
-                                                                            textAlign: 'left',
-                                                                            cursor: fieldsDisabled
-                                                                                ? 'default'
-                                                                                : 'pointer',
-                                                                            border: '1px solid',
-                                                                            borderColor: checked
-                                                                                ? 'rgba(37, 99, 235, 0.38)'
-                                                                                : 'rgba(226, 232, 240, 0.95)',
-                                                                            bgcolor: checked
-                                                                                ? 'rgba(37, 99, 235, 0.07)'
-                                                                                : 'rgba(248, 250, 252, 0.85)',
-                                                                            boxShadow: checked
-                                                                                ? '0 0 0 1px rgba(37, 99, 235, 0.12)'
-                                                                                : 'none',
-                                                                            transition:
-                                                                                'border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease',
-                                                                            ...(fieldsDisabled
-                                                                                ? {opacity: 0.92}
-                                                                                : {
-                                                                                      '&:hover': {
-                                                                                          borderColor:
-                                                                                              'rgba(59, 130, 246, 0.45)',
-                                                                                          bgcolor: checked
-                                                                                              ? 'rgba(37, 99, 235, 0.09)'
-                                                                                              : 'rgba(255, 255, 255, 0.98)',
-                                                                                          boxShadow:
-                                                                                              '0 6px 18px rgba(37, 99, 235, 0.08)',
-                                                                                      },
-                                                                                  }),
-                                                                        }}
-                                                                    >
-                                                                        <Checkbox
-                                                                            size="small"
-                                                                            checked={checked}
-                                                                            disabled={fieldsDisabled}
-                                                                            onChange={() =>
-                                                                                handleToggleFavoriteMajor(m.code)
-                                                                            }
-                                                                            onClick={(e) => e.stopPropagation()}
-                                                                            sx={{
-                                                                                p: 0,
-                                                                                pt: 0.15,
-                                                                                color: '#94a3b8',
-                                                                                '&.Mui-checked': {
-                                                                                    color: '#1d4ed8',
-                                                                                },
-                                                                            }}
-                                                                        />
-                                                                        <Box sx={{minWidth: 0, flex: 1}}>
-                                                                            <Typography
-                                                                                component="span"
+                                    <FormControl component="fieldset" variant="standard" fullWidth>
+                                        <RadioGroup
+                                            value={
+                                                favoriteMajorCodes.length
+                                                    ? String(favoriteMajorCodes[0])
+                                                    : ''
+                                            }
+                                            onChange={handleFavoriteMajorChange}
+                                        >
+                                            <Stack spacing={2.25}>
+                                                {majorGroups.map((entry) => (
+                                                    <Box
+                                                        key={entry.group}
+                                                        sx={{
+                                                            position: 'relative',
+                                                            pl: 1.75,
+                                                            py: 2,
+                                                            px: 2,
+                                                            borderRadius: 2.5,
+                                                            bgcolor: 'rgba(255, 255, 255, 0.42)',
+                                                            border: '1px solid rgba(226, 232, 240, 0.85)',
+                                                            boxShadow: '0 6px 22px rgba(15, 23, 42, 0.04)',
+                                                            '&::before': {
+                                                                content: '""',
+                                                                position: 'absolute',
+                                                                left: 0,
+                                                                top: 12,
+                                                                bottom: 12,
+                                                                width: 4,
+                                                                borderRadius: '0 4px 4px 0',
+                                                                background:
+                                                                    'linear-gradient(180deg, #2563eb 0%, #38bdf8 55%, #7dd3fc 100%)',
+                                                            },
+                                                        }}
+                                                    >
+                                                        <Typography
+                                                            sx={{
+                                                                fontSize: 11,
+                                                                fontWeight: 800,
+                                                                letterSpacing: 1.1,
+                                                                textTransform: 'uppercase',
+                                                                color: '#64748b',
+                                                                mb: 1.5,
+                                                            }}
+                                                        >
+                                                            {entry.group}
+                                                        </Typography>
+                                                        <Grid container spacing={1.25}>
+                                                            {Array.isArray(entry.majors) &&
+                                                                entry.majors.map((m) => {
+                                                                    const codeNum = Number(m.code);
+                                                                    const selected =
+                                                                        favoriteMajorCodes.length > 0 &&
+                                                                        favoriteMajorCodes[0] === codeNum;
+                                                                    return (
+                                                                        <Grid
+                                                                            size={{xs: 12, sm: 6}}
+                                                                            key={`${entry.group}-${m.code}`}
+                                                                        >
+                                                                            <FormControlLabel
+                                                                                value={String(m.code)}
+                                                                                disabled={fieldsDisabled}
+                                                                                control={
+                                                                                    <Radio
+                                                                                        size="small"
+                                                                                        sx={{
+                                                                                            p: 0.5,
+                                                                                            color: '#94a3b8',
+                                                                                            alignSelf: 'center',
+                                                                                            '&.Mui-checked': {
+                                                                                                color: '#1d4ed8',
+                                                                                            },
+                                                                                        }}
+                                                                                    />
+                                                                                }
+                                                                                label={
+                                                                                    <Box sx={{minWidth: 0}}>
+                                                                                        <Typography
+                                                                                            component="span"
+                                                                                            sx={{
+                                                                                                display: 'inline-block',
+                                                                                                fontSize: 11,
+                                                                                                fontWeight: 800,
+                                                                                                letterSpacing: 0.4,
+                                                                                                color: '#1d4ed8',
+                                                                                                mb: 0.35,
+                                                                                            }}
+                                                                                        >
+                                                                                            {m.code}
+                                                                                        </Typography>
+                                                                                        <Typography
+                                                                                            sx={{
+                                                                                                fontSize: 14,
+                                                                                                fontWeight: 500,
+                                                                                                color: '#334155',
+                                                                                                lineHeight: 1.45,
+                                                                                            }}
+                                                                                        >
+                                                                                            {m.name}
+                                                                                        </Typography>
+                                                                                    </Box>
+                                                                                }
                                                                                 sx={{
-                                                                                    display: 'inline-block',
-                                                                                    fontSize: 11,
-                                                                                    fontWeight: 800,
-                                                                                    letterSpacing: 0.4,
-                                                                                    color: '#1d4ed8',
-                                                                                    mb: 0.35,
+                                                                                    alignItems: 'center',
+                                                                                    gap: 1.25,
+                                                                                    m: 0,
+                                                                                    width: '100%',
+                                                                                    p: 1.5,
+                                                                                    borderRadius: 2,
+                                                                                    border: '1px solid',
+                                                                                    borderColor: selected
+                                                                                        ? 'rgba(37, 99, 235, 0.38)'
+                                                                                        : 'rgba(226, 232, 240, 0.95)',
+                                                                                    bgcolor: selected
+                                                                                        ? 'rgba(37, 99, 235, 0.07)'
+                                                                                        : 'rgba(248, 250, 252, 0.85)',
+                                                                                    boxShadow: selected
+                                                                                        ? '0 0 0 1px rgba(37, 99, 235, 0.12)'
+                                                                                        : 'none',
+                                                                                    transition:
+                                                                                        'border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease',
+                                                                                    '& .MuiFormControlLabel-label': {
+                                                                                        flex: 1,
+                                                                                        minWidth: 0,
+                                                                                    },
+                                                                                    ...(fieldsDisabled
+                                                                                        ? {opacity: 0.92}
+                                                                                        : {
+                                                                                              '&:hover': {
+                                                                                                  borderColor:
+                                                                                                      'rgba(59, 130, 246, 0.45)',
+                                                                                                  bgcolor: selected
+                                                                                                      ? 'rgba(37, 99, 235, 0.09)'
+                                                                                                      : 'rgba(255, 255, 255, 0.98)',
+                                                                                                  boxShadow:
+                                                                                                      '0 6px 18px rgba(37, 99, 235, 0.08)',
+                                                                                              },
+                                                                                          }),
                                                                                 }}
-                                                                            >
-                                                                                {m.code}
-                                                                            </Typography>
-                                                                            <Typography
-                                                                                sx={{
-                                                                                    fontSize: 14,
-                                                                                    fontWeight: 500,
-                                                                                    color: '#334155',
-                                                                                    lineHeight: 1.45,
-                                                                                }}
-                                                                            >
-                                                                                {m.name}
-                                                                            </Typography>
-                                                                        </Box>
-                                                                    </Box>
-                                                                </Grid>
-                                                            );
-                                                        })}
-                                                </Grid>
-                                            </Box>
-                                        ))}
-                                    </Stack>
+                                                                            />
+                                                                        </Grid>
+                                                                    );
+                                                                })}
+                                                        </Grid>
+                                                    </Box>
+                                                ))}
+                                            </Stack>
+                                        </RadioGroup>
+                                    </FormControl>
                                 </Box>
                             )}
                         </CardContent>
@@ -1211,6 +1221,27 @@ export default function ChildrenInfoPage() {
                         </CardContent>
                     </Card>
                     </>
+                )}
+                {!loading && editMode && (
+                    <Box
+                        sx={{
+                            mt: 3,
+                            mb: 2,
+                            display: 'flex',
+                            justifyContent: 'flex-end',
+                            pt: 1,
+                            borderTop: '1px solid rgba(148, 163, 184, 0.28)',
+                        }}
+                    >
+                        <Button
+                            variant="contained"
+                            onClick={() => void handleSave()}
+                            disabled={saving}
+                            sx={editSaveButtonSx}
+                        >
+                            {saving ? 'Đang lưu…' : 'Lưu'}
+                        </Button>
+                    </Box>
                 )}
             </Box>
         </Box>

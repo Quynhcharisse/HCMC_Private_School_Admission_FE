@@ -12,8 +12,10 @@ import {
     applyStudentBodyToState,
     buildStudentPayload,
     emptyGrades,
+    findPersonalityByCode,
     findPersonalityById,
     getEmptyStudentState,
+    mergeAcademicInfosIntoGrades,
     normalizePersonalityGroups,
     normalizeSubjectGroups,
     parseBody,
@@ -45,6 +47,8 @@ export function useChildrenInfoPage() {
         {rowId: 'foreign-0', subjectId: ''},
     ]);
     const [foreignGrades, setForeignGrades] = useState({});
+    const [pendingAcademicInfos, setPendingAcademicInfos] = useState(null);
+    const [pendingFavouriteJobLabel, setPendingFavouriteJobLabel] = useState(null);
 
     const setters = {
         setForm,
@@ -53,6 +57,8 @@ export function useChildrenInfoPage() {
         setRegularGrades,
         setForeignRows,
         setForeignGrades,
+        setPendingAcademicInfos,
+        setPendingFavouriteJobLabel,
     };
 
     useEffect(() => {
@@ -198,10 +204,55 @@ export function useChildrenInfoPage() {
         });
     }, [regularSubjects]);
 
-    const selectedPersonality = useMemo(
-        () => findPersonalityById(personalityGroups, selectedPersonalityId),
-        [personalityGroups, selectedPersonalityId],
-    );
+    const selectedPersonality = useMemo(() => {
+        if (!personalityGroups || selectedPersonalityId === '') return null;
+        const byId = findPersonalityById(personalityGroups, selectedPersonalityId);
+        if (byId) return byId;
+        return findPersonalityByCode(personalityGroups, selectedPersonalityId);
+    }, [personalityGroups, selectedPersonalityId]);
+
+    /** GET trả `personalityTypeCode` (mã MBTI) — map sang `id` để khớp Radio */
+    useEffect(() => {
+        if (!personalityGroups || selectedPersonalityId === '') return;
+        if (findPersonalityById(personalityGroups, selectedPersonalityId)) return;
+        const byCode = findPersonalityByCode(personalityGroups, selectedPersonalityId);
+        if (byCode) setSelectedPersonalityId(String(byCode.id));
+    }, [personalityGroups, selectedPersonalityId]);
+
+    /** GET trả `academicInfos` — gán điểm khi đã có danh sách môn */
+    useEffect(() => {
+        if (!pendingAcademicInfos || subjectGroupsLoading) return;
+        if (!regularSubjects.length && !foreignSubjects.length) {
+            setPendingAcademicInfos(null);
+            return;
+        }
+        const merged = mergeAcademicInfosIntoGrades(
+            pendingAcademicInfos,
+            regularSubjects,
+            foreignSubjects,
+        );
+        setRegularGrades(merged.regularGrades);
+        setForeignRows(merged.foreignRows);
+        setForeignGrades(merged.foreignGrades);
+        setPendingAcademicInfos(null);
+    }, [pendingAcademicInfos, regularSubjects, foreignSubjects, subjectGroupsLoading]);
+
+    /** GET trả `favouriteJob` là tên ngành — map sang mã ngành */
+    useEffect(() => {
+        if (!pendingFavouriteJobLabel || !majorGroups.length) return;
+        const label = pendingFavouriteJobLabel.trim();
+        outer: for (const g of majorGroups) {
+            const majors = g?.majors;
+            if (!Array.isArray(majors)) continue;
+            for (const m of majors) {
+                if (String(m.name).trim() === label) {
+                    setFavoriteMajorCodes([Number(m.code)]);
+                    break outer;
+                }
+            }
+        }
+        setPendingFavouriteJobLabel(null);
+    }, [pendingFavouriteJobLabel, majorGroups]);
 
     const handleChange = (e) => {
         const {name, value} = e.target;
@@ -218,11 +269,10 @@ export function useChildrenInfoPage() {
         setSelectedPersonalityId(e.target.value);
     };
 
-    const handleToggleFavoriteMajor = (code) => {
-        const n = Number(code);
-        setFavoriteMajorCodes((prev) =>
-            prev.includes(n) ? prev.filter((c) => c !== n) : [...prev, n],
-        );
+    /** Một ngành duy nhất (radio) — payload vẫn là mảng tối đa 1 phần tử */
+    const handleFavoriteMajorChange = (e) => {
+        const v = e.target.value;
+        setFavoriteMajorCodes(v === '' ? [] : [Number(v)]);
     };
 
     const handleRegularGradeChange = (subjectId, gradeKey, value) => {
@@ -274,15 +324,70 @@ export function useChildrenInfoPage() {
         try {
             const payload = buildStudentPayload({
                 form,
+                selectedPersonality,
                 selectedPersonalityId,
                 favoriteMajorCodes,
+                majorGroups,
                 regularGrades,
+                regularSubjects,
                 foreignRows,
                 foreignGrades,
+                foreignSubjects,
             });
+            const academicBlock = payload.academicInfos;
+            if (!Array.isArray(academicBlock) || academicBlock.length === 0) {
+                enqueueSnackbar('Thiếu dữ liệu học bạ (academicInfos).', {
+                    variant: 'error',
+                });
+                return;
+            }
+            const subjectRowCount = academicBlock.reduce((n, ai) => {
+                const rows =
+                    ai.subjectResults ?? ai.subjectResultList ?? ai.results ?? [];
+                return n + rows.length;
+            }, 0);
+            if (subjectRowCount === 0) {
+                enqueueSnackbar(
+                    'Chưa có môn học để lưu điểm. Vui lòng đợi danh sách môn tải xong hoặc tải lại trang.',
+                    {variant: 'warning'},
+                );
+                return;
+            }
             const res = await postParentStudent(payload);
             if (res && res.status >= 200 && res.status < 300) {
-                enqueueSnackbar('Đã lưu thông tin.', {variant: 'success'});
+                let reloadOk = false;
+                try {
+                    const getRes = await getParentStudent();
+                    if (getRes?.status === 200) {
+                        const mapped = applyStudentBodyToState(parseBody(getRes));
+                        setStudentState(setters, mapped);
+                        if (
+                            mapped.pendingAcademicInfos?.length &&
+                            (regularSubjects.length > 0 || foreignSubjects.length > 0)
+                        ) {
+                            const merged = mergeAcademicInfosIntoGrades(
+                                mapped.pendingAcademicInfos,
+                                regularSubjects,
+                                foreignSubjects,
+                            );
+                            setRegularGrades(merged.regularGrades);
+                            setForeignRows(merged.foreignRows);
+                            setForeignGrades(merged.foreignGrades);
+                            setPendingAcademicInfos(null);
+                        }
+                        reloadOk = true;
+                    }
+                } catch (reloadErr) {
+                    console.error('Reload student after save error:', reloadErr);
+                }
+                if (reloadOk) {
+                    enqueueSnackbar('Đã lưu thông tin.', {variant: 'success'});
+                } else {
+                    enqueueSnackbar(
+                        'Đã lưu nhưng không tải lại được dữ liệu mới.',
+                        {variant: 'warning'},
+                    );
+                }
                 setEditMode(false);
             } else {
                 enqueueSnackbar('Không lưu được dữ liệu.', {variant: 'error'});
@@ -295,10 +400,7 @@ export function useChildrenInfoPage() {
         }
     };
 
-    const handleEditOrSave = () => {
-        if (editMode) void handleSave();
-        else setEditMode(true);
-    };
+    const enterEditMode = () => setEditMode(true);
 
     useLayoutEffect(() => {
         const el = personalityListScrollRef.current;
@@ -334,12 +436,13 @@ export function useChildrenInfoPage() {
         handleChange,
         handlePersonalityListScroll,
         handlePersonalityChange,
-        handleToggleFavoriteMajor,
+        handleFavoriteMajorChange,
         handleRegularGradeChange,
         handleForeignGradeChange,
         handleForeignSubjectChange,
         addForeignLanguageRow,
         foreignOptionsForRow,
-        handleEditOrSave,
+        enterEditMode,
+        handleSave,
     };
 }

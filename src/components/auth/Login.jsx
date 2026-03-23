@@ -8,7 +8,6 @@ import {showSuccessSnackbar} from '../ui/AppSnackbar.jsx';
 
 export default function Login() {
     const [userEmail, setUserEmail] = useState(null);
-    const [userData, setUserData] = useState(null);
     const [loginStatusMessage, setLoginStatusMessage] = useState(null);
     const navigate = useNavigate();
     const hasNavigated = useRef(false);
@@ -40,7 +39,6 @@ export default function Login() {
         const {email, name, picture, response} = data;
 
         setUserEmail(email);
-        setUserData({email, name, picture});
 
         let role = null;
         let firstLogin = false;
@@ -241,23 +239,6 @@ export default function Login() {
                                     <Typography variant="h6" sx={{fontWeight: 700, color: '#16a34a'}}>
                                         Đăng nhập thành công
                                     </Typography>
-                                    <Typography variant="body2" sx={{color: '#4b5563'}}>
-                                        {userData?.name && `${userData.name}`} ({userEmail})
-                                    </Typography>
-                                    {userData?.picture && (
-                                        <Box
-                                            component="img"
-                                            src={userData.picture}
-                                            alt="Profile"
-                                            sx={{
-                                                borderRadius: '50%',
-                                                width: 80,
-                                                height: 80,
-                                                mt: 1,
-                                                boxShadow: '0 10px 30px rgba(15, 118, 110, 0.25)',
-                                            }}
-                                        />
-                                    )}
                                 </Stack>
                             )}
 
