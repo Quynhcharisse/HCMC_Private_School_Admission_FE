@@ -79,7 +79,7 @@ const normalizeStatus = (status) => String(status || "").toUpperCase();
 const getCurriculumStatusMeta = (status) => {
     const s = normalizeStatus(status);
     if (s === "CUR_ACTIVE") {
-        return { label: "Đang hoạt động", bg: "rgba(34, 197, 94, 0.12)", color: "#16a34a" };
+        return { label: "Hoạt động", bg: "rgba(34, 197, 94, 0.12)", color: "#16a34a" };
     }
     if (s === "CUR_DRAFT") {
         return { label: "Bản nháp", bg: "rgba(148, 163, 184, 0.2)", color: "#64748b" };
