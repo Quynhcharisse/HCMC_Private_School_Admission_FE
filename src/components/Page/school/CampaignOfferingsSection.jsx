@@ -11,6 +11,7 @@ import {
     FormControl,
     IconButton,
     InputLabel,
+    Menu,
     MenuItem,
     Select,
     Skeleton,
@@ -31,6 +32,7 @@ import BusinessIcon from "@mui/icons-material/Business";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import SchoolIcon from "@mui/icons-material/School";
 import { enqueueSnackbar } from "notistack";
@@ -40,6 +42,8 @@ import {
     getCampaignOfferingsByCampus,
     createCampaignOffering,
     updateCampaignOffering,
+    updateCampusOfferingStatus,
+    closeCampusOffering,
 } from "../../../services/CampaignService.jsx";
 
 const LEARNING_MODES = [
@@ -53,13 +57,22 @@ const APPLICATION_STATUS_OPTIONS = [
     { value: "OPEN", label: "Đang mở" },
     { value: "CLOSED", label: "Đã đóng" },
     { value: "PAUSED", label: "Tạm dừng" },
+    { value: "FULL", label: "Đầy chỗ" },
 ];
+
+const APPLICATION_STATUS_BADGES = {
+    OPEN: { badgeBg: "rgba(34, 197, 94, 0.16)", badgeColor: "#16a34a" }, // green
+    PAUSED: { badgeBg: "rgba(250, 204, 21, 0.22)", badgeColor: "#a16207" }, // amber
+    FULL: { badgeBg: "rgba(239, 68, 68, 0.14)", badgeColor: "#dc2626" }, // red
+    CLOSED: { badgeBg: "rgba(148, 163, 184, 0.22)", badgeColor: "#475569" }, // slate
+};
 
 /** Trạng thái vòng đời chỉ tiêu (field `status` từ API) */
 const OFFERING_STATUS_LABELS = {
     OPEN: "Đang mở",
     PAUSED: "Tạm dừng",
     CLOSED: "Đã đóng",
+    FULL: "Đầy chỗ",
     EXPIRED: "Hết hạn",
 };
 
@@ -92,7 +105,7 @@ const DETAIL_SECTIONS = [
         fields: [
             { key: "campaignYear", label: "Năm chiến dịch" },
             { key: "campaignName", label: "Tên chiến dịch" },
-            { key: "applicationStatus", label: "Trạng thái hồ sơ" },
+            { key: "status", label: "Trạng thái chiến dịch" },
         ],
     },
     {
@@ -106,7 +119,7 @@ const DETAIL_SECTIONS = [
             { key: "remainingQuota", label: "Chỉ tiêu còn lại" },
             { key: "openDate", label: "Ngày mở nhận hồ sơ" },
             { key: "closeDate", label: "Ngày đóng nhận hồ sơ" },
-            { key: "status", label: "Trạng thái chỉ tiêu" },
+            { key: "applicationStatus", label: "Trạng thái hồ sơ" },
             { key: "tuitionFee", label: "Học phí áp dụng" },
         ],
     },
@@ -182,6 +195,13 @@ export default function CampaignOfferingsSection({
     const [formErrors, setFormErrors] = useState({});
     const [detailRow, setDetailRow] = useState(null);
     const [detailOpen, setDetailOpen] = useState(false);
+    const [confirmActionOpen, setConfirmActionOpen] = useState(false);
+    const [confirmActionType, setConfirmActionType] = useState(null); // "toggle" | "close"
+    const [confirmTargetStatus, setConfirmTargetStatus] = useState(null); // targetStatus for toggle
+    const [confirmRow, setConfirmRow] = useState(null);
+    const [confirmActionLoading, setConfirmActionLoading] = useState(false);
+    const [actionMenuAnchorEl, setActionMenuAnchorEl] = useState(null);
+    const [actionMenuRow, setActionMenuRow] = useState(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -320,6 +340,11 @@ export default function CampaignOfferingsSection({
     const getApplicationStatusLabel = (s) =>
         APPLICATION_STATUS_OPTIONS.find((o) => o.value === s)?.label ?? s ?? "—";
 
+    const getApplicationStatusBadgeStyle = (s) => {
+        const key = String(s || "").toUpperCase();
+        return APPLICATION_STATUS_BADGES[key] ?? { badgeBg: "#f1f5f9", badgeColor: "#64748b" };
+    };
+
     const getProgramName = (id) =>
         programs.find((p) => Number(p.id) === Number(id))?.name ?? id ?? "—";
 
@@ -385,6 +410,8 @@ export default function CampaignOfferingsSection({
     };
 
     const handleSubmit = async () => {
+        const isEditingReadOnly = !!editingRow && String(editingRow.applicationStatus || "").toUpperCase() === "CLOSED";
+        if (isEditingReadOnly) return;
         if (!validateForm() || !campaignId) return;
         setSubmitLoading(true);
         try {
@@ -439,6 +466,59 @@ export default function CampaignOfferingsSection({
     const rowMuted = campaignPaused;
 
     const programOptions = useMemo(() => programs, [programs]);
+    const isEditingReadOnly =
+        !!editingRow && String(editingRow.applicationStatus || "").toUpperCase() === "CLOSED";
+
+    const openConfirmToggle = (row, targetStatus) => {
+        setConfirmRow(row);
+        setConfirmTargetStatus(targetStatus);
+        setConfirmActionType("toggle");
+        setConfirmActionOpen(true);
+    };
+
+    const openConfirmClose = (row) => {
+        setConfirmRow(row);
+        setConfirmTargetStatus(null);
+        setConfirmActionType("close");
+        setConfirmActionOpen(true);
+    };
+
+    const openActionMenu = (e, row) => {
+        e.stopPropagation();
+        setActionMenuRow(row);
+        setActionMenuAnchorEl(e.currentTarget);
+    };
+
+    const closeActionMenu = () => {
+        setActionMenuAnchorEl(null);
+        setActionMenuRow(null);
+    };
+
+    const handleConfirmAction = async () => {
+        if (!confirmRow || !confirmActionType) return;
+        setConfirmActionLoading(true);
+        try {
+            if (confirmActionType === "toggle") {
+                await updateCampusOfferingStatus(confirmRow.id, confirmTargetStatus);
+                enqueueSnackbar(
+                    confirmTargetStatus === "PAUSED" ? "Đã tạm dừng nhận hồ sơ." : "Đã mở lại nhận hồ sơ.",
+                    { variant: "success" }
+                );
+            } else if (confirmActionType === "close") {
+                await closeCampusOffering(confirmRow.id);
+                enqueueSnackbar("Đã đóng chương trình.", { variant: "success" });
+            }
+            setConfirmActionOpen(false);
+            setConfirmActionType(null);
+            setConfirmTargetStatus(null);
+            setConfirmRow(null);
+            setListNonce((n) => n + 1);
+        } catch (err) {
+            enqueueSnackbar(err?.response?.data?.message || "Thao tác thất bại", { variant: "error" });
+        } finally {
+            setConfirmActionLoading(false);
+        }
+    };
 
     return (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -563,7 +643,6 @@ export default function CampaignOfferingsSection({
                                 <TableCell sx={{ fontWeight: 700 }}>Chỉ tiêu / Còn lại</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>Học phí</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>Hồ sơ</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Trạng thái</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>Mở — Đóng</TableCell>
                                 {canMutate && (
                                     <TableCell align="right" sx={{ fontWeight: 700 }}>
@@ -576,7 +655,7 @@ export default function CampaignOfferingsSection({
                             {loading ? (
                                 Array.from({ length: 4 }).map((_, i) => (
                                     <TableRow key={i}>
-                                        {Array.from({ length: canMutate ? 9 : 8 }).map((__, j) => (
+                                        {Array.from({ length: canMutate ? 8 : 7 }).map((__, j) => (
                                             <TableCell key={j}>
                                                 <Skeleton variant="text" width="80%" />
                                             </TableCell>
@@ -585,7 +664,7 @@ export default function CampaignOfferingsSection({
                                 ))
                             ) : items.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={canMutate ? 9 : 8} align="center" sx={{ py: 6 }}>
+                                    <TableCell colSpan={canMutate ? 8 : 7} align="center" sx={{ py: 6 }}>
                                         <Typography color="text.secondary">Chưa có chỉ tiêu cho bộ lọc này.</Typography>
                                     </TableCell>
                                 </TableRow>
@@ -612,27 +691,67 @@ export default function CampaignOfferingsSection({
                                         </TableCell>
                                         <TableCell>{formatCurrency(row.tuitionFee)}</TableCell>
                                         <TableCell>
-                                            {getApplicationStatusLabel(row.applicationStatus)}
-                                        </TableCell>
-                                        <TableCell>
-                                            {getOfferingStatusLabel(row.status)}
+                                            {(() => {
+                                                const label = getApplicationStatusLabel(row.applicationStatus);
+                                                const { badgeBg, badgeColor } = getApplicationStatusBadgeStyle(
+                                                    row.applicationStatus
+                                                );
+                                                return (
+                                                    <Box
+                                                        component="span"
+                                                        sx={{
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            px: 1.2,
+                                                            py: 0.4,
+                                                            borderRadius: "999px",
+                                                            fontSize: 12,
+                                                            fontWeight: 800,
+                                                            lineHeight: 1,
+                                                            color: badgeColor,
+                                                            bgcolor: badgeBg,
+                                                        }}
+                                                    >
+                                                        {label}
+                                                    </Box>
+                                                );
+                                            })()}
                                         </TableCell>
                                         <TableCell>
                                             {formatDate(row.openDate)} — {formatDate(row.closeDate)}
                                         </TableCell>
                                         {canMutate && (
                                             <TableCell align="right">
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        openEdit(row);
-                                                    }}
-                                                    aria-label="Sửa chỉ tiêu"
-                                                    sx={{ color: "#0D64DE" }}
-                                                >
-                                                    <EditIcon fontSize="small" />
-                                                </IconButton>
+                                                <Stack direction="row" spacing={1.2} justifyContent="flex-end">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            openEdit(row);
+                                                        }}
+                                                        aria-label="Sửa chỉ tiêu"
+                                                        sx={{ color: "#0D64DE" }}
+                                                    >
+                                                        <EditIcon fontSize="small" />
+                                                    </IconButton>
+
+                                                    {((String(row.applicationStatus || "").toUpperCase() === "OPEN" ||
+                                                        String(row.applicationStatus || "").toUpperCase() === "PAUSED") ||
+                                                        (["OPEN", "PAUSED"].includes(
+                                                            String(row.applicationStatus || "").toUpperCase()
+                                                        ) &&
+                                                            !["CLOSED", "FULL"].includes(String(row.status || "").toUpperCase()))) && (
+                                                        <IconButton
+                                                            size="small"
+                                                            aria-label="Thao tác khác"
+                                                            onClick={(e) => openActionMenu(e, row)}
+                                                            disabled={confirmActionLoading}
+                                                            sx={{ color: "#64748b" }}
+                                                        >
+                                                            <MoreVertIcon fontSize="small" />
+                                                        </IconButton>
+                                                    )}
+                                                </Stack>
                                             </TableCell>
                                         )}
                                     </TableRow>
@@ -864,6 +983,7 @@ export default function CampaignOfferingsSection({
                                 value={formValues.learningMode}
                                 label="Hình thức học"
                                 onChange={handleChange}
+                                disabled={isEditingReadOnly}
                                 sx={{ borderRadius: 2 }}
                             >
                                 {LEARNING_MODES.map((m) => (
@@ -883,6 +1003,7 @@ export default function CampaignOfferingsSection({
                             onChange={handleChange}
                             error={!!formErrors.quota}
                             helperText={formErrors.quota}
+                            disabled={isEditingReadOnly}
                             inputProps={{ min: 0 }}
                         />
                         {editingRow ? (
@@ -894,6 +1015,7 @@ export default function CampaignOfferingsSection({
                                 size="small"
                                 value={formValues.tuitionFee}
                                 onChange={handleChange}
+                                disabled={isEditingReadOnly}
                                 inputProps={{ min: 0 }}
                                 helperText={
                                     editingRow.baseTuitionFee != null
@@ -923,6 +1045,7 @@ export default function CampaignOfferingsSection({
                             value={formValues.openDate}
                             onChange={handleChange}
                             InputLabelProps={{ shrink: true }}
+                            disabled={isEditingReadOnly}
                         />
                         <TextField
                             label="Ngày đóng"
@@ -933,6 +1056,7 @@ export default function CampaignOfferingsSection({
                             value={formValues.closeDate}
                             onChange={handleChange}
                             InputLabelProps={{ shrink: true }}
+                            disabled={isEditingReadOnly}
                         />
                     </Stack>
                 </DialogContent>
@@ -943,10 +1067,123 @@ export default function CampaignOfferingsSection({
                     <Button
                         variant="contained"
                         onClick={handleSubmit}
-                        disabled={submitLoading}
+                        disabled={submitLoading || isEditingReadOnly}
                         sx={{ textTransform: "none", fontWeight: 600, bgcolor: "#0D64DE", borderRadius: 2 }}
                     >
                         {submitLoading ? "Đang lưu…" : editingRow ? "Lưu" : "Tạo"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Menu
+                anchorEl={actionMenuAnchorEl}
+                open={Boolean(actionMenuAnchorEl)}
+                onClose={closeActionMenu}
+                anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                transformOrigin={{ vertical: "top", horizontal: "right" }}
+                slotProps={{
+                    paper: { sx: { borderRadius: 2, minWidth: 220 } },
+                }}
+            >
+                {actionMenuRow &&
+                    String(actionMenuRow.applicationStatus || "").toUpperCase() === "OPEN" && (
+                        <MenuItem
+                            onClick={() => {
+                                closeActionMenu();
+                                openConfirmToggle(actionMenuRow, "PAUSED");
+                            }}
+                            disabled={confirmActionLoading}
+                        >
+                            Tạm dừng
+                        </MenuItem>
+                    )}
+
+                {actionMenuRow &&
+                    String(actionMenuRow.applicationStatus || "").toUpperCase() === "PAUSED" && (
+                        <MenuItem
+                            onClick={() => {
+                                closeActionMenu();
+                                openConfirmToggle(actionMenuRow, "OPEN");
+                            }}
+                            disabled={confirmActionLoading}
+                        >
+                            Mở lại
+                        </MenuItem>
+                    )}
+
+                {actionMenuRow &&
+                    ["OPEN", "PAUSED"].includes(
+                        String(actionMenuRow.applicationStatus || "").toUpperCase()
+                    ) &&
+                    !["CLOSED", "FULL"].includes(String(actionMenuRow.status || "").toUpperCase()) && (
+                        <MenuItem
+                            onClick={() => {
+                                closeActionMenu();
+                                openConfirmClose(actionMenuRow);
+                            }}
+                            disabled={confirmActionLoading}
+                        >
+                            Đóng chương trình
+                        </MenuItem>
+                    )}
+            </Menu>
+
+            <Dialog
+                open={confirmActionOpen}
+                onClose={() => {
+                    if (!confirmActionLoading) setConfirmActionOpen(false);
+                }}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{
+                    sx: { borderRadius: "16px", boxShadow: "0 24px 48px rgba(0,0,0,0.12)" },
+                }}
+                slotProps={{ backdrop: { sx: { backdropFilter: "blur(6px)" } } }}
+            >
+                <DialogTitle sx={{ fontWeight: 800 }}>
+                    {confirmActionType === "toggle" ? "Xác nhận thao tác" : "Xác nhận đóng chương trình"}
+                </DialogTitle>
+                <DialogContent sx={{ pt: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                        {confirmActionType === "toggle" &&
+                            (confirmTargetStatus === "PAUSED"
+                                ? "Bạn có chắc chắn muốn tạm dừng nhận hồ sơ? Khi tạm dừng, chương trình sẽ không còn nhận hồ sơ mới."
+                                : "Bạn có chắc chắn muốn mở lại nhận hồ sơ?")}
+                        {confirmActionType === "close" &&
+                            "Bạn có chắc chắn muốn đóng chương trình này? Sau khi đóng sẽ không nhận thêm hồ sơ."}
+                    </Typography>
+                    {confirmRow && (
+                        <Box sx={{ mt: 2, border: "1px solid #e2e8f0", borderRadius: 2, p: 2, bgcolor: "#f8fafc" }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+                                Thông tin
+                            </Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                                {confirmRow.programName ?? getProgramName(confirmRow.programId)}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary">
+                                {confirmRow.campusName ?? "—"} · Chỉ tiêu: {confirmRow.quota ?? "—"} · Còn lại:{" "}
+                                {confirmRow.remainingQuota ?? "—"}
+                            </Typography>
+                        </Box>
+                    )}
+                </DialogContent>
+                <DialogActions sx={{ px: 3, py: 2 }}>
+                    <Button
+                        onClick={() => {
+                            if (!confirmActionLoading) setConfirmActionOpen(false);
+                        }}
+                        sx={{ textTransform: "none" }}
+                        disabled={confirmActionLoading}
+                    >
+                        Hủy
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={handleConfirmAction}
+                        disabled={confirmActionLoading}
+                        sx={{ textTransform: "none", fontWeight: 700, bgcolor: "#0D64DE", borderRadius: 2 }}
+                    >
+                        {confirmActionLoading ? "Đang xử lý…" : "Xác nhận"}
                     </Button>
                 </DialogActions>
             </Dialog>

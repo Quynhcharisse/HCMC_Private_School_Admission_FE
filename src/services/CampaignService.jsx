@@ -119,8 +119,24 @@ export const updateCampaignOffering = async (body) => {
 /**
  * PUT toggle / update campus offering lifecycle status (e.g. đóng chỉ tiêu)
  * @param {number} offeringId
+ * @param {string} targetStatus - e.g. OPEN, CLOSED, PAUSED, ...
  */
-export const updateCampusOfferingStatus = async (offeringId) => {
-    const response = await axiosClient.put(`/school/${Number(offeringId)}/campus/offering/status`);
+export const updateCampusOfferingStatus = async (offeringId, targetStatus) => {
+    const response = await axiosClient.put(
+        `/school/${Number(offeringId)}/campus/offering/status`,
+        null,
+        {
+            params: { targetStatus },
+        }
+    );
+    return response || null;
+};
+
+/**
+ * PUT close campus offering (đóng chỉ tiêu)
+ * @param {number} offeringId
+ */
+export const closeCampusOffering = async (offeringId) => {
+    const response = await axiosClient.put(`/school/${Number(offeringId)}/campus/offering/close`, null);
     return response || null;
 };
