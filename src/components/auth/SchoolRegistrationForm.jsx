@@ -1,4 +1,4 @@
-import React, {useState} from 'react';
+import React, {useRef, useState} from 'react';
 import {
     Box,
     Button,
@@ -13,7 +13,7 @@ import {
     InputAdornment,
     Divider,
 } from '@mui/material';
-import {ArrowBack} from '@mui/icons-material';
+import {ArrowBack, CalendarMonth} from '@mui/icons-material';
 import {checkTaxCode, registerSchool} from '../../services/AuthService';
 import backgroundLogin from '../../assets/backgroundLogin.png';
 import {useNavigate} from 'react-router-dom';
@@ -30,6 +30,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
     const [isCheckingTaxCode, setIsCheckingTaxCode] = useState(false);
     
     const [formData, setFormData] = useState({
+        description: '',
         schoolName: '',
         campusName: '',
         campusAddress: '',
@@ -45,6 +46,48 @@ const SchoolRegistrationForm = ({email, onBack}) => {
     
     const [formErrors, setFormErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const foundingDatePickerRef = useRef(null);
+
+    const formatDisplayDate = (value) => {
+        if (!value) return '';
+        const [yyyy, mm, dd] = value.split('-');
+        if (!yyyy || !mm || !dd) return '';
+        return `${dd}/${mm}/${yyyy}`;
+    };
+
+    const normalizeFoundingDate = (value) => {
+        const raw = value?.trim();
+        if (!raw) return null;
+        const match = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+        if (!match) return null;
+        const [, dd, mm, yyyy] = match;
+        return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const formatFoundingDateInput = (value) => {
+        const digits = value.replace(/\D/g, '').slice(0, 8);
+        const day = digits.slice(0, 2);
+        const month = digits.slice(2, 4);
+        const year = digits.slice(4, 8);
+
+        let result = '';
+        if (digits.length > 0) result += day;
+        if (digits.length > 0) result += '/';
+        if (digits.length > 2) result += month;
+        if (digits.length > 2) result += '/';
+        if (digits.length > 4) result += year;
+        return result;
+    };
+
+    const openFoundingDatePicker = () => {
+        const picker = foundingDatePickerRef.current;
+        if (!picker) return;
+        if (typeof picker.showPicker === 'function') {
+            picker.showPicker();
+            return;
+        }
+        picker.click();
+    };
 
     const handleTaxCodeCheck = async () => {
         if (!taxCode.trim()) {
@@ -88,7 +131,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
     };
 
     const handleInputChange = (e) => {
-        const {name, value} = e.target;
+        const {name} = e.target;
+        const value = name === 'foundingDate' ? formatFoundingDateInput(e.target.value) : e.target.value;
         setFormData(prev => ({
             ...prev,
             [name]: value
@@ -108,6 +152,9 @@ const SchoolRegistrationForm = ({email, onBack}) => {
         if (!formData.schoolName.trim()) {
             errors.schoolName = 'Tên trường là bắt buộc';
         }
+        if (!formData.description.trim()) {
+            errors.description = 'Mô tả trường là bắt buộc';
+        }
         if (!formData.campusName.trim()) {
             errors.campusName = 'Tên cơ sở là bắt buộc';
         }
@@ -125,6 +172,9 @@ const SchoolRegistrationForm = ({email, onBack}) => {
         }
         if (!formData.hotline.trim()) {
             errors.hotline = 'Hotline là bắt buộc';
+        }
+        if (formData.foundingDate.trim() && !normalizeFoundingDate(formData.foundingDate)) {
+            errors.foundingDate = 'Ngày thành lập phải đúng định dạng dd/mm/yyyy';
         }
 
         setFormErrors(errors);
@@ -145,6 +195,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                 email: email,
                 role: 'SCHOOL',
                 schoolRequest: {
+                    description: formData.description.trim(),
                     schoolName: formData.schoolName.trim(),
                     campusName: formData.campusName.trim(),
                     campusAddress: formData.campusAddress.trim(),
@@ -152,7 +203,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                     taxCode: formData.taxCode.trim(),
                     websiteUrl: formData.websiteUrl.trim() || null,
                     logoUrl: formData.logoUrl.trim() || null,
-                    foundingDate: formData.foundingDate || null,
+                    foundingDate: normalizeFoundingDate(formData.foundingDate),
                     representativeName: formData.representativeName.trim(),
                     hotline: formData.hotline.trim(),
                     businessLicenseUrl: formData.businessLicenseUrl.trim() || null,
@@ -194,7 +245,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                py: {xs: 2, md: 3},
+                py: {xs: 1, md: 1.5},
                 px: {xs: 2, md: 0},
                 backgroundImage: `linear-gradient(135deg, rgba(15,23,42,0.55), rgba(15,23,42,0.35)), url(${backgroundLogin})`,
                 backgroundSize: 'cover',
@@ -204,21 +255,26 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                 overflow: 'auto',
             }}
         >
-            <Container maxWidth="md">
+            <Container maxWidth="lg" sx={{maxWidth: '1020px !important'}}>
                 <Paper
                     elevation={8}
                     sx={{
-                        p: 4,
+                        p: {xs: 1.5, sm: 2, md: 2.25},
                         borderRadius: 4,
                         background: 'radial-gradient(circle at top left, rgba(239,246,255,0.96) 0, rgba(239,246,255,0.98) 40%, #ffffff 100%)',
                         border: '1px solid #dbeafe',
                         backdropFilter: 'blur(10px)',
                         position: 'relative',
+                        '& .MuiFormLabel-asterisk': {
+                            color: '#111827 !important',
+                        },
+                        '& .MuiInputBase-input': {fontSize: '0.9rem'},
+                        '& .MuiFormHelperText-root': {marginTop: 0.25, fontSize: '0.72rem'},
                     }}
                 >
                     {step === 1 ? (
-                        <Stack spacing={3}>
-                            <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40px'}}>
+                        <Stack spacing={2}>
+                            <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '32px'}}>
                                 <IconButton
                                     onClick={onBack}
                                     sx={{
@@ -233,8 +289,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                 >
                                     <ArrowBack />
                                 </IconButton>
-                                <Typography 
-                                    variant="h5" 
+                                <Typography
+                                    variant="h6"
                                     sx={{
                                         fontWeight: 700, 
                                         color: '#1e293b',
@@ -245,7 +301,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                 </Typography>
                             </Box>
 
-                            <Stack spacing={2}>
+                            <Stack spacing={1.25}>
                                 <TextField
                                     label="Mã số thuế"
                                     value={taxCode}
@@ -288,9 +344,9 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                         </Stack>
                     ) : (
                         <Box component="form" onSubmit={handleSubmit}>
-                            <Stack spacing={2}>
+                            <Stack spacing={1.25}>
                                 {/* Header with back button and centered title */}
-                                <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40px'}}>
+                                <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '32px'}}>
                                     <IconButton
                                         onClick={() => setStep(1)}
                                         sx={{
@@ -305,8 +361,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                     >
                                         <ArrowBack />
                                     </IconButton>
-                                    <Typography 
-                                        variant="h5" 
+                                    <Typography
+                                        variant="h6"
                                         sx={{
                                             fontWeight: 700, 
                                             color: '#1e293b',
@@ -332,10 +388,21 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         Thông tin trường
                                     </Typography>
                                     <Divider sx={{mb: 1.5}} />
-                                    <Grid container rowSpacing={2} columnSpacing={{ xs: 1, sm: 2, md: 3 }}>
-                                        <Grid size={6}>
+                                    <Grid
+                                        container
+                                        rowSpacing={1}
+                                        columnSpacing={{xs: 1, sm: 2, md: 3}}
+                                        sx={{
+                                            p: {xs: 1, sm: 1.25},
+                                            borderRadius: 2,
+                                            bgcolor: 'rgba(255,255,255,0.72)',
+                                            border: '1px solid #e2e8f0',
+                                        }}
+                                    >
+                                        <Grid size={{xs: 12, md: 6}}>
                                         <TextField
-                                            label="Tên trường *"
+                                            label="Tên trường"
+                                            required
                                             name="schoolName"
                                             value={formData.schoolName}
                                             onChange={handleInputChange}
@@ -350,9 +417,10 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 }}
                                         />
                                     </Grid>
-                                        <Grid size={6}>
+                                        <Grid size={{xs: 12, md: 6}}>
                                         <TextField
-                                            label="Tên cơ sở *"
+                                            label="Tên cơ sở"
+                                            required
                                             name="campusName"
                                             value={formData.campusName}
                                             onChange={handleInputChange}
@@ -367,43 +435,98 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 }}
                                         />
                                     </Grid>
-                                        <Grid size={6}>
-                                        <TextField
-                                            label="Mã số thuế *"
-                                            name="taxCode"
-                                            value={formData.taxCode}
-                                            onChange={handleInputChange}
-                                            fullWidth
-                                            size="small"
-                                            error={!!formErrors.taxCode}
-                                            helperText={formErrors.taxCode}
-                                            disabled
+                                        <Grid size={{xs: 12, md: 6}} sx={{display: 'flex'}}>
+                                            <TextField
+                                                label="Mô tả trường"
+                                                required
+                                                name="description"
+                                                value={formData.description}
+                                                onChange={handleInputChange}
+                                                fullWidth
+                                                size="small"
+                                                multiline
+                                                rows={2.9}
+                                                error={!!formErrors.description}
+                                                helperText={formErrors.description}
+                                                FormHelperTextProps={{sx: {minHeight: 20}}}
                                                 sx={{
+                                                    height: '100%',
                                                     '& .MuiOutlinedInput-root': {
                                                         borderRadius: 2,
                                                     },
                                                 }}
                                             />
                                         </Grid>
-                                        <Grid size={6}>
-                                            <TextField
-                                                label="Ngày thành lập"
-                                                name="foundingDate"
-                                                type="date"
-                                                value={formData.foundingDate}
-                                                onChange={handleInputChange}
-                                                fullWidth
-                                                size="small"
-                                                InputLabelProps={{
-                                                    shrink: true,
-                                                }}
-                                                sx={{
-                                                    '& .MuiOutlinedInput-root': {
-                                                        borderRadius: 2,
-                                                    },
-                                                }}
-                                        />
-                                    </Grid>
+                                        <Grid size={{xs: 12, md: 6}}>
+                                            <Stack spacing={1}>
+                                                <TextField
+                                                    label="Mã số thuế"
+                                                    required
+                                                    name="taxCode"
+                                                    value={formData.taxCode}
+                                                    onChange={handleInputChange}
+                                                    fullWidth
+                                                    size="small"
+                                                    error={!!formErrors.taxCode}
+                                                    helperText={formErrors.taxCode}
+                                                    FormHelperTextProps={{sx: {minHeight: 20}}}
+                                                    disabled
+                                                    sx={{
+                                                        '& .MuiOutlinedInput-root': {
+                                                            borderRadius: 2,
+                                                        },
+                                                    }}
+                                                />
+                                                <TextField
+                                                    label="Ngày thành lập"
+                                                    name="foundingDate"
+                                                    value={formData.foundingDate}
+                                                    onChange={handleInputChange}
+                                                    fullWidth
+                                                    size="small"
+                                                    placeholder="dd/mm/yyyy"
+                                                    error={!!formErrors.foundingDate}
+                                                    helperText={formErrors.foundingDate}
+                                                    FormHelperTextProps={{sx: {minHeight: 20}}}
+                                                    inputProps={{maxLength: 10, inputMode: 'numeric'}}
+                                                    InputProps={{
+                                                        endAdornment: (
+                                                            <InputAdornment position="end">
+                                                                <IconButton size="small" onClick={openFoundingDatePicker}>
+                                                                    <CalendarMonth fontSize="small" />
+                                                                </IconButton>
+                                                            </InputAdornment>
+                                                        ),
+                                                    }}
+                                                    sx={{
+                                                        '& .MuiOutlinedInput-root': {
+                                                            borderRadius: 2,
+                                                        },
+                                                    }}
+                                                />
+                                                <input
+                                                    ref={foundingDatePickerRef}
+                                                    type="date"
+                                                    value={normalizeFoundingDate(formData.foundingDate) ?? ''}
+                                                    onChange={(event) => {
+                                                        const nextDisplayDate = formatDisplayDate(event.target.value);
+                                                        setFormData((prev) => ({
+                                                            ...prev,
+                                                            foundingDate: nextDisplayDate
+                                                        }));
+                                                        if (formErrors.foundingDate) {
+                                                            setFormErrors((prev) => ({
+                                                                ...prev,
+                                                                foundingDate: ''
+                                                            }));
+                                                        }
+                                                    }}
+                                                    style={{position: 'absolute', opacity: 0, pointerEvents: 'none', width: 0, height: 0}}
+                                                    aria-hidden="true"
+                                                    tabIndex={-1}
+                                                />
+                                            </Stack>
+                                        </Grid>
                                     </Grid>
                                 </Box>
 
@@ -422,61 +545,78 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         Thông tin liên hệ
                                     </Typography>
                                     <Divider sx={{mb: 1.5}} />
-                                    <Grid container rowSpacing={2} columnSpacing={{ xs: 1, sm: 2, md: 3 }}>
-                                        <Grid size={6}>
+                                    <Grid
+                                        container
+                                        rowSpacing={1}
+                                        columnSpacing={{xs: 1, sm: 2, md: 3}}
+                                        sx={{
+                                            p: {xs: 1, sm: 1.25},
+                                            borderRadius: 2,
+                                            bgcolor: 'rgba(255,255,255,0.72)',
+                                            border: '1px solid #e2e8f0',
+                                        }}
+                                    >
+                                        <Grid size={{xs: 12, md: 6}} sx={{display: 'flex'}}>
                                         <TextField
-                                            label="Địa chỉ cơ sở *"
+                                            label="Địa chỉ cơ sở"
+                                            required
                                             name="campusAddress"
                                             value={formData.campusAddress}
                                             onChange={handleInputChange}
                                             fullWidth
                                             size="small"
                                             multiline
-                                            rows={2}
+                                            rows={2.9}
                                             error={!!formErrors.campusAddress}
                                             helperText={formErrors.campusAddress}
+                                            FormHelperTextProps={{sx: {minHeight: 20}}}
                                                 sx={{
+                                                    height: '100%',
                                                     '& .MuiOutlinedInput-root': {
                                                         borderRadius: 2,
                                                     },
                                                 }}
                                         />
                                     </Grid>
-                                        <Grid size={6}>
-                                        <TextField
-                                                label="Số điện thoại cơ sở *"
-                                                name="campusPhone"
-                                                value={formData.campusPhone}
-                                            onChange={handleInputChange}
-                                            fullWidth
-                                            size="small"
-                                                error={!!formErrors.campusPhone}
-                                                helperText={formErrors.campusPhone}
-                                                sx={{
-                                                    '& .MuiOutlinedInput-root': {
-                                                        borderRadius: 2,
-                                                    },
-                                                }}
-                                        />
-                                    </Grid>
-                                        <Grid size={6}>
-                                        <TextField
-                                            label="Hotline *"
-                                            name="hotline"
-                                            value={formData.hotline}
-                                            onChange={handleInputChange}
-                                            fullWidth
-                                            size="small"
-                                            error={!!formErrors.hotline}
-                                            helperText={formErrors.hotline}
-                                                sx={{
-                                                    '& .MuiOutlinedInput-root': {
-                                                        borderRadius: 2,
-                                                    },
-                                                }}
-                                        />
-                                    </Grid>
-                                        <Grid size={6}>
+                                        <Grid size={{xs: 12, md: 6}} sx={{display: 'flex'}}>
+                                            <Stack spacing={1} sx={{width: '100%'}}>
+                                                <TextField
+                                                    label="Số điện thoại cơ sở"
+                                                    required
+                                                    name="campusPhone"
+                                                    value={formData.campusPhone}
+                                                    onChange={handleInputChange}
+                                                    fullWidth
+                                                    size="small"
+                                                    error={!!formErrors.campusPhone}
+                                                    helperText={formErrors.campusPhone}
+                                                    FormHelperTextProps={{sx: {minHeight: 20}}}
+                                                    sx={{
+                                                        '& .MuiOutlinedInput-root': {
+                                                            borderRadius: 2,
+                                                        },
+                                                    }}
+                                                />
+                                                <TextField
+                                                    label="Hotline"
+                                                    required
+                                                    name="hotline"
+                                                    value={formData.hotline}
+                                                    onChange={handleInputChange}
+                                                    fullWidth
+                                                    size="small"
+                                                    error={!!formErrors.hotline}
+                                                    helperText={formErrors.hotline}
+                                                    FormHelperTextProps={{sx: {minHeight: 20}}}
+                                                    sx={{
+                                                        '& .MuiOutlinedInput-root': {
+                                                            borderRadius: 2,
+                                                        },
+                                                    }}
+                                                />
+                                            </Stack>
+                                        </Grid>
+                                        <Grid size={{xs: 12}}>
                                         <TextField
                                             label="Website URL"
                                             name="websiteUrl"
@@ -510,10 +650,21 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         Thông tin pháp lý
                                     </Typography>
                                     <Divider sx={{mb: 1.5}} />
-                                    <Grid container rowSpacing={2} columnSpacing={{ xs: 1, sm: 2, md: 3 }}>
-                                        <Grid size={6}>
+                                    <Grid
+                                        container
+                                        rowSpacing={1}
+                                        columnSpacing={{xs: 1, sm: 2, md: 3}}
+                                        sx={{
+                                            p: {xs: 1, sm: 1.25},
+                                            borderRadius: 2,
+                                            bgcolor: 'rgba(255,255,255,0.72)',
+                                            border: '1px solid #e2e8f0',
+                                        }}
+                                    >
+                                        <Grid size={{xs: 12, md: 6}}>
                                             <TextField
-                                                label="Tên người đại diện *"
+                                                label="Tên người đại diện"
+                                                required
                                                 name="representativeName"
                                                 value={formData.representativeName}
                                                 onChange={handleInputChange}
@@ -528,7 +679,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 }}
                                         />
                                     </Grid>
-                                        <Grid size={6}>
+                                        <Grid size={{xs: 12, md: 6}}>
                                             <TextField
                                                 label="Logo URL"
                                                 name="logoUrl"
@@ -577,7 +728,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 }}
                                             />
                                     </Grid>
-                                        <Grid size={6}>
+                                        <Grid size={{xs: 12, md: 6}}>
                                             <TextField
                                                 label="URL giấy phép kinh doanh"
                                                 name="businessLicenseUrl"
@@ -648,12 +799,12 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         variant="contained"
                                         disabled={isSubmitting}
                                         sx={{
-                                            minWidth: 200,
-                                            py: 1.2,
-                                            px: 4,
+                                            minWidth: 170,
+                                            py: 0.9,
+                                            px: 3,
                                             textTransform: 'none',
                                             fontWeight: 700,
-                                            fontSize: '0.95rem',
+                                            fontSize: '0.85rem',
                                             borderRadius: 2,
                                             background: 'linear-gradient(90deg, #1d4ed8 0%, #2563eb 100%)',
                                             boxShadow: '0 10px 30px rgba(37, 99, 235, 0.35)',
