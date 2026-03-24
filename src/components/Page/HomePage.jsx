@@ -33,7 +33,6 @@ import {
     LocationOn as LocationIcon,
     Star as StarIcon,
     AttachMoney as MoneyIcon,
-    AccountBalance as BoardingIcon,
     Verified as VerifiedIcon,
     ChevronLeft as ChevronLeftIcon,
     ChevronRight as ChevronRightIcon,
@@ -60,46 +59,206 @@ const admissionEase = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
 
 const ADMISSION_POSTS = [
     {
-        title: 'Đại học Quốc gia TP.HCM mở rộng chỉ tiêu chương trình tài năng 2026',
-        date: '12/03/2026',
-        description: 'Thông tin chi tiết về chỉ tiêu, phương thức xét tuyển và các mốc thời gian quan trọng cho phụ huynh và học sinh.',
-        image: 'https://via.placeholder.com/600x350?text=Tin+tuyen+sinh+1',
-        tags: ['Tuyển sinh', 'Đại học', 'Xét tuyển']
+        title: 'TUYỂN SINH LỚP 10 TPHCM: ĐIỂM THI, ĐIỂM CHUẨN, PHỔ ĐIỂM năm 2025',
+        date: '28/06/2025',
+        description: 'Sở GD-ĐT TP.HCM công bố điểm thi, điểm chuẩn và phổ điểm kỳ tuyển sinh lớp 10 năm học 2025-2026.',
+        image: 'https://images.pexels.com/photos/6146931/pexels-photo-6146931.jpeg?auto=compress&cs=tinysrgb&w=1200',
+        url: 'https://xaydungchinhsach.chinhphu.vn/tuyen-sinh-2025-830-ngay-23-6-cong-bo-diem-thi-lop-10-tphcm-11925062218324419.htm',
+        tags: ['Lớp 10', 'Điểm chuẩn', 'Phổ điểm']
     },
     {
-        title: 'Ngày hội tư vấn định hướng chọn trường THPT cho học sinh lớp 9',
-        date: '05/03/2026',
-        description: 'Sự kiện quy tụ hơn 50 trường THPT chất lượng cao tại TP.HCM với nhiều hoạt động trải nghiệm thực tế.',
-        image: 'https://via.placeholder.com/600x350?text=Tin+tuyen+sinh+2',
-        tags: ['Tư vấn', 'THPT', 'Sự kiện']
+        title: 'Cổng thông tin tuyển sinh 10',
+        date: 'Cập nhật liên tục',
+        description: 'Trang thông tin tuyển sinh lớp 10 để phụ huynh và học sinh theo dõi thông báo, lịch và hướng dẫn đăng ký.',
+        image: 'https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg?auto=compress&cs=tinysrgb&w=1200',
+        url: 'https://thptnangkhieutdtt.hcm.edu.vn/tuyen-sinh/cong-thong-tin-tuyen-sinh-10/ctmb/96467/519002',
+        tags: ['Cổng thông tin', 'Tuyển sinh', 'Lớp 10']
     },
     {
-        title: 'Chuỗi học bổng lên đến 100% học phí từ các trường THPT tư thục',
-        date: '28/02/2026',
-        description: 'Tổng hợp các chương trình học bổng mới nhất dành cho học sinh có thành tích học tập và hoạt động nổi bật.',
-        image: 'https://via.placeholder.com/600x350?text=Tin+tuyen+sinh+3',
-        tags: ['Học bổng', 'THPT', 'Tài chính']
+        title: 'TP.HCM công bố lịch thi lớp 10 chi tiết',
+        date: '25/04/2025',
+        description: 'Lịch thi chính thức trong 2 ngày 6-7/6/2025 cùng các mốc đăng ký nguyện vọng quan trọng.',
+        image: 'https://images.pexels.com/photos/3243/pen-calendar-to-do-checklist.jpg?auto=compress&cs=tinysrgb&w=1200',
+        url: 'https://tuoitre.vn/tp-hcm-cong-bo-lich-thi-lop-10-chi-tiet-20250425101843245.htm',
+        tags: ['Lịch thi', 'TP.HCM', 'Lớp 10']
     },
     {
-        title: 'Cập nhật lịch thi tuyển sinh lớp 10 công lập tại TP.HCM năm 2026',
-        date: '20/02/2026',
-        description: 'Lịch thi, môn thi và thời gian đăng ký dự thi tuyển sinh lớp 10 các trường công lập tại TP.HCM.',
-        image: 'https://via.placeholder.com/600x350?text=Tin+tuyen+sinh+4',
-        tags: ['Tuyển sinh', 'Lớp 10', 'THPT']
+        title: 'TP HCM chính thức công bố thông tin về tuyển sinh lớp 10 năm 2025',
+        date: '30/03/2025',
+        description: 'Thông tin chính thức về môn thi, cách tính điểm xét tuyển, điều kiện dự tuyển và tuyển sinh lớp chuyên.',
+        image: 'https://images.pexels.com/photos/159844/cellular-education-classroom-159844.jpeg?auto=compress&cs=tinysrgb&w=1200',
+        url: 'https://giaoduc247.vn/tuyen-sinh-lop-10/tp-hcm-chinh-thuc-cong-bo-thong-tin-ve-tuyen-sinh-lop-10-nam-2025',
+        tags: ['Thông tin chính thức', 'Thi tuyển', 'Lớp chuyên']
     },
     {
-        title: 'Thông báo xét tuyển học bạ các trường cao đẳng sư phạm khu vực phía Nam',
-        date: '15/02/2026',
-        description: 'Danh sách trường, mức điểm nhận hồ sơ và hình thức xét tuyển học bạ dành cho thí sinh quan tâm ngành sư phạm.',
-        image: 'https://via.placeholder.com/600x350?text=Tin+tuyen+sinh+5',
-        tags: ['Cao đẳng', 'Học bạ', 'Sư phạm']
+        title: 'Thành phố công bố chỉ tiêu tuyển sinh lớp 10 năm học 2025-2026',
+        date: '11/04/2025',
+        description: 'TP.HCM giao 70.070 chỉ tiêu vào lớp 10 công lập tại 115 trường THPT trên toàn địa bàn.',
+        image: 'https://images.pexels.com/photos/5212337/pexels-photo-5212337.jpeg?auto=compress&cs=tinysrgb&w=1200',
+        url: 'https://tphcm.chinhphu.vn/tphcm-cong-bo-chi-tieu-tuyen-sinh-lop-10-nam-hoc-2025-2026-101250411170702663.htm',
+        tags: ['Chỉ tiêu', 'Trường công lập', '2025-2026']
     },
     {
-        title: 'Chương trình dự bị đại học liên kết quốc tế',
-        date: '08/02/2026',
-        description: 'Giới thiệu chương trình dự bị đại học liên kết với các trường quốc tế, phù hợp cho học sinh có định hướng du học.',
-        image: 'https://via.placeholder.com/600x350?text=Tin+tuyen+sinh+6',
-        tags: ['Tuyển sinh', 'Du học', 'Liên kết quốc tế']
+        title: 'Đã có điểm chuẩn lớp 10 TP HCM năm 2025',
+        date: '26/06/2025',
+        description: 'Điểm chuẩn lớp 10 được công bố, kèm hướng dẫn nhập học trực tuyến và mốc thời gian nộp hồ sơ.',
+        image: 'https://images.pexels.com/photos/6457579/pexels-photo-6457579.jpeg?auto=compress&cs=tinysrgb&w=1200',
+        url: 'https://giaoduc247.vn/tuyen-sinh-lop-10/cong-bo-diem-chuan-lop-10-tp-hcm-nam-2025',
+        tags: ['Điểm chuẩn', 'Nhập học', 'TP.HCM']
+    },
+    {
+        title: 'Tuyển sinh lớp 10 TP.HCM năm 2025: Những điểm mới về đăng ký nguyện vọng',
+        date: '11/03/2025',
+        description: 'Các điểm mới về số lượng nguyện vọng và cách đăng ký trực tuyến phụ huynh cần lưu ý.',
+        image: 'https://images.pexels.com/photos/8199168/pexels-photo-8199168.jpeg?auto=compress&cs=tinysrgb&w=1200',
+        url: 'https://thanhnien.vn/tuyen-sinh-lop-10-tphcm-nam-2025-nhung-diem-moi-ve-dang-ky-nguyen-vong-185250311104635937.htm',
+        tags: ['Nguyện vọng', 'Điểm mới', 'Đăng ký']
+    }
+];
+
+const SCHOOL_SHOWCASE = [
+    {
+        name: 'THPT Chuyên Lê Hồng Phong',
+        district: 'Quận 5',
+        location: 'Quận 5, TP.HCM',
+        type: 'Công lập',
+        tuition: 'Miễn phí',
+        rating: 4.9,
+        reviews: 12,
+        grade: 'A+',
+        featured: true,
+        badge: 'Top 1 Quận 5',
+        cover: 'https://images.pexels.com/photos/5212345/pexels-photo-5212345.jpeg?auto=compress&cs=tinysrgb&w=1200'
+    },
+    {
+        name: 'THPT Nguyễn Thị Minh Khai',
+        district: 'Quận 3',
+        location: 'Quận 3, TP.HCM',
+        type: 'Công lập',
+        tuition: 'Miễn phí',
+        rating: 4.8,
+        reviews: 8,
+        grade: 'A',
+        featured: true,
+        badge: 'Nổi bật',
+        cover: 'https://images.pexels.com/photos/8471835/pexels-photo-8471835.jpeg?auto=compress&cs=tinysrgb&w=1200'
+    },
+    {
+        name: 'THPT Trần Đại Nghĩa',
+        district: 'Quận 1',
+        location: 'Quận 1, TP.HCM',
+        type: 'Công lập',
+        tuition: 'Miễn phí',
+        rating: 4.9,
+        reviews: 15,
+        grade: 'A+',
+        featured: true,
+        badge: 'Tỷ lệ đậu cao',
+        cover: 'https://images.pexels.com/photos/8617737/pexels-photo-8617737.jpeg?auto=compress&cs=tinysrgb&w=1200'
+    },
+    {
+        name: 'THPT Gia Định',
+        district: 'Bình Thạnh',
+        location: 'Bình Thạnh, TP.HCM',
+        type: 'Công lập',
+        tuition: 'Miễn phí',
+        rating: 4.7,
+        reviews: 10,
+        grade: 'A',
+        featured: false,
+        badge: 'Uy tín khu vực',
+        cover: 'https://images.pexels.com/photos/7972737/pexels-photo-7972737.jpeg?auto=compress&cs=tinysrgb&w=1200'
+    },
+    {
+        name: 'THPT Nguyễn Du',
+        district: 'Quận 10',
+        location: 'Quận 10, TP.HCM',
+        type: 'Công lập',
+        tuition: 'Miễn phí',
+        rating: 4.8,
+        reviews: 9,
+        grade: 'A',
+        featured: false,
+        badge: 'Top lựa chọn',
+        cover: 'https://images.pexels.com/photos/1184587/pexels-photo-1184587.jpeg?auto=compress&cs=tinysrgb&w=1200'
+    },
+    {
+        name: 'THCS-THPT Hoa Sen',
+        district: 'Phú Nhuận',
+        location: 'Phú Nhuận, TP.HCM',
+        type: 'Tư thục',
+        tuition: '3,5 triệu/tháng',
+        rating: 4.6,
+        reviews: 18,
+        grade: 'A',
+        featured: false,
+        badge: 'Học bổng tốt',
+        cover: 'https://images.pexels.com/photos/5905445/pexels-photo-5905445.jpeg?auto=compress&cs=tinysrgb&w=1200'
+    },
+    {
+        name: 'THCS-THPT Việt Âu',
+        district: 'Tân Bình',
+        location: 'Tân Bình, TP.HCM',
+        type: 'Tư thục',
+        tuition: '4,2 triệu/tháng',
+        rating: 4.5,
+        reviews: 14,
+        grade: 'B+',
+        featured: false,
+        badge: 'Cơ sở vật chất mới',
+        cover: 'https://images.pexels.com/photos/256417/pexels-photo-256417.jpeg?auto=compress&cs=tinysrgb&w=1200'
+    },
+    {
+        name: 'THCS-THPT Quốc Trí',
+        district: 'Gò Vấp',
+        location: 'Gò Vấp, TP.HCM',
+        type: 'Tư thục',
+        tuition: '3,8 triệu/tháng',
+        rating: 4.6,
+        reviews: 11,
+        grade: 'A',
+        featured: false,
+        badge: 'Đội ngũ tư vấn tốt',
+        cover: 'https://images.pexels.com/photos/7972504/pexels-photo-7972504.jpeg?auto=compress&cs=tinysrgb&w=1200'
+    },
+    {
+        name: 'THCS-THPT Ánh Dương',
+        district: 'Thủ Đức',
+        location: 'TP Thủ Đức, TP.HCM',
+        type: 'Tư thục',
+        tuition: '4,6 triệu/tháng',
+        rating: 4.7,
+        reviews: 16,
+        grade: 'A',
+        featured: false,
+        badge: 'Tỷ lệ đậu cao',
+        cover: 'https://images.pexels.com/photos/4144222/pexels-photo-4144222.jpeg?auto=compress&cs=tinysrgb&w=1200'
+    },
+    {
+        name: 'THCS-THPT Trí Đức',
+        district: 'Quận 7',
+        location: 'Quận 7, TP.HCM',
+        type: 'Tư thục',
+        tuition: '4,0 triệu/tháng',
+        rating: 4.5,
+        reviews: 13,
+        grade: 'B+',
+        featured: false,
+        badge: 'Hoạt động ngoại khóa mạnh',
+        cover: 'https://images.pexels.com/photos/207691/pexels-photo-207691.jpeg?auto=compress&cs=tinysrgb&w=1200'
+    },
+    {
+        name: 'THCS-THPT Bình Minh',
+        district: 'Quận 12',
+        location: 'Quận 12, TP.HCM',
+        type: 'Tư thục',
+        tuition: '3,2 triệu/tháng',
+        rating: 4.4,
+        reviews: 9,
+        grade: 'B+',
+        featured: false,
+        badge: 'Học phí hợp lý',
+        cover: 'https://images.pexels.com/photos/1181359/pexels-photo-1181359.jpeg?auto=compress&cs=tinysrgb&w=1200'
     }
 ];
 
@@ -171,7 +330,7 @@ function ConsultGraphicCluster({variant = 1, mirror = false}) {
     );
 }
 
-function BlogCard({title, description, image, date, tags, variant = 'featured'}) {
+function BlogCard({title, description, image, date, tags, url, variant = 'featured'}) {
     const isFeatured = variant === 'featured';
     return (
         <Card
@@ -300,6 +459,9 @@ function BlogCard({title, description, image, date, tags, variant = 'featured'})
                 </Box>
                 <Button
                     size="small"
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     sx={{
                         alignSelf: 'flex-start',
                         mt: 2,
@@ -314,6 +476,114 @@ function BlogCard({title, description, image, date, tags, variant = 'featured'})
                 >
                     Xem chi tiết
                 </Button>
+            </CardContent>
+        </Card>
+    );
+}
+
+function SchoolCard({school}) {
+    return (
+        <Card
+            sx={{
+                height: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                borderRadius: 3,
+                overflow: 'hidden',
+                bgcolor: '#fff',
+                border: '1px solid rgba(15,23,42,0.08)',
+                boxShadow: landingSectionShadow(2),
+                transition: 'transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease',
+                '&:hover': {
+                    transform: 'translateY(-4px) scale(1.02)',
+                    boxShadow: '0 18px 36px rgba(15,23,42,0.14)',
+                    borderColor: 'rgba(79,70,229,0.26)'
+                }
+            }}
+        >
+            <Box
+                sx={{
+                    position: 'relative',
+                    height: 132,
+                    backgroundImage: `linear-gradient(180deg, rgba(15,23,42,0.18) 0%, rgba(15,23,42,0.6) 100%), url(${school.cover})`,
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center'
+                }}
+            >
+                {school.featured && (
+                    <Chip
+                        icon={<StarIcon sx={{fontSize: 14}} />}
+                        label={school.badge}
+                        size="small"
+                        sx={{
+                            position: 'absolute',
+                            top: 10,
+                            left: 10,
+                            bgcolor: 'rgba(255,255,255,0.95)',
+                            fontWeight: 700,
+                            '& .MuiChip-label': {px: 1}
+                        }}
+                    />
+                )}
+                <Avatar
+                    sx={{
+                        position: 'absolute',
+                        left: 14,
+                        bottom: -20,
+                        width: 40,
+                        height: 40,
+                        bgcolor: 'rgba(15,23,42,0.92)',
+                        border: '2px solid #fff',
+                        fontSize: '0.72rem',
+                        fontWeight: 800
+                    }}
+                >
+                    {school.name.split(' ').slice(-2).map((w) => w[0]).join('')}
+                </Avatar>
+            </Box>
+
+            <CardContent sx={{pt: 3.5, px: 2, pb: 2, display: 'flex', flexDirection: 'column', gap: 1.25, flex: 1}}>
+                <Typography sx={{fontSize: '1.02rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.35}}>
+                    {school.name}
+                </Typography>
+
+                <Box sx={{display: 'flex', flexWrap: 'wrap', gap: 0.75}}>
+                    <Chip size="small" label={school.type} sx={{bgcolor: 'rgba(15,23,42,0.08)', fontWeight: 600}} />
+                    <Chip size="small" icon={<MoneyIcon sx={{fontSize: 14}} />} label={school.tuition} sx={{bgcolor: 'rgba(16,185,129,0.14)', fontWeight: 600}} />
+                    <Chip size="small" icon={<LocationIcon sx={{fontSize: 14}} />} label={school.district} sx={{bgcolor: 'rgba(59,130,246,0.12)', fontWeight: 600}} />
+                </Box>
+
+                <Typography sx={{display: 'flex', alignItems: 'center', gap: 0.75, color: '#64748b', fontSize: '0.88rem'}}>
+                    <LocationIcon sx={{fontSize: 16}} />
+                    {school.location}
+                </Typography>
+
+                <Box sx={{display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', mt: 'auto', pt: 0.5}}>
+                    <Box>
+                        <Typography sx={{fontSize: '1.08rem', fontWeight: 800, color: '#f59e0b', lineHeight: 1}}>
+                            {school.rating}
+                            <Typography component="span" sx={{fontSize: '0.82rem', color: '#64748b', fontWeight: 600, ml: 0.75}}>
+                                ({school.reviews} đánh giá)
+                            </Typography>
+                        </Typography>
+                        <Typography sx={{fontSize: '0.78rem', color: '#64748b', mt: 0.35}}>Xếp hạng học lực: {school.grade}</Typography>
+                    </Box>
+                    <Button
+                        size="small"
+                        endIcon={<ArrowForwardIcon sx={{fontSize: 16}} />}
+                        sx={{
+                            textTransform: 'none',
+                            fontWeight: 700,
+                            borderRadius: 999,
+                            px: 1.5,
+                            bgcolor: 'rgba(79,70,229,0.08)',
+                            color: '#4338ca',
+                            '&:hover': {bgcolor: 'rgba(79,70,229,0.15)'}
+                        }}
+                    >
+                        Xem chi tiết
+                    </Button>
+                </Box>
             </CardContent>
         </Card>
     );
@@ -354,7 +624,8 @@ function LatestAdmissionNewsSection() {
         <Box
             id="tin-tuyen-sinh"
             sx={{
-                py: {xs: 8, md: 10},
+                pt: {xs: 8, md: 10},
+                pb: {xs: 3, md: 4},
                 background: 'linear-gradient(180deg, #f8f4ff 0%, #f2f4ff 40%, #fbfcfe 100%)',
                 scrollMarginTop: '80px',
                 position: 'relative'
@@ -363,12 +634,11 @@ function LatestAdmissionNewsSection() {
             <Container maxWidth="lg" sx={{px: {xs: 2, md: 4}}}>
                 <Box
                     sx={{
-                        borderRadius: {xs: 3, md: 5},
-                        px: {xs: 2, md: 4},
-                        py: {xs: 4, md: 5},
-                        background: 'linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.98) 100%)',
-                        border: '1px solid rgba(199,210,254,0.55)',
-                        boxShadow: '0 28px 80px rgba(79, 70, 229, 0.08), 0 0 0 1px rgba(255,255,255,0.8) inset'
+                        px: {xs: 0, md: 0},
+                        py: {xs: 0, md: 0},
+                        background: 'transparent',
+                        border: 'none',
+                        boxShadow: 'none'
                     }}
                 >
                 <Box sx={{textAlign: 'center', mb: {xs: 5, md: 7}}}>
@@ -509,7 +779,7 @@ function LatestAdmissionNewsSection() {
                     </Box>
                 )}
 
-                <Stack direction="row" spacing={1} justifyContent="center" sx={{mt: {xs: 4, md: 5}}}>
+                <Stack direction="row" spacing={1} justifyContent="center" sx={{mt: {xs: 3, md: 3.5}}}>
                     {posts.map((_, i) => (
                         <Box
                             key={i}
@@ -547,6 +817,12 @@ export default function HomePage() {
         workplace: '',
         currentAddress: ''
     });
+    const privateSchools = React.useMemo(
+        () => SCHOOL_SHOWCASE
+            .filter((school) => school.type === 'Tư thục')
+            .sort((a, b) => b.rating - a.rating),
+        []
+    );
 
     const consultSectionRef = React.useRef(null);
     const [consultVisible, setConsultVisible] = React.useState(false);
@@ -1202,7 +1478,7 @@ export default function HomePage() {
                 </Container>
             </Box>
 
-            <Box 
+            <Box
                 id="trường-nổi-bật"
                 sx={{
                     py: {xs: 8, md: 10},
@@ -1213,295 +1489,54 @@ export default function HomePage() {
                 }}
             >
                 <Container maxWidth="xl" sx={{px: {xs: 2, sm: 3, md: 4}}}>
-                    <Box sx={{mb: {xs: 4, md: 6}, textAlign: 'center'}}>
+                    <Box sx={{mb: 4.5, textAlign: 'center'}}>
                         <Box sx={{
                             display: 'inline-flex',
                             alignItems: 'center',
-                            gap: 0.5,
-                            mb: 1.5,
+                            gap: 0.75,
+                            mb: 1.25,
                             px: 2,
                             py: 0.75,
                             borderRadius: 999,
                             bgcolor: 'rgba(99,102,241,0.1)',
                             border: '1px solid rgba(99,102,241,0.22)'
                         }}>
-                            <StarIcon sx={{fontSize: 18, color: '#7c3aed'}}/>
-                            <Typography sx={{
-                                fontSize: '0.8125rem',
-                                fontWeight: 700,
-                                color: '#4f46e5',
-                                letterSpacing: '0.05em',
-                                textTransform: 'uppercase'
-                            }}>
-                                Nổi bật
+                            <StarIcon sx={{fontSize: 18, color: '#7c3aed'}} />
+                            <Typography sx={{fontSize: '0.8125rem', fontWeight: 700, color: '#4f46e5', letterSpacing: '0.05em', textTransform: 'uppercase'}}>
+                                Trường tư thục
                             </Typography>
                         </Box>
-                        <Typography
-                            variant="h2"
-                            sx={{
-                                fontWeight: 800,
-                                mb: 1,
-                                color: '#0f172a',
-                                fontSize: {xs: '1.75rem', sm: '2.25rem', md: '2.5rem'},
-                                letterSpacing: '-0.02em',
-                                lineHeight: 1.2
-                            }}
-                        >
-                            Top 5 trường học nổi bật
+                        <Typography variant="h2" sx={{fontWeight: 800, mb: 1, color: '#0f172a', fontSize: {xs: '1.75rem', sm: '2.25rem', md: '2.5rem'}, letterSpacing: '-0.02em', lineHeight: 1.2}}>
+                            Danh sách trường tư thục
                         </Typography>
-                        <Typography variant="body1" sx={{
-                            color: '#64748b',
-                            fontSize: {xs: '0.9375rem', md: '1rem'},
-                            maxWidth: '600px',
-                            mx: 'auto',
-                            lineHeight: 1.65
-                        }}>
-                            Các trường uy tín đồng hành cùng EduBridgeHCM — thẻ pastel, dễ so sánh nhanh.
+                        <Typography variant="body1" sx={{color: '#64748b', fontSize: {xs: '0.9375rem', md: '1rem'}, maxWidth: '680px', mx: 'auto', lineHeight: 1.65}}>
+                            So sánh nhanh học phí, vị trí và đánh giá để chọn trường tư thục phù hợp cho học sinh.
                         </Typography>
                     </Box>
-
-                    <Grid container spacing={{xs: 2.5, sm: 3, md: 3.5}} justifyContent="center">
-                        {[
-                            {name: 'Trường THPT Chuyên Lê Hồng Phong', location: 'Quận 5, TP.HCM', logo: 'LHP', rating: 4.9, reviews: 12, tuition: 'Miễn phí', grade: 'A+', featured: true, boarding: true},
-                            {name: 'Trường THPT Nguyễn Thị Minh Khai', location: 'Quận 3, TP.HCM', logo: 'NTMK', rating: 4.8, reviews: 8, tuition: 'Miễn phí', grade: 'A', featured: true, boarding: true},
-                            {name: 'Trường THPT Trần Đại Nghĩa', location: 'Quận 1, TP.HCM', logo: 'TDN', rating: 4.9, reviews: 15, tuition: 'Miễn phí', grade: 'A+', featured: true, boarding: true},
-                            {name: 'Trường THPT Gia Định', location: 'Quận Bình Thạnh, TP.HCM', logo: 'GD', rating: 4.7, reviews: 10, tuition: 'Miễn phí', grade: 'A', featured: false, boarding: true},
-                            {name: 'Trường THPT Nguyễn Du', location: 'Quận 10, TP.HCM', logo: 'ND', rating: 4.8, reviews: 9, tuition: 'Miễn phí', grade: 'A', featured: false, boarding: true}
-                        ].map((school, index) => (
-                            <Grid 
-                                item 
-                                xs={12} 
-                                sm={6} 
-                                md={4} 
-                                lg={2.4}
-                                key={index}
-                            sx={{
-                                    '@media (min-width: 1200px)': {
-                                        maxWidth: '20%',
-                                        flexBasis: '20%'
-                                    }
+                    <Box sx={{mb: 1.5}}>
+                        <Typography sx={{fontWeight: 800, color: '#0f172a', fontSize: '1.12rem', mb: 1.5}}>
+                            💰 Trường tư thục
+                        </Typography>
+                        {privateSchools.length === 0 ? (
+                            <Typography sx={{color: '#64748b', fontSize: '0.9rem'}}>Hiện chưa có dữ liệu trường tư thục.</Typography>
+                        ) : (
+                            <Box
+                                sx={{
+                                    display: 'grid',
+                                    gridTemplateColumns: {
+                                        xs: '1fr',
+                                        sm: 'repeat(2, minmax(0, 1fr))',
+                                        md: 'repeat(3, minmax(0, 1fr))'
+                                    },
+                                    gap: 3
                                 }}
                             >
-                            <Card
-                                sx={{
-                                    height: '100%',
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                    borderRadius: 3,
-                                    overflow: 'hidden',
-                                        bgcolor: 'white',
-                                        boxShadow: landingSectionShadow(3),
-                                        border: '1px solid rgba(15,23,42,0.08)',
-                                        transition: 'all 0.3s ease',
-                                        position: 'relative',
-                                        cursor: 'pointer',
-                                    '&:hover': {
-                                            boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-                                            transform: 'translateY(-6px)',
-                                            '& .school-image': {
-                                                transform: 'scale(1.05)'
-                                                }
-                                            }
-                                        }}
-                                    >
-                                    <Box sx={{
-                                        position: 'relative',
-                                        width: '100%',
-                                        height: {xs: 180, sm: 200, md: 220},
-                                        bgcolor: '#ede9fe',
-                                                background: 'linear-gradient(135deg, #e0e7ff 0%, #ddd6fe 55%, #fce7f3 100%)',
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                        overflow: 'hidden'
-                                    }}>
-                                        {school.featured && (
-                                            <Box sx={{
-                                                        position: 'absolute',
-                                                top: 12,
-                                                left: 12,
-                                                zIndex: 2,
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 0.5,
-                                                px: 1.5,
-                                                py: 0.5,
-                                                borderRadius: 1.5,
-                                                bgcolor: '#17a2b8',
-                                                border: '1px solid #17a2b8'
-                                            }}>
-                                                <StarIcon sx={{fontSize: 14, color: 'white'}}/>
-                                                <Typography sx={{
-                                                    fontSize: '0.75rem',
-                                                    fontWeight: 600,
-                                                    color: 'white'
-                                                }}>
-                                                    Nổi bật
-                                        </Typography>
-                                    </Box>
-                                        )}
-                                        
-                                        {school.boarding && (
-                                            <Box sx={{
-                                            position: 'absolute',
-                                                top: school.featured ? 48 : 12,
-                                                left: 12,
-                                                zIndex: 2,
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                                gap: 0.5,
-                                                px: 1.5,
-                                                py: 0.5,
-                                                borderRadius: 1.5,
-                                                bgcolor: 'rgba(255,255,255,0.9)',
-                                                border: '1px solid rgba(0,0,0,0.1)'
-                                            }}>
-                                                <BoardingIcon sx={{fontSize: 14, color: '#666'}}/>
-                                                <Typography sx={{
-                                                    fontSize: '0.75rem',
-                                                    fontWeight: 500,
-                                                    color: '#333'
-                                                }}>
-                                                    Trường tư
-                                            </Typography>
-                                    </Box>
-                                        )}
-                                        
-                                        <Avatar
-                                            className="school-image"
-                                sx={{
-                                                width: 100,
-                                                height: 100,
-                                                bgcolor: BRAND_NAVY,
-                                                fontSize: '2rem',
-                                                fontWeight: 700,
-                                                boxShadow: '0 4px 16px rgba(45,95,115,0.35)',
-                                                background: `linear-gradient(135deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 100%)`,
-                                                transition: 'transform 0.3s ease'
-                                            }}
-                                        >
-                                            {school.logo}
-                                        </Avatar>
-                                    </Box>
-                                    
-                                    <CardContent sx={{
-                                        flexGrow: 1,
-                                                display: 'flex',
-                                        flexDirection: 'column',
-                                        p: 2.5
-                                    }}>
-                                        <Box sx={{display: 'flex', alignItems: 'flex-start', mb: 1.5, gap: 1}}>
-                                            <Typography 
-                                                variant="h6" 
-                                                sx={{
-                                                    fontWeight: 600, 
-                                                    color: '#1e1b4b', 
-                                                    fontSize: {xs: '1rem', sm: '1.0625rem'}, 
-                                                    lineHeight: 1.3,
-                                                    flex: 1
-                                                }}
-                                            >
-                                            {school.name}
-                                        </Typography>
-                                        </Box>
-                                        
-                                        <Box sx={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 0.75,
-                                            mb: 1.5
-                                        }}>
-                                            <MoneyIcon sx={{fontSize: 18, color: '#666'}}/>
-                                            <Typography sx={{
-                                                fontSize: '0.875rem',
-                                                fontWeight: 500,
-                                                color: '#333'
-                                            }}>
-                                                {school.tuition}
-                                        </Typography>
-                                    </Box>
-                                        
-                                        <Box sx={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: 0.75,
-                                            mb: 1.5
-                                        }}>
-                                            <LocationIcon sx={{fontSize: 18, color: '#666'}}/>
-                                            <Typography sx={{
-                                                fontSize: '0.875rem',
-                                                color: '#666'
-                                            }}>
-                                                {school.location}
-                                            </Typography>
-                                    </Box>
-                                        
-                                        <Box sx={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                            gap: 1.5,
-                                            pt: 1.5,
-                                            borderTop: '1px solid rgba(0,0,0,0.08)',
-                                            mt: 'auto'
-                                        }}>
-                                            <Box sx={{
-                                                display: 'flex',
-                                                alignItems: 'center',
-                                                gap: 0.75
-                                            }}>
-                                                <Box sx={{
-                                                    px: 1,
-                                                    py: 0.25,
-                                                    borderRadius: 1,
-                                                    bgcolor: '#dc3545',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center'
-                                                }}>
-                                                    <Typography sx={{
-                                                        fontSize: '0.75rem',
-                                                        fontWeight: 700,
-                                                        color: 'white'
-                                                    }}>
-                                                        {school.grade}
-                                                    </Typography>
-                                                </Box>
-                                                <Box sx={{display: 'flex', alignItems: 'center', gap: 0.25}}>
-                                                    {[...Array(5)].map((_, i) => (
-                                                        <StarIcon 
-                                                            key={i}
-                                            sx={{
-                                                                fontSize: 14,
-                                                                color: i < Math.floor(school.rating) ? '#ffb300' : '#ddd'
-                                                            }}
-                                                        />
-                                                    ))}
-                                        </Box>
-                                                <Typography sx={{
-                                                    fontSize: '0.8125rem',
-                                                    color: '#666',
-                                                    ml: 0.5
-                                                }}>
-                                                    {school.rating} ({school.reviews} Bình luận)
-                                        </Typography>
-                                    </Box>
-                                        </Box>
-                                        
-                                        <Box sx={{
-                                            display: 'flex',
-                                            justifyContent: 'flex-end',
-                                            mt: 1
-                                        }}>
-                                            <ArrowForwardIcon sx={{
-                                                fontSize: 20,
-                                                color: '#6366f1'
-                                            }}/>
-                                        </Box>
-                                </CardContent>
-                            </Card>
-                        </Grid>
-                        ))}
-                    </Grid>
+                                {privateSchools.map((school) => (
+                                    <SchoolCard key={school.name} school={school} />
+                                ))}
+                            </Box>
+                        )}
+                    </Box>
                 </Container>
             </Box>
 
