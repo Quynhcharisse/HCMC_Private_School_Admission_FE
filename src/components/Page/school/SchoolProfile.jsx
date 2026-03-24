@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
     Box,
     Button,
@@ -66,17 +66,38 @@ function InfoRow({ label, value }) {
     );
 }
 
+/** GET có thể trả uploadDate dạng ISO string hoặc mảng LocalDateTime (Java). PUT cần ISO string + field isUsage. */
+function toIsoUploadDateForPut(raw) {
+    if (raw == null || raw === "") return new Date().toISOString();
+    if (typeof raw === "string") return raw;
+    if (Array.isArray(raw) && raw.length >= 3) {
+        const [y, mo, d, h = 0, mi = 0, s = 0, nano = 0] = raw;
+        const ms = Number.isFinite(nano) ? Math.floor(nano / 1e6) : 0;
+        return new Date(Date.UTC(y, mo - 1, d, h, mi, s, ms)).toISOString();
+    }
+    return new Date().toISOString();
+}
+
+function imageItemIsUsage(item) {
+    if (item == null) return true;
+    if (typeof item.isUsage === "boolean") return item.isUsage;
+    if (typeof item.usage === "boolean") return item.usage;
+    return true;
+}
+
 export default function SchoolProfile() {
     const [loading, setLoading] = useState(true);
     const [profile, setProfile] = useState(null);
     const [editOpen, setEditOpen] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [policyDetailProvided, setPolicyDetailProvided] = useState(false);
     const [formValues, setFormValues] = useState({
         campusName: "",
         phoneNumber: "",
         policyDetail: "",
         address: "",
         schoolName: "",
+        schoolDescription: "",
         logoUrl: "",
         websiteUrl: "",
         representativeName: "",
@@ -89,45 +110,59 @@ export default function SchoolProfile() {
         facilityItemList: [],
     });
 
+    const hydrateFromBody = useCallback((body) => {
+        if (body == null) return;
+        setProfile(body);
+        const campus = body?.campus || {};
+        const hasPolicyDetail = Object.prototype.hasOwnProperty.call(campus, "policyDetail");
+        setPolicyDetailProvided(hasPolicyDetail);
+        const legacySchoolData = campus.schoolData || {};
+        const facilityJson = campus.facilityJson || campus.facility || {};
+        const imageJson = campus.imageJson || {};
+        const list = Array.isArray(imageJson.itemList) ? imageJson.itemList : [];
+        const facilityList = Array.isArray(facilityJson.itemList) ? facilityJson.itemList : [];
+        const schoolName = campus.schoolName || legacySchoolData.name || "";
+        setFormValues({
+            campusName: campus.name || "",
+            phoneNumber: campus.phoneNumber || "",
+            policyDetail: campus.policyDetail || "",
+            address: campus.address || "",
+            schoolName: schoolName || "",
+            schoolDescription: campus.schoolDescription ?? legacySchoolData.description ?? "",
+            logoUrl: campus.logoUrl ?? legacySchoolData.logoUrl ?? "",
+            websiteUrl: campus.websiteUrl ?? legacySchoolData.websiteUrl ?? "",
+            representativeName: campus.representativeName ?? legacySchoolData.representativeName ?? "",
+            hotline: campus.hotline ?? legacySchoolData.hotline ?? "",
+            businessLicenseUrl: campus.businessLicenseUrl ?? legacySchoolData.businessLicenseUrl ?? "",
+            foundingDate: campus.foundingDate ?? legacySchoolData.foundingDate ?? "",
+            coverUrl: imageJson.coverUrl || "",
+            itemList: list.map((item) => ({
+                name: item.name || "",
+                url: item.url || "",
+                altName: item.altName || "",
+                isUsage: imageItemIsUsage(item),
+                uploadDate: item.uploadDate,
+            })),
+            facilityOverview: facilityJson.overview || "",
+            facilityItemList: facilityList.map((f) => ({
+                facilityCode: f.facilityCode || "",
+                name: f.name || "",
+                value: f.value || "",
+                unit: f.unit || "",
+                category: f.category || "",
+            })),
+        });
+    }, []);
+
     useEffect(() => {
         const load = async () => {
             try {
                 const res = await getProfile();
-                const body = res?.data?.body;
-                setProfile(body);
-                const campus = body?.campus || {};
-                const schoolData = campus.schoolData || {};
-                const facilityJson = campus.facilityJson || campus.facility || {};
-                const imageJson = campus.imageJson || {};
-                const list = imageJson.itemList && Array.isArray(imageJson.itemList) ? imageJson.itemList : [];
-                const facilityList = facilityJson.itemList && Array.isArray(facilityJson.itemList) ? facilityJson.itemList : [];
-                setFormValues({
-                    campusName: campus.name || "",
-                    phoneNumber: campus.phoneNumber || "",
-                    policyDetail: campus.policyDetail || "",
-                    address: campus.address || "",
-                    schoolName: campus.schoolName || "",
-                    logoUrl: campus.schoolData?.logoUrl || "",
-                    websiteUrl: schoolData.websiteUrl || "",
-                    representativeName: schoolData.representativeName || "",
-                    hotline: schoolData.hotline || "",
-                    businessLicenseUrl: schoolData.businessLicenseUrl || "",
-                    foundingDate: schoolData.foundingDate || "",
-                    coverUrl: imageJson.coverUrl || "",
-                    itemList: list.map((item) => ({
-                        name: item.name || "",
-                        url: item.url || "",
-                        altName: item.altName || "",
-                    })),
-                    facilityOverview: facilityJson.overview || "",
-                    facilityItemList: facilityList.map((f) => ({
-                        facilityCode: f.facilityCode || "",
-                        name: f.name || "",
-                        value: f.value || "",
-                        unit: f.unit || "",
-                        category: f.category || "",
-                    })),
-                });
+                if (res?.status === 200) {
+                    hydrateFromBody(res?.data?.body);
+                } else {
+                    enqueueSnackbar(res?.data?.message || "Không tải được thông tin hồ sơ", { variant: "error" });
+                }
             } catch {
                 enqueueSnackbar("Không tải được thông tin hồ sơ", { variant: "error" });
             } finally {
@@ -135,7 +170,7 @@ export default function SchoolProfile() {
             }
         };
         load();
-    }, []);
+    }, [hydrateFromBody]);
 
     const handleImageItemChange = (index, field) => (e) => {
         const next = formValues.itemList.map((item, i) => (i === index ? { ...item, [field]: e.target.value } : item));
@@ -143,7 +178,10 @@ export default function SchoolProfile() {
     };
 
     const handleAddImageItem = () => {
-        setFormValues((p) => ({ ...p, itemList: [...p.itemList, { name: "", url: "", altName: "" }] }));
+        setFormValues((p) => ({
+            ...p,
+            itemList: [...p.itemList, { name: "", url: "", altName: "", isUsage: true }],
+        }));
     };
 
     const handleRemoveImageItem = (index) => {
@@ -175,8 +213,8 @@ export default function SchoolProfile() {
                     name: item.name?.trim() || "",
                     url: item.url?.trim() || "",
                     altName: item.altName?.trim() || "",
-                    uploadDate: new Date().toISOString(),
-                    usage: true,
+                    uploadDate: toIsoUploadDateForPut(item.uploadDate),
+                    isUsage: item.isUsage !== false,
                 }));
             const facilityItemListPayload = formValues.facilityItemList.map((item) => ({
                 facilityCode: item.facilityCode?.trim() || "",
@@ -185,14 +223,17 @@ export default function SchoolProfile() {
                 unit: item.unit?.trim() || "",
                 category: item.category?.trim() || "",
             }));
+
+            const hasImages = !!formValues.coverUrl?.trim() || itemListPayload.length > 0;
             const payload = {
                 campusData: {
-                    name: formValues.campusName?.trim() || undefined,
-                    phoneNumber: formValues.phoneNumber?.trim() || undefined,
-                    policyDetail: formValues.policyDetail?.trim() || undefined,
-                    address: formValues.address?.trim() || undefined,
+                    name: formValues.campusName?.trim() || "",
+                    phoneNumber: formValues.phoneNumber?.trim() || "",
+                    policyDetail: policyDetailProvided ? formValues.policyDetail?.trim() || "" : undefined,
+                    address: formValues.address?.trim() || "",
                     schoolData: {
                         name: formValues.schoolName?.trim() || "",
+                        description: formValues.schoolDescription?.trim() || "",
                         logoUrl: formValues.logoUrl?.trim() || "",
                         websiteUrl: formValues.websiteUrl?.trim() || "",
                         representativeName: formValues.representativeName?.trim() || "",
@@ -204,25 +245,27 @@ export default function SchoolProfile() {
                         overview: formValues.facilityOverview?.trim() || "",
                         itemList: facilityItemListPayload,
                     },
-                    imageJson:
-                        formValues.coverUrl?.trim() || itemListPayload.length > 0
-                            ? {
-                                  coverUrl: formValues.coverUrl?.trim() || undefined,
+                    ...(hasImages
+                        ? {
+                              imageJson: {
+                                  coverUrl: formValues.coverUrl?.trim() || "",
                                   itemList: itemListPayload,
-                              }
-                            : undefined,
+                              },
+                          }
+                        : {}),
                 },
             };
-            if (payload.campusData.imageJson) {
-                if (!payload.campusData.imageJson.coverUrl) delete payload.campusData.imageJson.coverUrl;
-                if (Object.keys(payload.campusData.imageJson).length === 0) delete payload.campusData.imageJson;
-            }
             const res = await updateProfile(payload);
             if (res?.status === 200) {
                 enqueueSnackbar("Cập nhật hồ sơ thành công", { variant: "success" });
                 setEditOpen(false);
-                const body = res.data?.body;
-                if (body) setProfile(body);
+                const putBody = res.data?.body;
+                if (putBody) {
+                    hydrateFromBody(putBody);
+                } else {
+                    const fresh = await getProfile();
+                    if (fresh?.status === 200) hydrateFromBody(fresh?.data?.body);
+                }
             } else {
                 enqueueSnackbar("Cập nhật thất bại", { variant: "error" });
             }
@@ -336,14 +379,15 @@ export default function SchoolProfile() {
                     <SectionHeader icon={PersonIcon} title="Thông tin liên hệ" />
                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
                         <InfoRow label="Tên trường" value={campus.schoolName} />
+                        <InfoRow label="Mô tả trường" value={campus.schoolDescription ?? campus.schoolData?.description} />
                         <InfoRow label="Cơ sở" value={campus.name} />
                         <InfoRow label="Email" value={profile?.email} />
                         <InfoRow label="Số điện thoại" value={campus.phoneNumber} />
-                        <InfoRow label="Đại diện" value={campus.schoolData?.representativeName} />
-                        <InfoRow label="Hotline" value={campus.schoolData?.hotline} />
-                        <InfoRow label="Website URL" value={campus.schoolData?.websiteUrl} />
-                        <InfoRow label="Giấy phép kinh doanh" value={campus.schoolData?.businessLicenseUrl} />
-                        <InfoRow label="Ngày thành lập" value={campus.schoolData?.foundingDate} />
+                        <InfoRow label="Đại diện" value={campus.representativeName ?? campus.schoolData?.representativeName} />
+                        <InfoRow label="Hotline" value={campus.hotline ?? campus.schoolData?.hotline} />
+                        <InfoRow label="Website URL" value={campus.websiteUrl ?? campus.schoolData?.websiteUrl} />
+                        <InfoRow label="Giấy phép kinh doanh" value={campus.businessLicenseUrl ?? campus.schoolData?.businessLicenseUrl} />
+                        <InfoRow label="Ngày thành lập" value={campus.foundingDate ?? campus.schoolData?.foundingDate} />
                     </Box>
                 </CardContent>
             </Card>
@@ -550,6 +594,7 @@ export default function SchoolProfile() {
                         <TextField label="Số điện thoại" value={formValues.phoneNumber} onChange={(e) => setFormValues((p) => ({ ...p, phoneNumber: e.target.value }))} fullWidth size="small" />
                         <TextField label="Địa chỉ" value={formValues.address} onChange={(e) => setFormValues((p) => ({ ...p, address: e.target.value }))} fullWidth size="small" multiline rows={2} />
                         <TextField label="Mô tả chính sách" value={formValues.policyDetail} onChange={(e) => setFormValues((p) => ({ ...p, policyDetail: e.target.value }))} fullWidth size="small" multiline rows={2} placeholder="policyDetail" />
+                        <TextField label="Mô tả trường" value={formValues.schoolDescription} onChange={(e) => setFormValues((p) => ({ ...p, schoolDescription: e.target.value }))} fullWidth size="small" multiline rows={2} placeholder="schoolDescription" />
                         <TextField label="Website URL" value={formValues.websiteUrl} onChange={(e) => setFormValues((p) => ({ ...p, websiteUrl: e.target.value }))} fullWidth size="small" placeholder="https://..." />
                         <TextField label="Đại diện" value={formValues.representativeName} onChange={(e) => setFormValues((p) => ({ ...p, representativeName: e.target.value }))} fullWidth size="small" />
                         <TextField label="Hotline" value={formValues.hotline} onChange={(e) => setFormValues((p) => ({ ...p, hotline: e.target.value }))} fullWidth size="small" />
