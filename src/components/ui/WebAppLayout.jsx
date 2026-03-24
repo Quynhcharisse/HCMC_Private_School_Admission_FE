@@ -11,6 +11,7 @@ export default function WebAppLayout() {
     const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
     const isHomeRoute = location.pathname === '/' || location.pathname === '/home';
     const isParentFirstLoginRoute = location.pathname === '/parent-first-login';
+    const toBoolean = (value) => value === true || value === 'true' || value === 1 || value === '1';
 
     useEffect(() => {
         if (isAuthPage) {
@@ -42,7 +43,7 @@ export default function WebAppLayout() {
         try {
             const parsed = JSON.parse(storedUser);
             const isParent = parsed?.role === 'PARENT';
-            const isFirstLogin = !!parsed?.firstLogin;
+            const isFirstLogin = toBoolean(parsed?.firstLogin);
 
             if (isParent && isFirstLogin) {
                 if (location.pathname !== '/parent-first-login') {
@@ -78,7 +79,7 @@ export default function WebAppLayout() {
                     bgcolor: isHomeRoute && !isAuthPage ? 'transparent' : '#f8fafc'
                 }}
             >
-                <Outlet/>
+                <Outlet key={location.pathname}/>
             </Box>
             {!isAuthPage && !isParentFirstLoginRoute && <Footer/>}
             {!isAuthPage && <ScrollTopButton/>}

@@ -561,6 +561,12 @@ function MainHeader() {
     };
 
     const goTo = (path) => {
+        // Workaround: on School Search, some parent sessions keep stale outlet UI
+        // even though URL changes. Force a full navigation from that page.
+        if (location.pathname === '/search-schools') {
+            window.location.assign(path);
+            return;
+        }
         navigate(path);
         setMobileMenuOpen(false);
     };
@@ -737,11 +743,11 @@ function MainHeader() {
                             <Button color="inherit" sx={navButtonSx('/saved-schools')} onClick={() => goTo('/saved-schools')}>
                                 Trường đã lưu
                             </Button>
-                            <Button color="inherit" sx={navButtonSx('/consultation-requests')} onClick={() => goTo('/consultation-requests')}>
-                                So sánh trường
+                            <Button color="inherit" sx={navButtonSx('/guide')} onClick={() => goTo('/guide')}>
+                                Hướng dẫn
                             </Button>
-                            <Button color="inherit" sx={navButtonSx('/admission-news')} onClick={() => goTo('/admission-news')}>
-                                Tin tuyển sinh
+                            <Button color="inherit" sx={navButtonSx('/about')} onClick={() => goTo('/about')}>
+                                Về chúng tôi
                             </Button>
                         </Box>
                     ) : !isSignedIn ? (
@@ -764,11 +770,11 @@ function MainHeader() {
                             <Button color="inherit" sx={navButtonSx('/saved-schools')} onClick={() => goTo('/saved-schools')}>
                                 Trường đã lưu
                             </Button>
-                            <Button color="inherit" sx={navButtonSx('/consultation-requests')} onClick={() => goTo('/consultation-requests')}>
-                                So sánh trường
+                            <Button color="inherit" sx={navButtonSx('/guide')} onClick={() => goTo('/guide')}>
+                                Hướng dẫn
                             </Button>
-                            <Button color="inherit" sx={navButtonSx('/admission-news')} onClick={() => goTo('/admission-news')}>
-                                Tin tuyển sinh
+                            <Button color="inherit" sx={navButtonSx('/about')} onClick={() => goTo('/about')}>
+                                Về chúng tôi
                             </Button>
                         </Box>
                     ) : !isHomePage && (
@@ -1595,11 +1601,11 @@ function MainHeader() {
                                     <ListItem onClick={() => goTo('/saved-schools')}>
                                         <ListItemText primary="Trường đã lưu" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
-                                    <ListItem onClick={() => goTo('/consultation-requests')}>
-                                        <ListItemText primary="So sánh trường" sx={{color: '#333', fontWeight: 600}}/>
+                                    <ListItem onClick={() => goTo('/guide')}>
+                                        <ListItemText primary="Hướng dẫn" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
-                                    <ListItem onClick={() => goTo('/admission-news')}>
-                                        <ListItemText primary="Tin tuyển sinh" sx={{color: '#333', fontWeight: 600}}/>
+                                    <ListItem onClick={() => goTo('/about')}>
+                                        <ListItemText primary="Về chúng tôi" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
                                 </>
                             ) : !isSignedIn ? (
@@ -1613,11 +1619,11 @@ function MainHeader() {
                                     <ListItem onClick={() => goTo('/saved-schools')}>
                                         <ListItemText primary="Trường đã lưu" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
-                                    <ListItem onClick={() => goTo('/consultation-requests')}>
-                                        <ListItemText primary="So sánh trường" sx={{color: '#333', fontWeight: 600}}/>
+                                    <ListItem onClick={() => goTo('/guide')}>
+                                        <ListItemText primary="Hướng dẫn" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
-                                    <ListItem onClick={() => goTo('/admission-news')}>
-                                        <ListItemText primary="Tin tuyển sinh" sx={{color: '#333', fontWeight: 600}}/>
+                                    <ListItem onClick={() => goTo('/about')}>
+                                        <ListItemText primary="Về chúng tôi" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
                                 </>
                             ) : !isHomePage && (
@@ -1675,7 +1681,7 @@ function MainHeader() {
                                     {isParent ? (
                                         <>
                                             <ListItem 
-                                                onClick={() => goTo('/profile')}
+                                                onClick={() => goTo('/parent/profile')}
                                                 sx={{cursor: 'pointer'}}
                                             >
                                                 <ListItemText 
