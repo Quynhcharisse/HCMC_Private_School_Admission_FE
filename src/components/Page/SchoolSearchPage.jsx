@@ -26,6 +26,7 @@ import {
     AutoAwesome as SparkleIcon,
     Bookmark as BookmarkIcon,
     BookmarkBorder as BookmarkBorderIcon,
+    CalendarMonth as CalendarMonthIcon,
     CheckCircle as CheckCircleIcon,
     ChatBubbleOutline as ChatBubbleOutlineIcon,
     Email as EmailIcon,
@@ -36,7 +37,7 @@ import {
     Search as SearchIcon,
     Share as ShareIcon
 } from "@mui/icons-material";
-import {useNavigate, useSearchParams} from "react-router-dom";
+import {useLocation, useNavigate} from "react-router-dom";
 import {GoogleMap, MarkerF, useJsApiLoader} from "@react-google-maps/api";
 import {
     BRAND_NAVY,
@@ -174,6 +175,40 @@ const DEFAULT_SCHOOL_IMAGE =
 
 const FALLBACK_MAP_CENTER = {lat: 10.7769, lng: 106.7009};
 const MAP_CONTAINER_STYLE = {width: "100%", height: "260px"};
+
+const DETAIL_SCROLL_HEADROOM = 88;
+const DETAIL_SCROLL_DURATION_MS = 880;
+const DETAIL_SCROLL_LOCK_MS = DETAIL_SCROLL_DURATION_MS + 110;
+
+function smootherstep(t) {
+    return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+let detailScrollAnimGeneration = 0;
+
+function smoothScrollContainerToElement(container, element) {
+    if (!container || !element || typeof window === "undefined") return;
+    const startTop = container.scrollTop;
+    const elRect = element.getBoundingClientRect();
+    const cRect = container.getBoundingClientRect();
+    const relativeTop = elRect.top - cRect.top + startTop - DETAIL_SCROLL_HEADROOM;
+    const maxScroll = Math.max(0, container.scrollHeight - container.clientHeight);
+    const targetTop = Math.max(0, Math.min(relativeTop, maxScroll));
+    const distance = targetTop - startTop;
+    if (Math.abs(distance) < 0.5) return;
+
+    const myGen = ++detailScrollAnimGeneration;
+    const startTime = performance.now();
+
+    const step = (now) => {
+        if (myGen !== detailScrollAnimGeneration) return;
+        const rawT = Math.min(1, (now - startTime) / DETAIL_SCROLL_DURATION_MS);
+        const t = smootherstep(rawT);
+        container.scrollTop = startTop + distance * t;
+        if (rawT < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+}
 
 function buildSchoolContact(school) {
     const hasWebsite = Boolean(school?.website);
@@ -365,7 +400,7 @@ function SchoolLocationMap({school, apiKey}) {
 
 export default function SchoolSearchPage() {
     const navigate = useNavigate();
-    const [searchParams, setSearchParams] = useSearchParams();
+    const location = useLocation();
     const rawUser = typeof window !== "undefined" ? localStorage.getItem("user") : null;
     let userInfo = null;
     try {
@@ -415,7 +450,7 @@ export default function SchoolSearchPage() {
         cursor: 'pointer',
         px: 1,
         py: 0.35,
-        transition: 'all 0.22s cubic-bezier(0.22, 0.61, 0.36, 1)',
+        transition: 'all 0.34s cubic-bezier(0.2, 0, 0, 1)',
         boxShadow: isSelected ? '0 4px 14px rgba(45, 95, 115, 0.14)' : 'none',
         '&:hover': {
             bgcolor: isSelected ? 'rgba(45, 95, 115, 0.18)' : 'rgba(255,255,255,1)',
@@ -458,26 +493,60 @@ export default function SchoolSearchPage() {
     const paginationCount = Math.max(1, Math.ceil(totalCount / 20));
     const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "";
 
-    const detailKeyRaw = searchParams.get("detail");
+    const detailKeyRaw = React.useMemo(() => {
+        const p = new URLSearchParams(location.search);
+        return p.get("detail");
+    }, [location.search]);
+
     const detailSchool = React.useMemo(() => {
         if (!detailKeyRaw) return null;
         return MOCK_SCHOOLS.find((s) => getSchoolStorageKey(s) === detailKeyRaw) ?? null;
     }, [detailKeyRaw]);
 
-    const openSchoolDetail = React.useCallback((school) => {
-        const key = getSchoolStorageKey(school);
-        setSearchParams({detail: key}, {replace: false});
-    }, [setSearchParams]);
+    const openSchoolDetail = React.useCallback(
+        (school) => {
+            const key = getSchoolStorageKey(school);
+            const next = new URLSearchParams(location.search);
+            next.set("detail", key);
+            next.delete("consult");
+            const qs = next.toString();
+            const url = `${location.pathname}${qs ? `?${qs}` : ""}`;
+            if (isParent) {
+                window.location.assign(url);
+                return;
+            }
+            navigate({pathname: location.pathname, search: qs ? `?${qs}` : ""}, {replace: false});
+        },
+        [isParent, location.pathname, location.search, navigate]
+    );
 
     const closeSchoolDetail = React.useCallback(() => {
-        setSearchParams({}, {replace: true});
-    }, [setSearchParams]);
+        const next = new URLSearchParams(location.search);
+        next.delete("detail");
+        next.delete("consult");
+        const qs = next.toString();
+        const url = `${location.pathname}${qs ? `?${qs}` : ""}`;
+        if (isParent) {
+            window.location.replace(url);
+            return;
+        }
+        navigate({pathname: location.pathname, search: qs ? `?${qs}` : ""}, {replace: true});
+    }, [isParent, location.pathname, location.search, navigate]);
 
     React.useEffect(() => {
         if (detailKeyRaw && !detailSchool) {
-            setSearchParams({}, {replace: true});
+            const next = new URLSearchParams(location.search);
+            next.delete("detail");
+            next.delete("consult");
+            const qs = next.toString();
+            const url = `${location.pathname}${qs ? `?${qs}` : ""}`;
+            if (isParent) {
+                window.location.replace(url);
+                return;
+            }
+            navigate({pathname: location.pathname, search: qs ? `?${qs}` : ""}, {replace: true});
         }
-    }, [detailKeyRaw, detailSchool, setSearchParams]);
+    }, [detailKeyRaw, detailSchool, isParent, location.pathname, location.search, navigate]);
 
     React.useEffect(() => {
         if (detailSchool) {
@@ -552,39 +621,64 @@ export default function SchoolSearchPage() {
     const detailScrollRef = React.useRef(null);
     const detailIntroRef = React.useRef(null);
     const detailLocationRef = React.useRef(null);
+    const detailConsultRef = React.useRef(null);
+    const detailTabScrollLockRef = React.useRef(false);
 
     React.useEffect(() => {
         setDetailActiveSection("intro");
     }, [detailKeyRaw]);
 
     const scrollDetailToSection = React.useCallback((section) => {
-        const id = section === "intro" ? "school-detail-intro" : "school-detail-location";
-        const el = typeof document !== "undefined" ? document.getElementById(id) : null;
-        if (!el) return;
-        requestAnimationFrame(() => {
-            el.scrollIntoView({behavior: "smooth", block: "start"});
-        });
+        detailTabScrollLockRef.current = true;
         setDetailActiveSection(section);
+        const id =
+            section === "intro"
+                ? "school-detail-intro"
+                : section === "location"
+                  ? "school-detail-location"
+                  : "school-detail-consult";
+        const container = detailScrollRef.current;
+        const el = typeof document !== "undefined" ? document.getElementById(id) : null;
+        if (container && el) {
+            requestAnimationFrame(() => smoothScrollContainerToElement(container, el));
+        }
+        window.setTimeout(() => {
+            detailTabScrollLockRef.current = false;
+        }, DETAIL_SCROLL_LOCK_MS);
     }, []);
+
+    const detailTabIndex =
+        detailActiveSection === "consult" ? 2 : detailActiveSection === "location" ? 1 : 0;
 
     React.useEffect(() => {
         const root = detailScrollRef.current;
         if (!root || !detailSchool) return undefined;
 
+        let raf = 0;
         const onScroll = () => {
-            const intro = detailIntroRef.current;
-            const loc = detailLocationRef.current;
-            if (!intro || !loc) return;
-            const rootRect = root.getBoundingClientRect();
-            const threshold = rootRect.top + 100;
-            const locTop = loc.getBoundingClientRect().top;
-            if (locTop <= threshold) setDetailActiveSection("location");
-            else setDetailActiveSection("intro");
+            if (detailTabScrollLockRef.current) return;
+            cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(() => {
+                const intro = detailIntroRef.current;
+                const loc = detailLocationRef.current;
+                const consult = detailConsultRef.current;
+                if (!intro || !loc || !consult) return;
+                const rootRect = root.getBoundingClientRect();
+                const anchor = rootRect.top + DETAIL_SCROLL_HEADROOM;
+                const consultTop = consult.getBoundingClientRect().top;
+                const locTop = loc.getBoundingClientRect().top;
+                if (consultTop <= anchor) setDetailActiveSection("consult");
+                else if (locTop <= anchor) setDetailActiveSection("location");
+                else setDetailActiveSection("intro");
+            });
         };
 
         onScroll();
         root.addEventListener("scroll", onScroll, {passive: true});
-        return () => root.removeEventListener("scroll", onScroll);
+        return () => {
+            cancelAnimationFrame(raf);
+            root.removeEventListener("scroll", onScroll);
+        };
     }, [detailSchool, detailKeyRaw]);
 
     const detailKeyForActions = detailSchool ? getSchoolStorageKey(detailSchool) : "";
@@ -619,6 +713,21 @@ export default function SchoolSearchPage() {
             navigate("/home");
             showSuccessSnackbar("Đến trang chủ để dùng chat tư vấn nhanh.");
         }
+    }, [detailSchool, navigate]);
+
+    const openConsultMailto = React.useCallback(() => {
+        if (!detailSchool) return;
+        const email = (detailSchool.email || "").trim();
+        if (!email) {
+            navigate("/home");
+            showSuccessSnackbar("Đến trang chủ để xem các hình thức hỗ trợ và đặt lịch tư vấn.");
+            return;
+        }
+        const subject = encodeURIComponent(`Đặt lịch tư vấn — ${detailSchool.school}`);
+        const body = encodeURIComponent(
+            `Kính gửi ${detailSchool.school},\n\nTôi muốn đặt lịch tư vấn / tham quan trường.\n\nTrân trọng,`
+        );
+        window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
     }, [detailSchool, navigate]);
 
     return (
@@ -758,7 +867,7 @@ export default function SchoolSearchPage() {
                                         '& .MuiOutlinedInput-root': {
                                             borderRadius: 999,
                                             height: 36,
-                                            transition: 'all 0.25s ease',
+                                            transition: 'all 0.32s cubic-bezier(0.2, 0, 0, 1)',
                                             bgcolor: 'rgba(255,255,255,0.9)',
                                             '& fieldset': {borderColor: 'rgba(45,95,115,0.22)'},
                                             '&:hover fieldset': {borderColor: 'rgba(45,95,115,0.4)'},
@@ -920,7 +1029,7 @@ export default function SchoolSearchPage() {
 
                         <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 2, flexWrap: 'wrap'}}>
                             <Typography sx={{fontWeight: 800, color: '#0f172a', fontSize: '1rem'}}>
-                                {totalCount === 0 ? "0 trường" : `1 - ${Math.min(20, totalCount)} trên ${totalCount} trường`}
+                                {totalCount === 0 ? "0 trường" : `${totalCount} trường`}
                             </Typography>
                             <Box sx={{display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap'}}>
                                 {compareCount > 0 && (
@@ -983,7 +1092,8 @@ export default function SchoolSearchPage() {
                                             bgcolor: 'rgba(255,255,255,0.85)',
                                             backdropFilter: 'blur(8px)',
                                             boxShadow: landingSectionShadow(3),
-                                            transition: 'transform 0.35s cubic-bezier(0.22, 0.61, 0.36, 1), box-shadow 0.35s ease, border-color 0.25s ease',
+                                            transition:
+                                                'transform 0.44s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.44s cubic-bezier(0.2, 0, 0, 1), border-color 0.38s cubic-bezier(0.2, 0, 0, 1)',
                                             '&:hover': {
                                                 transform: 'translateY(-4px)',
                                                 boxShadow: landingSectionShadow(5),
@@ -1179,7 +1289,9 @@ export default function SchoolSearchPage() {
                             minHeight: 0,
                             overflow: "auto",
                             WebkitOverflowScrolling: "touch",
-                            scrollBehavior: "smooth"
+                            scrollBehavior: "auto",
+                            overscrollBehavior: "contain",
+                            willChange: "scroll-position"
                         }}
                     >
                     <Box
@@ -1378,7 +1490,10 @@ export default function SchoolSearchPage() {
                                 >
                                     Tìm trường
                                 </Link>
-                                <Typography color="text.secondary" sx={{fontWeight: 600, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis"}}>
+                                <Typography
+                                    color="text.secondary"
+                                    sx={{fontWeight: 600, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis"}}
+                                >
                                     {detailSchool.school}
                                 </Typography>
                             </Breadcrumbs>
@@ -1399,8 +1514,12 @@ export default function SchoolSearchPage() {
                                 }}
                             >
                                 <Tabs
-                                    value={detailActiveSection === "intro" ? 0 : 1}
-                                    onChange={(_, v) => scrollDetailToSection(v === 0 ? "intro" : "location")}
+                                    value={detailTabIndex}
+                                    onChange={(_, v) =>
+                                        scrollDetailToSection(
+                                            v === 0 ? "intro" : v === 1 ? "location" : "consult"
+                                        )
+                                    }
                                     variant="scrollable"
                                     scrollButtons="auto"
                                     allowScrollButtonsMobile
@@ -1410,7 +1529,7 @@ export default function SchoolSearchPage() {
                                             borderRadius: "2px 2px 0 0",
                                             bgcolor: BRAND_NAVY,
                                             transition:
-                                                "left 0.35s cubic-bezier(0.22, 0.61, 0.36, 1), width 0.35s cubic-bezier(0.22, 0.61, 0.36, 1)"
+                                                "left 0.52s cubic-bezier(0.2, 0, 0, 1), width 0.52s cubic-bezier(0.2, 0, 0, 1)"
                                         }
                                     }}
                                     sx={{
@@ -1429,7 +1548,7 @@ export default function SchoolSearchPage() {
                                             px: 1.75,
                                             py: 0.75,
                                             color: "#64748b",
-                                            transition: "color 0.25s ease"
+                                            transition: "color 0.5s cubic-bezier(0.2, 0, 0, 1)"
                                         },
                                         "& .Mui-selected": {
                                             color: `${BRAND_NAVY} !important`,
@@ -1440,6 +1559,7 @@ export default function SchoolSearchPage() {
                                 >
                                     <Tab label="Giới thiệu" disableRipple/>
                                     <Tab label="Vị trí & bản đồ" disableRipple/>
+                                    <Tab label="Đặt lịch tư vấn" disableRipple/>
                                 </Tabs>
                             </Box>
 
@@ -1532,19 +1652,70 @@ export default function SchoolSearchPage() {
                                             >
                                                 Chỉ đường đến trường
                                             </Button>
-                                            <Button
-                                                variant="outlined"
-                                                onClick={closeSchoolDetail}
-                                                sx={{
-                                                    textTransform: "none",
-                                                    fontWeight: 600,
-                                                    borderColor: "rgba(45,95,115,0.35)",
-                                                    color: BRAND_NAVY
-                                                }}
-                                            >
-                                                Quay lại tìm kiếm
-                                            </Button>
+                                            
                                         </Stack>
+                                    </Box>
+
+                                    <Box
+                                        ref={detailConsultRef}
+                                        id="school-detail-consult"
+                                        sx={{
+                                            scrollMarginTop: {xs: 56, sm: 52},
+                                            pt: 1,
+                                            pb: 2
+                                        }}
+                                    >
+                                        <Box
+                                            sx={{
+                                                p: 2.5,
+                                                borderRadius: 2,
+                                                border: "1px solid rgba(45,95,115,0.2)",
+                                                bgcolor: "rgba(255,255,255,0.98)",
+                                                boxShadow: "0 4px 20px rgba(15,23,42,0.06)"
+                                            }}
+                                        >
+                                            <Stack direction="row" alignItems="flex-start" spacing={1.5}>
+                                                <CalendarMonthIcon
+                                                    sx={{fontSize: 28, color: BRAND_NAVY, flexShrink: 0, mt: 0.25}}
+                                                />
+                                                <Box sx={{minWidth: 0}}>
+                                                    <Typography
+                                                        sx={{fontWeight: 800, color: BRAND_NAVY, fontSize: "1.05rem", mb: 0.75}}
+                                                    >
+                                                        Đặt lịch tư vấn
+                                                    </Typography>
+                                                    <Typography sx={{color: "#64748b", fontSize: "0.9rem", lineHeight: 1.6, mb: 1.5}}>
+                                                        {(detailSchool?.email || "").trim()
+                                                            ? "Soạn email đặt lịch với nhà trường hoặc điều chỉnh nội dung trước khi gửi."
+                                                            : "Trường chưa công bố email trên hệ thống. Bạn có thể xem các hình thức hỗ trợ trên trang chủ."}
+                                                    </Typography>
+                                                    {(detailSchool?.email || "").trim() ? (
+                                                        <Button
+                                                            variant="contained"
+                                                            size="small"
+                                                            onClick={openConsultMailto}
+                                                            sx={{
+                                                                textTransform: "none",
+                                                                fontWeight: 700,
+                                                                bgcolor: BRAND_NAVY,
+                                                                "&:hover": {bgcolor: "#265a6b"}
+                                                            }}
+                                                        >
+                                                            Soạn email đặt lịch
+                                                        </Button>
+                                                    ) : (
+                                                        <Button
+                                                            variant="outlined"
+                                                            size="small"
+                                                            onClick={() => navigate("/home")}
+                                                            sx={{textTransform: "none", fontWeight: 700}}
+                                                        >
+                                                            Đến trang chủ
+                                                        </Button>
+                                                    )}
+                                                </Box>
+                                            </Stack>
+                                        </Box>
                                     </Box>
                                 </Box>
 
