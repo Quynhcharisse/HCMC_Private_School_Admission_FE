@@ -255,25 +255,25 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                 overflow: 'auto',
             }}
         >
-            <Container maxWidth="lg" sx={{maxWidth: '1020px !important'}}>
+            <Container maxWidth="lg" sx={{maxWidth: '960px !important'}}>
                 <Paper
                     elevation={8}
                     sx={{
-                        p: {xs: 1.25, sm: 1.5, md: 1.75},
+                        p: {xs: 1, sm: 1.25, md: 1.5},
                         borderRadius: 2.5,
                         background: '#ffffff',
                         border: '1px solid #e5e7eb',
-                        boxShadow: '0 12px 30px rgba(15, 23, 42, 0.12)',
+                        boxShadow: '0 10px 24px rgba(15, 23, 42, 0.1)',
                         position: 'relative',
                         '& .MuiFormLabel-asterisk': {
                             color: '#111827 !important',
                         },
-                        '& .MuiInputBase-input': {fontSize: '0.9rem', py: 0.82},
-                        '& .MuiFormHelperText-root': {marginTop: 0.2, fontSize: '0.7rem', lineHeight: 1.2},
+                        '& .MuiInputBase-input': {fontSize: '0.9rem', py: 0.78},
+                        '& .MuiFormHelperText-root': {marginTop: 0.35, fontSize: '0.72rem', lineHeight: 1.25},
                         '& .MuiInputLabel-root': {fontSize: '0.86rem', color: '#64748b'},
                         '& .MuiInputLabel-root.Mui-focused': {color: '#1d4ed8'},
                         '& .MuiOutlinedInput-root': {
-                            backgroundColor: '#f9fafb',
+                            backgroundColor: '#ffffff',
                             transition: 'all 0.2s ease',
                             '& fieldset': {
                                 borderColor: '#d1d5db',
@@ -284,13 +284,13 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                             '&.Mui-focused fieldset': {
                                 borderColor: '#1d4ed8',
                                 borderWidth: '1px',
-                                boxShadow: '0 0 0 2px rgba(29, 78, 216, 0.12)',
+                                boxShadow: '0 0 0 2px rgba(29, 78, 216, 0.1)',
                             },
                         },
                     }}
                 >
                     {step === 1 ? (
-                        <Stack spacing={1.25}>
+                        <Stack spacing={1.5}>
                             <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '32px'}}>
                                 <IconButton
                                     onClick={onBack}
@@ -318,7 +318,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                 </Typography>
                             </Box>
 
-                            <Stack spacing={1}>
+                            <Stack spacing={1.2}>
                                 <TextField
                                     label="Mã số thuế"
                                     value={taxCode}
@@ -343,11 +343,11 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         textTransform: 'none',
                                         fontWeight: 700,
                                         borderRadius: 2,
-                                        background: '#1d4ed8',
-                                        boxShadow: '0 6px 14px rgba(29, 78, 216, 0.28)',
+                                        background: 'linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%)',
+                                        boxShadow: '0 6px 14px rgba(37, 99, 235, 0.3)',
                                         '&:hover': {
-                                            background: '#1e40af',
-                                            boxShadow: '0 8px 16px rgba(30, 64, 175, 0.32)',
+                                            background: 'linear-gradient(90deg, #1d4ed8 0%, #1e3a8a 100%)',
+                                            boxShadow: '0 8px 16px rgba(30, 64, 175, 0.34)',
                                         },
                                     }}
                                 >
@@ -361,7 +361,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                         </Stack>
                     ) : (
                         <Box component="form" onSubmit={handleSubmit}>
-                            <Stack spacing={1}>
+                            <Stack spacing={1.2}>
                                 {/* Header with back button and centered title */}
                                 <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '32px'}}>
                                     <IconButton
@@ -397,26 +397,31 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         sx={{
                                             fontWeight: 700,
                                             color: '#0f172a',
-                                            mb: 0.75,
-                                            fontSize: '0.88rem',
+                                            mb: 0.55,
+                                            fontSize: '0.84rem',
                                             letterSpacing: '0.2px',
-                                            borderLeft: '3px solid #2563eb',
-                                            pl: 0.9,
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            px: 1,
+                                            py: 0.35,
+                                            borderRadius: 999,
+                                            bgcolor: '#eff6ff',
+                                            border: '1px solid #bfdbfe',
                                             lineHeight: 1.2,
                                         }}
                                     >
                                         Thông tin trường
                                     </Typography>
-                                    <Divider sx={{mb: 1, borderColor: '#e2e8f0'}} />
+                                    <Divider sx={{mb: 0.85, borderColor: '#e2e8f0'}} />
                                     <Grid
                                         container
-                                        rowSpacing={0.75}
-                                        columnSpacing={{xs: 1, sm: 2, md: 3}}
+                                        rowSpacing={1}
+                                        columnSpacing={{xs: 1, sm: 1.25, md: 2}}
                                         sx={{
-                                            p: {xs: 0.85, sm: 1},
+                                            p: {xs: 0.8, sm: 0.95},
                                             borderRadius: 2,
-                                            bgcolor: '#ffffff',
-                                            border: '1px solid #e5e7eb',
+                                            bgcolor: '#f8fafc',
+                                            border: '1px solid #e2e8f0',
                                         }}
                                     >
                                         <Grid size={{xs: 12, md: 6}}>
@@ -465,10 +470,10 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 fullWidth
                                                 size="small"
                                                 multiline
-                                                rows={2.2}
+                                                rows={2}
                                                 error={!!formErrors.description}
                                                 helperText={formErrors.description}
-                                                FormHelperTextProps={{sx: {minHeight: 16}}}
+                                                FormHelperTextProps={{sx: {minHeight: 20}}}
                                                 sx={{
                                                     height: '100%',
                                                     '& .MuiOutlinedInput-root': {
@@ -478,7 +483,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             />
                                         </Grid>
                                         <Grid size={{xs: 12, md: 6}}>
-                                            <Stack spacing={0.75}>
+                                            <Stack spacing={1.2}>
                                                 <TextField
                                                     label="Mã số thuế"
                                                     required
@@ -489,7 +494,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     size="small"
                                                     error={!!formErrors.taxCode}
                                                     helperText={formErrors.taxCode}
-                                                    FormHelperTextProps={{sx: {minHeight: 16}}}
+                                                    FormHelperTextProps={{sx: {minHeight: 20}}}
                                                     disabled
                                                     sx={{
                                                         '& .MuiOutlinedInput-root': {
@@ -507,7 +512,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     placeholder="dd/mm/yyyy"
                                                     error={!!formErrors.foundingDate}
                                                     helperText={formErrors.foundingDate}
-                                                    FormHelperTextProps={{sx: {minHeight: 16}}}
+                                                    FormHelperTextProps={{sx: {minHeight: 20}}}
                                                     inputProps={{maxLength: 10, inputMode: 'numeric'}}
                                                     InputProps={{
                                                         endAdornment: (
@@ -557,26 +562,31 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         sx={{
                                             fontWeight: 700,
                                             color: '#0f172a',
-                                            mb: 0.75,
-                                            fontSize: '0.88rem',
+                                            mb: 0.55,
+                                            fontSize: '0.84rem',
                                             letterSpacing: '0.2px',
-                                            borderLeft: '3px solid #2563eb',
-                                            pl: 0.9,
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            px: 1,
+                                            py: 0.35,
+                                            borderRadius: 999,
+                                            bgcolor: '#eff6ff',
+                                            border: '1px solid #bfdbfe',
                                             lineHeight: 1.2,
                                         }}
                                     >
                                         Thông tin liên hệ
                                     </Typography>
-                                    <Divider sx={{mb: 1, borderColor: '#e2e8f0'}} />
+                                    <Divider sx={{mb: 0.85, borderColor: '#e2e8f0'}} />
                                     <Grid
                                         container
-                                        rowSpacing={0.75}
-                                        columnSpacing={{xs: 1, sm: 2, md: 3}}
+                                        rowSpacing={1}
+                                        columnSpacing={{xs: 1, sm: 1.25, md: 2}}
                                         sx={{
-                                            p: {xs: 0.85, sm: 1},
+                                            p: {xs: 0.8, sm: 0.95},
                                             borderRadius: 2,
-                                            bgcolor: '#ffffff',
-                                            border: '1px solid #e5e7eb',
+                                            bgcolor: '#f8fafc',
+                                            border: '1px solid #e2e8f0',
                                         }}
                                     >
                                         <Grid size={{xs: 12, md: 6}} sx={{display: 'flex'}}>
@@ -589,10 +599,10 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             fullWidth
                                             size="small"
                                             multiline
-                                            rows={2.2}
+                                            rows={2}
                                             error={!!formErrors.campusAddress}
                                             helperText={formErrors.campusAddress}
-                                            FormHelperTextProps={{sx: {minHeight: 16}}}
+                                            FormHelperTextProps={{sx: {minHeight: 20}}}
                                                 sx={{
                                                     height: '100%',
                                                     '& .MuiOutlinedInput-root': {
@@ -602,7 +612,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         />
                                     </Grid>
                                         <Grid size={{xs: 12, md: 6}} sx={{display: 'flex'}}>
-                                            <Stack spacing={0.75} sx={{width: '100%'}}>
+                                            <Stack spacing={1.2} sx={{width: '100%'}}>
                                                 <TextField
                                                     label="Số điện thoại cơ sở"
                                                     required
@@ -613,7 +623,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     size="small"
                                                     error={!!formErrors.campusPhone}
                                                     helperText={formErrors.campusPhone}
-                                                    FormHelperTextProps={{sx: {minHeight: 16}}}
+                                                    FormHelperTextProps={{sx: {minHeight: 20}}}
                                                     sx={{
                                                         '& .MuiOutlinedInput-root': {
                                                             borderRadius: 2,
@@ -630,7 +640,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     size="small"
                                                     error={!!formErrors.hotline}
                                                     helperText={formErrors.hotline}
-                                                    FormHelperTextProps={{sx: {minHeight: 16}}}
+                                                    FormHelperTextProps={{sx: {minHeight: 20}}}
                                                     sx={{
                                                         '& .MuiOutlinedInput-root': {
                                                             borderRadius: 2,
@@ -665,26 +675,31 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         sx={{
                                             fontWeight: 700,
                                             color: '#0f172a',
-                                            mb: 0.75,
-                                            fontSize: '0.88rem',
+                                            mb: 0.55,
+                                            fontSize: '0.84rem',
                                             letterSpacing: '0.2px',
-                                            borderLeft: '3px solid #2563eb',
-                                            pl: 0.9,
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            px: 1,
+                                            py: 0.35,
+                                            borderRadius: 999,
+                                            bgcolor: '#eff6ff',
+                                            border: '1px solid #bfdbfe',
                                             lineHeight: 1.2,
                                         }}
                                     >
                                         Thông tin pháp lý
                                     </Typography>
-                                    <Divider sx={{mb: 1, borderColor: '#e2e8f0'}} />
+                                    <Divider sx={{mb: 0.85, borderColor: '#e2e8f0'}} />
                                     <Grid
                                         container
-                                        rowSpacing={0.75}
-                                        columnSpacing={{xs: 1, sm: 2, md: 3}}
+                                        rowSpacing={1}
+                                        columnSpacing={{xs: 1, sm: 1.25, md: 2}}
                                         sx={{
-                                            p: {xs: 0.85, sm: 1},
+                                            p: {xs: 0.8, sm: 0.95},
                                             borderRadius: 2,
-                                            bgcolor: '#ffffff',
-                                            border: '1px solid #e5e7eb',
+                                            bgcolor: '#f8fafc',
+                                            border: '1px solid #e2e8f0',
                                         }}
                                     >
                                         <Grid size={{xs: 12, md: 6}}>
@@ -828,17 +843,17 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         disabled={isSubmitting}
                                         sx={{
                                             minWidth: 170,
-                                            py: 0.9,
+                                            py: 0.82,
                                             px: 3,
                                             textTransform: 'none',
                                             fontWeight: 700,
                                             fontSize: '0.85rem',
                                             borderRadius: 2,
-                                            background: '#1d4ed8',
-                                            boxShadow: '0 6px 14px rgba(29, 78, 216, 0.28)',
+                                            background: 'linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%)',
+                                            boxShadow: '0 6px 14px rgba(37, 99, 235, 0.3)',
                                             '&:hover': {
-                                                background: '#1e40af',
-                                                boxShadow: '0 8px 16px rgba(30, 64, 175, 0.32)',
+                                                background: 'linear-gradient(90deg, #1d4ed8 0%, #1e3a8a 100%)',
+                                                boxShadow: '0 8px 16px rgba(30, 64, 175, 0.34)',
                                             },
                                         }}
                                     >
