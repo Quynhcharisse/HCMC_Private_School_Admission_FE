@@ -27,6 +27,7 @@ import {
     Bookmark as BookmarkIcon,
     BookmarkBorder as BookmarkBorderIcon,
     CheckCircle as CheckCircleIcon,
+    ChatBubbleOutline as ChatBubbleOutlineIcon,
     Email as EmailIcon,
     Language as LanguageIcon,
     LocationOn as LocationOnIcon,
@@ -375,6 +376,7 @@ export default function SchoolSearchPage() {
 
     const isParent = userInfo?.role === "PARENT";
     const userIdentity = getUserIdentity(userInfo);
+    const canSaveSchool = Boolean(isParent && userInfo);
 
     const [searchKeyword, setSearchKeyword] = React.useState('');
     const [selectedDistrict, setSelectedDistrict] = React.useState(DEFAULT_WARD);
@@ -606,6 +608,18 @@ export default function SchoolSearchPage() {
             });
         }
     }, [detailSchool]);
+
+    const messageSchoolDetail = React.useCallback(() => {
+        if (!detailSchool) return;
+        const email = (detailSchool.email || "").trim();
+        if (email) {
+            const subject = encodeURIComponent(`Liên hệ — ${detailSchool.school}`);
+            window.location.href = `mailto:${email}?subject=${subject}`;
+        } else {
+            navigate("/home");
+            showSuccessSnackbar("Đến trang chủ để dùng chat tư vấn nhanh.");
+        }
+    }, [detailSchool, navigate]);
 
     return (
         <Box
@@ -1013,14 +1027,20 @@ export default function SchoolSearchPage() {
                                             </IconButton>
                                             <IconButton
                                                 size="small"
+                                                disabled={!canSaveSchool}
                                                 onClick={() => toggleSave(school)}
-                                                title={isSaved ? "Bỏ lưu" : "Lưu trường"}
+                                                title={
+                                                    canSaveSchool
+                                                        ? isSaved
+                                                            ? "Bỏ lưu"
+                                                            : "Lưu trường"
+                                                        : "Đăng nhập với vai trò Phụ huynh để lưu trường"
+                                                }
                                                 sx={{
                                                     bgcolor: "rgba(255,255,255,0.92)",
                                                     border: "1px solid rgba(45,95,115,0.2)",
                                                     "&:hover": {bgcolor: "#fff", borderColor: "rgba(45,95,115,0.32)"},
-                                                    opacity: isParent ? 1 : 0.65,
-                                                    cursor: "pointer"
+                                                    "&.Mui-disabled": {opacity: 0.55}
                                                 }}
                                             >
                                                 {isSaved ? (
@@ -1248,6 +1268,26 @@ export default function SchoolSearchPage() {
                                 <Button
                                     size="small"
                                     variant="outlined"
+                                    startIcon={<ChatBubbleOutlineIcon sx={{fontSize: 18}}/>}
+                                    onClick={messageSchoolDetail}
+                                    title={
+                                        (detailSchool?.email || "").trim()
+                                            ? "Gửi email cho trường"
+                                            : "Chat tư vấn nhanh tại trang chủ"
+                                    }
+                                    sx={{
+                                        textTransform: "none",
+                                        fontWeight: 700,
+                                        color: "#fff",
+                                        borderColor: "rgba(255,255,255,0.55)",
+                                        "&:hover": {borderColor: "#fff", bgcolor: "rgba(255,255,255,0.12)"}
+                                    }}
+                                >
+                                    Nhắn tin
+                                </Button>
+                                <Button
+                                    size="small"
+                                    variant="outlined"
                                     startIcon={
                                         detailInCompare ? (
                                             <CheckCircleIcon sx={{fontSize: 18}}/>
@@ -1269,6 +1309,14 @@ export default function SchoolSearchPage() {
                                 <Button
                                     size="small"
                                     variant="outlined"
+                                    disabled={!canSaveSchool}
+                                    title={
+                                        canSaveSchool
+                                            ? detailIsSaved
+                                                ? "Bỏ lưu trường này"
+                                                : "Lưu trường vào danh sách"
+                                            : "Đăng nhập với vai trò Phụ huynh để lưu trường"
+                                    }
                                     startIcon={
                                         detailIsSaved ? (
                                             <BookmarkIcon sx={{fontSize: 18, color: "#fb923c"}}/>
@@ -1282,7 +1330,11 @@ export default function SchoolSearchPage() {
                                         fontWeight: 700,
                                         color: "#fff",
                                         borderColor: "rgba(255,255,255,0.55)",
-                                        "&:hover": {borderColor: "#fff", bgcolor: "rgba(255,255,255,0.12)"}
+                                        "&:hover": {borderColor: "#fff", bgcolor: "rgba(255,255,255,0.12)"},
+                                        "&.Mui-disabled": {
+                                            color: "rgba(255,255,255,0.45)",
+                                            borderColor: "rgba(255,255,255,0.28)"
+                                        }
                                     }}
                                 >
                                     {detailIsSaved ? "Đã lưu" : "Lưu trường"}
