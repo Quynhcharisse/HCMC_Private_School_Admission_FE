@@ -21,6 +21,7 @@ import {enqueueSnackbar} from 'notistack';
 import {showErrorSnackbar, showSuccessSnackbar} from '../ui/AppSnackbar.jsx';
 import CloudinaryUpload from '../ui/CloudinaryUpload.jsx';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import {BRAND_NAVY, BRAND_SKY, BRAND_SKY_LIGHT} from '../../constants/homeLandingTheme';
 
 const SchoolRegistrationForm = ({email, onBack}) => {
     const navigate = useNavigate();
@@ -118,7 +119,6 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                     },
                 });
             } else {
-                // Tax code is invalid
                 setTaxCodeError(data.desc || 'Mã số thuế không hợp lệ');
             }
         } catch (error) {
@@ -137,7 +137,6 @@ const SchoolRegistrationForm = ({email, onBack}) => {
             ...prev,
             [name]: value
         }));
-        // Clear error for this field
         if (formErrors[name]) {
             setFormErrors(prev => ({
                 ...prev,
@@ -247,7 +246,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                 justifyContent: 'center',
                 py: {xs: 1, md: 1.5},
                 px: {xs: 2, md: 0},
-                backgroundImage: `linear-gradient(135deg, rgba(15,23,42,0.45), rgba(15,23,42,0.24)), url(${backgroundLogin})`,
+                backgroundImage: `linear-gradient(135deg, rgba(45,95,115,0.46), rgba(45,95,115,0.26)), url(${backgroundLogin})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
@@ -262,8 +261,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                         p: {xs: 1, sm: 1.25, md: 1.5},
                         borderRadius: 2.5,
                         background: '#ffffff',
-                        border: '1px solid #e5e7eb',
-                        boxShadow: '0 10px 24px rgba(15, 23, 42, 0.1)',
+                        border: '1px solid rgba(85,179,217,0.28)',
+                        boxShadow: '0 12px 28px rgba(45, 95, 115, 0.12)',
                         position: 'relative',
                         '& .MuiFormLabel-asterisk': {
                             color: '#111827 !important',
@@ -271,20 +270,20 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                         '& .MuiInputBase-input': {fontSize: '0.9rem', py: 0.78},
                         '& .MuiFormHelperText-root': {marginTop: 0.35, fontSize: '0.72rem', lineHeight: 1.25},
                         '& .MuiInputLabel-root': {fontSize: '0.86rem', color: '#64748b'},
-                        '& .MuiInputLabel-root.Mui-focused': {color: '#1d4ed8'},
+                        '& .MuiInputLabel-root.Mui-focused': {color: BRAND_NAVY},
                         '& .MuiOutlinedInput-root': {
                             backgroundColor: '#ffffff',
                             transition: 'all 0.2s ease',
                             '& fieldset': {
-                                borderColor: '#d1d5db',
+                                borderColor: 'rgba(148,163,184,0.55)',
                             },
                             '&:hover fieldset': {
-                                borderColor: '#94a3b8',
+                                borderColor: 'rgba(115,198,217,0.85)',
                             },
                             '&.Mui-focused fieldset': {
-                                borderColor: '#1d4ed8',
+                                borderColor: BRAND_SKY,
                                 borderWidth: '1px',
-                                boxShadow: '0 0 0 2px rgba(29, 78, 216, 0.1)',
+                                boxShadow: '0 0 0 2px rgba(85, 179, 217, 0.16)',
                             },
                         },
                     }}
@@ -299,8 +298,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         left: 0,
                                         color: '#475569',
                                         '&:hover': {
-                                            bgcolor: 'rgba(37, 99, 235, 0.08)',
-                                            color: '#1d4ed8',
+                                            bgcolor: 'rgba(85,179,217,0.12)',
+                                            color: BRAND_NAVY,
                                         },
                                     }}
                                 >
@@ -343,11 +342,11 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         textTransform: 'none',
                                         fontWeight: 700,
                                         borderRadius: 2,
-                                        background: 'linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%)',
-                                        boxShadow: '0 6px 14px rgba(37, 99, 235, 0.3)',
+                                        background: `linear-gradient(90deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 100%)`,
+                                        boxShadow: '0 8px 18px rgba(45,95,115,0.24)',
                                         '&:hover': {
-                                            background: 'linear-gradient(90deg, #1d4ed8 0%, #1e3a8a 100%)',
-                                            boxShadow: '0 8px 16px rgba(30, 64, 175, 0.34)',
+                                            background: `linear-gradient(90deg, #265a6b 0%, ${BRAND_NAVY} 100%)`,
+                                            boxShadow: '0 10px 20px rgba(45,95,115,0.3)',
                                         },
                                     }}
                                 >
@@ -362,7 +361,6 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                     ) : (
                         <Box component="form" onSubmit={handleSubmit}>
                             <Stack spacing={1.2}>
-                                {/* Header with back button and centered title */}
                                 <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '32px'}}>
                                     <IconButton
                                         onClick={() => setStep(1)}
@@ -371,8 +369,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             left: 0,
                                             color: '#475569',
                                             '&:hover': {
-                                                bgcolor: 'rgba(37, 99, 235, 0.08)',
-                                                color: '#1d4ed8',
+                                                bgcolor: 'rgba(85,179,217,0.12)',
+                                                color: BRAND_NAVY,
                                             },
                                         }}
                                     >
@@ -405,8 +403,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             px: 1,
                                             py: 0.35,
                                             borderRadius: 999,
-                                            bgcolor: '#eff6ff',
-                                            border: '1px solid #bfdbfe',
+                                            bgcolor: 'rgba(85,179,217,0.14)',
+                                            border: `1px solid ${BRAND_SKY_LIGHT}`,
                                             lineHeight: 1.2,
                                         }}
                                     >
@@ -420,8 +418,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         sx={{
                                             p: {xs: 0.8, sm: 0.95},
                                             borderRadius: 2,
-                                            bgcolor: '#f8fafc',
-                                            border: '1px solid #e2e8f0',
+                                            bgcolor: 'rgba(214,244,252,0.35)',
+                                            border: '1px solid rgba(136,232,242,0.45)',
                                         }}
                                     >
                                         <Grid size={{xs: 12, md: 6}}>
@@ -570,8 +568,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             px: 1,
                                             py: 0.35,
                                             borderRadius: 999,
-                                            bgcolor: '#eff6ff',
-                                            border: '1px solid #bfdbfe',
+                                            bgcolor: 'rgba(85,179,217,0.14)',
+                                            border: `1px solid ${BRAND_SKY_LIGHT}`,
                                             lineHeight: 1.2,
                                         }}
                                     >
@@ -585,8 +583,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         sx={{
                                             p: {xs: 0.8, sm: 0.95},
                                             borderRadius: 2,
-                                            bgcolor: '#f8fafc',
-                                            border: '1px solid #e2e8f0',
+                                            bgcolor: 'rgba(214,244,252,0.35)',
+                                            border: '1px solid rgba(136,232,242,0.45)',
                                         }}
                                     >
                                         <Grid size={{xs: 12, md: 6}} sx={{display: 'flex'}}>
@@ -683,8 +681,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             px: 1,
                                             py: 0.35,
                                             borderRadius: 999,
-                                            bgcolor: '#eff6ff',
-                                            border: '1px solid #bfdbfe',
+                                            bgcolor: 'rgba(85,179,217,0.14)',
+                                            border: `1px solid ${BRAND_SKY_LIGHT}`,
                                             lineHeight: 1.2,
                                         }}
                                     >
@@ -698,8 +696,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         sx={{
                                             p: {xs: 0.8, sm: 0.95},
                                             borderRadius: 2,
-                                            bgcolor: '#f8fafc',
-                                            border: '1px solid #e2e8f0',
+                                            bgcolor: 'rgba(214,244,252,0.35)',
+                                            border: '1px solid rgba(136,232,242,0.45)',
                                         }}
                                     >
                                         <Grid size={{xs: 12, md: 6}}>
@@ -757,8 +755,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                                         size="small"
                                                                         sx={{
                                                                             borderRadius: 1,
-                                                                            color: '#2563eb',
-                                                                            bgcolor: loading ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                                                                            color: BRAND_NAVY,
+                                                                            bgcolor: loading ? 'rgba(85,179,217,0.14)' : 'transparent',
                                                                         }}
                                                                     >
                                                                         <CloudUploadIcon fontSize="small" />
@@ -807,8 +805,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                                         size="small"
                                                                         sx={{
                                                                             borderRadius: 1,
-                                                                            color: '#2563eb',
-                                                                            bgcolor: loading ? 'rgba(37, 99, 235, 0.08)' : 'transparent',
+                                                                            color: BRAND_NAVY,
+                                                                            bgcolor: loading ? 'rgba(85,179,217,0.14)' : 'transparent',
                                                                         }}
                                                                     >
                                                                         <CloudUploadIcon fontSize="small" />
@@ -825,7 +823,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                         href={formData.businessLicenseUrl}
                                                         target="_blank"
                                                         rel="noreferrer"
-                                                        style={{color: "#1976d2", textDecoration: "none"}}
+                                                        style={{color: BRAND_NAVY, textDecoration: "none"}}
                                                     >
                                                         Mở giấy phép
                                                     </a>
@@ -849,11 +847,11 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             fontWeight: 700,
                                             fontSize: '0.85rem',
                                             borderRadius: 2,
-                                            background: 'linear-gradient(90deg, #2563eb 0%, #1d4ed8 100%)',
-                                            boxShadow: '0 6px 14px rgba(37, 99, 235, 0.3)',
+                                            background: `linear-gradient(90deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 100%)`,
+                                            boxShadow: '0 8px 18px rgba(45,95,115,0.24)',
                                             '&:hover': {
-                                                background: 'linear-gradient(90deg, #1d4ed8 0%, #1e3a8a 100%)',
-                                                boxShadow: '0 8px 16px rgba(30, 64, 175, 0.34)',
+                                                background: `linear-gradient(90deg, #265a6b 0%, ${BRAND_NAVY} 100%)`,
+                                                boxShadow: '0 10px 20px rgba(45,95,115,0.3)',
                                             },
                                         }}
                                     >
