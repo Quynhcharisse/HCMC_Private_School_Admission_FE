@@ -1,5 +1,12 @@
 import axiosClient from "../configs/APIConfig.jsx";
 
+export const extractCampusListBody = (response) => {
+    const body = response?.data?.body ?? response?.body ?? response?.data ?? null;
+    if (Array.isArray(body)) return body;
+    if (Array.isArray(body?.items)) return body.items;
+    return [];
+};
+
 export const listCampuses = async () => {
     // API yêu cầu query params `page` và `pageSize`
     // Default pageSize lớn để các màn hình hiện tại có thể tự paginate/filter ở client.

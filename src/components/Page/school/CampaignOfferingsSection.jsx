@@ -36,7 +36,7 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import SchoolIcon from "@mui/icons-material/School";
 import { enqueueSnackbar } from "notistack";
-import { listCampuses } from "../../../services/CampusService.jsx";
+import { extractCampusListBody, listCampuses } from "../../../services/CampusService.jsx";
 import { getProgramList } from "../../../services/ProgramService.jsx";
 import {
     getCampaignOfferingsByCampus,
@@ -209,8 +209,7 @@ export default function CampaignOfferingsSection({
         listCampuses()
             .then((res) => {
                 if (cancelled) return;
-                const body = res?.data?.body ?? res?.data;
-                const list = body?.items ?? body;
+                const list = extractCampusListBody(res);
                 const arr = Array.isArray(list)
                     ? list.map((c) => ({ id: c.id ?? c.campusId, name: c.name ?? "Cơ sở" }))
                     : [];

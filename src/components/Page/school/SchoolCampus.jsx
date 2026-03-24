@@ -42,7 +42,7 @@ import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import {enqueueSnackbar} from "notistack";
 import {useSchool} from "../../../contexts/SchoolContext.jsx";
-import {listCampuses, createCampus} from "../../../services/CampusService.jsx";
+import {extractCampusListBody, listCampuses, createCampus} from "../../../services/CampusService.jsx";
 import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
 
 const modalPaperSx = {
@@ -134,6 +134,8 @@ const getBoardingTypeLabelVi = (boardingType, boardingTypeLabel) => {
     if (match) return match.label;
     return boardingTypeLabel || "—";
 };
+
+const toCampusUiStatus = (status) => (status === "VERIFIED" ? "active" : "inactive");
 
 export default function SchoolCampus() {
     const { isPrimaryBranch } = useSchool();
@@ -234,11 +236,11 @@ export default function SchoolCampus() {
         boardingTypeLabel: dto.boardingTypeLabel ?? "",
         phone: dto.phoneNumber,
         email: account?.email ?? "",
-        description: "",
-        imageUrl: null,
+        description: dto.policyDetail ?? "",
+        imageUrl: dto.imageJson?.coverUrl ?? dto.imageUrl ?? null,
         isPrimaryBranch: dto.isPrimaryBranch ?? false,
         campusStatus: dto.status,
-        status: dto.status === "VERIFIED" ? "active" : "inactive",
+        status: toCampusUiStatus(dto.status),
         accountStatus: account?.status ?? "",
         accountRegisterDate: account?.registerDate ?? "",
         counselorCount: 0,
@@ -248,12 +250,8 @@ export default function SchoolCampus() {
         const loadCampuses = async () => {
             try {
                 const res = await listCampuses();
-                const body = res?.data?.body;
-                // Backend trả về: { body: { items: [...] , currentPage, pageSize, ... } }
-                // Frontend chỉ cần list items để map sang model.
-                const items = body?.items ?? body;
+                const items = extractCampusListBody(res);
                 if (res && res.status === 200 && Array.isArray(items)) {
-                    // Mỗi phần tử item đã chứa cả campus và account
                     setCampuses(items.map((dto) => mapCampusFromApi(dto, dto.account)));
                 } else {
                     setCampuses(initialMockCampuses);
@@ -612,7 +610,9 @@ export default function SchoolCampus() {
                                     <TableRow
                                         key={row.id}
                                         hover
+                                        onClick={() => handleOpenView(row)}
                                         sx={{
+                                            cursor: "pointer",
                                             "&:hover": {
                                                 bgcolor: "rgba(122, 169, 235, 0.06)",
                                             },
@@ -680,7 +680,10 @@ export default function SchoolCampus() {
                                             >
                                                 <IconButton
                                                     size="small"
-                                                    onClick={() => handleOpenView(row)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleOpenView(row);
+                                                    }}
                                                     sx={{
                                                         color: "#64748b",
                                                         "&:hover": {color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)"},
@@ -693,7 +696,10 @@ export default function SchoolCampus() {
                                                     <>
                                                         <IconButton
                                                             size="small"
-                                                            onClick={() => handleOpenEdit(row)}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleOpenEdit(row);
+                                                            }}
                                                             sx={{
                                                                 color: "#64748b",
                                                                 "&:hover": {color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)"},
@@ -704,7 +710,10 @@ export default function SchoolCampus() {
                                                         </IconButton>
                                                         <IconButton
                                                             size="small"
-                                                            onClick={() => handleOpenDisableConfirm(row)}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleOpenDisableConfirm(row);
+                                                            }}
                                                             disabled={row.status === "inactive"}
                                                             sx={{
                                                                 color: "#64748b",

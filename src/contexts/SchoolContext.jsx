@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
-import { listCampuses } from "../services/CampusService.jsx";
+import { extractCampusListBody, listCampuses } from "../services/CampusService.jsx";
 
 /**
  * isPrimaryBranch = true  → Campus chính (full quyền)
@@ -31,8 +31,7 @@ export function SchoolProvider({ children }) {
     listCampuses()
       .then((res) => {
         if (cancelled) return;
-        const body = res?.data?.body;
-        const list = body?.items ?? body;
+        const list = extractCampusListBody(res);
         if (res && res.status === 200 && Array.isArray(list)) {
           // Campus phụ: backend chỉ trả về 1 campus và isPrimaryBranch = false
           const singleCampus = list.length === 1 ? list[0] : null;
