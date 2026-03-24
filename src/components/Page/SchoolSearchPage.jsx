@@ -21,6 +21,7 @@ import {
     BookmarkBorder as BookmarkBorderIcon,
     Search as SearchIcon
 } from "@mui/icons-material";
+import {GoogleMap, MarkerF, useJsApiLoader} from "@react-google-maps/api";
 import {HOME_PAGE_BODY_GRADIENT, landingSectionShadow} from "../../constants/homeLandingTheme";
 import TuitionFilter from "../ui/TuitionFilter";
 import {showSuccessSnackbar, showWarningSnackbar} from "../ui/AppSnackbar.jsx";
@@ -126,6 +127,76 @@ const DEFAULT_WARD = DEFAULT_PROVINCE ? (WARDS_BY_PROVINCE[DEFAULT_PROVINCE]?.[0
 const DEFAULT_SCHOOL_IMAGE =
     "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=900&q=80";
 
+const FALLBACK_MAP_CENTER = {lat: 10.7769, lng: 106.7009};
+const MAP_CONTAINER_STYLE = {width: "100%", height: "260px"};
+
+function SchoolLocationMap({school, apiKey}) {
+    const [markerPosition, setMarkerPosition] = React.useState(null);
+    const [isGeocoding, setIsGeocoding] = React.useState(false);
+    const [geocodeError, setGeocodeError] = React.useState("");
+    const {isLoaded, loadError} = useJsApiLoader({
+        id: "school-location-map-script",
+        googleMapsApiKey: apiKey
+    });
+
+    React.useEffect(() => {
+        if (!isLoaded || !school || !window.google?.maps?.Geocoder) return;
+        setIsGeocoding(true);
+        setGeocodeError("");
+        const address = `${school.school}, ${school.ward}, ${school.province}, Vietnam`;
+        const geocoder = new window.google.maps.Geocoder();
+        geocoder.geocode({address}, (results, status) => {
+            setIsGeocoding(false);
+            if (status === "OK" && results?.[0]?.geometry?.location) {
+                const location = results[0].geometry.location;
+                setMarkerPosition({lat: location.lat(), lng: location.lng()});
+                return;
+            }
+            setMarkerPosition(null);
+            setGeocodeError("Không thể định vị trường trên bản đồ.");
+        });
+    }, [isLoaded, school]);
+
+    if (loadError) {
+        return (
+            <Typography sx={{color: "#dc2626", fontSize: "0.9rem"}}>
+                Không tải được Google Maps. Vui lòng kiểm tra API key.
+            </Typography>
+        );
+    }
+
+    if (!isLoaded) {
+        return <Typography sx={{color: "#475569"}}>Đang tải bản đồ...</Typography>;
+    }
+
+    return (
+        <Box>
+            <GoogleMap
+                mapContainerStyle={MAP_CONTAINER_STYLE}
+                center={markerPosition ?? FALLBACK_MAP_CENTER}
+                zoom={markerPosition ? 15 : 11}
+                options={{
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                    fullscreenControl: false
+                }}
+            >
+                {markerPosition && <MarkerF position={markerPosition} />}
+            </GoogleMap>
+            {isGeocoding && (
+                <Typography sx={{mt: 1, color: "#475569", fontSize: "0.9rem"}}>
+                    Đang định vị địa chỉ trường...
+                </Typography>
+            )}
+            {!!geocodeError && (
+                <Typography sx={{mt: 1, color: "#dc2626", fontSize: "0.9rem"}}>
+                    {geocodeError}
+                </Typography>
+            )}
+        </Box>
+    );
+}
+
 export default function SchoolSearchPage() {
     const rawUser = typeof window !== "undefined" ? localStorage.getItem("user") : null;
     let userInfo = null;
@@ -192,7 +263,7 @@ export default function SchoolSearchPage() {
         }
         const saved = getSavedSchools(userInfo);
         setSavedSchoolKeys(new Set(saved.map((x) => x?.schoolKey).filter(Boolean)));
-    }, [isParent, userIdentity]);
+    }, [isParent, userIdentity, userInfo]);
 
     const availableDistricts = selectedProvince ? (WARDS_BY_PROVINCE[selectedProvince] ?? []) : ALL_WARDS;
     const normalizedKeyword = searchKeyword.trim().toLowerCase();
@@ -205,6 +276,19 @@ export default function SchoolSearchPage() {
     const shownSchools = filteredSchools.slice(0, 20);
     const totalCount = filteredSchools.length;
     const paginationCount = Math.max(1, Math.ceil(totalCount / 20));
+    const [selectedSchoolKey, setSelectedSchoolKey] = React.useState("");
+    const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "";
+
+    React.useEffect(() => {
+        if (!filteredSchools.length) {
+            setSelectedSchoolKey("");
+            return;
+        }
+        setSelectedSchoolKey((prev) => {
+            if (!prev) return "";
+            return filteredSchools.some((s) => getSchoolStorageKey(s) === prev) ? prev : "";
+        });
+    }, [filteredSchools]);
 
     const toggleSave = (schoolRecord) => {
         if (!isParent || !userInfo) {
@@ -560,6 +644,9 @@ export default function SchoolSearchPage() {
                             {shownSchools.map((school) => {
                                 const schoolKey = getSchoolStorageKey(school);
                                 const isSaved = savedSchoolKeys.has(schoolKey);
+                                const isExpanded = selectedSchoolKey === schoolKey;
+                                const schoolAddress = `${school.school}, ${school.ward}, ${school.province}, Vietnam`;
+                                const directionsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(schoolAddress)}`;
 
                                 return (
                                     <Card
@@ -651,6 +738,7 @@ export default function SchoolSearchPage() {
                                             <Button
                                                 size="small"
                                                 variant="outlined"
+                                                onClick={() => setSelectedSchoolKey((prev) => (prev === schoolKey ? "" : schoolKey))}
                                                 sx={{
                                                     textTransform: 'none',
                                                     fontWeight: 700,
@@ -665,9 +753,48 @@ export default function SchoolSearchPage() {
                                                     }
                                                 }}
                                             >
-                                                Xem thêm
+                                                {isExpanded ? "Thu gọn" : "Xem thêm"}
                                             </Button>
                                         </Box>
+                                        {isExpanded && (
+                                            <Box
+                                                sx={{
+                                                    mt: 2,
+                                                    pt: 2,
+                                                    borderTop: "1px dashed rgba(79,70,229,0.25)"
+                                                }}
+                                            >
+                                                <Typography sx={{fontWeight: 800, color: "#1e1b4b", mb: 0.75}}>
+                                                    Vị trí trường
+                                                </Typography>
+                                                <Typography sx={{color: "#475569", fontSize: "0.92rem", mb: 1.5}}>
+                                                    {school.ward}, {school.province}
+                                                </Typography>
+                                                {!googleMapsApiKey ? (
+                                                    <Typography sx={{color: "#b45309", fontSize: "0.9rem"}}>
+                                                        Chưa có API key. Thêm `VITE_GOOGLE_MAPS_API_KEY` vào file `.env` để hiển thị bản đồ.
+                                                    </Typography>
+                                                ) : (
+                                                    <SchoolLocationMap school={school} apiKey={googleMapsApiKey} />
+                                                )}
+                                                <Box sx={{display: "flex", justifyContent: "flex-end", mt: 1.5}}>
+                                                    <Button
+                                                        size="small"
+                                                        variant="outlined"
+                                                        href={directionsUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        sx={{
+                                                            textTransform: "none",
+                                                            borderRadius: 999,
+                                                            fontWeight: 700
+                                                        }}
+                                                    >
+                                                        Chỉ đường đến trường
+                                                    </Button>
+                                                </Box>
+                                            </Box>
+                                        )}
                                     </Box>
                                     </Card>
                                 );
