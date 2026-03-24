@@ -16,7 +16,7 @@ import {DeleteOutline as DeleteOutlineIcon} from "@mui/icons-material";
 import {useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 
-import {showWarningSnackbar} from "../ui/AppSnackbar.jsx";
+import {getUserIdentity} from "../../utils/savedSchoolsStorage";
 import {
     getCompareSchools,
     setCompareSchools
@@ -38,30 +38,14 @@ export default function CompareSchoolsPage() {
         userInfo = null;
     }
 
-    const isParent = userInfo?.role === "PARENT";
-    const [rows, setRows] = React.useState(() =>
-        isParent && userInfo ? getCompareSchools(userInfo) : []
-    );
+    const userIdentity = getUserIdentity(userInfo);
+    const [rows, setRows] = React.useState(() => getCompareSchools(userInfo));
 
     React.useEffect(() => {
-        if (!isParent || !userInfo) {
-            setRows([]);
-            return;
-        }
         setRows(getCompareSchools(userInfo));
-    }, [isParent, userInfo]);
-
-    React.useEffect(() => {
-        if (!isParent) {
-            navigate("/login", {replace: true});
-        }
-    }, [isParent, navigate]);
+    }, [userIdentity]);
 
     const onRemove = (schoolKey) => {
-        if (!isParent || !userInfo) {
-            showWarningSnackbar("Bạn phải đăng nhập với vai trò Phụ huynh.");
-            return;
-        }
         const next = rows.filter((x) => x?.schoolKey !== schoolKey);
         setCompareSchools(userInfo, next);
         setRows(next);
@@ -112,13 +96,7 @@ export default function CompareSchoolsPage() {
                     </Button>
                 </Box>
 
-                {!isParent ? (
-                    <Card sx={{p: 3, ...cardSurface}}>
-                        <Typography sx={{color: "#64748b", fontWeight: 600}}>
-                            Bạn cần đăng nhập với vai trò Phụ huynh để dùng so sánh trường.
-                        </Typography>
-                    </Card>
-                ) : rows.length === 0 ? (
+                {rows.length === 0 ? (
                     <Card sx={{p: 3, ...cardSurface}}>
                         <Typography sx={{color: "#64748b", mb: 2}}>
                             Chưa có trường nào trong danh sách so sánh. Dùng nút &quot;+&quot; ở trang tìm trường để thêm (tối đa 4

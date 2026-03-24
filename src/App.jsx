@@ -124,14 +124,6 @@ const router = createBrowserRouter([
                 element: <Navigate to={'/search-schools'} replace />
             },
             {
-                path: 'guide',
-                element: (
-                    <Suspense fallback={<LoadingFallback/>}>
-                        <div>Guide Page</div>
-                    </Suspense>
-                )
-            },
-            {
                 path: 'about',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>

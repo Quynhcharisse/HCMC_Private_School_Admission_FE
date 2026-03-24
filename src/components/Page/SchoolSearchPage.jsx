@@ -394,7 +394,7 @@ export default function SchoolSearchPage() {
     });
 
     const [compareSchoolKeys, setCompareSchoolKeys] = React.useState(() => {
-        if (typeof window === "undefined" || !isParent || !userInfo) return new Set();
+        if (typeof window === "undefined") return new Set();
         const list = getCompareSchools(userInfo);
         return new Set(list.map((x) => x?.schoolKey).filter(Boolean));
     });
@@ -432,14 +432,16 @@ export default function SchoolSearchPage() {
     React.useEffect(() => {
         if (!isParent || !userInfo) {
             setSavedSchoolKeys(new Set());
-            setCompareSchoolKeys(new Set());
-            return;
+        } else {
+            const saved = getSavedSchools(userInfo);
+            setSavedSchoolKeys(new Set(saved.map((x) => x?.schoolKey).filter(Boolean)));
         }
-        const saved = getSavedSchools(userInfo);
-        setSavedSchoolKeys(new Set(saved.map((x) => x?.schoolKey).filter(Boolean)));
+    }, [isParent, userIdentity, userInfo]);
+
+    React.useEffect(() => {
         const compare = getCompareSchools(userInfo);
         setCompareSchoolKeys(new Set(compare.map((x) => x?.schoolKey).filter(Boolean)));
-    }, [isParent, userIdentity, userInfo]);
+    }, [userIdentity]);
 
     const availableDistricts = selectedProvince ? (WARDS_BY_PROVINCE[selectedProvince] ?? []) : ALL_WARDS;
     const normalizedKeyword = searchKeyword.trim().toLowerCase();
@@ -516,10 +518,6 @@ export default function SchoolSearchPage() {
     };
 
     const toggleCompare = (schoolRecord) => {
-        if (!isParent || !userInfo) {
-            showWarningSnackbar("Bạn phải đăng nhập với vai trò Phụ huynh để thêm trường so sánh.");
-            return;
-        }
         const schoolKey = getSchoolStorageKey(schoolRecord);
         const current = getCompareSchools(userInfo);
         const exists = current.some((x) => x?.schoolKey === schoolKey);
@@ -1003,7 +1001,7 @@ export default function SchoolSearchPage() {
                                                         bgcolor: "#fff",
                                                         borderColor: inCompare ? BRAND_NAVY : "rgba(45,95,115,0.32)"
                                                     },
-                                                    opacity: isParent ? 1 : 0.65,
+                                                    opacity: 1,
                                                     cursor: "pointer"
                                                 }}
                                             >

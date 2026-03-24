@@ -177,7 +177,7 @@ export default function Footer() {
                         }}>
                             <Link href="/home" sx={linkSx}>Trang Chủ</Link>
                             <Link href="/search-schools" sx={linkSx}>Danh Sách Trường</Link>
-                            <Link href="/guide" sx={linkSx}>Hướng Dẫn</Link>
+                            <Link href="/compare-schools" sx={linkSx}>So sánh trường</Link>
                             <Link href="/about" sx={linkSx}>Về Chúng Tôi</Link>
                         </Box>
                     </Grid>
