@@ -6,7 +6,6 @@ import {
     CardContent,
     CardMedia,
     Container,
-    Grid,
     Typography,
     Avatar,
     Stack,
@@ -262,7 +261,34 @@ const SCHOOL_SHOWCASE = [
     }
 ];
 
-/** Ô pastel xếp chồng — chồng lên mép thẻ trắng (layout ngang như mẫu) */
+const CONSULT_STEPS = [
+    {
+        n: 1,
+        title: 'Nhắn tin cho tư vấn viên online của trường',
+        subtitle:
+            'Quý phụ huynh có thể trao đổi trực tiếp với tư vấn viên qua kênh online do nhà trường cung cấp.',
+        mirror: false,
+        variant: 1
+    },
+    {
+        n: 2,
+        title: 'Đặt lịch để được tư vấn trực tiếp tại trường',
+        subtitle:
+            'Quý phụ huynh có thể đặt lịch thăm quan và trao đổi trực tiếp tại cơ sở của trường.',
+        mirror: true,
+        variant: 2
+    },
+    {
+        n: 3,
+        title: 'Nhắn tin tìm hiểu bằng chatbot',
+        subtitle:
+            'Quý phụ huynh có thể đặt câu hỏi nhanh và nhận gợi ý phù hợp thông qua chatbot trên nền tảng.',
+        mirror: false,
+        variant: 3,
+        showSparkle: true
+    }
+];
+
 const glassPane = (sx) => ({
     position: 'absolute',
     borderRadius: 3,
@@ -273,7 +299,6 @@ const glassPane = (sx) => ({
     ...sx
 });
 
-/** Cụm 3–4 ô nằm cạnh thẻ; mirror = graphic bên phải */
 function ConsultGraphicCluster({variant = 1, mirror = false}) {
     const palette = {
         1: [
@@ -392,7 +417,6 @@ function BlogCard({title, description, image, date, tags, url, variant = 'featur
                     flex: 1,
                     display: 'flex',
                     flexDirection: 'column',
-                    /* Cùng chiều ngang với ảnh (ảnh mx: 0 khi featured — không thu hẹp khối trắng) */
                     mx: isFeatured ? 0 : 1,
                     mt: isFeatured ? {xs: -4, md: -5} : {xs: -2, md: -2.5},
                     mb: isFeatured ? 1 : 0.5,
@@ -1207,7 +1231,6 @@ export default function HomePage() {
                                         fontSize: {xs: '2.2rem', sm: '2.75rem', md: '3.25rem'},
                                         lineHeight: 1.08,
                                         letterSpacing: '-0.03em',
-                                        // Giữ gradient nhưng không dùng tông quá nhạt ở cuối — tránh chìm vào nền kính xanh nhạt
                                         background: `linear-gradient(120deg, #1a4a5c 0%, ${BRAND_NAVY} 32%, #3a7d96 68%, ${BRAND_SKY} 100%)`,
                                         WebkitBackgroundClip: 'text',
                                         WebkitTextFillColor: 'transparent',
@@ -1539,7 +1562,6 @@ export default function HomePage() {
                     </Box>
                 </Container>
             </Box>
-
             <Box
                 ref={consultSectionRef}
                 id="quy-trình"
@@ -1547,21 +1569,67 @@ export default function HomePage() {
                     py: {xs: 10, md: 14},
                     scrollMarginTop: '80px',
                     position: 'relative',
-                    overflow: 'hidden',
-                    /** Nền section tách lớp rõ với phần còn lại của trang */
+                    overflow: 'visible',
                     background: 'linear-gradient(165deg, #f2f4ff 0%, #f5f8fa 42%, #fcfaff 100%)',
                     boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.9)'
                 }}
             >
                 <Container maxWidth="lg" sx={{px: {xs: 2.5, md: 4}}}>
-                    <Grid container spacing={{xs: 7, md: 12}} alignItems="flex-start">
-                        <Grid item xs={12} md={5}>
+                    <Box
+                        sx={{
+                            display: 'grid',
+                            width: '100%',
+                            pt: {xs: 4, md: 0},
+                            columnGap: {xs: 0, md: 3},
+                            rowGap: {xs: 3, md: 3.5},
+                            gridTemplateColumns: {
+                                xs: 'minmax(0, 1fr)',
+                                md: 'minmax(0, 5fr) minmax(0, 7fr)'
+                            },
+                            gridTemplateAreas: {
+                                xs: `
+                                    "headline"
+                                    "step1"
+                                    "step2"
+                                    "step3"
+                                `,
+                                md: `
+                                    ". step1"
+                                    "headline step2"
+                                    ". step3"
+                                `
+                            },
+                            alignItems: 'stretch'
+                        }}
+                    >
+                        <Box
+                            sx={{
+                                gridArea: 'headline',
+                                position: {xs: 'static', md: 'relative'},
+                                minHeight: {md: 0},
+                                overflow: {md: 'visible'},
+                                zIndex: 3
+                            }}
+                        >
                             <Box
                                 sx={{
+                                    position: {xs: 'static', md: 'absolute'},
+                                    left: {md: 0},
+                                    right: {md: 0},
+                                    top: {md: '50%'},
+                                    width: {md: '100%'},
                                     transition: `opacity 0.9s ${consultMotionEase}, transform 0.9s ${consultMotionEase}`,
                                     opacity: consultVisible ? 1 : 0,
-                                    transform: consultVisible ? 'translateY(0)' : 'translateY(24px)',
-                                    textAlign: {xs: 'center', md: 'left'}
+                                    transform: consultVisible
+                                        ? {xs: 'translateY(0)', md: 'translateY(-50%)'}
+                                        : {xs: 'translateY(24px)', md: 'translateY(calc(-50% + 24px))'},
+                                    textAlign: 'center',
+                                    maxWidth: 520,
+                                    mx: 'auto',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'center',
+                                    gap: {xs: 1, md: 1.25}
                                 }}
                             >
                                 <Typography
@@ -1573,7 +1641,7 @@ export default function HomePage() {
                                         letterSpacing: {xs: '0.04em', md: '0.06em'},
                                         textTransform: 'uppercase',
                                         color: '#0f172a',
-                                        mb: 2.5
+                                        m: 0
                                     }}
                                 >
                                     Tư vấn rõ ràng,
@@ -1585,9 +1653,9 @@ export default function HomePage() {
                                         color: '#64748b',
                                         fontSize: {xs: '0.95rem', md: '1.05rem'},
                                         lineHeight: 1.7,
-                                        mb: {xs: 2, md: 2.5},
                                         maxWidth: 440,
-                                        mx: {xs: 'auto', md: 0}
+                                        mx: 'auto',
+                                        m: 0
                                     }}
                                 >
                                     Ba hình thức hỗ trợ quý phụ huynh tìm hiểu nhà trường và nhận tư vấn — kính mời quý vị lựa chọn phương án phù hợp.
@@ -1605,6 +1673,7 @@ export default function HomePage() {
                                         bgcolor: '#0f172a',
                                         color: '#fff',
                                         boxShadow: '0 12px 32px rgba(15,23,42,0.22)',
+                                        mt: {xs: 0.25, md: 0.25},
                                         '&:hover': {
                                             bgcolor: '#020617',
                                             boxShadow: '0 16px 40px rgba(15,23,42,0.28)'
@@ -1614,194 +1683,141 @@ export default function HomePage() {
                                     Tìm hiểu thêm
                                 </Button>
                             </Box>
-                        </Grid>
-                        <Grid
-                            item
-                            xs={12}
-                            md={7}
-                            sx={{
-                                pt: {xs: 7, md: 18},
-                                pl: {xs: 0, md: 3}
-                            }}
-                        >
+                        </Box>
+                        {CONSULT_STEPS.map((step, i) => (
                             <Box
+                                key={step.n}
                                 sx={{
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    gap: {xs: 3, md: 3.5},
+                                    gridArea: `step${step.n}`,
                                     position: 'relative',
-                                    alignItems: 'stretch',
-                                    maxWidth: '100%',
-                                    pl: {xs: 0, md: 0},
-                                    pr: {xs: 0, md: 0}
+                                    width: '100%',
+                                    maxWidth: {xs: '100%', md: 540},
+                                    justifySelf: {md: i === 1 ? 'end' : 'start'},
+                                    pl: {xs: 0, md: 3},
+                                    zIndex: 2,
+                                    transition: `opacity 0.85s ${consultMotionEase}, transform 0.85s ${consultMotionEase}`,
+                                    transitionDelay: consultVisible ? `${i * consultStaggerMs}ms` : '0ms',
+                                    opacity: consultVisible ? 1 : 0,
+                                    transform: consultVisible
+                                        ? 'translateX(0)'
+                                        : {xs: 'translateX(20px)', md: 'translateX(40px)'},
+                                    overflow: 'visible'
                                 }}
                             >
-                                {[
-                                    {
-                                        n: 1,
-                                        title: 'Nhắn tin cho tư vấn viên online của trường',
-                                        subtitle:
-                                            'Quý phụ huynh có thể trao đổi trực tiếp với tư vấn viên qua kênh online do nhà trường cung cấp.',
-                                        mirror: false,
-                                        variant: 1
-                                    },
-                                    {
-                                        n: 2,
-                                        title: 'Đặt lịch để được tư vấn trực tiếp tại trường',
-                                        subtitle:
-                                            'Quý phụ huynh có thể đặt lịch thăm quan và trao đổi trực tiếp tại cơ sở của trường.',
-                                        mirror: true,
-                                        variant: 2
-                                    },
-                                    {
-                                        n: 3,
-                                        title: 'Nhắn tin tìm hiểu bằng chatbot',
-                                        subtitle:
-                                            'Quý phụ huynh có thể đặt câu hỏi nhanh và nhận gợi ý phù hợp thông qua chatbot trên nền tảng.',
-                                        mirror: false,
-                                        variant: 3,
-                                        showSparkle: true
-                                    }
-                                ].map((step, i) => (
+                                <Box
+                                    sx={{
+                                        display: 'flex',
+                                        flexDirection: {
+                                            xs: 'column',
+                                            md: step.mirror ? 'row-reverse' : 'row'
+                                        },
+                                        alignItems: {xs: 'center', md: 'center'},
+                                        width: '100%'
+                                    }}
+                                >
                                     <Box
-                                        key={step.n}
                                         sx={{
-                                            position: 'relative',
-                                            width: '100%',
-                                            maxWidth: {xs: '100%', md: 540},
-                                            alignSelf: {
-                                                xs: 'stretch',
-                                                md: i === 1 ? 'flex-end' : 'flex-start'
-                                            },
-                                            zIndex: 2,
-                                            transition: `opacity 0.85s ${consultMotionEase}, transform 0.85s ${consultMotionEase}`,
-                                            transitionDelay: consultVisible ? `${i * consultStaggerMs}ms` : '0ms',
-                                            opacity: consultVisible ? 1 : 0,
-                                            transform: consultVisible
-                                                ? 'translateX(0)'
-                                                : {xs: 'translateX(20px)', md: 'translateX(40px)'},
-                                            overflow: 'visible'
+                                            display: 'flex',
+                                            justifyContent: 'center',
+                                            width: {xs: '100%', md: 'auto'},
+                                            mb: {xs: 1.5, md: 0},
+                                            zIndex: 2
                                         }}
                                     >
-                                        <Box
+                                        <ConsultGraphicCluster variant={step.variant} mirror={false} />
+                                    </Box>
+                                    <Card
+                                        elevation={0}
+                                        sx={{
+                                            position: 'relative',
+                                            zIndex: 1,
+                                            flex: 1,
+                                            minWidth: 0,
+                                            width: {xs: '100%', md: 'auto'},
+                                            borderRadius: 3,
+                                            overflow: 'visible',
+                                            bgcolor: '#fff',
+                                            border: '1px solid rgba(226,232,240,0.95)',
+                                            boxShadow: '0 20px 56px rgba(15,23,42,0.08)',
+                                            ml: {xs: 0, md: step.mirror ? 0 : -3.5},
+                                            mr: {xs: 0, md: step.mirror ? -3.5 : 0},
+                                            transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+                                            '&:hover': {
+                                                transform: 'translateY(-3px)',
+                                                boxShadow: '0 24px 64px rgba(15,23,42,0.1)'
+                                            }
+                                        }}
+                                    >
+                                        {step.showSparkle ? (
+                                            <SparkleIcon
+                                                sx={{
+                                                    position: 'absolute',
+                                                    bottom: 12,
+                                                    right: 12,
+                                                    fontSize: 22,
+                                                    color: '#0f172a',
+                                                    opacity: 0.28,
+                                                    pointerEvents: 'none'
+                                                }}
+                                            />
+                                        ) : null}
+                                        <CardContent
                                             sx={{
+                                                p: {xs: 2.25, md: 3},
                                                 display: 'flex',
-                                                flexDirection: {
-                                                    xs: 'column',
-                                                    md: step.mirror ? 'row-reverse' : 'row'
-                                                },
-                                                alignItems: {xs: 'center', md: 'center'},
-                                                width: '100%'
+                                                gap: 2,
+                                                alignItems: 'flex-start',
+                                                pr: step.showSparkle ? {xs: 2.25, md: 4} : undefined
                                             }}
                                         >
                                             <Box
                                                 sx={{
+                                                    width: 38,
+                                                    height: 38,
+                                                    minWidth: 38,
+                                                    borderRadius: '50%',
+                                                    bgcolor: '#0f172a',
+                                                    color: '#fff',
                                                     display: 'flex',
+                                                    alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    width: {xs: '100%', md: 'auto'},
-                                                    mb: {xs: 1.5, md: 0},
-                                                    zIndex: 2
+                                                    fontWeight: 800,
+                                                    fontSize: '1rem',
+                                                    lineHeight: 1
                                                 }}
                                             >
-                                                <ConsultGraphicCluster
-                                                    variant={step.variant}
-                                                    mirror={false}
-                                                />
+                                                {step.n}
                                             </Box>
-                                            <Card
-                                                elevation={0}
-                                                sx={{
-                                                    position: 'relative',
-                                                    zIndex: 1,
-                                                    flex: 1,
-                                                    minWidth: 0,
-                                                    width: {xs: '100%', md: 'auto'},
-                                                    borderRadius: 3,
-                                                    overflow: 'visible',
-                                                    bgcolor: '#fff',
-                                                    border: '1px solid rgba(226,232,240,0.95)',
-                                                    boxShadow: '0 20px 56px rgba(15,23,42,0.08)',
-                                                    ml: {xs: 0, md: step.mirror ? 0 : -3.5},
-                                                    mr: {xs: 0, md: step.mirror ? -3.5 : 0},
-                                                    transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                                                    '&:hover': {
-                                                        transform: 'translateY(-3px)',
-                                                        boxShadow: '0 24px 64px rgba(15,23,42,0.1)'
-                                                    }
-                                                }}
-                                            >
-                                                {step.showSparkle ? (
-                                                    <SparkleIcon
-                                                        sx={{
-                                                            position: 'absolute',
-                                                            bottom: 12,
-                                                            right: 12,
-                                                            fontSize: 22,
-                                                            color: '#0f172a',
-                                                            opacity: 0.28,
-                                                            pointerEvents: 'none'
-                                                        }}
-                                                    />
-                                                ) : null}
-                                                <CardContent
+                                            <Box sx={{minWidth: 0, pr: step.showSparkle ? 1 : 0}}>
+                                                <Typography
                                                     sx={{
-                                                        p: {xs: 2.25, md: 3},
-                                                        display: 'flex',
-                                                        gap: 2,
-                                                        alignItems: 'flex-start',
-                                                        pr: step.showSparkle ? {xs: 2.25, md: 4} : undefined
+                                                        fontWeight: 800,
+                                                        fontSize: {xs: '0.98rem', md: '1.06rem'},
+                                                        color: '#0f172a',
+                                                        lineHeight: 1.45,
+                                                        letterSpacing: '-0.01em',
+                                                        mb: 1
                                                     }}
                                                 >
-                                                    <Box
-                                                        sx={{
-                                                            width: 38,
-                                                            height: 38,
-                                                            minWidth: 38,
-                                                            borderRadius: '50%',
-                                                            bgcolor: '#0f172a',
-                                                            color: '#fff',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'center',
-                                                            fontWeight: 800,
-                                                            fontSize: '1rem',
-                                                            lineHeight: 1
-                                                        }}
-                                                    >
-                                                        {step.n}
-                                                    </Box>
-                                                    <Box sx={{minWidth: 0, pr: step.showSparkle ? 1 : 0}}>
-                                                        <Typography
-                                                            sx={{
-                                                                fontWeight: 800,
-                                                                fontSize: {xs: '0.98rem', md: '1.06rem'},
-                                                                color: '#0f172a',
-                                                                lineHeight: 1.45,
-                                                                letterSpacing: '-0.01em',
-                                                                mb: 1
-                                                            }}
-                                                        >
-                                                            {step.title}
-                                                        </Typography>
-                                                        <Typography
-                                                            sx={{
-                                                                color: '#64748b',
-                                                                fontSize: {xs: '0.88rem', md: '0.92rem'},
-                                                                lineHeight: 1.65,
-                                                                fontWeight: 400
-                                                            }}
-                                                        >
-                                                            {step.subtitle}
-                                                        </Typography>
-                                                    </Box>
-                                                </CardContent>
-                                            </Card>
-                                        </Box>
-                                    </Box>
-                                ))}
+                                                    {step.title}
+                                                </Typography>
+                                                <Typography
+                                                    sx={{
+                                                        color: '#64748b',
+                                                        fontSize: {xs: '0.88rem', md: '0.92rem'},
+                                                        lineHeight: 1.65,
+                                                        fontWeight: 400
+                                                    }}
+                                                >
+                                                    {step.subtitle}
+                                                </Typography>
+                                            </Box>
+                                        </CardContent>
+                                    </Card>
+                                </Box>
                             </Box>
-                        </Grid>
-                    </Grid>
+                        ))}
+                    </Box>
                 </Container>
             </Box>
 
