@@ -46,6 +46,7 @@ import {
     HOME_PAGE_SURFACE_GRADIENT,
     landingSectionShadow
 } from "../../constants/homeLandingTheme";
+import {OPEN_PARENT_CHAT_EVENT} from "../../constants/parentChatEvents";
 import {
     getCompareSchools,
     MAX_COMPARE_SCHOOLS,
@@ -704,16 +705,16 @@ export default function SchoolSearchPage() {
     }, [detailSchool]);
 
     const messageSchoolDetail = React.useCallback(() => {
-        if (!detailSchool) return;
-        const email = (detailSchool.email || "").trim();
-        if (email) {
-            const subject = encodeURIComponent(`Liên hệ — ${detailSchool.school}`);
-            window.location.href = `mailto:${email}?subject=${subject}`;
-        } else {
-            navigate("/home");
-            showSuccessSnackbar("Đến trang chủ để dùng chat tư vấn nhanh.");
-        }
-    }, [detailSchool, navigate]);
+        if (!detailSchool || typeof window === "undefined") return;
+        window.dispatchEvent(
+            new CustomEvent(OPEN_PARENT_CHAT_EVENT, {
+                detail: {
+                    schoolName: detailSchool.school,
+                    schoolEmail: (detailSchool.email || "").trim(),
+                },
+            })
+        );
+    }, [detailSchool]);
 
     const openConsultMailto = React.useCallback(() => {
         if (!detailSchool) return;
@@ -733,7 +734,7 @@ export default function SchoolSearchPage() {
     return (
         <Box
             sx={{
-                pt: {xs: 'calc(72px + 16px)', md: 'calc(80px + 24px)'},
+                pt: {xs: 'calc(72px + 8px)', md: 'calc(80px + 12px)'},
                 minHeight: '100vh',
                 background: HOME_PAGE_SURFACE_GRADIENT,
                 position: 'relative',
@@ -764,7 +765,7 @@ export default function SchoolSearchPage() {
                 }
             }}
         >
-            <Container maxWidth={false} sx={{maxWidth: '1400px', px: {xs: 2, md: 4}, pt: 2, pb: 6, position: 'relative', zIndex: 1}}>
+            <Container maxWidth={false} sx={{maxWidth: '1400px', px: {xs: 2, md: 4}, pt: 1, pb: 6, position: 'relative', zIndex: 1}}>
                 <Box
                     sx={{
                         mb: 3,
@@ -1383,9 +1384,9 @@ export default function SchoolSearchPage() {
                                     startIcon={<ChatBubbleOutlineIcon sx={{fontSize: 18}}/>}
                                     onClick={messageSchoolDetail}
                                     title={
-                                        (detailSchool?.email || "").trim()
-                                            ? "Gửi email cho trường"
-                                            : "Chat tư vấn nhanh tại trang chủ"
+                                        isParent
+                                            ? "Mở chat với tư vấn viên trường (cần đăng nhập phụ huynh)"
+                                            : "Đăng nhập với vai trò Phụ huynh để chat với tư vấn viên"
                                     }
                                     sx={{
                                         textTransform: "none",

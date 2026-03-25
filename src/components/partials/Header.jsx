@@ -39,8 +39,32 @@ import {buildPrivateChatPayload, connectPrivateMessageSocket, disconnect, sendMe
 import logo from "../../assets/logo.png";
 import {useLocation, useNavigate} from "react-router-dom";
 import {BRAND_NAVY, BRAND_SKY, BRAND_SKY_LIGHT} from "../../constants/homeLandingTheme";
+import {OPEN_PARENT_CHAT_EVENT} from "../../constants/parentChatEvents";
 
 const isSameConversationId = (a, b) => a != null && b != null && String(a) === String(b);
+
+const normalizeMatchKey = (value) => (value ?? "").toString().trim().toLowerCase();
+
+function findConversationForSchool(items, schoolName, schoolEmail) {
+    const email = normalizeMatchKey(schoolEmail);
+    if (email) {
+        const byEmail = items.find((c) => {
+            const ce = normalizeMatchKey(
+                c.counsellorEmail || c.otherUser || c.schoolEmail || c.participantEmail || ""
+            );
+            return ce && ce === email;
+        });
+        if (byEmail) return byEmail;
+    }
+    const name = normalizeMatchKey(schoolName);
+    if (!name) return null;
+    return (
+        items.find((c) => {
+            const t = normalizeMatchKey(c.title || c.name || c.schoolName || c.participantName || "");
+            return t && (t === name || t.includes(name) || name.includes(t));
+        }) || null
+    );
+}
 
 const formatSectionDateLabel = (value) => {
     if (!value) return "Hôm nay";
@@ -528,6 +552,68 @@ function MainHeader() {
     const handleRestoreChatWindow = () => {
         setChatWindowMinimized(false);
     };
+
+    const openParentChatRef = React.useRef(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ref luôn trỏ handler mới nhất cho listener window
+    React.useEffect(() => {
+        openParentChatRef.current = async ({schoolName: sn, schoolEmail: se} = {}) => {
+            const schoolName = (sn || "").trim();
+            const schoolEmail = (se || "").trim();
+            if (!isSignedIn) {
+                enqueueSnackbar("Vui lòng đăng nhập để nhắn tin với tư vấn viên trường.", {variant: "info"});
+                navigate("/login");
+                return;
+            }
+            if (!isParent) {
+                enqueueSnackbar("Tính năng chat chỉ dành cho phụ huynh.", {variant: "warning"});
+                return;
+            }
+            try {
+                const response = await getParentConversations(null);
+                if (response?.status !== 200) {
+                    enqueueSnackbar("Không tải được danh sách tin nhắn.", {variant: "error"});
+                    return;
+                }
+                const parsed = parseConversationResponse(response);
+                const items = parsed.items.map(normalizeConversation);
+                setConversationItems(items);
+                setNextCursorId(parsed.nextCursorId);
+                setHasMoreConversations(parsed.hasMore);
+
+                let match = findConversationForSchool(items, schoolName, schoolEmail);
+                if (!match && schoolEmail) {
+                    match = normalizeConversation({
+                        title: schoolName,
+                        name: schoolName,
+                        schoolName: schoolName,
+                        schoolEmail: schoolEmail,
+                        otherUser: schoolEmail,
+                        counsellorEmail: schoolEmail,
+                    });
+                }
+                if (!match) {
+                    enqueueSnackbar(
+                        "Chưa có kênh chat cho trường này. Vui lòng xem email hoặc hotline trong phần chi tiết trường.",
+                        {variant: "info"}
+                    );
+                    return;
+                }
+                await handleSelectConversation(match);
+            } catch (err) {
+                console.error("openParentChat:", err);
+                enqueueSnackbar("Không thể mở chat.", {variant: "error"});
+            }
+        };
+    });
+
+    React.useEffect(() => {
+        const onOpenParentChat = (event) => {
+            const detail = event?.detail || {};
+            openParentChatRef.current?.(detail);
+        };
+        window.addEventListener(OPEN_PARENT_CHAT_EVENT, onOpenParentChat);
+        return () => window.removeEventListener(OPEN_PARENT_CHAT_EVENT, onOpenParentChat);
+    }, []);
 
     const handleLogout = async () => {
         try {
