@@ -202,16 +202,6 @@ export default function AdminSchoolVerification() {
                                 </Typography>
                             </Box>
                         </Box>
-                        <Chip
-                            icon={<CheckCircleRoundedIcon sx={{color: "#22c55e !important"}} />}
-                            label="Hệ thống đang hoạt động"
-                            sx={{
-                                bgcolor: "rgba(20, 184, 166, 0.18)",
-                                color: "white",
-                                border: "1px solid rgba(255,255,255,0.24)",
-                                "& .MuiChip-label": {fontWeight: 600},
-                            }}
-                        />
                     </Box>
                 </CardContent>
             </Card>
