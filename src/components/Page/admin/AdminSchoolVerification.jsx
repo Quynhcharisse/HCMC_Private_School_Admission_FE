@@ -38,6 +38,16 @@ export default function AdminSchoolVerification() {
     const [verifyingId, setVerifyingId] = useState(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [selectedRegistration, setSelectedRegistration] = useState(null);
+    const getVerifyRequestId = (registration) => {
+        const rawId =
+            registration?.requestId ??
+            registration?.registrationRequestId ??
+            registration?.schoolRegistrationId ??
+            registration?.id;
+        if (rawId === undefined || rawId === null || rawId === "") return null;
+        const parsed = Number(rawId);
+        return Number.isNaN(parsed) ? null : parsed;
+    };
 
     const fetchRegistrations = async () => {
         setLoading(true);
@@ -71,11 +81,11 @@ export default function AdminSchoolVerification() {
     };
 
     const handleVerify = async () => {
-        const id = selectedRegistration?.id;
-        if (!id || verifyingId) return;
-        setVerifyingId(id);
+        const requestId = getVerifyRequestId(selectedRegistration);
+        if (verifyingId) return;
+        setVerifyingId(requestId ?? -1);
         try {
-            const res = await verifySchoolRegistration(id);
+            const res = await verifySchoolRegistration(requestId);
             if (res && res.status === 200) {
                 showSuccessSnackbar("Xác thực trường học thành công!");
                 await fetchRegistrations();
@@ -370,6 +380,8 @@ export default function AdminSchoolVerification() {
                                         <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{mb: 1.8}}>
                                             <Stack direction="row" spacing={1.5}>
                                                 <Avatar
+                                                    src={item.logoUrl || undefined}
+                                                    alt={item.schoolName || "School logo"}
                                                     sx={{
                                                         width: 48,
                                                         height: 48,
@@ -533,15 +545,11 @@ export default function AdminSchoolVerification() {
                                                     <span>
                                                         <IconButton
                                                             size="small"
-                                                            disabled={verifyingId === item.id || item.status === "VERIFIED"}
+                                                            disabled={!!verifyingId || item.status === "VERIFIED"}
                                                             onClick={() => openConfirm(item)}
                                                             sx={{border: "1px solid #d1d5db"}}
                                                         >
-                                                            {verifyingId === item.id ? (
-                                                                <CircularProgress size={16} />
-                                                            ) : (
-                                                                <TaskAltIcon sx={{fontSize: 18}} />
-                                                            )}
+                                                            <TaskAltIcon sx={{fontSize: 18}} />
                                                         </IconButton>
                                                     </span>
                                                 </Tooltip>
