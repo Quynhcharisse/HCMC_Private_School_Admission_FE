@@ -49,6 +49,11 @@ import {
 } from "../../constants/homeLandingTheme";
 import Chatbot from "../ui/Chatbot";
 import LayeredMountainSilhouette from "../ui/LayeredMountainSilhouette.jsx";
+import admissionCard1Image from "../../assets/Nguyên tắc công bố tuyển sinh (từ Bộ GD&ĐT).jpg";
+import admissionCard2Image from "../../assets/Nhiều trường THPT công bố chỉ tiêu tuyển sinh 2026.jpg";
+import admissionCard3Image from "../../assets/TPHCM chốt 3 môn thi tuyển sinh lớp 10 năm 2026.jpeg";
+import admissionCard4Image from "../../assets/Đề thi lớp 10 2026 thay đổi theo hướng đánh giá năng lựcwebp.webp";
+import admissionCard5Image from "../../assets/TP.HCM tiếp tục kết hợp thi tuyển và xét tuyển.jpg.webp";
 
 const heroMuted = 'rgba(52,102,118,0.82)';
 
@@ -58,60 +63,44 @@ const admissionEase = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
 
 const ADMISSION_POSTS = [
     {
-        title: 'TUYỂN SINH LỚP 10 TPHCM: ĐIỂM THI, ĐIỂM CHUẨN, PHỔ ĐIỂM năm 2025',
-        date: '28/06/2025',
-        description: 'Sở GD-ĐT TP.HCM công bố điểm thi, điểm chuẩn và phổ điểm kỳ tuyển sinh lớp 10 năm học 2025-2026.',
-        image: 'https://images.pexels.com/photos/6146931/pexels-photo-6146931.jpeg?auto=compress&cs=tinysrgb&w=1200',
-        url: 'https://xaydungchinhsach.chinhphu.vn/tuyen-sinh-2025-830-ngay-23-6-cong-bo-diem-thi-lop-10-tphcm-11925062218324419.htm',
-        tags: ['Lớp 10', 'Điểm chuẩn', 'Phổ điểm']
+        title: 'Công bố chỉ tiêu trường ngoài công lập',
+        date: '02/06/2025',
+        description: 'TP HCM: Công bố chi tiết chỉ tiêu tuyển sinh lớp 10 của 64 trường ngoài công lập',
+        image: admissionCard1Image,
+        url: 'https://ttbc-hcm.gov.vn/tp-hcm-cong-bo-chi-tiet-chi-tieu-tuyen-sinh-lop-10-cua-64-truong-ngoai-cong-lap-1018826.html',
+        tags: ['Ngoài công lập', 'Chỉ tiêu', 'Lớp 10']
     },
     {
-        title: 'Cổng thông tin tuyển sinh 10',
-        date: 'Cập nhật liên tục',
-        description: 'Trang thông tin tuyển sinh lớp 10 để phụ huynh và học sinh theo dõi thông báo, lịch và hướng dẫn đăng ký.',
-        image: 'https://images.pexels.com/photos/267885/pexels-photo-267885.jpeg?auto=compress&cs=tinysrgb&w=1200',
-        url: 'https://thptnangkhieutdtt.hcm.edu.vn/tuyen-sinh/cong-thong-tin-tuyen-sinh-10/ctmb/96467/519002',
-        tags: ['Cổng thông tin', 'Tuyển sinh', 'Lớp 10']
+        title: 'Nhiều trường THPT công bố chỉ tiêu tuyển sinh 2026',
+        date: '28/02/2026',
+        description: 'TPHCM: Thêm nhiều trường công bố chỉ tiêu tuyển sinh lớp 10 năm 2026',
+        image: admissionCard2Image,
+        url: 'https://nld.com.vn/tphcm-them-nhieu-truong-cong-bo-chi-tieu-tuyen-sinh-lop-10-nam-2026-196260228095241168.htm',
+        tags: ['THPT', 'Chỉ tiêu', '2026']
     },
     {
-        title: 'TP.HCM công bố lịch thi lớp 10 chi tiết',
-        date: '25/04/2025',
-        description: 'Lịch thi chính thức trong 2 ngày 6-7/6/2025 cùng các mốc đăng ký nguyện vọng quan trọng.',
-        image: 'https://images.pexels.com/photos/3243/pen-calendar-to-do-checklist.jpg?auto=compress&cs=tinysrgb&w=1200',
-        url: 'https://tuoitre.vn/tp-hcm-cong-bo-lich-thi-lop-10-chi-tiet-20250425101843245.htm',
-        tags: ['Lịch thi', 'TP.HCM', 'Lớp 10']
+        title: 'TP.HCM chốt phương thức thi tuyển lớp 10',
+        date: '18/10/2025',
+        description: 'TPHCM chốt 3 môn thi tuyển sinh lớp 10 năm 2026',
+        image: admissionCard3Image,
+        url: 'https://tphcm.chinhphu.vn/tphcm-chot-3-mon-thi-tuyen-sinh-lop-10-nam-2026-101251018144656866.htm',
+        tags: ['Phương thức thi', '3 môn thi', '2026']
     },
     {
-        title: 'TP HCM chính thức công bố thông tin về tuyển sinh lớp 10 năm 2025',
-        date: '30/03/2025',
-        description: 'Thông tin chính thức về môn thi, cách tính điểm xét tuyển, điều kiện dự tuyển và tuyển sinh lớp chuyên.',
-        image: 'https://images.pexels.com/photos/159844/cellular-education-classroom-159844.jpeg?auto=compress&cs=tinysrgb&w=1200',
-        url: 'https://giaoduc247.vn/tuyen-sinh-lop-10/tp-hcm-chinh-thuc-cong-bo-thong-tin-ve-tuyen-sinh-lop-10-nam-2025',
-        tags: ['Thông tin chính thức', 'Thi tuyển', 'Lớp chuyên']
+        title: 'Đề thi lớp 10 2026 thay đổi theo hướng đánh giá năng lực',
+        date: '01/12/2025',
+        description: 'Kỳ thi tuyển sinh lớp 10 công lập năm học 2026-2027 tại TPHCM: Giúp học sinh thích ứng tốt với điểm mới trong đề thi',
+        image: admissionCard4Image,
+        url: 'https://www.sggp.org.vn/ky-thi-tuyen-sinh-lop-10-cong-lap-nam-hoc-2026-2027-tai-tphcm-giup-hoc-sinh-thich-ung-tot-voi-diem-moi-trong-de-thi-post826311.html',
+        tags: ['Đề thi mới', 'Đánh giá năng lực', '2026-2027']
     },
     {
-        title: 'Thành phố công bố chỉ tiêu tuyển sinh lớp 10 năm học 2025-2026',
-        date: '11/04/2025',
-        description: 'TP.HCM giao 70.070 chỉ tiêu vào lớp 10 công lập tại 115 trường THPT trên toàn địa bàn.',
-        image: 'https://images.pexels.com/photos/5212337/pexels-photo-5212337.jpeg?auto=compress&cs=tinysrgb&w=1200',
-        url: 'https://tphcm.chinhphu.vn/tphcm-cong-bo-chi-tieu-tuyen-sinh-lop-10-nam-hoc-2025-2026-101250411170702663.htm',
-        tags: ['Chỉ tiêu', 'Trường công lập', '2025-2026']
-    },
-    {
-        title: 'Đã có điểm chuẩn lớp 10 TP HCM năm 2025',
-        date: '26/06/2025',
-        description: 'Điểm chuẩn lớp 10 được công bố, kèm hướng dẫn nhập học trực tuyến và mốc thời gian nộp hồ sơ.',
-        image: 'https://images.pexels.com/photos/6457579/pexels-photo-6457579.jpeg?auto=compress&cs=tinysrgb&w=1200',
-        url: 'https://giaoduc247.vn/tuyen-sinh-lop-10/cong-bo-diem-chuan-lop-10-tp-hcm-nam-2025',
-        tags: ['Điểm chuẩn', 'Nhập học', 'TP.HCM']
-    },
-    {
-        title: 'Tuyển sinh lớp 10 TP.HCM năm 2025: Những điểm mới về đăng ký nguyện vọng',
-        date: '11/03/2025',
-        description: 'Các điểm mới về số lượng nguyện vọng và cách đăng ký trực tuyến phụ huynh cần lưu ý.',
-        image: 'https://images.pexels.com/photos/8199168/pexels-photo-8199168.jpeg?auto=compress&cs=tinysrgb&w=1200',
-        url: 'https://thanhnien.vn/tuyen-sinh-lop-10-tphcm-nam-2025-nhung-diem-moi-ve-dang-ky-nguyen-vong-185250311104635937.htm',
-        tags: ['Nguyện vọng', 'Điểm mới', 'Đăng ký']
+        title: 'TP.HCM tiếp tục kết hợp thi tuyển và xét tuyển',
+        date: '16/07/2025',
+        description: 'TPHCM: Dự kiến Ngoại ngữ là môn thi thứ 3 tại kỳ thi tuyển sinh lớp 10 năm 2026',
+        image: admissionCard5Image,
+        url: 'https://www.sggp.org.vn/tphcm-du-kien-ngoai-ngu-la-mon-thi-thu-3-tai-ky-thi-tuyen-sinh-lop-10-nam-2026-post803971.html',
+        tags: ['Thi tuyển + xét tuyển', 'Ngoại ngữ', '2026']
     }
 ];
 
@@ -362,7 +351,7 @@ function BlogCard({title, description, image, date, tags, url, variant = 'featur
     return (
         <Card
             sx={{
-                maxWidth: isFeatured ? 440 : 300,
+                maxWidth: isFeatured ? 370 : 300,
                 width: '100%',
                 mx: 'auto',
                 display: 'flex',
@@ -371,8 +360,8 @@ function BlogCard({title, description, image, date, tags, url, variant = 'featur
                 borderRadius: isFeatured ? 5 : 3,
                 boxShadow: isFeatured ? landingSectionShadow(5) : landingSectionShadow(3),
                 border: '1px solid rgba(15,23,42,0.07)',
-                overflow: 'visible',
-                bgcolor: 'transparent',
+                overflow: 'hidden',
+                bgcolor: '#fff',
                 transition: `transform ${ADMISSION_ANIM_MS}ms ${admissionEase}, box-shadow 0.35s ease, opacity ${ADMISSION_ANIM_MS}ms ${admissionEase}`,
                 '&:hover': {
                     transform: 'translateY(-6px)',
@@ -421,7 +410,7 @@ function BlogCard({title, description, image, date, tags, url, variant = 'featur
                     flexDirection: 'column',
                     mx: isFeatured ? 0 : 1,
                     mt: isFeatured ? {xs: -4, md: -5} : {xs: -2, md: -2.5},
-                    mb: isFeatured ? 1 : 0.5,
+                    mb: 0,
                     borderRadius: 3,
                     bgcolor: '#fff',
                     border: '1px solid rgba(255,255,255,0.9)',
@@ -768,8 +757,8 @@ function LatestAdmissionNewsSection() {
                         <Box
                             key={active}
                             sx={{
-                                flex: '0 1 48%',
-                                maxWidth: 440,
+                                flex: '0 1 43%',
+                                maxWidth: 390,
                                 zIndex: 3,
                                 transform: 'translateY(-8px) scale(1)',
                                 opacity: 1,

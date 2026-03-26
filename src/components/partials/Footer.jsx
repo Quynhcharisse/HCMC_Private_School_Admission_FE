@@ -73,11 +73,11 @@ export default function Footer() {
                     sx={{
                         p: {xs: 2.5, md: 3.5},
                         borderRadius: {xs: 2.5, md: 3},
-                        bgcolor: 'rgba(6, 18, 28, 0.82)',
+                        bgcolor: 'rgba(18, 38, 54, 0.74)',
                         backdropFilter: 'blur(14px)',
                         WebkitBackdropFilter: 'blur(14px)',
-                        border: '1px solid rgba(255,255,255,0.12)',
-                        boxShadow: '0 12px 40px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.18)',
+                        boxShadow: '0 10px 32px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.1)',
                         color: 'rgba(255,255,255,0.95)'
                     }}
                 >
