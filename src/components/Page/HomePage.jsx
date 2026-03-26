@@ -289,6 +289,7 @@ const CONSULT_STEPS = [
     }
 ];
 
+// Tiện ích UI: style kính mờ dùng chung cho các lớp trang trí.
 const glassPane = (sx) => ({
     position: 'absolute',
     borderRadius: 3,
@@ -355,6 +356,7 @@ function ConsultGraphicCluster({variant = 1, mirror = false}) {
     );
 }
 
+// Component UI: thẻ tin tuyển sinh tái sử dụng.
 function BlogCard({title, description, image, date, tags, url, variant = 'featured'}) {
     const isFeatured = variant === 'featured';
     return (
@@ -505,6 +507,7 @@ function BlogCard({title, description, image, date, tags, url, variant = 'featur
     );
 }
 
+// Component UI: thẻ thông tin trường trong lưới hiển thị.
 function SchoolCard({school}) {
     return (
         <Card
@@ -613,6 +616,7 @@ function SchoolCard({school}) {
     );
 }
 
+// Section UI: carousel tin tuyển sinh tự động chuyển.
 function LatestAdmissionNewsSection() {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -827,6 +831,7 @@ function LatestAdmissionNewsSection() {
 
 export default function HomePage() {
     const navigate = useNavigate();
+    // Nghiệp vụ/state: trạng thái modal onboarding và form phụ huynh.
     const [isParentRole, setIsParentRole] = React.useState(false);
     const [showParentFormModal, setShowParentFormModal] = React.useState(false);
     const [isSubmittingParentForm, setIsSubmittingParentForm] = React.useState(false);
@@ -848,11 +853,67 @@ export default function HomePage() {
         []
     );
 
+    // State animation UI: hiện section "quy trình tư vấn" khi cuộn tới.
     const consultSectionRef = React.useRef(null);
     const [consultVisible, setConsultVisible] = React.useState(false);
     const consultMotionEase = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
     const consultStaggerMs = 140;
+    const consultHeadlineContentSx = {
+        position: {xs: 'static', md: 'absolute'},
+        left: {md: 0},
+        right: {md: 0},
+        top: {md: '50%'},
+        width: {md: '100%'},
+        transition: `opacity 0.9s ${consultMotionEase}, transform 0.9s ${consultMotionEase}`,
+        opacity: consultVisible ? 1 : 0,
+        transform: consultVisible
+            ? {xs: 'translateY(0)', md: 'translateY(-50%)'}
+            : {xs: 'translateY(24px)', md: 'translateY(calc(-50% + 24px))'},
+        textAlign: 'center',
+        maxWidth: 520,
+        mx: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: {xs: 1, md: 1.25}
+    };
+    const getConsultStepWrapperSx = (stepNumber, index) => ({
+        gridArea: `step${stepNumber}`,
+        position: 'relative',
+        width: '100%',
+        maxWidth: {xs: '100%', md: 540},
+        justifySelf: {md: index === 1 ? 'end' : 'start'},
+        pl: {xs: 0, md: 3},
+        zIndex: 2,
+        transition: `opacity 0.85s ${consultMotionEase}, transform 0.85s ${consultMotionEase}`,
+        transitionDelay: consultVisible ? `${index * consultStaggerMs}ms` : '0ms',
+        opacity: consultVisible ? 1 : 0,
+        transform: consultVisible
+            ? 'translateX(0)'
+            : {xs: 'translateX(20px)', md: 'translateX(40px)'},
+        overflow: 'visible'
+    });
+    const getConsultCardSx = (isMirror) => ({
+        position: 'relative',
+        zIndex: 1,
+        flex: 1,
+        minWidth: 0,
+        width: {xs: '100%', md: 'auto'},
+        borderRadius: 3,
+        overflow: 'visible',
+        bgcolor: '#fff',
+        border: '1px solid rgba(226,232,240,0.95)',
+        boxShadow: '0 20px 56px rgba(15,23,42,0.08)',
+        ml: {xs: 0, md: isMirror ? 0 : -3.5},
+        mr: {xs: 0, md: isMirror ? -3.5 : 0},
+        transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+        '&:hover': {
+            transform: 'translateY(-3px)',
+            boxShadow: '0 24px 64px rgba(15,23,42,0.1)'
+        }
+    });
 
+    // Side-effect nghiệp vụ: đọc user hiện tại + xử lý cuộn mượt theo hash.
     React.useEffect(() => {
         const userData = localStorage.getItem('user');
         if (userData) {
@@ -912,6 +973,7 @@ export default function HomePage() {
         return () => window.removeEventListener('hashchange', handleHashNavigation);
     }, []);
 
+    // Side-effect UI: kích hoạt animation khi section vào viewport.
     React.useEffect(() => {
         const el = consultSectionRef.current;
         if (!el) return;
@@ -928,10 +990,12 @@ export default function HomePage() {
         return () => obs.disconnect();
     }, []);
 
+    // Hành động nghiệp vụ: điều hướng tới luồng đăng ký.
     const handleRegisterClick = () => {
         window.location.href = '/register';
     };
 
+    // Hành động nghiệp vụ: cập nhật controlled form theo tên field.
     const handleParentFormChange = (field) => (event) => {
         setParentFormData({
             ...parentFormData,
@@ -939,6 +1003,7 @@ export default function HomePage() {
         });
     };
 
+    // Hành động nghiệp vụ: validate và gửi cập nhật hồ sơ phụ huynh.
     const handleParentFormSubmit = async () => {
         if (isSubmittingParentForm || submitRef.current) {
             return;
@@ -1022,6 +1087,7 @@ export default function HomePage() {
         }
     };
 
+    // Hành động nghiệp vụ: đóng modal onboarding phụ huynh.
     const handleParentFormClose = () => {
         setShowParentFormModal(false);
     };
@@ -1612,25 +1678,7 @@ export default function HomePage() {
                             }}
                         >
                             <Box
-                                sx={{
-                                    position: {xs: 'static', md: 'absolute'},
-                                    left: {md: 0},
-                                    right: {md: 0},
-                                    top: {md: '50%'},
-                                    width: {md: '100%'},
-                                    transition: `opacity 0.9s ${consultMotionEase}, transform 0.9s ${consultMotionEase}`,
-                                    opacity: consultVisible ? 1 : 0,
-                                    transform: consultVisible
-                                        ? {xs: 'translateY(0)', md: 'translateY(-50%)'}
-                                        : {xs: 'translateY(24px)', md: 'translateY(calc(-50% + 24px))'},
-                                    textAlign: 'center',
-                                    maxWidth: 520,
-                                    mx: 'auto',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    gap: {xs: 1, md: 1.25}
-                                }}
+                                sx={consultHeadlineContentSx}
                             >
                                 <Typography
                                     component="h2"
@@ -1687,22 +1735,7 @@ export default function HomePage() {
                         {CONSULT_STEPS.map((step, i) => (
                             <Box
                                 key={step.n}
-                                sx={{
-                                    gridArea: `step${step.n}`,
-                                    position: 'relative',
-                                    width: '100%',
-                                    maxWidth: {xs: '100%', md: 540},
-                                    justifySelf: {md: i === 1 ? 'end' : 'start'},
-                                    pl: {xs: 0, md: 3},
-                                    zIndex: 2,
-                                    transition: `opacity 0.85s ${consultMotionEase}, transform 0.85s ${consultMotionEase}`,
-                                    transitionDelay: consultVisible ? `${i * consultStaggerMs}ms` : '0ms',
-                                    opacity: consultVisible ? 1 : 0,
-                                    transform: consultVisible
-                                        ? 'translateX(0)'
-                                        : {xs: 'translateX(20px)', md: 'translateX(40px)'},
-                                    overflow: 'visible'
-                                }}
+                                sx={getConsultStepWrapperSx(step.n, i)}
                             >
                                 <Box
                                     sx={{
@@ -1728,25 +1761,7 @@ export default function HomePage() {
                                     </Box>
                                     <Card
                                         elevation={0}
-                                        sx={{
-                                            position: 'relative',
-                                            zIndex: 1,
-                                            flex: 1,
-                                            minWidth: 0,
-                                            width: {xs: '100%', md: 'auto'},
-                                            borderRadius: 3,
-                                            overflow: 'visible',
-                                            bgcolor: '#fff',
-                                            border: '1px solid rgba(226,232,240,0.95)',
-                                            boxShadow: '0 20px 56px rgba(15,23,42,0.08)',
-                                            ml: {xs: 0, md: step.mirror ? 0 : -3.5},
-                                            mr: {xs: 0, md: step.mirror ? -3.5 : 0},
-                                            transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-                                            '&:hover': {
-                                                transform: 'translateY(-3px)',
-                                                boxShadow: '0 24px 64px rgba(15,23,42,0.1)'
-                                            }
-                                        }}
+                                        sx={getConsultCardSx(step.mirror)}
                                     >
                                         {step.showSparkle ? (
                                             <SparkleIcon
