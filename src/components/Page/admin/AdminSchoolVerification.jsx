@@ -568,6 +568,14 @@ export default function AdminSchoolVerification() {
                 onCancel={handleConfirmClose}
                 onConfirm={handleVerify}
                 loading={!!verifyingId}
+                paperSx={{
+                    background: "linear-gradient(145deg, #eef7ff 0%, #f8fbff 46%, #ffffff 100%)",
+                    border: "1px solid rgba(59,130,246,0.25)",
+                }}
+                titleSx={{
+                    background: "linear-gradient(90deg, rgba(37,99,235,0.2) 0%, rgba(79,70,229,0.12) 100%)",
+                    borderBottom: "none",
+                }}
             />
         </Box>
     );

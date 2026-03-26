@@ -8,6 +8,7 @@ import {
     DialogTitle,
     Paper,
 } from "@mui/material";
+import {alpha} from "@mui/material/styles";
 import Draggable from "react-draggable";
 
 const PaperComponent = (props) => {
@@ -34,6 +35,10 @@ const ConfirmDialog = ({
     loading = false,
     onCancel,
     onConfirm,
+    dialogSx,
+    paperSx,
+    backdropSx,
+    titleSx,
 }) => {
     return (
         <Dialog
@@ -44,6 +49,11 @@ const ConfirmDialog = ({
             maxWidth="sm"
             fullWidth
             sx={{
+                ...dialogSx,
+                "& .MuiBackdrop-root": {
+                    backgroundColor: alpha("#0f172a", 0.45),
+                    ...backdropSx,
+                },
                 '& .MuiPaper-root': {
                     borderRadius: 3,
                     boxShadow:
@@ -51,6 +61,7 @@ const ConfirmDialog = ({
                     border: '1px solid rgba(148,163,184,0.25)',
                     background:
                         'radial-gradient(circle at top left, #eff6ff 0, #ffffff 45%, #f9fafb 100%)',
+                    ...paperSx,
                 },
             }}
         >
@@ -65,16 +76,27 @@ const ConfirmDialog = ({
                         display: "flex",
                         alignItems: "center",
                         gap: 1,
-                        pb: 1.5,
+                        pt: 2,
+                        pb: 2.1,
+                        background: "linear-gradient(135deg, rgba(37,99,235,0.14), rgba(79,70,229,0.08))",
+                        borderBottom: "none",
+                        ...titleSx,
                     }}
                 >
                     {title}
                 </DialogTitle>
             )}
             {(description || extraDescription) && (
-                <DialogContent sx={{pt: title ? 0 : 2}}>
+                <DialogContent sx={{pt: title ? 3.4 : 2}}>
                     {description && (
-                        <DialogContentText sx={{fontSize: 14, color: "#0f172a", mb: extraDescription ? 0.5 : 0}}>
+                        <DialogContentText
+                            sx={{
+                                fontSize: 14,
+                                color: "#0f172a",
+                                mt: title ? 0.6 : 0,
+                                mb: extraDescription ? 0.5 : 0,
+                            }}
+                        >
                             {description}
                         </DialogContentText>
                     )}
@@ -88,11 +110,11 @@ const ConfirmDialog = ({
             <DialogActions
                 sx={{
                     px: 3,
-                    pb: 2.5,
-                    pt: 1.5,
-                    gap: 1.5,
+                    pb: 2.2,
+                    pt: 1.25,
+                    gap: 1,
                     justifyContent: "flex-end",
-                    borderTop: "1px solid rgba(148,163,184,0.35)",
+                    borderTop: "none",
                     background:
                         "linear-gradient(to top, rgba(248,250,252,0.9), rgba(248,250,252,0.4))",
                 }}
@@ -102,11 +124,17 @@ const ConfirmDialog = ({
                     disabled={loading}
                     sx={{
                         textTransform: "none",
-                        borderRadius: 999,
-                        px: 2.5,
-                        color: "#0f172a",
+                        borderRadius: 3,
+                        px: 3,
+                        minWidth: 120,
+                        height: 40,
+                        fontWeight: 500,
+                        color: "#111827",
+                        border: "1px solid rgba(17,24,39,0.45)",
+                        backgroundColor: "#f8fafc",
                         "&:hover": {
-                            backgroundColor: "rgba(148,163,184,0.18)",
+                            backgroundColor: "#f1f5f9",
+                            borderColor: "rgba(17,24,39,0.65)",
                         },
                     }}
                 >
@@ -120,14 +148,15 @@ const ConfirmDialog = ({
                     sx={{
                         textTransform: "none",
                         px: 3,
-                        borderRadius: 999,
-                        boxShadow: "0 12px 22px rgba(37,99,235,0.35)",
-                        background:
-                            "linear-gradient(135deg, #2563eb, #4f46e5)",
+                        minWidth: 120,
+                        height: 40,
+                        borderRadius: 3,
+                        fontWeight: 600,
+                        boxShadow: "0 6px 14px rgba(37,99,235,0.32)",
+                        background: "#3b82f6",
                         "&:hover": {
-                            background:
-                                "linear-gradient(135deg, #1d4ed8, #4338ca)",
-                            boxShadow: "0 16px 32px rgba(30,64,175,0.5)",
+                            background: "#2563eb",
+                            boxShadow: "0 8px 16px rgba(37,99,235,0.38)",
                         },
                     }}
                 >
