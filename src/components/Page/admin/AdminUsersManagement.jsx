@@ -36,18 +36,34 @@ import DownloadIcon from '@mui/icons-material/Download';
 import BlockIcon from '@mui/icons-material/Block';
 import FamilyRestroomIcon from '@mui/icons-material/FamilyRestroom';
 import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import {useNavigate} from "react-router-dom";
+import ApartmentIcon from '@mui/icons-material/Apartment';
+import PlaceIcon from '@mui/icons-material/Place';
+import InsightsIcon from '@mui/icons-material/Insights';
+import CallIcon from '@mui/icons-material/Call';
+import BadgeIcon from '@mui/icons-material/Badge';
+import LockIcon from '@mui/icons-material/Lock';
+import {useLocation, useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {getUsersByRole} from "../../../services/AdminService.jsx";
+import * as XLSX from "xlsx";
 
 export default function AdminUsersManagement() {
     const navigate = useNavigate();
+    const location = useLocation();
 
-    const [roleTab, setRoleTab] = useState("PARENT");
+    const getRoleTabFromSearch = (searchString) => {
+        const params = new URLSearchParams(searchString);
+        const tab = params.get("tab");
+        return tab === "SCHOOL" ? "SCHOOL" : "PARENT";
+    };
+
+    const [roleTab, setRoleTab] = useState(() => getRoleTabFromSearch(location.search));
     const [search, setSearch] = useState("");
     const [loading, setLoading] = useState(false);
+    const [exporting, setExporting] = useState(false);
     const [users, setUsers] = useState([]);
     const [selectedParent, setSelectedParent] = useState(null);
+    const [selectedSchool, setSelectedSchool] = useState(null);
     const [pagination, setPagination] = useState({
         page: 0,
         pageSize: 10,
@@ -90,6 +106,11 @@ export default function AdminUsersManagement() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roleTab]);
 
+    useEffect(() => {
+        const tabFromUrl = getRoleTabFromSearch(location.search);
+        setRoleTab((prev) => (prev === tabFromUrl ? prev : tabFromUrl));
+    }, [location.search]);
+
     const handleTabChange = (event, newValue) => {
         setRoleTab(newValue);
         setPagination(prev => ({...prev, page: 0}));
@@ -116,6 +137,15 @@ export default function AdminUsersManagement() {
 
     const handleCloseParentDetail = () => {
         setSelectedParent(null);
+    };
+
+    const handleOpenSchoolDetail = (user) => {
+        if (!user) return;
+        setSelectedSchool(user);
+    };
+
+    const handleCloseSchoolDetail = () => {
+        setSelectedSchool(null);
     };
 
     const maskIdCardNumber = (idCardNumber) => {
@@ -147,6 +177,107 @@ export default function AdminUsersManagement() {
         if (relationship === "GRANDPARENT") return "Ông/Bà";
         if (relationship === "SIBLING") return "Anh/Chị/Em";
         return relationship;
+    };
+
+    const getStatusLabel = (status) => {
+        if (!status) return "Không xác định";
+        if (status === "ACCOUNT_ACTIVE") return "Hoạt động";
+        if (status === "ACCOUNT_PENDING_VERIFY") return "Chờ duyệt";
+        if (status === "ACCOUNT_INACTIVE") return "Không hoạt động";
+        if (status === "ACCOUNT_RESTRICTED") return "Bị hạn chế";
+        return status;
+    };
+
+    const getFoundedYear = (foundingDate) => {
+        if (!foundingDate) return "-";
+        const year = new Date(foundingDate).getFullYear();
+        return Number.isNaN(year) ? "-" : year;
+    };
+
+    const formatDate = (dateValue) => {
+        if (!dateValue) return "-";
+        const parsed = new Date(dateValue);
+        if (Number.isNaN(parsed.getTime())) return "-";
+        return parsed.toLocaleDateString("vi-VN");
+    };
+
+    const fetchAllUsersForExport = async () => {
+        const role = roleTab;
+        const pageSize = pagination.pageSize || 10;
+        const keyword = search;
+        let page = 0;
+        let totalPages = 1;
+        const allItems = [];
+
+        while (page < totalPages) {
+            const res = await getUsersByRole({role, page, pageSize, search: keyword});
+            const body = res?.data?.body || {};
+            const items = body?.items || [];
+            allItems.push(...items);
+            totalPages = Math.max(1, body?.totalPages ?? totalPages);
+            page += 1;
+        }
+
+        return allItems;
+    };
+
+    const handleExportExcel = async () => {
+        if (exporting) return;
+        setExporting(true);
+        try {
+            const exportItems = await fetchAllUsersForExport();
+            if (!exportItems.length) {
+                enqueueSnackbar("Không có dữ liệu để xuất file.", {variant: "warning"});
+                return;
+            }
+
+            const rows = roleTab === "PARENT"
+                ? exportItems.map((item, index) => ({
+                    STT: index + 1,
+                    "Họ tên": item.name || "-",
+                    Email: item.email || item.account?.email || "-",
+                    "Số điện thoại": item.phone || "-",
+                    "Giới tính": getGenderLabel(item.gender),
+                    "Vai trò": getRoleLabel(item.role),
+                    "Mối quan hệ": getRelationshipLabel(item.relationship),
+                    "Số CCCD/CMND": maskIdCardNumber(item.idCardNumber),
+                    "Địa chỉ hiện tại": item.currentAddress || "-",
+                    "Nghề nghiệp": item.occupation || "-",
+                    "Nơi làm việc": item.workplace || "-",
+                    "Trạng thái": getStatusLabel(item.status),
+                    "Bị hạn chế": item.isRestricted ? "Có" : "Không",
+                    "Lý do hạn chế": item.isRestricted ? (item.restrictionReason || "-") : "-",
+                }))
+                : exportItems.map((item, index) => ({
+                    STT: index + 1,
+                    "Tên trường": item.schoolName || "-",
+                    Website: item.websiteUrl || "-",
+                    Hotline: item.hotline || "-",
+                    "Mã số thuế": item.taxCode || "-",
+                    "Trạng thái": getStatusLabel(item.overallStatus || item.status || item.primaryCampus?.status),
+                }));
+
+            const worksheet = XLSX.utils.json_to_sheet(rows);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(
+                workbook,
+                worksheet,
+                roleTab === "PARENT" ? "Danh sách phụ huynh" : "Danh sách nhà trường"
+            );
+
+            const date = new Date().toISOString().slice(0, 10);
+            const fileName = roleTab === "PARENT"
+                ? `danh-sach-phu-huynh-${date}.xlsx`
+                : `danh-sach-nha-truong-${date}.xlsx`;
+
+            XLSX.writeFile(workbook, fileName);
+            enqueueSnackbar("Xuất file Excel thành công.", {variant: "success"});
+        } catch (error) {
+            console.error("Export excel failed", error);
+            enqueueSnackbar("Xuất file Excel thất bại.", {variant: "error"});
+        } finally {
+            setExporting(false);
+        }
     };
 
     const detailSectionSx = {
@@ -227,6 +358,20 @@ export default function AdminUsersManagement() {
                         bgcolor: "rgba(245,158,11,0.16)",
                         color: "#fbbf24",
                         border: "1px solid rgba(251,191,36,0.35)",
+                        fontWeight: 600,
+                    }}
+                />
+            );
+        }
+        if (status === "ACCOUNT_INACTIVE") {
+            return (
+                <Chip
+                    label="Không hoạt động"
+                    size="small"
+                    sx={{
+                        bgcolor: "rgba(71,85,105,0.16)",
+                        color: "#475569",
+                        border: "1px solid rgba(71,85,105,0.28)",
                         fontWeight: 600,
                     }}
                 />
@@ -511,7 +656,11 @@ export default function AdminUsersManagement() {
                             <IconButton sx={{color: "#64748b", border: "1px solid #cbd5e1"}}>
                                 <FilterListIcon fontSize="small"/>
                             </IconButton>
-                            <IconButton sx={{color: "#64748b", border: "1px solid #cbd5e1"}}>
+                            <IconButton
+                                onClick={handleExportExcel}
+                                disabled={exporting}
+                                sx={{color: "#64748b", border: "1px solid #cbd5e1"}}
+                            >
                                 <DownloadIcon fontSize="small"/>
                             </IconButton>
                         </Box>
@@ -530,17 +679,23 @@ export default function AdminUsersManagement() {
                                     </TableCell>
                                     {roleTab === "SCHOOL" && (
                                         <>
-                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 160}}>
+                                            <TableCell align="left" sx={{fontWeight: 700, color: '#334155', width: 56, pl: 1.5, pr: 0.5}}>
+                                                
+                                            </TableCell>
+                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 240}}>
                                                 Tên trường
                                             </TableCell>
-                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 200}}>
+                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 160}}>
+                                                Mã số thuế
+                                            </TableCell>
+                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 180}}>
                                                 Website
                                             </TableCell>
-                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 160}}>
+                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 150}}>
                                                 Hotline
                                             </TableCell>
-                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 180}}>
-                                                Mã số thuế
+                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 140}}>
+                                                Trạng thái
                                             </TableCell>
                                         </>
                                     )}
@@ -563,20 +718,20 @@ export default function AdminUsersManagement() {
                                             </TableCell>
                                         </>
                                     )}
-                                    {roleTab === "SCHOOL" && (
-                                        <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 150}}>
-                                            Trạng thái
-                                        </TableCell>
-                                    )}
-                                    <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: roleTab === "PARENT" ? 110 : 90}}>
+                                    <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: roleTab === "PARENT" ? 92 : 78, px: 0.5}}>
                                         Chi Tiết
                                     </TableCell>
+                                    {roleTab === "SCHOOL" && (
+                                        <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 72, px: 0.5}}>
+                                            Campus
+                                        </TableCell>
+                                    )}
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {loading ? (
                                     <TableRow>
-                                        <TableCell colSpan={roleTab === "SCHOOL" ? 7 : 8} align="center" sx={{py: 4, color: "#64748b"}}>
+                                        <TableCell colSpan={roleTab === "SCHOOL" ? 9 : 8} align="center" sx={{py: 4, color: "#64748b"}}>
                                             <Typography variant="body2" sx={{color: "#64748b"}}>
                                                 Đang tải dữ liệu...
                                             </Typography>
@@ -584,7 +739,7 @@ export default function AdminUsersManagement() {
                                     </TableRow>
                                 ) : users.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={roleTab === "SCHOOL" ? 7 : 8} align="center" sx={{py: 4}}>
+                                        <TableCell colSpan={roleTab === "SCHOOL" ? 9 : 8} align="center" sx={{py: 4}}>
                                             <Typography variant="body1" sx={{color: '#64748b'}}>
                                                 Chưa có dữ liệu người dùng
                                             </Typography>
@@ -616,9 +771,23 @@ export default function AdminUsersManagement() {
                                             </TableCell>
                                             {roleTab === "SCHOOL" && (
                                                 <>
-                                                    <TableCell align="center">
+                                                    <TableCell align="left" sx={{pl: 1.5, pr: 0.5}}>
+                                                        <Avatar
+                                                            src={user.logoUrl || undefined}
+                                                            alt={user.schoolName || "logo trường"}
+                                                            sx={{width: 34, height: 34, bgcolor: "#e2e8f0"}}
+                                                        >
+                                                            {(user.schoolName || "S").charAt(0).toUpperCase()}
+                                                        </Avatar>
+                                                    </TableCell>
+                                                    <TableCell align="left" sx={{pl: 0.5}}>
                                                         <Typography sx={{fontWeight: 600, fontSize: 14, color: "#0f172a"}}>
                                                             {user.schoolName || "Trường chưa đặt tên"}
+                                                        </Typography>
+                                                    </TableCell>
+                                                    <TableCell align="center">
+                                                        <Typography sx={{fontSize: 14, color: "#334155"}}>
+                                                            {user.taxCode || "-"}
                                                         </Typography>
                                                     </TableCell>
                                                     <TableCell align="center">
@@ -647,9 +816,7 @@ export default function AdminUsersManagement() {
                                                         </Typography>
                                                     </TableCell>
                                                     <TableCell align="center">
-                                                        <Typography sx={{fontSize: 14, color: "#334155"}}>
-                                                            {user.taxCode || "-"}
-                                                        </Typography>
+                                                        {renderStatusChip(user.overallStatus || user.status || user.primaryCampus?.status)}
                                                     </TableCell>
                                                 </>
                                             )}
@@ -678,22 +845,12 @@ export default function AdminUsersManagement() {
                                                     </TableCell>
                                                 </>
                                             )}
-                                            {roleTab === "SCHOOL" && (
-                                                <TableCell align="center">
-                                                    {renderStatusChip(
-                                                        user.overallStatus ||
-                                                        user.status ||
-                                                        user.primaryCampus?.status
-                                                    )}
-                                                </TableCell>
-                                            )}
-                                            <TableCell align="center">
+                                            <TableCell align="center" sx={{px: 0.5}}>
                                                 {roleTab === "SCHOOL" ? (
                                                     <IconButton
                                                         size="small"
-                                                        onClick={() => handleOpenCampuses(user?.schoolId)}
-                                                        disabled={!user?.schoolId}
-                                                        aria-label="Xem campus"
+                                                        onClick={() => handleOpenSchoolDetail(user)}
+                                                        aria-label="Xem chi tiết trường"
                                                         sx={{color: "#38bdf8"}}
                                                     >
                                                         <VisibilityIcon fontSize="small"/>
@@ -709,6 +866,19 @@ export default function AdminUsersManagement() {
                                                     </IconButton>
                                                 )}
                                             </TableCell>
+                                            {roleTab === "SCHOOL" && (
+                                                <TableCell align="center" sx={{px: 0.5}}>
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => handleOpenCampuses(user?.schoolId)}
+                                                        disabled={!user?.schoolId}
+                                                        aria-label="Xem campus"
+                                                        sx={{color: "#2563eb"}}
+                                                    >
+                                                        <SchoolIcon fontSize="small"/>
+                                                    </IconButton>
+                                                </TableCell>
+                                            )}
                                         </TableRow>
                                     ))
                                 )}
@@ -786,9 +956,12 @@ export default function AdminUsersManagement() {
                 >
                     <Stack spacing={1.5}>
                         <Box sx={detailSectionSx}>
-                            <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af", mb: 1}}>
-                                Thông tin cơ bản
-                            </Typography>
+                            <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
+                                <PeopleIcon sx={{fontSize: 17, color: "#1e40af"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                    Thông tin cơ bản
+                                </Typography>
+                            </Stack>
                             <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
                                 {renderDetailField("Họ và tên", selectedParent?.name)}
                                 {renderDetailField("Giới tính", getGenderLabel(selectedParent?.gender))}
@@ -798,9 +971,12 @@ export default function AdminUsersManagement() {
                         </Box>
 
                         <Box sx={detailSectionSx}>
-                            <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af", mb: 1}}>
-                                Liên hệ
-                            </Typography>
+                            <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
+                                <CallIcon sx={{fontSize: 17, color: "#1e40af"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                    Liên hệ
+                                </Typography>
+                            </Stack>
                             <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
                                 {renderDetailField("Email", selectedParent?.email)}
                                 {renderDetailField("Số điện thoại", selectedParent?.phone)}
@@ -809,9 +985,12 @@ export default function AdminUsersManagement() {
                         </Box>
 
                         <Box sx={detailSectionSx}>
-                            <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af", mb: 1}}>
-                                Thông tin cá nhân
-                            </Typography>
+                            <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
+                                <BadgeIcon sx={{fontSize: 17, color: "#1e40af"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                    Thông tin cá nhân
+                                </Typography>
+                            </Stack>
                             <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
                                 {renderDetailField("Số CCCD/CMND", maskIdCardNumber(selectedParent?.idCardNumber))}
                                 {renderDetailField("Nghề nghiệp", selectedParent?.occupation)}
@@ -820,9 +999,12 @@ export default function AdminUsersManagement() {
                         </Box>
 
                         <Box sx={detailSectionSx}>
-                            <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af", mb: 1}}>
-                                Trạng thái tài khoản
-                            </Typography>
+                            <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
+                                <LockIcon sx={{fontSize: 17, color: "#1e40af"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                    Trạng thái tài khoản
+                                </Typography>
+                            </Stack>
                             <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
                                 <Box sx={{border: "1px solid #bfdbfe", borderRadius: 2.25, bgcolor: "#ffffff", px: 1.3, py: 1.1, boxShadow: "0 5px 12px rgba(37,99,235,0.08)"}}>
                                     <Typography sx={{fontSize: 12, color: "#1d4ed8", mb: 0.5, fontWeight: 700}}>Trạng thái</Typography>
@@ -833,6 +1015,143 @@ export default function AdminUsersManagement() {
                                     {renderRestrictedChip(!!selectedParent?.isRestricted)}
                                 </Box>
                                 {selectedParent?.isRestricted && renderDetailField("Lý do hạn chế", selectedParent?.restrictionReason, true)}
+                            </Box>
+                        </Box>
+                    </Stack>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog
+                open={!!selectedSchool}
+                onClose={handleCloseSchoolDetail}
+                fullWidth
+                maxWidth="md"
+                PaperProps={{
+                    sx: {
+                        borderRadius: 4,
+                        overflow: "hidden",
+                        border: "1px solid #93c5fd",
+                        boxShadow: "0 24px 48px rgba(37,99,235,0.24)",
+                    },
+                }}
+            >
+                <DialogTitle
+                    sx={{
+                        fontWeight: 800,
+                        color: "#0f172a",
+                        pb: 1.2,
+                        background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 48%, #93c5fd 100%)",
+                        borderBottom: "1px solid #93c5fd",
+                    }}
+                >
+                    Chi tiết nhà trường
+                </DialogTitle>
+                <DialogContent dividers sx={{bgcolor: "#eff6ff"}}>
+                    <Stack spacing={1.5}>
+                        <Box sx={detailSectionSx}>
+                            <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
+                                <ApartmentIcon sx={{fontSize: 17, color: "#1e40af"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                    Thông tin chung
+                                </Typography>
+                            </Stack>
+                            <Box
+                                sx={{
+                                    border: "1px solid #bfdbfe",
+                                    borderRadius: 2.25,
+                                    bgcolor: "#ffffff",
+                                    px: 1.4,
+                                    py: 1.25,
+                                    boxShadow: "0 5px 12px rgba(37,99,235,0.08)",
+                                    display: "flex",
+                                    alignItems: "flex-start",
+                                    gap: 1.5,
+                                }}
+                            >
+                                <Avatar
+                                    src={selectedSchool?.logoUrl || undefined}
+                                    alt={selectedSchool?.schoolName || "logo"}
+                                    sx={{width: 56, height: 56, mt: 0.2}}
+                                >
+                                    {(selectedSchool?.schoolName || "S").charAt(0).toUpperCase()}
+                                </Avatar>
+                                <Box sx={{minWidth: 0}}>
+                                    <Typography sx={{fontSize: 18, color: "#0f172a", fontWeight: 700, lineHeight: 1.25, mb: 0.9}}>
+                                        {selectedSchool?.schoolName || "-"}
+                                    </Typography>
+                                    <Typography sx={{fontSize: 14, color: "#0f172a", lineHeight: 1.45}}>
+                                        {selectedSchool?.schoolDescription || "-"}
+                                    </Typography>
+                                </Box>
+                            </Box>
+                        </Box>
+
+                        <Box sx={detailSectionSx}>
+                            <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
+                                <PlaceIcon sx={{fontSize: 17, color: "#1e40af"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                    Cơ sở chính
+                                </Typography>
+                            </Stack>
+                            <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                                {renderDetailField("Tên cơ sở", selectedSchool?.primaryCampus?.campusName)}
+                                {renderDetailField("Số điện thoại", selectedSchool?.primaryCampus?.phoneNumber)}
+                                {renderDetailField("Địa chỉ", selectedSchool?.primaryCampus?.address, true)}
+                            </Box>
+                        </Box>
+
+                        <Box sx={detailSectionSx}>
+                            <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
+                                <InsightsIcon sx={{fontSize: 17, color: "#1e40af"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                    Thông tin hệ thống
+                                </Typography>
+                            </Stack>
+                            <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                                {renderDetailField("Mã số thuế", selectedSchool?.taxCode)}
+                                {renderDetailField("Ngày thành lập", formatDate(selectedSchool?.foundingDate))}
+                                {renderDetailField("Số cơ sở", selectedSchool?.campusCount ?? "-")}
+                                {renderDetailField("Số tư vấn viên", selectedSchool?.counsellorCount ?? "-")}
+                            </Box>
+                        </Box>
+
+                        <Box sx={detailSectionSx}>
+                            <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
+                                <CallIcon sx={{fontSize: 17, color: "#1e40af"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                    Liên hệ
+                                </Typography>
+                            </Stack>
+                            <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                                {renderDetailField("Hotline", selectedSchool?.hotline)}
+                                {renderDetailField("Website", selectedSchool?.websiteUrl)}
+                            </Box>
+                        </Box>
+
+                        <Box sx={detailSectionSx}>
+                            <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
+                                <BadgeIcon sx={{fontSize: 17, color: "#1e40af"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                    Đại diện
+                                </Typography>
+                            </Stack>
+                            <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                                {renderDetailField("Người đại diện", selectedSchool?.representativeName)}
+                            </Box>
+                        </Box>
+
+                        <Box sx={detailSectionSx}>
+                            <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
+                                <LockIcon sx={{fontSize: 17, color: "#1e40af"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                    Trạng thái
+                                </Typography>
+                            </Stack>
+                            <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                                <Box sx={{border: "1px solid #bfdbfe", borderRadius: 2.25, bgcolor: "#ffffff", px: 1.3, py: 1.1, boxShadow: "0 5px 12px rgba(37,99,235,0.08)"}}>
+                                    <Typography sx={{fontSize: 12, color: "#1d4ed8", mb: 0.5, fontWeight: 700}}>Trạng thái tổng</Typography>
+                                    {renderStatusChip(selectedSchool?.overallStatus || selectedSchool?.status)}
+                                </Box>
                             </Box>
                         </Box>
                     </Stack>

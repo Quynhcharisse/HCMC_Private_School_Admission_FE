@@ -20,7 +20,7 @@ import {
 } from "@mui/material";
 import ApartmentIcon from "@mui/icons-material/Apartment";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import VisibilityIcon from "@mui/icons-material/Visibility";
+import SupportAgentIcon from "@mui/icons-material/SupportAgent";
 import {useNavigate, useParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {getSchoolCampuses} from "../../../services/AdminService.jsx";
@@ -68,9 +68,59 @@ export default function AdminSchoolCampuses() {
 
     const renderStatusChip = (status) => {
         if (!status) return <Chip label="Không xác định" size="small"/>;
-        if (status === "VERIFIED") return <Chip label="Đã xác thực" size="small" color="success"/>;
-        if (status === "PENDING") return <Chip label="Chờ duyệt" size="small" color="warning"/>;
-        return <Chip label={status} size="small"/>;
+        if (status === "ACCOUNT_ACTIVE" || status === "VERIFIED") {
+            return (
+                <Chip
+                    label="Hoạt động"
+                    size="small"
+                    sx={{
+                        bgcolor: "rgba(16,185,129,0.16)",
+                        color: "#34d399",
+                        border: "1px solid rgba(52,211,153,0.35)",
+                        fontWeight: 600,
+                    }}
+                />
+            );
+        }
+        if (status === "ACCOUNT_PENDING_VERIFY" || status === "PENDING") {
+            return (
+                <Chip
+                    label="Chờ duyệt"
+                    size="small"
+                    sx={{
+                        bgcolor: "rgba(245,158,11,0.16)",
+                        color: "#fbbf24",
+                        border: "1px solid rgba(251,191,36,0.35)",
+                        fontWeight: 600,
+                    }}
+                />
+            );
+        }
+        if (status === "ACCOUNT_RESTRICTED" || status === "ACCOUNT_INACTIVE") {
+            return (
+                <Chip
+                    label={status === "ACCOUNT_INACTIVE" ? "Không hoạt động" : "Bị hạn chế"}
+                    size="small"
+                    sx={{
+                        bgcolor: "rgba(239,68,68,0.16)",
+                        color: "#f87171",
+                        border: "1px solid rgba(248,113,113,0.35)",
+                        fontWeight: 600,
+                    }}
+                />
+            );
+        }
+        return (
+            <Chip
+                label={status}
+                size="small"
+                sx={{
+                    bgcolor: "rgba(148,163,184,0.2)",
+                    color: "#cbd5e1",
+                    border: "1px solid rgba(203,213,225,0.3)",
+                }}
+            />
+        );
     };
 
     const handleOpenConsultants = (campus) => {
@@ -93,7 +143,7 @@ export default function AdminSchoolCampuses() {
                 <Link
                     underline="hover"
                     color="inherit"
-                    onClick={() => navigate("/admin/users")}
+                    onClick={() => navigate("/admin/users?tab=SCHOOL")}
                     sx={{cursor: "pointer"}}
                 >
                     Users
@@ -104,7 +154,7 @@ export default function AdminSchoolCampuses() {
 
             <Box sx={{display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2}}>
                 <Box sx={{display: "flex", alignItems: "center", gap: 2}}>
-                    <IconButton onClick={() => navigate(-1)} size="small">
+                    <IconButton onClick={() => navigate("/admin/users?tab=SCHOOL")} size="small">
                         <ArrowBackIcon/>
                     </IconButton>
                     <ApartmentIcon sx={{fontSize: 30, color: "#1d4ed8"}}/>
@@ -138,43 +188,53 @@ export default function AdminSchoolCampuses() {
                             </Typography>
                         </Box>
                     ) : (
-                        <TableContainer component={Paper} elevation={0}>
+                        <TableContainer
+                            component={Paper}
+                            elevation={0}
+                            sx={{bgcolor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 3}}
+                        >
                             <Table size="small">
                                 <TableHead>
                                     <TableRow sx={{bgcolor: "#f8fafc"}}>
                                         <TableCell
                                             align="center"
-                                            sx={{fontWeight: 700, color: "#1e293b", width: 60}}
+                                            sx={{fontWeight: 700, color: "#334155", width: 60}}
                                         >
                                             STT
                                         </TableCell>
                                         <TableCell
                                             align="center"
-                                            sx={{fontWeight: 700, color: "#1e293b", minWidth: 200}}
+                                            sx={{fontWeight: 700, color: "#334155", minWidth: 200}}
                                         >
                                             Tên campus
                                         </TableCell>
                                         <TableCell
                                             align="center"
-                                            sx={{fontWeight: 700, color: "#1e293b", minWidth: 220}}
+                                            sx={{fontWeight: 700, color: "#334155", minWidth: 220}}
                                         >
                                             Địa chỉ
                                         </TableCell>
                                         <TableCell
                                             align="center"
-                                            sx={{fontWeight: 700, color: "#1e293b", width: 160}}
+                                            sx={{fontWeight: 700, color: "#334155", minWidth: 220}}
+                                        >
+                                            Email
+                                        </TableCell>
+                                        <TableCell
+                                            align="center"
+                                            sx={{fontWeight: 700, color: "#334155", width: 160}}
                                         >
                                             Số điện thoại
                                         </TableCell>
                                         <TableCell
                                             align="center"
-                                            sx={{fontWeight: 700, color: "#1e293b", width: 140}}
+                                            sx={{fontWeight: 700, color: "#334155", width: 140}}
                                         >
                                             Tư vấn viên
                                         </TableCell>
                                         <TableCell
                                             align="center"
-                                            sx={{fontWeight: 700, color: "#1e293b", width: 140}}
+                                            sx={{fontWeight: 700, color: "#334155", width: 140}}
                                         >
                                             Trạng thái
                                         </TableCell>
@@ -185,9 +245,24 @@ export default function AdminSchoolCampuses() {
                                             <TableRow
                                                 key={campus.campusId || index}
                                                 hover
+                                                sx={{
+                                                    "& td": {borderBottomColor: "#e2e8f0", color: "#334155"},
+                                                    "&:hover": {bgcolor: "#f8fafc"},
+                                                }}
                                             >
                                                 <TableCell align="center">
-                                                    {pagination.page * pagination.pageSize + index + 1}
+                                                    <Chip
+                                                        label={pagination.page * pagination.pageSize + index + 1}
+                                                        size="small"
+                                                        sx={{
+                                                            width: 28,
+                                                            height: 24,
+                                                            fontWeight: 700,
+                                                            bgcolor: "rgba(139,92,246,0.22)",
+                                                            color: "#7c3aed",
+                                                            border: "1px solid rgba(196,181,253,0.3)",
+                                                        }}
+                                                    />
                                                 </TableCell>
                                                 <TableCell align="center">
                                                     <Typography sx={{fontWeight: 600, fontSize: 14}}>
@@ -208,12 +283,17 @@ export default function AdminSchoolCampuses() {
                                                 </TableCell>
                                                 <TableCell align="center">
                                                     <Typography sx={{fontSize: 13}}>
-                                                        {campus.city} - {campus.district}
+                                                        {campus.address || "-"}
                                                     </Typography>
                                                 </TableCell>
                                                 <TableCell align="center">
                                                     <Typography sx={{fontSize: 13}}>
-                                                        {campus.phoneNumber}
+                                                        {campus.account?.email || "-"}
+                                                    </Typography>
+                                                </TableCell>
+                                                <TableCell align="center">
+                                                    <Typography sx={{fontSize: 13}}>
+                                                        {campus.phoneNumber || "-"}
                                                     </Typography>
                                                 </TableCell>
                                                 <TableCell align="center">
@@ -222,8 +302,9 @@ export default function AdminSchoolCampuses() {
                                                         onClick={() => handleOpenConsultants(campus)}
                                                         disabled={!campus?.campusId}
                                                         aria-label="Xem tư vấn viên"
+                                                        sx={{color: "#38bdf8"}}
                                                     >
-                                                        <VisibilityIcon fontSize="small"/>
+                                                        <SupportAgentIcon fontSize="small"/>
                                                     </IconButton>
                                                 </TableCell>
                                                 <TableCell align="center">
