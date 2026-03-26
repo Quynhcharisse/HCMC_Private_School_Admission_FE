@@ -607,7 +607,10 @@ export default function SchoolSearchPage() {
                     schoolKey,
                     schoolName: schoolRecord.school,
                     province: schoolRecord.province,
-                    ward: schoolRecord.ward
+                    ward: schoolRecord.ward,
+                    locationLabel: schoolRecord.locationLabel,
+                    gradeLevel: schoolRecord.gradeLevel,
+                    schoolType: schoolRecord.schoolType
                 }
             ];
         }
