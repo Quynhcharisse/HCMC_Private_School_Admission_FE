@@ -11,6 +11,7 @@ export default function WebAppLayout() {
     const isAuthPage = location.pathname === '/login' || location.pathname === '/register';
     const isHomeRoute = location.pathname === '/' || location.pathname === '/home';
     const isParentFirstLoginRoute = location.pathname === '/parent-first-login';
+    const isParentProfileRoute = location.pathname === '/parent/profile';
     const toBoolean = (value) => value === true || value === 'true' || value === 1 || value === '1';
 
     useEffect(() => {
@@ -81,7 +82,7 @@ export default function WebAppLayout() {
             >
                 <Outlet key={location.pathname}/>
             </Box>
-            {!isAuthPage && !isParentFirstLoginRoute && <Footer/>}
+            {!isAuthPage && !isParentFirstLoginRoute && !isParentProfileRoute && <Footer/>}
             {!isAuthPage && <ScrollTopButton/>}
         </Box>
     );

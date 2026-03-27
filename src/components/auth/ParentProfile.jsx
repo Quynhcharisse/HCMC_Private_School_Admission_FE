@@ -328,10 +328,7 @@ const ParentProfile = ({onBack}) => {
                                             fullWidth
                                             size="small"
                                             error={!!formErrors.idCardNumber}
-                                            helperText={
-                                                formErrors.idCardNumber ||
-                                                'Thông tin cố định, không thể chỉnh sửa tại đây.'
-                                            }
+                                            helperText={formErrors.idCardNumber}
                                             disabled
                                             sx={{
                                                 '& .MuiOutlinedInput-root': {
