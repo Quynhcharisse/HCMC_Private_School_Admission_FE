@@ -24,6 +24,14 @@ export const getUsersByRole = async ({ role, page = 0, pageSize = 10, search = "
     return response || null;
 };
 
+export const setAccountRestricted = async (accountId, { isRestricted, reason = "" }) => {
+    const response = await axiosClient.post(`/account/${accountId}/restrict`, {
+        isRestricted,
+        reason: reason ?? "",
+    });
+    return response || null;
+};
+
 export const getSchoolCampuses = async ({ schoolId, page = 0, pageSize = 10 }) => {
     const response = await axiosClient.get(`/account/school/${schoolId}/campus/list`, {
         params: {

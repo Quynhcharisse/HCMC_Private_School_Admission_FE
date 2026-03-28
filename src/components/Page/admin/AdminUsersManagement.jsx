@@ -24,6 +24,7 @@ import {
     Dialog,
     DialogTitle,
     DialogContent,
+    Switch,
     alpha,
     Pagination,
 } from "@mui/material";
@@ -44,8 +45,24 @@ import BadgeIcon from '@mui/icons-material/Badge';
 import LockIcon from '@mui/icons-material/Lock';
 import {useLocation, useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
-import {getUsersByRole} from "../../../services/AdminService.jsx";
+import {getUsersByRole, setAccountRestricted} from "../../../services/AdminService.jsx";
+import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
 import * as XLSX from "xlsx";
+
+/** BE trả accId; thêm các alias thường gặp để tương thích */
+const resolveAccountId = (u) => {
+    if (!u) return null;
+    const id =
+        u.accId ??
+        u.accountId ??
+        u.account?.accId ??
+        u.account?.accountId ??
+        u.account?.id;
+    if (id === null || id === undefined || id === "") return null;
+    return id;
+};
+
+const accountIdSetKey = (id) => (id === null || id === undefined ? "" : String(id));
 
 export default function AdminUsersManagement() {
     const navigate = useNavigate();
@@ -72,6 +89,10 @@ export default function AdminUsersManagement() {
         hasNext: false,
         hasPrevious: false,
     });
+    const [restrictDialog, setRestrictDialog] = useState({open: false, user: null});
+    const [unrestrictDialog, setUnrestrictDialog] = useState({open: false, user: null});
+    const [restrictReasonInput, setRestrictReasonInput] = useState("");
+    const [restrictingAccountIds, setRestrictingAccountIds] = useState(() => new Set());
 
     const fetchUsers = useCallback(async (opts = {}) => {
         const role = opts.role || roleTab;
@@ -147,6 +168,138 @@ export default function AdminUsersManagement() {
 
     const handleCloseSchoolDetail = () => {
         setSelectedSchool(null);
+    };
+
+    const updateUserByAccountId = (accountId, patch) => {
+        if (accountId === null || accountId === undefined || accountId === "") return;
+        const key = accountIdSetKey(accountId);
+        const matches = (row) => accountIdSetKey(resolveAccountId(row)) === key;
+        setUsers((prev) => prev.map((u) => (matches(u) ? {...u, ...patch} : u)));
+        setSelectedParent((p) => (p && matches(p) ? {...p, ...patch} : p));
+        setSelectedSchool((s) => (s && matches(s) ? {...s, ...patch} : s));
+    };
+
+    const setRestrictingId = (accountId, on) => {
+        const key = accountIdSetKey(accountId);
+        if (!key) return;
+        setRestrictingAccountIds((prev) => {
+            const next = new Set(prev);
+            if (on) next.add(key);
+            else next.delete(key);
+            return next;
+        });
+    };
+
+    const buildRestrictPatch = (user, restricted, reasonText) => {
+        if (restricted) {
+            return {
+                isRestricted: true,
+                restrictionReason: reasonText || null,
+                ...(roleTab === "PARENT"
+                    ? {status: "ACCOUNT_RESTRICTED"}
+                    : {overallStatus: "ACCOUNT_RESTRICTED"}),
+            };
+        }
+        const patch = {isRestricted: false, restrictionReason: null};
+        if (roleTab === "PARENT") {
+            if (user.status === "ACCOUNT_RESTRICTED") patch.status = "ACCOUNT_ACTIVE";
+        } else {
+            if (user.overallStatus === "ACCOUNT_RESTRICTED") patch.overallStatus = "ACCOUNT_ACTIVE";
+            if (user.status === "ACCOUNT_RESTRICTED") patch.status = "ACCOUNT_ACTIVE";
+        }
+        return patch;
+    };
+
+    const handleRestrictSwitch = (user, checked) => {
+        const accountId = resolveAccountId(user);
+        if (accountId === null || accountId === undefined || accountId === "") return;
+        if (checked) {
+            setRestrictReasonInput("");
+            setRestrictDialog({open: true, user});
+            return;
+        }
+        setUnrestrictDialog({open: true, user});
+    };
+
+    const handleCloseUnrestrictDialog = () => {
+        setUnrestrictDialog({open: false, user: null});
+    };
+
+    const submitUnrestrict = async (user) => {
+        const accountId = resolveAccountId(user);
+        if (accountId === null || accountId === undefined || accountId === "") return false;
+        setRestrictingId(accountId, true);
+        try {
+            await setAccountRestricted(accountId, {
+                isRestricted: false,
+                reason: "Gỡ hạn chế bởi quản trị viên",
+            });
+            updateUserByAccountId(accountId, buildRestrictPatch(user, false));
+            enqueueSnackbar("Đã gỡ hạn chế tài khoản.", {variant: "success"});
+            return true;
+        } catch (e) {
+            console.error("setAccountRestricted (unrestrict) failed", e);
+            const msg = e?.response?.data?.message || e?.response?.data?.body?.message;
+            enqueueSnackbar(msg || "Không thể gỡ hạn chế. Vui lòng thử lại.", {variant: "error"});
+            return false;
+        } finally {
+            setRestrictingId(accountId, false);
+        }
+    };
+
+    const submitUnrestrictConfirm = async () => {
+        const user = unrestrictDialog.user;
+        if (!user) return;
+        const ok = await submitUnrestrict(user);
+        if (ok) handleCloseUnrestrictDialog();
+    };
+
+    const handleCloseRestrictDialog = () => {
+        setRestrictDialog({open: false, user: null});
+        setRestrictReasonInput("");
+    };
+
+    const submitRestrictConfirm = async () => {
+        const user = restrictDialog.user;
+        const accountId = resolveAccountId(user);
+        if (accountId === null || accountId === undefined || accountId === "") return;
+        const reason = restrictReasonInput.trim() || "Hạn chế bởi quản trị viên";
+        setRestrictingId(accountId, true);
+        try {
+            await setAccountRestricted(accountId, {isRestricted: true, reason});
+            updateUserByAccountId(accountId, buildRestrictPatch(user, true, reason));
+            enqueueSnackbar("Đã hạn chế tài khoản.", {variant: "success"});
+            handleCloseRestrictDialog();
+        } catch (e) {
+            console.error("setAccountRestricted (restrict) failed", e);
+            const msg = e?.response?.data?.message || e?.response?.data?.body?.message;
+            enqueueSnackbar(msg || "Không thể hạn chế tài khoản. Vui lòng thử lại.", {variant: "error"});
+        } finally {
+            setRestrictingId(accountId, false);
+        }
+    };
+
+    const renderRestrictToggle = (user) => {
+        const accountId = resolveAccountId(user);
+        const restricted = !!(user?.isRestricted ?? user?.account?.isRestricted);
+        if (accountId === null || accountId === undefined || accountId === "") {
+            return (
+                <Typography variant="body2" sx={{color: "#94a3b8"}}>
+                    —
+                </Typography>
+            );
+        }
+        const busy = restrictingAccountIds.has(accountIdSetKey(accountId));
+        return (
+            <Switch
+                size="medium"
+                checked={restricted}
+                disabled={busy}
+                onChange={(_, checked) => handleRestrictSwitch(user, checked)}
+                color={restricted ? "error" : "default"}
+                inputProps={{"aria-label": "Bật hoặc tắt hạn chế tài khoản"}}
+            />
+        );
     };
 
     const maskIdCardNumber = (idCardNumber) => {
@@ -452,6 +605,14 @@ export default function AdminUsersManagement() {
             }]),
     ];
 
+    const restrictConfirmLoading =
+        !!restrictDialog.open &&
+        restrictingAccountIds.has(accountIdSetKey(resolveAccountId(restrictDialog.user)));
+
+    const unrestrictConfirmLoading =
+        !!unrestrictDialog.open &&
+        restrictingAccountIds.has(accountIdSetKey(resolveAccountId(unrestrictDialog.user)));
+
     return (
         <Box
             sx={{
@@ -698,6 +859,9 @@ export default function AdminUsersManagement() {
                                             <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 140}}>
                                                 Trạng thái
                                             </TableCell>
+                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 120}}>
+                                                Hạn chế
+                                            </TableCell>
                                         </>
                                     )}
                                     {roleTab === "PARENT" && (
@@ -732,7 +896,7 @@ export default function AdminUsersManagement() {
                             <TableBody>
                                 {loading ? (
                                     <TableRow>
-                                        <TableCell colSpan={roleTab === "SCHOOL" ? 9 : 8} align="center" sx={{py: 4, color: "#64748b"}}>
+                                        <TableCell colSpan={roleTab === "SCHOOL" ? 10 : 7} align="center" sx={{py: 4, color: "#64748b"}}>
                                             <Typography variant="body2" sx={{color: "#64748b"}}>
                                                 Đang tải dữ liệu...
                                             </Typography>
@@ -740,7 +904,7 @@ export default function AdminUsersManagement() {
                                     </TableRow>
                                 ) : users.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={roleTab === "SCHOOL" ? 9 : 8} align="center" sx={{py: 4}}>
+                                        <TableCell colSpan={roleTab === "SCHOOL" ? 10 : 7} align="center" sx={{py: 4}}>
                                             <Typography variant="body1" sx={{color: '#64748b'}}>
                                                 Chưa có dữ liệu người dùng
                                             </Typography>
@@ -749,7 +913,7 @@ export default function AdminUsersManagement() {
                                 ) : (
                                     users.map((user, index) => (
                                         <TableRow
-                                            key={user.accountId || user.schoolId || index}
+                                            key={resolveAccountId(user) || user.schoolId || index}
                                             hover
                                             sx={{
                                                 "& td": {borderBottomColor: "#e2e8f0", color: "#334155"},
@@ -819,6 +983,9 @@ export default function AdminUsersManagement() {
                                                     <TableCell align="center">
                                                         {renderStatusChip(user.overallStatus || user.status || user.primaryCampus?.status)}
                                                     </TableCell>
+                                                    <TableCell align="center">
+                                                        {renderRestrictToggle(user)}
+                                                    </TableCell>
                                                 </>
                                             )}
                                             {roleTab === "PARENT" && (
@@ -842,7 +1009,7 @@ export default function AdminUsersManagement() {
                                                         {renderStatusChip(user.status)}
                                                     </TableCell>
                                                     <TableCell align="center">
-                                                        {renderRestrictedChip(!!user.isRestricted)}
+                                                        {renderRestrictToggle(user)}
                                                     </TableCell>
                                                 </>
                                             )}
@@ -1158,6 +1325,79 @@ export default function AdminUsersManagement() {
                     </Stack>
                 </DialogContent>
             </Dialog>
+
+            <ConfirmDialog
+                open={restrictDialog.open}
+                title="Hạn chế tài khoản"
+                description={
+                    restrictDialog.user
+                        ? `Bạn có chắc muốn hạn chế tài khoản "${restrictDialog.user?.name || restrictDialog.user?.schoolName || "Người dùng"}"?`
+                        : ""
+                }
+                extraDescription="Có thể ghi lý do bên dưới (tùy chọn). Tài khoản sẽ bị giới hạn theo chính sách hệ thống."
+                cancelText="Hủy"
+                confirmText={restrictConfirmLoading ? "Đang xử lý..." : "Xác nhận hạn chế"}
+                loading={restrictConfirmLoading}
+                onCancel={handleCloseRestrictDialog}
+                onConfirm={() => void submitRestrictConfirm()}
+                paperSx={{
+                    background: "linear-gradient(145deg, #eef7ff 0%, #f8fbff 46%, #ffffff 100%)",
+                    border: "1px solid rgba(59,130,246,0.25)",
+                }}
+                titleSx={{
+                    background: "linear-gradient(90deg, rgba(37,99,235,0.2) 0%, rgba(79,70,229,0.12) 100%)",
+                    borderBottom: "none",
+                }}
+                confirmButtonSx={{
+                    background: "#dc2626",
+                    boxShadow: "0 6px 14px rgba(220,38,38,0.32)",
+                    "&:hover": {
+                        background: "#b91c1c",
+                        boxShadow: "0 8px 16px rgba(220,38,38,0.38)",
+                    },
+                }}
+            >
+                <TextField
+                    fullWidth
+                    multiline
+                    minRows={2}
+                    label="Lý do hạn chế"
+                    placeholder="Ví dụ: Vi phạm điều khoản sử dụng..."
+                    value={restrictReasonInput}
+                    onChange={(e) => setRestrictReasonInput(e.target.value)}
+                    disabled={restrictConfirmLoading}
+                    sx={{
+                        "& .MuiOutlinedInput-root": {
+                            borderRadius: 2,
+                            bgcolor: "#ffffff",
+                        },
+                    }}
+                />
+            </ConfirmDialog>
+
+            <ConfirmDialog
+                open={unrestrictDialog.open}
+                title="Gỡ hạn chế tài khoản"
+                description={
+                    unrestrictDialog.user
+                        ? `Bạn có chắc muốn gỡ hạn chế cho tài khoản "${unrestrictDialog.user?.name || unrestrictDialog.user?.schoolName || "Người dùng"}"?`
+                        : ""
+                }
+                extraDescription="Sau khi gỡ, người dùng có thể sử dụng tài khoản theo quyền và chính sách hiện hành của hệ thống."
+                cancelText="Hủy"
+                confirmText={unrestrictConfirmLoading ? "Đang xử lý..." : "Xác nhận gỡ hạn chế"}
+                loading={unrestrictConfirmLoading}
+                onCancel={handleCloseUnrestrictDialog}
+                onConfirm={() => void submitUnrestrictConfirm()}
+                paperSx={{
+                    background: "linear-gradient(145deg, #eef7ff 0%, #f8fbff 46%, #ffffff 100%)",
+                    border: "1px solid rgba(59,130,246,0.25)",
+                }}
+                titleSx={{
+                    background: "linear-gradient(90deg, rgba(37,99,235,0.2) 0%, rgba(79,70,229,0.12) 100%)",
+                    borderBottom: "none",
+                }}
+            />
         </Box>
     );
 }

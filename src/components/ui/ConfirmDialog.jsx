@@ -1,5 +1,6 @@
 import React from "react";
 import {
+    Box,
     Button,
     Dialog,
     DialogActions,
@@ -14,6 +15,7 @@ const ConfirmDialog = ({
     title,
     description,
     extraDescription,
+    children,
     cancelText = "Hủy",
     confirmText = "Xác nhận",
     loading = false,
@@ -23,6 +25,8 @@ const ConfirmDialog = ({
     paperSx,
     backdropSx,
     titleSx,
+    contentSx,
+    confirmButtonSx,
 }) => {
     const handleDialogClose = (event, reason) => {
         if (loading) return;
@@ -78,24 +82,35 @@ const ConfirmDialog = ({
                     {title}
                 </DialogTitle>
             )}
-            {(description || extraDescription) && (
-                <DialogContent sx={{pt: title ? 3.4 : 2}}>
+            {(description || extraDescription || children != null) && (
+                <DialogContent sx={{pt: title ? 3.4 : 2, ...contentSx}}>
                     {description && (
                         <DialogContentText
                             sx={{
                                 fontSize: 14,
                                 color: "#0f172a",
                                 mt: title ? 0.6 : 0,
-                                mb: extraDescription ? 0.5 : 0,
+                                mb: extraDescription || children != null ? 0.5 : 0,
                             }}
                         >
                             {description}
                         </DialogContentText>
                     )}
                     {extraDescription && (
-                        <DialogContentText sx={{fontSize: 13, color: "#64748b"}}>
+                        <DialogContentText
+                            sx={{
+                                fontSize: 13,
+                                color: "#64748b",
+                                mb: children != null ? 1.5 : 0,
+                            }}
+                        >
                             {extraDescription}
                         </DialogContentText>
+                    )}
+                    {children != null && (
+                        <Box sx={{mt: !description && !extraDescription ? (title ? 0.5 : 0) : 0}}>
+                            {children}
+                        </Box>
                     )}
                 </DialogContent>
             )}
@@ -150,6 +165,7 @@ const ConfirmDialog = ({
                             background: "#2563eb",
                             boxShadow: "0 8px 16px rgba(37,99,235,0.38)",
                         },
+                        ...confirmButtonSx,
                     }}
                 >
                     {confirmText}
