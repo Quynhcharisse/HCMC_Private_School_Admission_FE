@@ -37,6 +37,7 @@ import SupportAgentIcon from "@mui/icons-material/SupportAgent";
 import CloseIcon from "@mui/icons-material/Close";
 import {enqueueSnackbar} from "notistack";
 import {fetchCounsellors, createCounsellor} from "../../../services/CounsellorService.jsx";
+import {sendWelcomeEmail} from "../../../services/emailService.jsx";
 
 const InfoItem = ({ label, value }) => (
     <Box>
@@ -218,7 +219,31 @@ export default function SchoolCounselors() {
                 const newCounsellor = mapCounsellorFromApi(dto);
                 setCounselors((prev) => [newCounsellor, ...prev]);
                 setTotalItems((prev) => prev + 1);
-                enqueueSnackbar("Tạo tài khoản tư vấn viên thành công", {variant: "success"});
+
+                const emailAddr = newCounsellor.email || formValues.email.trim();
+                const displayName =
+                    (newCounsellor.fullName && newCounsellor.fullName.trim()) ||
+                    emailAddr.split("@")[0] ||
+                    "Tư vấn viên";
+
+                let welcomeMailOk = false;
+                try {
+                    await sendWelcomeEmail({name: displayName, email: emailAddr});
+                    welcomeMailOk = true;
+                } catch (emailErr) {
+                    console.error("Welcome email error:", emailErr);
+                    const mailMsg = emailErr?.message?.includes("Thiếu cấu hình EmailJS")
+                        ? emailErr.message
+                        : "Không gửi được email chào mừng.";
+                    enqueueSnackbar(mailMsg, {variant: "warning"});
+                }
+
+                enqueueSnackbar(
+                    welcomeMailOk
+                        ? "Tạo tài khoản tư vấn viên thành công. Đã gửi email chào mừng."
+                        : "Tạo tài khoản tư vấn viên thành công",
+                    {variant: "success"}
+                );
                 setCreateModalOpen(false);
             } else {
                 enqueueSnackbar("Không thể tạo tư vấn viên", {variant: "error"});
