@@ -6,6 +6,7 @@ import {
     Box,
     Button,
     Container,
+    Divider,
     MenuItem,
     Paper,
     Stack,
@@ -18,9 +19,12 @@ import {ArrowBack} from '@mui/icons-material';
 import backgroundLogin from '../../assets/backgroundLogin.png';
 import SchoolRegistrationForm from './SchoolRegistrationForm';
 import ParentRegistrationForm from './ParentRegistrationForm';
-import {useNavigate} from 'react-router-dom';
+import {Link as RouterLink, useNavigate} from 'react-router-dom';
 import {enqueueSnackbar} from 'notistack';
 import {showSuccessSnackbar} from '../ui/AppSnackbar.jsx';
+import {BRAND_NAVY, BRAND_SKY, landingSectionShadow} from '../../constants/homeLandingTheme';
+
+const LOGIN_MUTED = 'rgba(52,102,118,0.82)';
 
 const roleOptions = [
     {value: ROLES.PARENT, label: 'Phụ huynh'},
@@ -42,13 +46,8 @@ const Register = () => {
         setName(data.name || '');
         setPicture(data.picture || '');
         setIsEmailVerified(true);
-
-        showSuccessSnackbar('Xác thực email thành công. Vui lòng chọn vai trò để tiếp tục đăng ký.', {
-            onClose: (event, reason) => {
-                if (reason === 'clickaway') return;
+        showSuccessSnackbar('Xác thực email thành công. Vui lòng chọn vai trò để tiếp tục đăng ký.');
         setStep(2);
-            }
-        });
     };
 
     const handleGoogleError = () => {
@@ -73,12 +72,8 @@ const Register = () => {
 
             if (response && response.status === 200) {
                 const message = 'Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.';
-                showSuccessSnackbar(message, {
-                    onClose: (event, reason) => {
-                        if (reason === 'clickaway') return;
-                        navigate('/login');
-                    }
-                });
+                showSuccessSnackbar(message);
+                navigate('/login', {replace: true});
             }
         } catch (error) {
             console.error('Lỗi đăng ký:', error);
@@ -132,120 +127,252 @@ const Register = () => {
                 },
             }}
         >
-            <Container maxWidth="sm">
-                <Paper
-                    elevation={8}
-                    sx={{
-                        p: 4,
-                        borderRadius: 4,
-                        background:
-                            'radial-gradient(circle at top left, rgba(239,246,255,0.96) 0, rgba(239,246,255,0.98) 40%, #ffffff 100%)',
-                        border: '1px solid #dbeafe',
-                        backdropFilter: 'blur(10px)',
-                    }}
+            <Container maxWidth="md" sx={{width: '100%'}}>
+                <Stack
+                    direction={{xs: 'column', md: 'row'}}
+                    spacing={{xs: 3, md: 4}}
+                    alignItems="stretch"
+                    sx={{maxWidth: 920, mx: 'auto'}}
                 >
-                    <Stack spacing={3}>
-                        <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40px'}}>
-                            {step === 2 && (
-                                <IconButton
-                                    onClick={() => setStep(1)}
-                                    sx={{
-                                        position: 'absolute',
-                                        left: 0,
-                                        color: '#64748b',
-                                        '&:hover': {
-                                            bgcolor: 'rgba(25, 118, 210, 0.08)',
-                                            color: '#1976d2',
-                                        },
-                                    }}
-                                >
-                                    <ArrowBack />
-                                </IconButton>
-                            )}
-                            <Typography 
-                                variant="h5" 
-                                sx={{
-                                    fontWeight: 700, 
-                                    color: '#1e293b',
-                                    textAlign: 'center',
-                                }}
-                            >
-                                {step === 1 ? 'Đăng ký tài khoản' : 'Chọn vai trò'}
+                    <Box
+                        sx={{
+                            flex: 1,
+                            minWidth: 0,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center',
+                            borderRadius: '28px',
+                            px: {xs: 3, sm: 4},
+                            py: {xs: 3, sm: 4},
+                            textAlign: 'left',
+                            backgroundColor: 'rgba(15, 23, 42, 0.78)',
+                            backdropFilter: 'blur(18px)',
+                            WebkitBackdropFilter: 'blur(18px)',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            boxShadow: '0 24px 56px rgba(0, 0, 0, 0.28)',
+                        }}
+                    >
+                        <Typography
+                            variant="h4"
+                            component="h2"
+                            sx={{
+                                fontWeight: 700,
+                                color: '#2962FF',
+                                fontSize: {xs: '1.5rem', sm: '1.75rem'},
+                                letterSpacing: '-0.02em',
+                                lineHeight: 1.2,
+                                mb: 2,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1,
+                                flexWrap: 'wrap',
+                            }}
+                        >
+                            <Box component="span" sx={{fontSize: '1.35em', lineHeight: 1}} aria-hidden>
+                                ✨
+                            </Box>
+                            Tạo tài khoản
+                        </Typography>
+                        <Typography
+                            variant="body1"
+                            sx={{
+                                color: 'rgba(255, 255, 255, 0.95)',
+                                lineHeight: 1.65,
+                                mb: 2.5,
+                            }}
+                        >
+                            Đăng ký để đồng hành cùng con và nhà trường trên nền tảng EduBridgeHCM — theo dõi tuyển sinh và
+                            hành trình học tập thuận tiện hơn.
+                        </Typography>
+                        <Box
+                            sx={{
+                                borderLeft: '3px solid rgba(255, 255, 255, 0.95)',
+                                pl: 2,
+                                py: 0.25,
+                            }}
+                        >
+                            <Typography variant="body2" sx={{color: 'rgba(255, 255, 255, 0.9)', lineHeight: 1.6}}>
+                                Tài khoản Google của bạn sẽ được dùng để xác thực, chúng tôi không chia sẻ thông tin với
+                                bên thứ ba ngoài hệ thống nhà trường.
                             </Typography>
                         </Box>
+                    </Box>
 
-                        {step === 1 ? (
-                            <Stack spacing={2} alignItems="center">
-                                <Typography variant="body2" sx={{color: '#475569', width: '100%', textAlign: 'center'}}>
-                                    Đăng ký bằng tài khoản Google của bạn để tiếp tục quá trình đăng ký.
-                                </Typography>
-                                <Box sx={{width: '100%', display: 'flex', justifyContent: 'center'}}>
-                                    <RegisterGoogle
-                                        onSuccess={handleGoogleSuccess}
-                                        onError={handleGoogleError}
-                                    />
-                                </Box>
-                                {/* <Typography variant="caption" sx={{color: '#94a3b8', width: '100%', textAlign: 'left'}}>
-                                    Sau khi đăng ký bằng Google, hệ thống sẽ tự động lấy email của bạn.
-                                </Typography> */}
-                            </Stack>
-                        ) : (
-                            <Box component="form" onSubmit={(e) => { e.preventDefault(); handleRoleSelect(); }}>
-                                <Stack spacing={3}>
-                                    {isEmailVerified && (
-                                        <Box sx={{p: 2, bgcolor: '#e0f2fe', borderRadius: 2}}>
-                                            <Typography variant="body2" sx={{color: '#0369a1', fontWeight: 600}}>
-                                                Email đã được xác thực: {email}
-                                            </Typography>
-                                        </Box>
-                                    )}
-
-                                    <TextField
-                                        select
-                                        label="Vai trò trong hệ thống"
-                                        value={selectedRole}
-                                        onChange={(e) => setSelectedRole(e.target.value)}
-                                        fullWidth
-                                        size="small"
-                                        helperText="Vui lòng chọn đúng vai trò: Phụ huynh hoặc Nhà trường"
-                                    >
-                                        {roleOptions.map((role) => (
-                                            <MenuItem key={role.value} value={role.value}>
-                                                {role.label}
-                                            </MenuItem>
-                                        ))}
-                                    </TextField>
-
-                                    <Button
-                                        type="submit"
-                                        variant="contained"
-                                        disabled={isSubmitting || !selectedRole}
-                                        fullWidth
+                    <Paper
+                        elevation={0}
+                        sx={{
+                            flex: 1,
+                            minWidth: 0,
+                            width: '100%',
+                            maxWidth: {xs: 440, md: 'none'},
+                            mx: {xs: 'auto', md: 0},
+                            p: {xs: 3, sm: 4},
+                            borderRadius: 5,
+                            bgcolor: '#fff',
+                            border: '1px solid rgba(15,23,42,0.08)',
+                            boxShadow: landingSectionShadow(4),
+                            backdropFilter: 'blur(12px)',
+                            backgroundImage: `
+                                radial-gradient(ellipse 120% 80% at 0% 0%, rgba(85,179,217,0.08) 0%, transparent 55%),
+                                radial-gradient(ellipse 90% 70% at 100% 100%, rgba(45,95,115,0.06) 0%, transparent 50%)
+                            `,
+                        }}
+                    >
+                        <Stack spacing={3}>
+                            <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 40}}>
+                                {step === 2 && (
+                                    <IconButton
+                                        onClick={() => setStep(1)}
+                                        aria-label="Quay lại"
                                         sx={{
-                                            mt: 1,
-                                            py: 1.1,
-                                            textTransform: 'none',
-                                            fontWeight: 700,
-                                            borderRadius: 999,
-                                            background: 'linear-gradient(90deg, #1d4ed8 0%, #2563eb 100%)',
-                                            boxShadow: '0 10px 30px rgba(37, 99, 235, 0.35)',
+                                            position: 'absolute',
+                                            left: 0,
+                                            color: LOGIN_MUTED,
                                             '&:hover': {
-                                                background: 'linear-gradient(90deg, #1d4ed8 0%, #1d4ed8 100%)',
-                                                boxShadow: '0 12px 36px rgba(30, 64, 175, 0.45)',
+                                                bgcolor: 'rgba(85, 179, 217, 0.12)',
+                                                color: BRAND_NAVY,
                                             },
                                         }}
                                     >
-                                        {isSubmitting ? (
-                                            <CircularProgress size={24} color="inherit" />
-                                        ) : (
-                                            'Tiếp tục'
-                                        )}
-                                    </Button>
-                                </Stack>
+                                        <ArrowBack/>
+                                    </IconButton>
+                                )}
+                                <Typography
+                                    variant="h5"
+                                    component="h1"
+                                    sx={{
+                                        fontWeight: 700,
+                                        color: BRAND_NAVY,
+                                        letterSpacing: '-0.02em',
+                                        textAlign: 'center',
+                                    }}
+                                >
+                                    {step === 1 ? 'Đăng ký tài khoản' : 'Chọn vai trò'}
+                                </Typography>
                             </Box>
-                        )}
-                    </Stack>
-                </Paper>
+
+                            {step === 1 ? (
+                                <>
+                                    <Box sx={{textAlign: 'center'}}>
+                                        <Typography
+                                            variant="body2"
+                                            sx={{color: LOGIN_MUTED, lineHeight: 1.6, maxWidth: 340, mx: 'auto'}}
+                                        >
+                                            Đăng ký bằng tài khoản Google của bạn để tiếp tục quá trình đăng ký.
+                                        </Typography>
+                                    </Box>
+                                    <Box sx={{width: '100%', '& > div': {width: '100%'}}}>
+                                        <RegisterGoogle onSuccess={handleGoogleSuccess} onError={handleGoogleError}/>
+                                    </Box>
+                                    <Divider sx={{borderColor: 'rgba(45, 95, 115, 0.14)'}}/>
+                                    <Box
+                                        sx={{
+                                            display: 'flex',
+                                            flexWrap: 'wrap',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            gap: 0.75,
+                                            textAlign: 'center',
+                                        }}
+                                    >
+                                        <Typography variant="body2" sx={{color: LOGIN_MUTED}}>
+                                            Đã có tài khoản?
+                                        </Typography>
+                                        <Button
+                                            component={RouterLink}
+                                            to="/login"
+                                            variant="text"
+                                            size="small"
+                                            sx={{
+                                                textTransform: 'none',
+                                                fontWeight: 700,
+                                                color: BRAND_NAVY,
+                                                p: 0,
+                                                minWidth: 'auto',
+                                                '&:hover': {
+                                                    bgcolor: 'transparent',
+                                                    textDecoration: 'underline',
+                                                    color: BRAND_SKY,
+                                                },
+                                            }}
+                                        >
+                                            Đăng nhập
+                                        </Button>
+                                    </Box>
+                                </>
+                            ) : (
+                                <Box component="form" onSubmit={(e) => { e.preventDefault(); handleRoleSelect(); }}>
+                                    <Stack spacing={3}>
+                                        {isEmailVerified && (
+                                            <Box
+                                                sx={{
+                                                    p: 2,
+                                                    borderRadius: 2,
+                                                    bgcolor: 'rgba(85, 179, 217, 0.12)',
+                                                    border: '1px solid rgba(45, 95, 115, 0.18)',
+                                                }}
+                                            >
+                                                <Typography variant="body2" sx={{color: BRAND_NAVY, fontWeight: 600}}>
+                                                    Email đã được xác thực: {email}
+                                                </Typography>
+                                            </Box>
+                                        )}
+
+                                        <TextField
+                                            select
+                                            label="Vai trò trong hệ thống"
+                                            value={selectedRole}
+                                            onChange={(e) => setSelectedRole(e.target.value)}
+                                            fullWidth
+                                            size="small"
+                                            helperText="Vui lòng chọn đúng vai trò: Phụ huynh hoặc Nhà trường"
+                                            sx={{
+                                                '& .MuiOutlinedInput-root': {borderRadius: 2},
+                                            }}
+                                        >
+                                            {roleOptions.map((role) => (
+                                                <MenuItem key={role.value} value={role.value}>
+                                                    {role.label}
+                                                </MenuItem>
+                                            ))}
+                                        </TextField>
+
+                                        <Button
+                                            type="submit"
+                                            variant="contained"
+                                            disabled={isSubmitting || !selectedRole}
+                                            fullWidth
+                                            sx={{
+                                                mt: 1,
+                                                py: 1.15,
+                                                textTransform: 'none',
+                                                fontWeight: 700,
+                                                borderRadius: 2,
+                                                color: '#fff',
+                                                background: `linear-gradient(90deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 100%)`,
+                                                boxShadow: '0 8px 24px rgba(45, 95, 115, 0.28)',
+                                                '&:hover': {
+                                                    background: `linear-gradient(90deg, #265a6b 0%, ${BRAND_NAVY} 100%)`,
+                                                    boxShadow: '0 12px 32px rgba(45, 95, 115, 0.36)',
+                                                },
+                                                '&.Mui-disabled': {
+                                                    background: 'rgba(45, 95, 115, 0.35)',
+                                                    color: 'rgba(255,255,255,0.85)',
+                                                },
+                                            }}
+                                        >
+                                            {isSubmitting ? (
+                                                <CircularProgress size={24} color="inherit"/>
+                                            ) : (
+                                                'Tiếp tục'
+                                            )}
+                                        </Button>
+                                    </Stack>
+                                </Box>
+                            )}
+                        </Stack>
+                    </Paper>
+                </Stack>
             </Container>
         </Box>
     );

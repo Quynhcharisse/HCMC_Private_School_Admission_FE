@@ -24,6 +24,8 @@ import CloudinaryUpload from '../ui/CloudinaryUpload.jsx';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import {BRAND_NAVY, BRAND_SKY, BRAND_SKY_LIGHT} from '../../constants/homeLandingTheme';
 
+const HEADER_MUTED = 'rgba(52,102,118,0.82)';
+
 const SchoolRegistrationForm = ({email, onBack}) => {
     const navigate = useNavigate();
 
@@ -371,8 +373,9 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                             sm: 'calc(100vh - 64px - 24px)',
                             md: 'calc(100vh - 64px - 48px)',
                         },
-                        overflowY: 'auto',
-                        overflowX: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        overflow: 'hidden',
                         borderRadius: 2.5,
                         background: '#ffffff',
                         border: '1px solid rgba(85,179,217,0.28)',
@@ -402,36 +405,64 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                         },
                     }}
                 >
-                    <Box component="form" onSubmit={handleSubmit}>
-                            <Stack spacing={1.2}>
-                                <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '32px'}}>
-                                    <IconButton
-                                        onClick={onBack}
-                                        sx={{
-                                            position: 'absolute',
-                                            left: 0,
-                                            color: '#475569',
-                                            '&:hover': {
-                                                bgcolor: 'rgba(85,179,217,0.12)',
-                                                color: BRAND_NAVY,
-                                            },
-                                        }}
-                                    >
-                                        <ArrowBack />
-                                    </IconButton>
-                                    <Typography
-                                        variant="h6"
-                                        sx={{
-                                            fontWeight: 700,
-                                            color: '#0f172a',
-                                            textAlign: 'center',
-                                        }}
-                                    >
-                                        Đăng ký trường học
-                                    </Typography>
-                                </Box>
+                    <Box
+                        component="form"
+                        onSubmit={handleSubmit}
+                        sx={{display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0}}
+                    >
+                        <Box
+                            sx={{
+                                flexShrink: 0,
+                                mx: {xs: -0.5, sm: -0.75, md: -0.75},
+                                mt: {xs: -0.5, sm: -0.65, md: -0.65},
+                                px: {xs: 0.5, sm: 0.75, md: 0.75},
+                                pt: 0.5,
+                                pb: 1,
+                                bgcolor: '#fff',
+                                borderBottom: '1px solid rgba(45, 95, 115, 0.12)',
+                            }}
+                        >
+                            <Box
+                                sx={{
+                                    position: 'relative',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    minHeight: 40,
+                                }}
+                            >
+                                <IconButton
+                                    onClick={onBack}
+                                    aria-label="Quay lại"
+                                    sx={{
+                                        position: 'absolute',
+                                        left: 0,
+                                        color: HEADER_MUTED,
+                                        '&:hover': {
+                                            bgcolor: 'rgba(85, 179, 217, 0.12)',
+                                            color: BRAND_NAVY,
+                                        },
+                                    }}
+                                >
+                                    <ArrowBack/>
+                                </IconButton>
+                                <Typography
+                                    variant="h6"
+                                    component="h1"
+                                    sx={{
+                                        fontWeight: 700,
+                                        color: BRAND_NAVY,
+                                        textAlign: 'center',
+                                        letterSpacing: '-0.02em',
+                                    }}
+                                >
+                                    Đăng ký trường học
+                                </Typography>
+                            </Box>
+                        </Box>
 
-                                {/* Section 1: Basic School Information */}
+                        <Box sx={{flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden'}}>
+                            <Stack spacing={1.2}>
                                 <Box>
                                     <Typography
                                         variant="subtitle1"
@@ -480,23 +511,43 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 FormHelperTextProps={{sx: {minHeight: 20}}}
                                                 InputProps={{
                                                     endAdornment: (
-                                                        <InputAdornment position="end">
+                                                        <InputAdornment
+                                                            position="end"
+                                                            sx={{
+                                                                m: 0,
+                                                                ml: 0.75,
+                                                                mr: '-2px',
+                                                                maxHeight: 'none',
+                                                                alignSelf: 'stretch',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                            }}
+                                                        >
                                                             <IconButton
                                                                 size="small"
                                                                 onClick={handleTaxCodeCheck}
                                                                 disabled={isCheckingTaxCode}
                                                                 sx={{
-                                                                    color: BRAND_NAVY,
-                                                                    bgcolor: 'rgba(85,179,217,0.14)',
+                                                                    color: '#16a34a',
+                                                                    bgcolor: 'transparent',
                                                                     borderRadius: 1.5,
+                                                                    border: '1px solid rgba(22, 163, 74, 0.42)',
+                                                                    boxShadow: '0 1px 4px rgba(22, 163, 74, 0.15)',
                                                                     '&:hover': {
-                                                                        bgcolor: 'rgba(85,179,217,0.24)',
+                                                                        bgcolor: 'rgba(22, 163, 74, 0.08)',
+                                                                        borderColor: 'rgba(22, 163, 74, 0.65)',
+                                                                        boxShadow: '0 2px 8px rgba(22, 163, 74, 0.22)',
+                                                                    },
+                                                                    '&.Mui-disabled': {
+                                                                        color: 'rgba(22, 163, 74, 0.38)',
+                                                                        borderColor: 'rgba(15, 23, 42, 0.1)',
+                                                                        boxShadow: 'none',
                                                                     },
                                                                 }}
                                                                 aria-label="Kiểm tra mã số thuế"
                                                             >
                                                                 {isCheckingTaxCode ? (
-                                                                    <CircularProgress size={14} color="inherit" />
+                                                                    <CircularProgress size={14} sx={{color: '#16a34a'}} />
                                                                 ) : (
                                                                     <CheckCircleOutlineIcon fontSize="small" />
                                                                 )}
@@ -507,6 +558,10 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 sx={{
                                                     '& .MuiOutlinedInput-root': {
                                                         borderRadius: 2,
+                                                        paddingRight: '0px',
+                                                        '& .MuiInputAdornment-root.MuiInputAdornment-positionEnd': {
+                                                            marginRight: 0,
+                                                        },
                                                     },
                                                 }}
                                             />
@@ -654,7 +709,6 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                     </Grid>
                                 </Box>
 
-                                {/* Section 2: Contact Information */}
                                 <Box>
                                     <Typography 
                                         variant="subtitle1" 
@@ -767,7 +821,6 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                     </Grid>
                                 </Box>
 
-                                {/* Section 3: Legal / Branding */}
                                 <Box>
                                     <Typography 
                                         variant="subtitle1" 
@@ -871,13 +924,13 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                     </Grid>
                                         <Grid size={{xs: 12, md: 6}}>
                                             <TextField
-                                                label="URL giấy phép kinh doanh"
+                                                label="Ảnh giấy phép kinh doanh"
                                                 name="businessLicenseUrl"
                                                 value={formData.businessLicenseUrl}
                                                 onChange={handleInputChange}
                                                 fullWidth
                                                 size="small"
-                                                placeholder="https://example.com/license.pdf"
+                                                placeholder="URL ảnh hoặc tải JPG/PNG"
                                                 sx={{
                                                     '& .MuiOutlinedInput-root': {
                                                         borderRadius: 2,
@@ -888,12 +941,12 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                         <InputAdornment position="end">
                                                             <CloudinaryUpload
                                                                 inputId="school-registration-business-license"
-                                                                accept="image/*,application/pdf"
+                                                                accept="image/*"
                                                                 multiple={false}
                                                                 onSuccess={([f]) => {
                                                                     if (f?.url) {
                                                                         setFormData((p) => ({...p, businessLicenseUrl: f.url}));
-                                                                        enqueueSnackbar("Đã tải giấy phép lên Cloudinary", {variant: "success"});
+                                                                        enqueueSnackbar("Đã tải ảnh lên", {variant: "success"});
                                                                     }
                                                                 }}
                                                                 onError={(m) => enqueueSnackbar(m, {variant: "error"})}
@@ -934,7 +987,6 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                 </Grid>
                                 </Box>
 
-                                {/* Submit Button - Centered and smaller */}
                                 <Box sx={{display: 'flex', justifyContent: 'center', pt: 0.75}}>
                                     <Button
                                         type="submit"
@@ -965,6 +1017,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                 </Box>
                             </Stack>
                         </Box>
+                    </Box>
                 </Paper>
             </Container>
         </Box>

@@ -4,15 +4,12 @@ import {useLayoutEffect, useRef, useState} from 'react';
 import {Box, Typography} from '@mui/material';
 import {signin} from '../../services/AuthService';
 
-/** GSI Sign-In button: width is in px, clamped to Google's supported range. */
 const GSI_BTN_MAX_W = 400;
 const GSI_BTN_MIN_W = 200;
 
-/** Màu nút chuẩn Google (filled_blue). */
 const GOOGLE_BLUE = '#4285F4';
 
 const BTN_H = 40;
-/** Bo góc thanh nút + ô logo (đủ 4 góc tròn). */
 const R_OUTER = '8px';
 const R_LOGO = '8px';
 
@@ -112,7 +109,6 @@ export default function LoginGoogle({onSuccess, onError}) {
                     borderRadius: R_OUTER,
                 }}
             >
-                {/* Nút GSI thật — gần như trong suốt; nhận click vì lớp trên có pointerEvents: 'none'. */}
                 <Box
                     sx={{
                         position: 'absolute',

@@ -66,7 +66,6 @@ function InfoRow({ label, value }) {
     );
 }
 
-/** GET có thể trả uploadDate dạng ISO string hoặc mảng LocalDateTime (Java). PUT cần ISO string + field isUsage. */
 function toIsoUploadDateForPut(raw) {
     if (raw == null || raw === "") return new Date().toISOString();
     if (typeof raw === "string") return raw;
@@ -290,7 +289,6 @@ export default function SchoolProfile() {
 
     return (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 3, width: "100%", pb: 4 }}>
-            {/* Header: giống các trang School khác */}
             <Box
                 sx={{
                     background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
@@ -364,7 +362,6 @@ export default function SchoolProfile() {
                 </Box>
             </Box>
 
-            {/* Nội dung: 1 cột, full width */}
             <Card
                 elevation={0}
                 sx={{
@@ -391,7 +388,6 @@ export default function SchoolProfile() {
                 </CardContent>
             </Card>
 
-            {/* Hình ảnh: coverUrl + itemList */}
             {(campus.imageJson?.coverUrl || (campus.imageJson?.itemList?.length > 0)) && (
                 <Card
                     elevation={0}
@@ -462,7 +458,6 @@ export default function SchoolProfile() {
                 </Card>
             )}
 
-            {/* Cơ sở vật chất: facility.overview + facility.itemList */}
             {(facility?.overview || facilityItemList.length > 0) && (
                 <Card
                     elevation={0}
@@ -578,7 +573,6 @@ export default function SchoolProfile() {
                 </CardContent>
             </Card>
 
-            {/* Modal chỉnh sửa */}
             <Dialog open={editOpen} onClose={() => setEditOpen(false)} fullWidth maxWidth="sm" PaperProps={{ sx: { borderRadius: 3 } }}>
                 <DialogTitle sx={{ fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     Chỉnh sửa hồ sơ
@@ -607,23 +601,23 @@ export default function SchoolProfile() {
                         <TextField label="Ngày thành lập" type="date" InputLabelProps={{ shrink: true }} value={formValues.foundingDate} onChange={(e) => setFormValues((p) => ({ ...p, foundingDate: e.target.value }))} fullWidth size="small" />
                         <Box>
                             <TextField
-                                label="URL giấy phép kinh doanh"
+                                label="Ảnh giấy phép kinh doanh"
                                 value={formValues.businessLicenseUrl}
                                 onChange={(e) => setFormValues((p) => ({ ...p, businessLicenseUrl: e.target.value }))}
                                 fullWidth
                                 size="small"
-                                placeholder="https://... hoặc file PDF"
+                                placeholder="URL ảnh hoặc tải JPG/PNG"
                                 InputProps={{
                                     endAdornment: (
                                         <InputAdornment position="end">
                                             <CloudinaryUpload
                                                 inputId="school-profile-business-license"
-                                                accept="image/*,application/pdf"
+                                                accept="image/*"
                                                 multiple={false}
                                                 onSuccess={([f]) => {
                                                     if (f?.url) {
                                                         setFormValues((p) => ({ ...p, businessLicenseUrl: f.url }));
-                                                        enqueueSnackbar("Đã tải giấy phép lên Cloudinary", { variant: "success" });
+                                                        enqueueSnackbar("Đã tải ảnh lên", { variant: "success" });
                                                     }
                                                 }}
                                                 onError={(m) => enqueueSnackbar(m, { variant: "error" })}

@@ -7,7 +7,6 @@ import {getAccess} from '../../services/AccountService';
 import {showSuccessSnackbar} from '../ui/AppSnackbar.jsx';
 import {BRAND_NAVY, BRAND_SKY, landingSectionShadow} from '../../constants/homeLandingTheme';
 
-/** Cùng tông phụ đề hero HomePage (`heroMuted`). */
 const LOGIN_MUTED = 'rgba(52,102,118,0.82)';
 
 export default function Login() {
