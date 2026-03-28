@@ -12,7 +12,6 @@ export const verifySchoolRegistration = async (requestId) => {
     return response || null;
 };
 
-// Admin user & account management
 export const getUsersByRole = async ({ role, page = 0, pageSize = 10, search = "" }) => {
     const response = await axiosClient.get("/account/user/list", {
         params: {

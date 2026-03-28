@@ -1,4 +1,4 @@
-import React, {useEffect, useState} from "react";
+import React, {useCallback, useEffect, useRef, useState} from "react";
 import {
     Avatar,
     Box,
@@ -73,7 +73,7 @@ export default function AdminUsersManagement() {
         hasPrevious: false,
     });
 
-    const fetchUsers = async (opts = {}) => {
+    const fetchUsers = useCallback(async (opts = {}) => {
         const role = opts.role || roleTab;
         const page = opts.page ?? pagination.page ?? 0;
         const pageSize = opts.pageSize ?? pagination.pageSize ?? 10;
@@ -98,12 +98,13 @@ export default function AdminUsersManagement() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [roleTab, search, pagination.page, pagination.pageSize]);
+
+    const fetchUsersRef = useRef(fetchUsers);
+    fetchUsersRef.current = fetchUsers;
 
     useEffect(() => {
-        // load lần đầu theo tab mặc định
-        fetchUsers({page: 0});
-        // eslint-disable-next-line react-hooks/exhaustive-deps
+        fetchUsersRef.current({page: 0});
     }, [roleTab]);
 
     useEffect(() => {

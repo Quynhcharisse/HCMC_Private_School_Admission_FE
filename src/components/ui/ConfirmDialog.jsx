@@ -1,4 +1,4 @@
-import React, {useRef} from "react";
+import React from "react";
 import {
     Button,
     Dialog,
@@ -6,24 +6,8 @@ import {
     DialogContent,
     DialogContentText,
     DialogTitle,
-    Paper,
 } from "@mui/material";
 import {alpha} from "@mui/material/styles";
-import Draggable from "react-draggable";
-
-const PaperComponent = (props) => {
-    const nodeRef = useRef(null);
-
-    return (
-        <Draggable
-            nodeRef={nodeRef}
-            handle="#draggable-dialog-title"
-            cancel={'[class*="MuiDialogContent-root"]'}
-        >
-            <Paper ref={nodeRef} {...props} />
-        </Draggable>
-    );
-};
 
 const ConfirmDialog = ({
     open,
@@ -40,12 +24,20 @@ const ConfirmDialog = ({
     backdropSx,
     titleSx,
 }) => {
+    const handleDialogClose = (event, reason) => {
+        if (loading) return;
+        if (reason === "backdropClick" || reason === "escapeKeyDown") {
+            return;
+        }
+        onCancel?.(event, reason);
+    };
+
     return (
         <Dialog
             open={open}
-            onClose={loading ? undefined : onCancel}
-            PaperComponent={PaperComponent}
-            aria-labelledby="draggable-dialog-title"
+            onClose={handleDialogClose}
+            disableEscapeKeyDown
+            aria-labelledby="confirm-dialog-title"
             maxWidth="sm"
             fullWidth
             sx={{
@@ -67,9 +59,9 @@ const ConfirmDialog = ({
         >
             {title && (
                 <DialogTitle
-                    id="draggable-dialog-title"
+                    id="confirm-dialog-title"
                     sx={{
-                        cursor: "move",
+                        cursor: "default",
                         fontWeight: 700,
                         color: "#0f172a",
                         fontSize: 18,
@@ -168,4 +160,3 @@ const ConfirmDialog = ({
 };
 
 export default ConfirmDialog;
-

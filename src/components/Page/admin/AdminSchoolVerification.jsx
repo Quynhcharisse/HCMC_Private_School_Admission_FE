@@ -8,11 +8,29 @@ import {
     Avatar,
     Chip,
     Stack,
-    CircularProgress,
     IconButton,
     Tooltip,
+    Paper,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
+    Breadcrumbs,
+    Link,
+    Dialog,
+    DialogTitle,
+    DialogContent,
 } from "@mui/material";
 import SchoolIcon from "@mui/icons-material/School";
+import ApartmentIcon from "@mui/icons-material/Apartment";
+import PlaceIcon from "@mui/icons-material/Place";
+import InsightsIcon from "@mui/icons-material/Insights";
+import CallIcon from "@mui/icons-material/Call";
+import BadgeIcon from "@mui/icons-material/Badge";
+import LockIcon from "@mui/icons-material/Lock";
+import CloseIcon from "@mui/icons-material/Close";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
@@ -20,24 +38,22 @@ import PendingRoundedIcon from "@mui/icons-material/PendingRounded";
 import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
-import CallRoundedIcon from "@mui/icons-material/CallRounded";
-import LocationOnRoundedIcon from "@mui/icons-material/LocationOnRounded";
-import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
-import CalendarTodayRoundedIcon from "@mui/icons-material/CalendarTodayRounded";
-import FolderOpenRoundedIcon from "@mui/icons-material/FolderOpenRounded";
-import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
+import {useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {showSuccessSnackbar} from "../../ui/AppSnackbar.jsx";
 import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
 import {getPendingSchoolRegistrations, verifySchoolRegistration} from "../../../services/AdminService.jsx";
 
 export default function AdminSchoolVerification() {
+    const navigate = useNavigate();
     const [registrations, setRegistrations] = useState([]);
     const [sortBy, setSortBy] = useState("newest");
     const [loading, setLoading] = useState(false);
     const [verifyingId, setVerifyingId] = useState(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [selectedRegistration, setSelectedRegistration] = useState(null);
+    const [detailOpen, setDetailOpen] = useState(false);
+    const [detailItem, setDetailItem] = useState(null);
     const getVerifyRequestId = (registration) => {
         const rawId = registration?.id;
         if (rawId === undefined || rawId === null || rawId === "") return null;
@@ -68,6 +84,24 @@ export default function AdminSchoolVerification() {
         if (!registration || verifyingId) return;
         setSelectedRegistration(registration);
         setConfirmOpen(true);
+    };
+
+    const openDetail = (item) => {
+        if (!item) return;
+        setDetailItem(item);
+        setDetailOpen(true);
+    };
+
+    const closeDetail = () => {
+        setDetailOpen(false);
+        setDetailItem(null);
+    };
+
+    const formatDate = (dateValue) => {
+        if (!dateValue) return "-";
+        const parsed = new Date(dateValue);
+        if (Number.isNaN(parsed.getTime())) return "-";
+        return parsed.toLocaleDateString("vi-VN");
     };
 
     const handleConfirmClose = () => {
@@ -105,14 +139,15 @@ export default function AdminSchoolVerification() {
         if (status === "ACCOUNT_PENDING_VERIFY" || status === "PENDING") {
             return (
                 <Chip
+                    size="small"
                     icon={<AccessTimeIcon sx={{fontSize: 14}} />}
                     label="Chờ xác thực"
                     sx={{
-                        bgcolor: "#f59e0b",
-                        color: "#ffffff",
-                        border: "1px solid #f59e0b",
-                        "& .MuiChip-label": {fontWeight: 700, px: 1.2},
-                        "& .MuiChip-icon": {color: "#ffffff"},
+                        bgcolor: "rgba(245,158,11,0.16)",
+                        color: "#fbbf24",
+                        border: "1px solid rgba(251,191,36,0.35)",
+                        fontWeight: 600,
+                        "& .MuiChip-icon": {color: "#f59e0b"},
                     }}
                 />
             );
@@ -124,11 +159,11 @@ export default function AdminSchoolVerification() {
                     icon={<CheckCircleRoundedIcon sx={{fontSize: 14}} />}
                     label="Đã duyệt"
                     sx={{
-                        bgcolor: "#10b981",
-                        color: "#ffffff",
-                        border: "1px solid #10b981",
-                        "& .MuiChip-label": {fontWeight: 700, px: 1.2},
-                        "& .MuiChip-icon": {color: "#ffffff"},
+                        bgcolor: "rgba(16,185,129,0.16)",
+                        color: "#34d399",
+                        border: "1px solid rgba(52,211,153,0.35)",
+                        fontWeight: 600,
+                        "& .MuiChip-icon": {color: "#10b981"},
                     }}
                 />
             );
@@ -140,16 +175,26 @@ export default function AdminSchoolVerification() {
                     icon={<CancelRoundedIcon sx={{fontSize: 14}} />}
                     label="Từ chối"
                     sx={{
-                        bgcolor: "#f43f5e",
-                        color: "#ffffff",
-                        border: "1px solid #f43f5e",
-                        "& .MuiChip-label": {fontWeight: 700, px: 1.2},
-                        "& .MuiChip-icon": {color: "#ffffff"},
+                        bgcolor: "rgba(239,68,68,0.16)",
+                        color: "#f87171",
+                        border: "1px solid rgba(248,113,113,0.35)",
+                        fontWeight: 600,
+                        "& .MuiChip-icon": {color: "#ef4444"},
                     }}
                 />
             );
         }
-        return <Chip label={status || "Không xác định"} size="small" />;
+        return (
+            <Chip
+                label={status || "Không xác định"}
+                size="small"
+                sx={{
+                    bgcolor: "rgba(148,163,184,0.2)",
+                    color: "#cbd5e1",
+                    border: "1px solid rgba(203,213,225,0.3)",
+                }}
+            />
+        );
     };
 
     const displayedRegistrations = [...registrations].sort((a, b) => {
@@ -168,27 +213,146 @@ export default function AdminSchoolVerification() {
         rejected: registrations.filter((item) => item.status === "REJECTED").length,
     };
 
+    const statCards = [
+        {
+            label: "Tổng hồ sơ",
+            value: stats.total,
+            icon: <DescriptionRoundedIcon sx={{fontSize: 22}}/>,
+            iconColor: "#2563eb",
+            iconBg: "#dbeafe",
+            cardBg: "#eef7ff",
+            cardBorder: "#dbeafe",
+        },
+        {
+            label: "Chờ duyệt",
+            value: stats.pending,
+            icon: <PendingRoundedIcon sx={{fontSize: 22}}/>,
+            iconColor: "#f97316",
+            iconBg: "#ffedd5",
+            cardBg: "#fff7ec",
+            cardBorder: "#fde7c7",
+        },
+        {
+            label: "Đã duyệt",
+            value: stats.verified,
+            icon: <CheckCircleRoundedIcon sx={{fontSize: 22}}/>,
+            iconColor: "#16a34a",
+            iconBg: "#dcfce7",
+            cardBg: "#effcf5",
+            cardBorder: "#d6f5e4",
+        },
+        {
+            label: "Từ chối",
+            value: stats.rejected,
+            icon: <CancelRoundedIcon sx={{fontSize: 22}}/>,
+            iconColor: "#e11d48",
+            iconBg: "#fee2e2",
+            cardBg: "#fff1f5",
+            cardBorder: "#ffd9e0",
+        },
+    ];
+
+    const tableColCount = 9;
+
+    const detailSectionSx = {
+        border: "1px solid #bfdbfe",
+        borderRadius: 3,
+        bgcolor: "#eff6ff",
+        p: {xs: 1.4, md: 1.8},
+        boxShadow: "0 10px 24px rgba(37,99,235,0.14)",
+    };
+
+    const fieldBoxSx = {
+        border: "1px solid #bfdbfe",
+        borderRadius: 2.25,
+        bgcolor: "#ffffff",
+        px: 1.3,
+        py: 1.1,
+        boxShadow: "0 5px 12px rgba(37,99,235,0.08)",
+    };
+
+    const renderDetailField = (label, value, fullWidth = false) => (
+        <Box
+            sx={{
+                ...fieldBoxSx,
+                gridColumn: fullWidth ? {xs: "auto", md: "1 / span 2"} : "auto",
+            }}
+        >
+            <Typography sx={{fontSize: 12, color: "#1d4ed8", mb: 0.35, fontWeight: 700}}>{label}</Typography>
+            <Typography sx={{fontSize: 14, color: "#0f172a", fontWeight: 600, wordBreak: "break-all"}}>{value || "-"}</Typography>
+        </Box>
+    );
+
+    const renderDetailLinkField = (label, url, fullWidth = false) => (
+        <Box
+            sx={{
+                ...fieldBoxSx,
+                gridColumn: fullWidth ? {xs: "auto", md: "1 / span 2"} : "auto",
+            }}
+        >
+            <Typography sx={{fontSize: 12, color: "#1d4ed8", mb: 0.35, fontWeight: 700}}>{label}</Typography>
+            {url ? (
+                <Link
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    underline="hover"
+                    sx={{
+                        fontSize: 14,
+                        fontWeight: 400,
+                        wordBreak: "break-all",
+                        color: "#2563eb",
+                        display: "inline-block",
+                        "&:hover": {color: "#1d4ed8"},
+                    }}
+                >
+                    {url}
+                </Link>
+            ) : (
+                <Typography sx={{fontSize: 14, color: "#64748b", fontWeight: 400}}>-</Typography>
+            )}
+        </Box>
+    );
+
     return (
-        <Box sx={{pb: 2}}>
+        <Box
+            sx={{
+                p: {xs: 1, md: 2},
+                borderRadius: 4,
+                bgcolor: "#ffffff",
+                color: "#0f172a",
+            }}
+        >
+            <Breadcrumbs separator="›" aria-label="breadcrumb" sx={{mb: 1, color: "#64748b"}}>
+                <Link
+                    underline="hover"
+                    color="inherit"
+                    onClick={() => navigate("/admin/schools/verification")}
+                    sx={{cursor: "pointer", color: "#2563eb"}}
+                >
+                    Xác thực trường
+                </Link>
+            </Breadcrumbs>
+
             <Card
                 elevation={0}
                 sx={{
-                    borderRadius: 5,
-                    mb: 3,
+                    borderRadius: 3.5,
+                    mb: 2.5,
                     color: "white",
-                    background: "linear-gradient(92deg, #2563eb 0%, #3158ef 38%, #6d3df2 72%, #8b3dff 100%)",
-                    boxShadow: "0 20px 38px rgba(67, 56, 202, 0.26)",
+                    background: "linear-gradient(95deg, #2563eb 0%, #3158ef 40%, #6d3df2 72%, #8b3dff 100%)",
+                    boxShadow: "0 18px 34px rgba(67, 56, 202, 0.28)",
                 }}
             >
-                <CardContent sx={{p: {xs: 2.5, md: 3.5}, "&:last-child": {pb: {xs: 2.5, md: 3.5}}}}>
+                <CardContent sx={{p: {xs: 2.2, md: 2.8}, "&:last-child": {pb: {xs: 2.2, md: 2.8}}}}>
                     <Box sx={{display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2}}>
                         <Box sx={{display: "flex", alignItems: "center", gap: 1.5}}>
                             <Avatar
                                 sx={{
-                                    bgcolor: alpha("#ffffff", 0.18),
+                                    bgcolor: alpha("#ffffff", 0.2),
                                     color: "white",
-                                    width: 44,
-                                    height: 44,
+                                    width: 42,
+                                    height: 42,
                                 }}
                             >
                                 <SchoolIcon />
@@ -197,7 +361,7 @@ export default function AdminSchoolVerification() {
                                 <Typography variant="h5" sx={{fontWeight: 700, lineHeight: 1.2}}>
                                     Xác Thực Trường Học
                                 </Typography>
-                                <Typography variant="body2" sx={{opacity: 0.9, mt: 0.5}}>
+                                <Typography variant="body2" sx={{opacity: 0.92, mt: 0.45}}>
                                     Hệ thống quản lý và xác thực hồ sơ trường học
                                 </Typography>
                             </Box>
@@ -208,7 +372,7 @@ export default function AdminSchoolVerification() {
 
             <Box
                 sx={{
-                    mb: 3,
+                    mb: 2.5,
                     display: "grid",
                     gridTemplateColumns: {
                         xs: "1fr",
@@ -216,74 +380,80 @@ export default function AdminSchoolVerification() {
                         lg: "repeat(4, minmax(0, 1fr))",
                     },
                     gap: 2,
+                    width: "100%",
                 }}
             >
-                <Card elevation={0} sx={{borderRadius: 3, border: "1px solid #dbeafe", bgcolor: "#eef7ff", minHeight: 132}}>
-                    <CardContent sx={{display: "flex", justifyContent: "space-between", alignItems: "center"}}>
-                        <Box>
-                            <Typography sx={{fontSize: 13, color: "#64748b", mb: 0.5}}>Tổng hồ sơ</Typography>
-                            <Typography variant="h4" sx={{fontWeight: 700, color: "#0f172a"}}>{stats.total}</Typography>
-                        </Box>
-                        <Avatar sx={{bgcolor: "#dbeafe", color: "#2563eb"}}>
-                            <DescriptionRoundedIcon />
-                        </Avatar>
-                    </CardContent>
-                </Card>
-
-                <Card elevation={0} sx={{borderRadius: 3, border: "1px solid #fde7c7", bgcolor: "#fff7ec", minHeight: 132}}>
-                    <CardContent sx={{display: "flex", justifyContent: "space-between", alignItems: "center"}}>
-                        <Box>
-                            <Typography sx={{fontSize: 13, color: "#64748b", mb: 0.5}}>Chờ duyệt</Typography>
-                            <Typography variant="h4" sx={{fontWeight: 700, color: "#0f172a"}}>{stats.pending}</Typography>
-                        </Box>
-                        <Avatar sx={{bgcolor: "#ffedd5", color: "#f97316"}}>
-                            <PendingRoundedIcon />
-                        </Avatar>
-                    </CardContent>
-                </Card>
-
-                <Card elevation={0} sx={{borderRadius: 3, border: "1px solid #d6f5e4", bgcolor: "#effcf5", minHeight: 132}}>
-                    <CardContent sx={{display: "flex", justifyContent: "space-between", alignItems: "center"}}>
-                        <Box>
-                            <Typography sx={{fontSize: 13, color: "#64748b", mb: 0.5}}>Đã duyệt</Typography>
-                            <Typography variant="h4" sx={{fontWeight: 700, color: "#0f172a"}}>{stats.verified}</Typography>
-                        </Box>
-                        <Avatar sx={{bgcolor: "#dcfce7", color: "#16a34a"}}>
-                            <CheckCircleRoundedIcon />
-                        </Avatar>
-                    </CardContent>
-                </Card>
-
-                <Card elevation={0} sx={{borderRadius: 3, border: "1px solid #ffd9e0", bgcolor: "#fff1f5", minHeight: 132}}>
-                    <CardContent sx={{display: "flex", justifyContent: "space-between", alignItems: "center"}}>
-                        <Box>
-                            <Typography sx={{fontSize: 13, color: "#64748b", mb: 0.5}}>Từ chối</Typography>
-                            <Typography variant="h4" sx={{fontWeight: 700, color: "#0f172a"}}>{stats.rejected}</Typography>
-                        </Box>
-                        <Avatar sx={{bgcolor: "#fee2e2", color: "#e11d48"}}>
-                            <CancelRoundedIcon />
-                        </Avatar>
-                    </CardContent>
-                </Card>
-            </Box>
-
-            <Card elevation={0} sx={{borderRadius: 4, border: "1px solid #e5e7eb", bgcolor: "#f9fafb"}}>
-                <CardContent sx={{p: {xs: 2, md: 3}, "&:last-child": {pb: {xs: 2, md: 3}}}}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{mb: 2.5}}>
-                        <Box sx={{display: "flex", alignItems: "center", gap: 1.5}}>
-                            <Avatar sx={{width: 34, height: 34, bgcolor: "#f59e0b"}}>
-                                <PendingRoundedIcon sx={{fontSize: 18}} />
-                            </Avatar>
+                {statCards.map((item) => (
+                    <Card
+                        key={item.label}
+                        elevation={0}
+                        sx={{
+                            borderRadius: 3,
+                            border: `1px solid ${item.cardBorder}`,
+                            bgcolor: item.cardBg,
+                            minHeight: 132,
+                        }}
+                    >
+                        <CardContent
+                            sx={{
+                                py: 2,
+                                px: 2.25,
+                                height: "100%",
+                                display: "flex",
+                                alignItems: "flex-start",
+                                justifyContent: "space-between",
+                            }}
+                        >
                             <Box>
-                                <Typography sx={{fontSize: 32, fontWeight: 700, lineHeight: 1.1, color: "#1f2937"}}>
-                                    Danh sách hồ sơ chờ duyệt
-                                </Typography>
-                                <Typography sx={{fontSize: 13, color: "#6b7280"}}>
-                                    {displayedRegistrations.length} hồ sơ được tìm thấy
+                                <Typography sx={{fontSize: 12, color: "#64748b"}}>{item.label}</Typography>
+                                <Typography sx={{fontSize: 30, lineHeight: 1.2, fontWeight: 800, color: "#0f172a"}}>
+                                    {item.value}
                                 </Typography>
                             </Box>
-                        </Box>
-                        <Stack direction="row" spacing={1}>
+                            <Avatar
+                                sx={{
+                                    width: 42,
+                                    height: 42,
+                                    borderRadius: "50%",
+                                    bgcolor: item.iconBg,
+                                    color: item.iconColor,
+                                    mt: 0.5,
+                                }}
+                            >
+                                {item.icon}
+                            </Avatar>
+                        </CardContent>
+                    </Card>
+                ))}
+            </Box>
+
+            <Card
+                elevation={0}
+                sx={{
+                    borderRadius: 4,
+                    border: "1px solid #e2e8f0",
+                    bgcolor: "#ffffff",
+                    overflow: "hidden",
+                }}
+            >
+                <CardContent sx={{p: {xs: 1.5, md: 2.5}}}>
+                    <Box
+                        sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 1.5,
+                            mb: 2,
+                            flexWrap: "wrap",
+                        }}
+                    >
+                        <Typography variant="h6" sx={{fontWeight: 800, color: "#0f172a", fontSize: {xs: 17, sm: 18}}}>
+                            Danh sách hồ sơ chờ duyệt
+                            <Typography component="span" sx={{display: "block", fontSize: 13, fontWeight: 500, color: "#64748b", mt: 0.35}}>
+                                {displayedRegistrations.length} hồ sơ
+                            </Typography>
+                        </Typography>
+                        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                             <Chip
                                 label="Mới nhất"
                                 clickable
@@ -291,10 +461,10 @@ export default function AdminSchoolVerification() {
                                 sx={{
                                     height: 34,
                                     borderRadius: 999,
-                                    border: "1px solid #d1d5db",
-                                    bgcolor: sortBy === "newest" ? "#111827" : "#ffffff",
-                                    color: sortBy === "newest" ? "#ffffff" : "#111827",
-                                    "& .MuiChip-label": {fontWeight: 600},
+                                    border: "1px solid #cbd5e1",
+                                    bgcolor: sortBy === "newest" ? "#ede9fe" : "#ffffff",
+                                    color: sortBy === "newest" ? "#0f172a" : "#64748b",
+                                    fontWeight: 700,
                                 }}
                             />
                             <Chip
@@ -304,254 +474,341 @@ export default function AdminSchoolVerification() {
                                 sx={{
                                     height: 34,
                                     borderRadius: 999,
-                                    border: "1px solid #d1d5db",
-                                    bgcolor: sortBy === "name" ? "#111827" : "#ffffff",
-                                    color: sortBy === "name" ? "#ffffff" : "#111827",
-                                    "& .MuiChip-label": {fontWeight: 600},
+                                    border: "1px solid #cbd5e1",
+                                    bgcolor: sortBy === "name" ? "#ede9fe" : "#ffffff",
+                                    color: sortBy === "name" ? "#0f172a" : "#64748b",
+                                    fontWeight: 700,
                                 }}
                             />
                         </Stack>
-                    </Stack>
+                    </Box>
 
-                    {loading ? (
-                        <Box sx={{py: 5, display: "flex", justifyContent: "center"}}>
-                            <CircularProgress size={30} />
-                        </Box>
-                    ) : displayedRegistrations.length === 0 ? (
-                        <Typography variant="body1" sx={{color: "#64748b", textAlign: "center", py: 4}}>
-                            Không có hồ sơ để hiển thị.
-                        </Typography>
-                    ) : (
-                        <Box
-                            sx={{
-                                display: "grid",
-                                gridTemplateColumns: {xs: "1fr", xl: "repeat(2, minmax(0, 1fr))"},
-                                gap: 2,
-                            }}
-                        >
-                            {displayedRegistrations.map((item) => (
-                                <Card
-                                    key={item.id}
-                                    elevation={0}
-                                    sx={{
-                                        borderRadius: 3,
-                                        border: "1px solid #eceff3",
-                                        bgcolor: "#ffffff",
-                                        position: "relative",
-                                        overflow: "hidden",
-                                        transition:
-                                            "border-color 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease",
-                                        "&::before": {
-                                            content: '""',
-                                            position: "absolute",
-                                            top: 0,
-                                            left: 0,
-                                            width: "100%",
-                                            height: 4,
-                                            background:
-                                                "linear-gradient(90deg, #3b82f6 0%, #6366f1 52%, #ec4899 100%)",
-                                            opacity: 0,
-                                            transition: "opacity 0.22s ease",
-                                        },
-                                        "&:hover": {
-                                            borderColor: "#c7d2fe",
-                                            boxShadow: "0 12px 26px rgba(59, 130, 246, 0.14)",
-                                            transform: "translateY(-2px)",
-                                        },
-                                        "&:hover .school-name": {
-                                            color: "#2563eb",
-                                        },
-                                        "&:hover::before": {
-                                            opacity: 1,
-                                        },
-                                    }}
-                                >
-                                    <CardContent sx={{p: 2.2}}>
-                                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{mb: 1.8}}>
-                                            <Stack direction="row" spacing={1.5}>
+                    <TableContainer
+                        component={Paper}
+                        elevation={0}
+                        sx={{bgcolor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 3}}
+                    >
+                        <Table size="small">
+                            <TableHead>
+                                <TableRow sx={{bgcolor: "#f8fafc"}}>
+                                    <TableCell align="center" sx={{fontWeight: 700, color: "#334155", width: 60}}>
+                                        STT
+                                    </TableCell>
+                                    <TableCell align="left" sx={{fontWeight: 700, color: "#334155", width: 56, pl: 1.5, pr: 0.5}} />
+                                    <TableCell align="left" sx={{fontWeight: 700, color: "#334155", minWidth: 200}}>
+                                        Tên trường
+                                    </TableCell>
+                                    <TableCell align="center" sx={{fontWeight: 700, color: "#334155", minWidth: 140}}>
+                                        Đại diện
+                                    </TableCell>
+                                    <TableCell align="center" sx={{fontWeight: 700, color: "#334155", width: 130}}>
+                                        Mã số thuế
+                                    </TableCell>
+                                    <TableCell align="center" sx={{fontWeight: 700, color: "#334155", width: 120}}>
+                                        Hotline
+                                    </TableCell>
+                                    <TableCell align="center" sx={{fontWeight: 700, color: "#334155", minWidth: 130}}>
+                                        Trạng thái
+                                    </TableCell>
+                                    <TableCell align="center" sx={{fontWeight: 700, color: "#334155", width: 72, px: 0.5}}>
+                                        Chi tiết
+                                    </TableCell>
+                                    <TableCell align="center" sx={{fontWeight: 700, color: "#334155", width: 100, px: 0.5}}>
+                                        Thao tác
+                                    </TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {loading ? (
+                                    <TableRow>
+                                        <TableCell colSpan={tableColCount} align="center" sx={{py: 4, color: "#64748b"}}>
+                                            <Typography variant="body2" sx={{color: "#64748b"}}>
+                                                Đang tải dữ liệu...
+                                            </Typography>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : displayedRegistrations.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={tableColCount} align="center" sx={{py: 4}}>
+                                            <Typography variant="body1" sx={{color: "#64748b"}}>
+                                                Không có hồ sơ để hiển thị.
+                                            </Typography>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    displayedRegistrations.map((item, index) => (
+                                        <TableRow
+                                            key={item.id ?? index}
+                                            hover
+                                            sx={{
+                                                "& td": {borderBottomColor: "#e2e8f0", color: "#334155"},
+                                                "&:hover": {bgcolor: "#f8fafc"},
+                                            }}
+                                        >
+                                            <TableCell align="center">
+                                                <Chip
+                                                    label={index + 1}
+                                                    size="small"
+                                                    sx={{
+                                                        width: 28,
+                                                        height: 24,
+                                                        fontWeight: 700,
+                                                        bgcolor: "rgba(139,92,246,0.22)",
+                                                        color: "#7c3aed",
+                                                        border: "1px solid rgba(196,181,253,0.3)",
+                                                    }}
+                                                />
+                                            </TableCell>
+                                            <TableCell align="left" sx={{pl: 1.5, pr: 0.5}}>
                                                 <Avatar
                                                     src={item.logoUrl || undefined}
-                                                    alt={item.schoolName || "School logo"}
-                                                    sx={{
-                                                        width: 48,
-                                                        height: 48,
-                                                        fontWeight: 700,
-                                                        background:
-                                                            "linear-gradient(135deg, #6366f1 0%, #2563eb 100%)",
-                                                    }}
+                                                    alt={item.schoolName || "logo trường"}
+                                                    sx={{width: 34, height: 34, bgcolor: "#e2e8f0"}}
                                                 >
-                                                    {(item.schoolName || "SC")
-                                                        .split(" ")
-                                                        .filter(Boolean)
-                                                        .slice(0, 2)
-                                                        .map((word) => word[0])
-                                                        .join("")
-                                                        .toUpperCase()}
+                                                    {(item.schoolName || "S").charAt(0).toUpperCase()}
                                                 </Avatar>
-                                                <Box>
-                                                    <Typography
-                                                        className="school-name"
-                                                        sx={{
-                                                            fontWeight: 700,
-                                                            color: "#1f2937",
-                                                            fontSize: 18,
-                                                            transition: "color 0.2s ease",
-                                                        }}
+                                            </TableCell>
+                                            <TableCell align="left" sx={{pl: 0.5}}>
+                                                <Typography sx={{fontWeight: 600, fontSize: 14, color: "#0f172a"}}>
+                                                    {item.schoolName || "Trường chưa đặt tên"}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Typography sx={{fontSize: 14, color: "#334155"}}>
+                                                    {item.representativeName || "-"}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Typography sx={{fontSize: 14, color: "#334155"}}>{item.taxCode || "-"}</Typography>
+                                            </TableCell>
+                                            <TableCell align="center">
+                                                <Typography sx={{fontSize: 14, color: "#334155"}}>{item.hotline || "-"}</Typography>
+                                            </TableCell>
+                                            <TableCell align="center">{renderStatusChip(item.status)}</TableCell>
+                                            <TableCell align="center" sx={{px: 0.5}}>
+                                                <Tooltip title="Xem chi tiết hồ sơ">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => openDetail(item)}
+                                                        aria-label="Xem chi tiết hồ sơ"
+                                                        sx={{color: "#38bdf8"}}
                                                     >
-                                                        {item.schoolName || "Trường học"}
-                                                    </Typography>
-                                                    <Stack direction="row" spacing={0.7} alignItems="center" sx={{mt: 0.5}}>
-                                                        <PersonOutlineRoundedIcon sx={{fontSize: 15, color: "#9ca3af"}} />
-                                                        <Typography sx={{fontSize: 14, color: "#6b7280"}}>
-                                                            Đại diện: {item.representativeName || "Chưa cập nhật"}
-                                                        </Typography>
-                                                    </Stack>
-                                                </Box>
-                                            </Stack>
-                                            {renderStatusChip(item.status)}
-                                        </Stack>
-
-                                        <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1.4, mb: 1.4}}>
-                                            <Box sx={{p: 1.3, borderRadius: 2, bgcolor: "#f8fafc", border: "1px solid #edf2f7"}}>
-                                                <Stack direction="row" spacing={1.1}>
-                                                    <Box
-                                                        sx={{
-                                                            width: 44,
-                                                            height: 44,
-                                                            borderRadius: 1.6,
-                                                            background: "linear-gradient(135deg, #4f7dff 0%, #3b82f6 100%)",
-                                                            display: "flex",
-                                                            alignItems: "center",
-                                                            justifyContent: "center",
-                                                            color: "#ffffff",
-                                                            flexShrink: 0,
-                                                        }}
-                                                    >
-                                                        <DescriptionRoundedIcon sx={{fontSize: 22}} />
-                                                    </Box>
-                                                    <Box>
-                                                        <Typography sx={{fontSize: 12, color: "#6b7280"}}>Mã số thuế</Typography>
-                                                        <Typography sx={{fontWeight: 700, color: "#1f2937"}}>{item.taxCode || "--"}</Typography>
-                                                    </Box>
-                                                </Stack>
-                                            </Box>
-                                            <Box sx={{p: 1.3, borderRadius: 2, bgcolor: "#f8fafc", border: "1px solid #edf2f7"}}>
-                                                <Stack direction="row" spacing={1.1}>
-                                                    <Box
-                                                        sx={{
-                                                            width: 44,
-                                                            height: 44,
-                                                            borderRadius: 1.6,
-                                                            background: "linear-gradient(135deg, #22c7b3 0%, #0ea5a4 100%)",
-                                                            display: "flex",
-                                                            alignItems: "center",
-                                                            justifyContent: "center",
-                                                            color: "#ffffff",
-                                                            flexShrink: 0,
-                                                        }}
-                                                    >
-                                                        <CallRoundedIcon sx={{fontSize: 22}} />
-                                                    </Box>
-                                                    <Box>
-                                                        <Typography sx={{fontSize: 12, color: "#6b7280"}}>Hotline</Typography>
-                                                        <Typography sx={{fontWeight: 700, color: "#1f2937"}}>{item.hotline || "--"}</Typography>
-                                                    </Box>
-                                                </Stack>
-                                            </Box>
-                                        </Box>
-
-                                        <Box sx={{p: 1.3, borderRadius: 2, bgcolor: "#fffaf0", border: "1px solid #feefc7", mb: 2}}>
-                                            <Stack direction="row" spacing={1.1}>
-                                                <Box
-                                                    sx={{
-                                                        width: 44,
-                                                        height: 44,
-                                                        borderRadius: 1.6,
-                                                        background: "linear-gradient(135deg, #ffb020 0%, #f97316 100%)",
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent: "center",
-                                                        color: "#ffffff",
-                                                        flexShrink: 0,
-                                                    }}
-                                                >
-                                                    <LocationOnRoundedIcon sx={{fontSize: 22}} />
-                                                </Box>
-                                                <Box>
-                                                    <Typography sx={{fontSize: 12, color: "#6b7280"}}>Địa chỉ</Typography>
-                                                    <Typography sx={{fontWeight: 600, color: "#1f2937"}}>
-                                                        {item.campusAddress || "Chưa cập nhật địa chỉ"}
-                                                    </Typography>
-                                                </Box>
-                                            </Stack>
-                                        </Box>
-
-                                        <Stack direction="row" justifyContent="space-between" alignItems="center">
-                                            <Stack direction="row" spacing={2} sx={{color: "#6b7280"}}>
-                                                <Stack direction="row" spacing={0.7} alignItems="center">
-                                                    <CalendarTodayRoundedIcon sx={{fontSize: 14}} />
-                                                    <Typography sx={{fontSize: 13}}>
-                                                        {item.createdAt ? new Date(item.createdAt).toLocaleDateString("vi-VN") : "--"}
-                                                    </Typography>
-                                                </Stack>
-                                                <Stack direction="row" spacing={0.7} alignItems="center">
-                                                    <FolderOpenRoundedIcon sx={{fontSize: 14}} />
-                                                    <Typography sx={{fontSize: 13}}>{item.documentCount || 0} tài liệu</Typography>
-                                                </Stack>
-                                            </Stack>
-
-                                            <Stack direction="row" spacing={0.8}>
-                                                <Tooltip title="Xem giấy phép kinh doanh">
-                                                    <span>
-                                                        <IconButton
-                                                            size="small"
-                                                            component={item.businessLicenseUrl ? "a" : "button"}
-                                                            href={item.businessLicenseUrl || undefined}
-                                                            target={item.businessLicenseUrl ? "_blank" : undefined}
-                                                            rel={item.businessLicenseUrl ? "noopener noreferrer" : undefined}
-                                                            disabled={!item.businessLicenseUrl}
-                                                            sx={{border: "1px solid #d1d5db"}}
-                                                        >
-                                                            <VisibilityIcon sx={{fontSize: 18}} />
-                                                        </IconButton>
-                                                    </span>
+                                                        <VisibilityIcon fontSize="small"/>
+                                                    </IconButton>
                                                 </Tooltip>
-                                                <Tooltip title="Mở website trường">
-                                                    <span>
-                                                        <IconButton
-                                                            size="small"
-                                                            component={item.websiteUrl ? "a" : "button"}
-                                                            href={item.websiteUrl || undefined}
-                                                            target={item.websiteUrl ? "_blank" : undefined}
-                                                            rel={item.websiteUrl ? "noopener noreferrer" : undefined}
-                                                            disabled={!item.websiteUrl}
-                                                            sx={{border: "1px solid #d1d5db"}}
-                                                        >
-                                                            <OpenInNewRoundedIcon sx={{fontSize: 18}} />
-                                                        </IconButton>
-                                                    </span>
-                                                </Tooltip>
+                                            </TableCell>
+                                            <TableCell align="center" sx={{px: 0.5}}>
                                                 <Tooltip title={item.status === "VERIFIED" ? "Đã xác thực" : "Xác thực trường học"}>
                                                     <span>
                                                         <IconButton
                                                             size="small"
                                                             disabled={!!verifyingId || item.status === "VERIFIED"}
                                                             onClick={() => openConfirm(item)}
-                                                            sx={{border: "1px solid #d1d5db"}}
+                                                            aria-label="Xác thực trường học"
+                                                            sx={{
+                                                                background: "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)",
+                                                                color: "#ffffff",
+                                                                boxShadow: "0 4px 14px rgba(22, 163, 74, 0.45)",
+                                                                "&:hover": {
+                                                                    background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)",
+                                                                    boxShadow: "0 6px 18px rgba(22, 163, 74, 0.5)",
+                                                                },
+                                                                "&.Mui-disabled": {
+                                                                    background: "#e2e8f0",
+                                                                    color: "#94a3b8",
+                                                                    boxShadow: "none",
+                                                                },
+                                                            }}
                                                         >
-                                                            <TaskAltIcon sx={{fontSize: 18}} />
+                                                            <TaskAltIcon fontSize="small"/>
                                                         </IconButton>
                                                     </span>
                                                 </Tooltip>
-                                            </Stack>
-                                        </Stack>
-                                    </CardContent>
-                                </Card>
-                            ))}
-                        </Box>
-                    )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
                 </CardContent>
             </Card>
+            <Dialog
+                open={detailOpen}
+                onClose={closeDetail}
+                fullWidth
+                maxWidth="md"
+                PaperProps={{
+                    sx: {
+                        borderRadius: 4,
+                        overflow: "hidden",
+                        border: "1px solid #93c5fd",
+                        boxShadow: "0 24px 48px rgba(37,99,235,0.24)",
+                    },
+                }}
+            >
+                <DialogTitle
+                    component="div"
+                    sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 1,
+                        fontWeight: 800,
+                        color: "#0f172a",
+                        pb: 1.2,
+                        pr: 1,
+                        background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 48%, #93c5fd 100%)",
+                        borderBottom: "1px solid #93c5fd",
+                    }}
+                >
+                    <Typography component="h2" sx={{fontWeight: 800, fontSize: "1.25rem", lineHeight: 1.3, m: 0}}>
+                        Chi tiết hồ sơ đăng ký
+                    </Typography>
+                    <IconButton
+                        onClick={closeDetail}
+                        aria-label="Đóng"
+                        size="small"
+                        sx={{
+                            color: "#475569",
+                            "&:hover": {bgcolor: "rgba(255,255,255,0.55)", color: "#0f172a"},
+                        }}
+                    >
+                        <CloseIcon fontSize="small"/>
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent
+                    dividers
+                    sx={{
+                        bgcolor: "#eff6ff",
+                        backgroundImage:
+                            "radial-gradient(circle at top right, rgba(59,130,246,0.24), transparent 45%), radial-gradient(circle at bottom left, rgba(37,99,235,0.2), transparent 42%)",
+                    }}
+                >
+                    {detailItem && (
+                        <Stack spacing={1.5}>
+                            <Box sx={detailSectionSx}>
+                                <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
+                                    <ApartmentIcon sx={{fontSize: 17, color: "#1e40af"}} />
+                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                        Thông tin chung
+                                    </Typography>
+                                </Stack>
+                                <Box
+                                    sx={{
+                                        border: "1px solid #bfdbfe",
+                                        borderRadius: 2.25,
+                                        bgcolor: "#ffffff",
+                                        px: 1.4,
+                                        py: 1.25,
+                                        boxShadow: "0 5px 12px rgba(37,99,235,0.08)",
+                                        display: "flex",
+                                        alignItems: "flex-start",
+                                        gap: 1.5,
+                                    }}
+                                >
+                                    <Avatar
+                                        src={detailItem.logoUrl || undefined}
+                                        alt={detailItem.schoolName || "logo"}
+                                        sx={{width: 56, height: 56, mt: 0.2}}
+                                    >
+                                        {(detailItem.schoolName || "S").charAt(0).toUpperCase()}
+                                    </Avatar>
+                                    <Box sx={{minWidth: 0}}>
+                                        <Typography sx={{fontSize: 18, color: "#0f172a", fontWeight: 700, lineHeight: 1.25, mb: 0.9}}>
+                                            {detailItem.schoolName || "-"}
+                                        </Typography>
+                                        <Typography sx={{fontSize: 14, color: "#64748b", lineHeight: 1.45}}>
+                                            Hồ sơ đăng ký trường trên hệ thống EduBridgeHCM
+                                        </Typography>
+                                    </Box>
+                                </Box>
+                            </Box>
+
+                            <Box sx={detailSectionSx}>
+                                <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
+                                    <PlaceIcon sx={{fontSize: 17, color: "#1e40af"}} />
+                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                        Cơ sở đăng ký
+                                    </Typography>
+                                </Stack>
+                                <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                                    {renderDetailField("Tên cơ sở", detailItem.campusName)}
+                                    {renderDetailField("Số điện thoại", detailItem.campusPhone)}
+                                    {renderDetailField("Địa chỉ", detailItem.campusAddress, true)}
+                                </Box>
+                            </Box>
+
+                            <Box sx={detailSectionSx}>
+                                <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
+                                    <InsightsIcon sx={{fontSize: 17, color: "#1e40af"}} />
+                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                        Thông tin hồ sơ
+                                    </Typography>
+                                </Stack>
+                                <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                                    {renderDetailField("Mã số thuế", detailItem.taxCode)}
+                                    {renderDetailField("Ngày thành lập", formatDate(detailItem.foundingDate))}
+                                    {renderDetailField("Ngày nộp hồ sơ", formatDate(detailItem.createdAt))}
+                                </Box>
+                            </Box>
+
+                            <Box sx={detailSectionSx}>
+                                <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
+                                    <CallIcon sx={{fontSize: 17, color: "#1e40af"}} />
+                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                        Liên hệ & liên kết
+                                    </Typography>
+                                </Stack>
+                                <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                                    {renderDetailField("Hotline", detailItem.hotline)}
+                                    {renderDetailLinkField("Website", detailItem.websiteUrl)}
+                                    {renderDetailLinkField("Giấy phép / thông tin pháp lý", detailItem.businessLicenseUrl, true)}
+                                </Box>
+                            </Box>
+
+                            <Box sx={detailSectionSx}>
+                                <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
+                                    <BadgeIcon sx={{fontSize: 17, color: "#1e40af"}} />
+                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                        Đại diện
+                                    </Typography>
+                                </Stack>
+                                <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                                    {renderDetailField("Người đại diện", detailItem.representativeName)}
+                                </Box>
+                            </Box>
+
+                            <Box sx={detailSectionSx}>
+                                <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
+                                    <LockIcon sx={{fontSize: 17, color: "#1e40af"}} />
+                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                        Trạng thái
+                                    </Typography>
+                                </Stack>
+                                <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                                    <Box
+                                        sx={{
+                                            border: "1px solid #bfdbfe",
+                                            borderRadius: 2.25,
+                                            bgcolor: "#ffffff",
+                                            px: 1.3,
+                                            py: 1.1,
+                                            boxShadow: "0 5px 12px rgba(37,99,235,0.08)",
+                                        }}
+                                    >
+                                        <Typography sx={{fontSize: 12, color: "#1d4ed8", mb: 0.5, fontWeight: 700}}>
+                                            Trạng thái hồ sơ
+                                        </Typography>
+                                        {renderStatusChip(detailItem.status)}
+                                    </Box>
+                                </Box>
+                            </Box>
+                        </Stack>
+                    )}
+                </DialogContent>
+            </Dialog>
+
             <ConfirmDialog
                 open={confirmOpen}
                 title="Xác thực hồ sơ trường học"
