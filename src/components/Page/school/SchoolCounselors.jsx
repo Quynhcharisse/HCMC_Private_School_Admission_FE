@@ -1,4 +1,4 @@
-import React, {useState, useMemo, useEffect} from "react";
+import React, {useState, useMemo, useEffect, useCallback} from "react";
 import {
     Box,
     Button,
@@ -38,6 +38,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import {enqueueSnackbar} from "notistack";
 import {fetchCounsellors, createCounsellor} from "../../../services/CounsellorService.jsx";
 import {sendWelcomeEmail} from "../../../services/emailService.jsx";
+import ImageUpload from "../../ui/ImageUpload.jsx";
 
 const InfoItem = ({ label, value }) => (
     <Box>
@@ -99,6 +100,7 @@ const _initialMockCounsellors = [
 
 const emptyForm = {
     email: "",
+    avatar: "",
     status: true,
 };
 
@@ -109,7 +111,8 @@ const mapCounsellorFromApi = (dto) => ({
     phone: "",
     specialty: "",
     shortBio: "",
-    avatar: null,
+    avatar: dto.avatar || null,
+    firstLogin: dto.account?.firstLogin,
     status: dto.account?.status === "ACCOUNT_ACTIVE" ? "active" : "inactive",
     campusName: dto.campusName,
     employeeCode: dto.employeeCode,
@@ -137,34 +140,38 @@ export default function SchoolCounselors() {
     const [page, setPage] = useState(0);
     const rowsPerPage = 10;
     const [totalItems, setTotalItems] = useState(0);
+    const [totalPages, setTotalPages] = useState(0);
     const [_loading, setLoading] = useState(false);
 
-    useEffect(() => {
-        const loadCounsellors = async () => {
-            setLoading(true);
-            try {
-                const res = await fetchCounsellors(page, rowsPerPage);
-                const body = res?.data?.body;
-                const list = body?.items;
-                if (res && res.status === 200 && Array.isArray(list)) {
-                    setCounselors(list.map(mapCounsellorFromApi));
-                    setTotalItems(body?.totalItems ?? 0);
-                } else {
-                    setCounselors([]);
-                    setTotalItems(0);
-                }
-            } catch (error) {
-                console.error("Fetch counsellors error:", error);
-                enqueueSnackbar("Không tải được danh sách tư vấn viên", {variant: "error"});
+    const loadCounsellors = useCallback(async () => {
+        setLoading(true);
+        try {
+            const res = await fetchCounsellors(page, rowsPerPage);
+            const body = res?.data?.body;
+            const list = body?.items;
+            if (res && res.status === 200 && Array.isArray(list)) {
+                setCounselors(list.map(mapCounsellorFromApi));
+                setTotalItems(body?.totalItems ?? 0);
+                setTotalPages(body?.totalPages ?? 0);
+            } else {
                 setCounselors([]);
                 setTotalItems(0);
-            } finally {
-                setLoading(false);
+                setTotalPages(0);
             }
-        };
+        } catch (error) {
+            console.error("Fetch counsellors error:", error);
+            enqueueSnackbar("Không tải được danh sách tư vấn viên", {variant: "error"});
+            setCounselors([]);
+            setTotalItems(0);
+            setTotalPages(0);
+        } finally {
+            setLoading(false);
+        }
+    }, [page, rowsPerPage]);
 
+    useEffect(() => {
         loadCounsellors();
-    }, [page]);
+    }, [loadCounsellors]);
 
     const handleChange = (e) => {
         const {name, value} = e.target;
@@ -213,16 +220,19 @@ export default function SchoolCounselors() {
     const handleCreateSubmit = async () => {
         if (!validateCreate()) return;
         try {
-            const res = await createCounsellor(formValues.email.trim());
+            const res = await createCounsellor({
+                email: formValues.email.trim(),
+                avatar: formValues.avatar?.trim() || "",
+            });
             const dto = res?.data?.body;
-            if (res && res.status === 200 && dto) {
-                const newCounsellor = mapCounsellorFromApi(dto);
-                setCounselors((prev) => [newCounsellor, ...prev]);
-                setTotalItems((prev) => prev + 1);
+            const ok = res && res.status >= 200 && res.status < 300;
+            if (ok) {
+                await loadCounsellors();
 
-                const emailAddr = newCounsellor.email || formValues.email.trim();
+                const mapped = dto ? mapCounsellorFromApi(dto) : null;
+                const emailAddr = mapped?.email || formValues.email.trim();
                 const displayName =
-                    (newCounsellor.fullName && newCounsellor.fullName.trim()) ||
+                    (mapped?.fullName && mapped.fullName.trim()) ||
                     emailAddr.split("@")[0] ||
                     "Tư vấn viên";
 
@@ -268,6 +278,7 @@ export default function SchoolCounselors() {
             password: "",
             specialty: counselor.specialty || "",
             shortBio: counselor.shortBio || "",
+            avatar: counselor.avatar || "",
             status: counselor.status === "active",
         });
         setFormErrors({});
@@ -292,6 +303,7 @@ export default function SchoolCounselors() {
                         phone: formValues.phone?.trim() || "",
                         specialty: formValues.specialty?.trim() || "",
                         shortBio: formValues.shortBio?.trim() || "",
+                        avatar: formValues.avatar?.trim() || null,
                         status: formValues.status ? "active" : "inactive",
                     }
                     : c
@@ -526,7 +538,9 @@ export default function SchoolCounselors() {
                                     <TableRow
                                         key={row.id}
                                         hover
+                                        onClick={() => handleOpenView(row)}
                                         sx={{
+                                            cursor: "pointer",
                                             "&:hover": {
                                                 bgcolor: "rgba(122, 169, 235, 0.04)",
                                             },
@@ -535,6 +549,8 @@ export default function SchoolCounselors() {
                                         <TableCell>
                                             <Stack direction="row" alignItems="center" spacing={2}>
                                                 <Avatar
+                                                    src={row.avatar || undefined}
+                                                    alt={row.fullName}
                                                     sx={{
                                                         width: 40,
                                                         height: 40,
@@ -580,7 +596,10 @@ export default function SchoolCounselors() {
                                                 {row.status === "active" ? "Hoạt động" : "Ngưng hoạt động"}
                                             </Box>
                                         </TableCell>
-                                        <TableCell align="right">
+                                        <TableCell
+                                            align="right"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
                                             <Stack
                                                 direction="row"
                                                 spacing={0.5}
@@ -631,7 +650,7 @@ export default function SchoolCounselors() {
                 {totalItems > 0 && (
                     <Box sx={{ borderTop: "1px solid #e2e8f0", px: 3, py: 1.5, display: "flex", justifyContent: "flex-end", bgcolor: "#f8fafc" }}>
                         <Pagination
-                            count={Math.ceil(totalItems / rowsPerPage)}
+                            count={Math.max(1, totalPages || Math.ceil(totalItems / rowsPerPage) || 1)}
                             page={page + 1}
                             onChange={(_, p) => setPage(p - 1)}
                             color="primary"
@@ -690,6 +709,23 @@ export default function SchoolCounselors() {
                             helperText={formErrors.email}
                             required
                         />
+                        <Box>
+                            <Typography
+                                variant="subtitle2"
+                                sx={{mb: 1, fontWeight: 600, color: "#1e293b"}}
+                            >
+                                Ảnh đại diện{" "}
+                            </Typography>
+                            <ImageUpload
+                                inputId="school-counsellors-create-avatar"
+                                value={formValues.avatar?.trim() ? formValues.avatar.trim() : null}
+                                onChange={(url) =>
+                                    setFormValues((p) => ({...p, avatar: url ?? ""}))
+                                }
+                                onError={(m) => enqueueSnackbar(m, {variant: "error"})}
+                                maxBytes={5 * 1024 * 1024}
+                            />
+                        </Box>
                         <Typography variant="body2" sx={{color: "#64748b", fontSize: 13}}>
                             Hệ thống sẽ tạo tài khoản với role <strong>COUNSELLOR</strong> dựa trên địa chỉ
                             email. Các thông tin khác (họ tên, mật khẩu, chuyên môn) sẽ được cập nhật sau khi
@@ -772,6 +808,8 @@ export default function SchoolCounselors() {
                 {/* PROFILE */}
                 <Stack direction="row" spacing={2} alignItems="center">
                     <Avatar
+                        src={selectedCounselor.avatar || undefined}
+                        alt={selectedCounselor.fullName}
                         sx={{
                             width: 64,
                             height: 64,
@@ -815,6 +853,16 @@ export default function SchoolCounselors() {
                         <InfoItem
                             label="Ngày đăng ký"
                             value={formatDate(selectedCounselor.registerDate)}
+                        />
+                        <InfoItem
+                            label="Đăng nhập lần đầu"
+                            value={
+                                selectedCounselor.firstLogin === true
+                                    ? "Chưa hoàn tất"
+                                    : selectedCounselor.firstLogin === false
+                                        ? "Đã hoàn tất"
+                                        : "—"
+                            }
                         />
 
                         {/* STATUS */}
@@ -980,6 +1028,15 @@ export default function SchoolCounselors() {
                             rows={3}
                             value={formValues.shortBio}
                             onChange={handleChange}
+                        />
+                        <TextField
+                            label="Ảnh đại diện (URL)"
+                            name="avatar"
+                            type="url"
+                            fullWidth
+                            value={formValues.avatar ?? ""}
+                            onChange={handleChange}
+                            placeholder="https://..."
                         />
                         <Box
                             sx={{

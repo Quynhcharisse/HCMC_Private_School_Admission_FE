@@ -13,12 +13,20 @@ export const fetchCounsellors = async (page = 0, pageSize = 10) => {
     return response || null;
 };
 
-export const createCounsellor = async (email) => {
-    const response = await axiosClient.post("/school/counsellor", {email}, {
-        headers: {
-            "X-Device-Type": "web"
+/**
+ * POST /api/v1/school/counsellor
+ * @param {{ email: string, avatar?: string }} payload
+ */
+export const createCounsellor = async ({ email, avatar = "" }) => {
+    const response = await axiosClient.post(
+        "/school/counsellor",
+        { email, avatar: avatar ?? "" },
+        {
+            headers: {
+                "X-Device-Type": "web",
+            },
         }
-    });
+    );
     return response || null;
 };
 
