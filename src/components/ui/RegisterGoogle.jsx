@@ -62,7 +62,7 @@ export default function RegisterGoogle({onSuccess, onError}) {
             const decoded = jwtDecode(credentialResponse.credential);
             const email = decoded.email;
             const name = decoded.name;
-            const picture = decoded.picture;
+            const picture = decoded.picture || decoded.picture_url || decoded.photo || null;
 
             if (onSuccess) {
                 onSuccess({

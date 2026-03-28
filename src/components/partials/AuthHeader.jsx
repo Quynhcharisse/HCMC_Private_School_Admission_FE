@@ -13,6 +13,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import LogoutIcon from '@mui/icons-material/Logout';
 import {enqueueSnackbar} from "notistack";
 import {signout, getProfile} from "../../services/AccountService.jsx";
+import {GOOGLE_AVATAR_IMG_PROPS, getStoredGooglePictureUrl} from "../../utils/storedUserPicture";
 import logo from "../../assets/logo.png";
 
 export default function AuthHeader({showSidebarToggle = false, onToggleSidebar, logoAlignLeft = false, headerLeftOffset}) {
@@ -88,7 +89,12 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar, 
     const profileBody = profileData?.body ? (typeof profileData.body === 'string' ? JSON.parse(profileData.body) : profileData.body) : null;
     const displayName = profileBody?.name || profileBody?.email || userInfo?.name || userInfo?.email || 'Người dùng';
     const displayEmail = profileBody?.email || userInfo?.email || '';
-    const avatarUrl = profileBody?.picture || userInfo?.picture || null;
+    const avatarUrl =
+        profileBody?.parent?.avatar ||
+        profileBody?.picture ||
+        userInfo?.picture ||
+        getStoredGooglePictureUrl() ||
+        null;
     const isAdmin = userInfo?.role === 'ADMIN';
 
     const handleGoHome = () => {
@@ -197,6 +203,7 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar, 
                             >
                                 <Avatar
                                     src={avatarUrl}
+                                    imgProps={GOOGLE_AVATAR_IMG_PROPS}
                                     sx={{
                                         width: 40,
                                         height: 40,
@@ -241,6 +248,7 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar, 
                                     <Box sx={{display: 'flex', alignItems: 'center', gap: 1.5}}>
                                         <Avatar
                                             src={avatarUrl}
+                                            imgProps={GOOGLE_AVATAR_IMG_PROPS}
                                             sx={{
                                                 width: 48,
                                                 height: 48,
@@ -268,6 +276,8 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar, 
                                                         ? 'Quản trị viên'
                                                         : userInfo.role === 'COUNSELLOR'
                                                         ? 'Tư vấn viên'
+                                                        : userInfo.role === 'PARENT'
+                                                        ? 'Phụ huynh'
                                                         : userInfo.role}
                                                 </Typography>
                                             )}
@@ -286,6 +296,8 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar, 
                                                 window.location.href = '/admin/profile';
                                             } else if (userInfo.role === 'COUNSELLOR') {
                                                 window.location.href = '/counsellor/profile';
+                                            } else if (userInfo.role === 'PARENT') {
+                                                window.location.href = '/parent/profile';
                                             } else {
                                                 window.location.href = '/home';
                                             }

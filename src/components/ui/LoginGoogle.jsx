@@ -65,7 +65,7 @@ export default function LoginGoogle({onSuccess, onError}) {
             const decoded = jwtDecode(credentialResponse.credential);
             const email = decoded.email;
             const name = decoded.name;
-            const picture = decoded.picture;
+            const picture = decoded.picture || decoded.picture_url || decoded.photo || null;
 
             const response = await signin(email);
 

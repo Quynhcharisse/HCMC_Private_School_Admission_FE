@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import {
+    Avatar,
     Box,
     Button,
     Container,
@@ -17,6 +18,7 @@ import backgroundLogin from '../../assets/backgroundLogin.png';
 import {enqueueSnackbar} from 'notistack';
 import {getProfile, updateProfile} from '../../services/AccountService.jsx';
 import {useNavigate} from 'react-router-dom';
+import {getStoredGooglePictureUrl, GOOGLE_AVATAR_IMG_PROPS} from '../../utils/storedUserPicture';
 
 const genderOptions = [
     {value: 'MALE', label: 'Nam'},
@@ -42,6 +44,7 @@ const ParentProfile = ({onBack}) => {
         occupation: '',
         currentAddress: '',
         idCardNumber: '',
+        avatar: null,
     });
     const [initialData, setInitialData] = useState(null);
     const [formErrors, setFormErrors] = useState({});
@@ -63,6 +66,8 @@ const ParentProfile = ({onBack}) => {
 
                     const parent = body.parent || {};
 
+                    const fromApi = parent.avatar ?? null;
+                    const fromGoogle = fromApi ? null : getStoredGooglePictureUrl();
                     const next = {
                         name: parent.name || body.name || '',
                         gender: parent.gender || '',
@@ -72,6 +77,7 @@ const ParentProfile = ({onBack}) => {
                         occupation: parent.occupation || '',
                         currentAddress: parent.currentAddress || body.currentAddress || '',
                         idCardNumber: parent.idCardNumber || '',
+                        avatar: fromApi || fromGoogle || null,
                     };
 
                     setFormData(next);
@@ -173,6 +179,7 @@ const ParentProfile = ({onBack}) => {
                     idCardNumber: (initialData?.idCardNumber || formData.idCardNumber || '').trim(),
                     currentAddress: formData.currentAddress.trim(),
                     phone: formData.phone.trim(),
+                    ...(formData.avatar ? {avatar: formData.avatar} : {}),
                 },
             };
 
@@ -267,6 +274,19 @@ const ParentProfile = ({onBack}) => {
                                     Thông tin cá nhân
                                 </Typography>
                             </Box>
+
+                            {!loading && (
+                                <Box sx={{display: 'flex', justifyContent: 'center', py: 0.5}}>
+                                    <Avatar
+                                        src={formData.avatar || undefined}
+                                        imgProps={GOOGLE_AVATAR_IMG_PROPS}
+                                        alt={formData.name || 'Phụ huynh'}
+                                        sx={{width: 88, height: 88, boxShadow: '0 8px 24px rgba(15,23,42,0.12)'}}
+                                    >
+                                        {(formData.name || '?').charAt(0).toUpperCase()}
+                                    </Avatar>
+                                </Box>
+                            )}
 
                             {loading ? (
                                 <Box sx={{display: 'flex', justifyContent: 'center', py: 6}}>

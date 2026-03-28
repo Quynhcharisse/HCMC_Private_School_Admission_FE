@@ -1,5 +1,6 @@
 import React, {useState, useEffect} from 'react';
 import {
+    Avatar,
     Box,
     Button,
     Container,
@@ -17,6 +18,7 @@ import {updateProfile, signout} from '../../services/AccountService';
 import backgroundLogin from '../../assets/backgroundLogin.png';
 import {useNavigate} from 'react-router-dom';
 import {enqueueSnackbar} from 'notistack';
+import {getStoredGooglePictureUrl, GOOGLE_AVATAR_IMG_PROPS} from '../../utils/storedUserPicture';
 
 const genderOptions = [
     {value: 'MALE', label: 'Nam'},
@@ -127,6 +129,7 @@ const ParentRegistrationForm = ({email, name: initialName, onBack, isFirstLogin 
         setIsSubmitting(true);
 
         try {
+            const googleAvatar = getStoredGooglePictureUrl();
             const profilePayload = {
                 parentData: {
                     gender: formData.gender,
@@ -137,6 +140,7 @@ const ParentRegistrationForm = ({email, name: initialName, onBack, isFirstLogin 
                     occupation: formData.occupation.trim(),
                     currentAddress: formData.currentAddress.trim(),
                     idCardNumber: formData.idCardNumber.trim(),
+                    ...(googleAvatar ? {avatar: googleAvatar} : {}),
                 },
             };
 
@@ -213,45 +217,58 @@ const ParentRegistrationForm = ({email, name: initialName, onBack, isFirstLogin 
                 >
                     <Box component="form" onSubmit={handleSubmit}>
                         <Stack spacing={3}>
-                            <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40px'}}>
-                                {!isFirstLogin && (
-                                    <IconButton
-                                        onClick={onBack}
+                            <Stack spacing={0.5} alignItems="center" sx={{width: '100%'}}>
+                                <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40px', width: '100%'}}>
+                                    {!isFirstLogin && (
+                                        <IconButton
+                                            onClick={onBack}
+                                            sx={{
+                                                position: 'absolute',
+                                                left: 0,
+                                                color: '#64748b',
+                                                '&:hover': {
+                                                    bgcolor: 'rgba(25, 118, 210, 0.08)',
+                                                    color: '#1976d2',
+                                                },
+                                            }}
+                                        >
+                                            <ArrowBack />
+                                        </IconButton>
+                                    )}
+                                    <Typography 
+                                        variant="h5" 
                                         sx={{
-                                            position: 'absolute',
-                                            left: 0,
-                                            color: '#64748b',
-                                            '&:hover': {
-                                                bgcolor: 'rgba(25, 118, 210, 0.08)',
-                                                color: '#1976d2',
-                                            },
+                                            fontWeight: 700, 
+                                            color: '#1e293b',
+                                            textAlign: 'center',
                                         }}
                                     >
-                                        <ArrowBack />
-                                    </IconButton>
-                                )}
+                                        Điền thông tin phụ huynh
+                                    </Typography>
+                                </Box>
+
                                 <Typography 
-                                    variant="h5" 
+                                    variant="body2" 
                                     sx={{
-                                        fontWeight: 700, 
-                                        color: '#1e293b',
+                                        color: '#64748b',
                                         textAlign: 'center',
+                                        lineHeight: 1.45,
                                     }}
                                 >
-                                    Điền thông tin phụ huynh
+                                    Vui lòng điền đầy đủ thông tin để hoàn tất hồ sơ của bạn.
                                 </Typography>
-                            </Box>
+                            </Stack>
 
-                            <Typography 
-                                variant="body2" 
-                                sx={{
-                                    color: '#64748b',
-                                    textAlign: 'center',
-                                    mb: 1,
-                                }}
-                            >
-                                Vui lòng điền đầy đủ thông tin để hoàn tất hồ sơ của bạn.
-                            </Typography>
+                            <Box sx={{display: 'flex', justifyContent: 'center', py: 0.5}}>
+                                <Avatar
+                                    src={getStoredGooglePictureUrl() || undefined}
+                                    imgProps={GOOGLE_AVATAR_IMG_PROPS}
+                                    alt={formData.name || 'Phụ huynh'}
+                                    sx={{width: 88, height: 88, boxShadow: '0 8px 24px rgba(15,23,42,0.12)'}}
+                                >
+                                    {(formData.name || '?').trim().slice(0, 1).toUpperCase() || '?'}
+                                </Avatar>
+                            </Box>
 
                             <Grid container rowSpacing={2} columnSpacing={{ xs: 1, sm: 2, md: 3 }}>
                                 <Grid size={12}>

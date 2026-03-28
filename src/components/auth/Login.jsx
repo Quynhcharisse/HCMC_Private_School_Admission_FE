@@ -3,7 +3,7 @@ import {Box, Button, Container, Divider, Paper, Stack, Typography} from '@mui/ma
 import {Link as RouterLink, useNavigate} from 'react-router-dom';
 import LoginGoogle from '../ui/LoginGoogle';
 import backgroundLogin from '../../assets/backgroundLogin.png';
-import {getAccess} from '../../services/AccountService';
+import {getAccess, updateProfile} from '../../services/AccountService';
 import {showSuccessSnackbar} from '../ui/AppSnackbar.jsx';
 import {BRAND_NAVY, BRAND_SKY, landingSectionShadow} from '../../constants/homeLandingTheme';
 
@@ -69,11 +69,19 @@ export default function Login() {
             const userData = {
                 email: email,
                 name: name,
-                picture: picture,
+                ...(picture ? {picture} : {}),
                 role: normalizedRole,
                 firstLogin: firstLogin
             };
             localStorage.setItem('user', JSON.stringify(userData));
+
+            if (normalizedRole === 'PARENT' && picture) {
+                try {
+                    await updateProfile({parentData: {avatar: picture}});
+                } catch (e) {
+                    console.warn('Không thể đồng bộ avatar Google lên hồ sơ phụ huynh:', e);
+                }
+            }
         }
 
         const targetRoute = role ? getRoleBasedRoute(role.toUpperCase()) : '/';
