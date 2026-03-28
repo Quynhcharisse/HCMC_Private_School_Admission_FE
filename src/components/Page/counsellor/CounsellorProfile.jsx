@@ -150,7 +150,8 @@ export default function CounsellorProfile() {
 
   const counsellor = profile?.counsellor || {};
   const displayName = counsellor.name || profile?.email || "Tư vấn viên";
-  const picture = profile?.picture;
+  // GET /account/profile (COUNSELLOR): ảnh nằm trong counsellor.avatar; giữ fallback picture nếu BE cũ còn gửi.
+  const picture = counsellor.avatar ?? profile?.picture;
 
   if (loading) {
     return (
@@ -220,13 +221,6 @@ export default function CounsellorProfile() {
                   size="small"
                   sx={{ bgcolor: "rgba(255,255,255,0.25)", color: "white", fontWeight: 600 }}
                 />
-                {profile?.firstLogin === true && (
-                  <Chip
-                    label="Đăng nhập lần đầu"
-                    size="small"
-                    sx={{ bgcolor: "rgba(255,193,7,0.35)", color: "white", fontWeight: 600 }}
-                  />
-                )}
               </Stack>
             </Box>
           </Stack>
