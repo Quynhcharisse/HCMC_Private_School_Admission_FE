@@ -39,11 +39,6 @@ const menuGroups = [
   },
 ];
 
-const LABEL_EASING = "cubic-bezier(0.4, 0, 0.2, 1)";
-const LABEL_TRANSITION_MS = 200;
-const LABEL_TRANSITION = `${LABEL_TRANSITION_MS}ms ${LABEL_EASING}`;
-const LABEL_OFFSET_COLLAPSED = -8;
-
 export default function CounsellorSidebar({ currentPath, collapsed = false, onToggleCollapse }) {
   const navigate = useNavigate();
   const [userAnchorEl, setUserAnchorEl] = useState(null);
@@ -90,29 +85,20 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
     }
   };
 
-  const labelCollapsedStyle = {
-    opacity: 0,
-    transform: `translateX(${LABEL_OFFSET_COLLAPSED}px)`,
-    transition: `opacity ${LABEL_TRANSITION}, transform ${LABEL_TRANSITION}`,
-  };
-  const labelExpandedStyle = {
-    opacity: 1,
-    transform: "translateX(0)",
-    transition: `opacity ${LABEL_TRANSITION}, transform ${LABEL_TRANSITION}`,
-  };
-  const labelStyle = collapsed ? labelCollapsedStyle : labelExpandedStyle;
   const labelWrapperStyle = {
     flex: collapsed ? 0 : 1,
     minWidth: 0,
     maxWidth: collapsed ? 0 : "none",
     overflow: "hidden",
-    transition: "max-width 280ms cubic-bezier(0.4, 0, 0.2, 1)",
+    flexShrink: collapsed ? 0 : 1,
   };
 
   return (
     <Box
       sx={{
         height: "100%",
+        minHeight: "100%",
+        flex: 1,
         display: "flex",
         flexDirection: "column",
         bgcolor: "#ffffff",
@@ -122,6 +108,7 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
     >
       <Box
         sx={{
+          flexShrink: 0,
           pt: 2.5,
           pb: 2.75,
           pl: collapsed ? 2 : 3,
@@ -160,7 +147,6 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
                 whiteSpace: "nowrap",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
-                ...labelStyle,
               }}
             >
               Tư vấn viên
@@ -191,6 +177,8 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
       <List
         sx={{
           flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
           pt: 2,
           pb: 2,
           px: 1,
@@ -230,6 +218,11 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
                   letterSpacing: "0.06em",
                   color: "#0f172a",
                   textTransform: "uppercase",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  width: "100%",
+                  boxSizing: "border-box",
                 }}
               >
                 {group.title}
@@ -290,7 +283,6 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
                     <Box sx={labelWrapperStyle}>
                       <Box
                         sx={{
-                          ...labelStyle,
                           whiteSpace: "nowrap",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
@@ -326,6 +318,7 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
 
       <Box
         sx={{
+          flexShrink: 0,
           p: 1.5,
           borderTop: "1px solid #f1f5f9",
           bgcolor: "rgba(248, 250, 252, 0.8)",
@@ -358,7 +351,7 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
               {!avatarUrl && displayName.charAt(0).toUpperCase()}
             </Avatar>
             <Box sx={{ ...labelWrapperStyle, ml: collapsed ? 0 : 1.5 }}>
-              <Box sx={{ ...labelStyle, minWidth: 0, overflow: "hidden" }}>
+              <Box sx={{ minWidth: 0, overflow: "hidden" }}>
                 <Typography
                   variant="body2"
                   sx={{
