@@ -21,10 +21,11 @@ export const signin = async (email) => {
     return response || null
 }
 
-export const signup = async (email, role) => {
+export const signup = async (email, role, picture) => {
     const response = await axiosClient.post("/auth/register", {
             email: email,
-            role: role
+            role: role,
+            avatar: picture
         }, {
             headers: {
                 "X-Device-Type": "web"

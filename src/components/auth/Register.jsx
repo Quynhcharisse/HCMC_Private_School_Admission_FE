@@ -34,12 +34,16 @@ const Register = () => {
     const navigate = useNavigate();
     const [step, setStep] = useState(1);
     const [email, setEmail] = useState('');
+    const [name, setName] = useState('');
+    const [picture, setPicture] = useState('');
     const [selectedRole, setSelectedRole] = useState('');
     const [isEmailVerified, setIsEmailVerified] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleGoogleSuccess = (data) => {
         setEmail(data.email);
+        setName(data.name || '');
+        setPicture(data.picture?.replace('=s96-c', '=s200-c') || '');
         setIsEmailVerified(true);
         showSuccessSnackbar('Xác thực email thành công. Vui lòng chọn vai trò để tiếp tục đăng ký.');
         setStep(2);
@@ -63,7 +67,7 @@ const Register = () => {
         setIsSubmitting(true);
 
         try {
-            const response = await signup(email, selectedRole);
+            const response = await signup(email, selectedRole, picture);
 
             if (response && response.status === 200) {
                 const message = 'Đăng ký thành công! Vui lòng đăng nhập để tiếp tục.';
