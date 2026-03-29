@@ -233,9 +233,9 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
                                     lineHeight: 1.2,
                                     bgcolor: "transparent",
                                     fontSize: 11,
-                                    fontWeight: 600,
+                                    fontWeight: 700,
                                     letterSpacing: "0.06em",
-                                    color: "#94a3b8",
+                                    color: "#0f172a",
                                     textTransform: "uppercase",
                                 }}
                             >
@@ -268,7 +268,7 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
                                             justifyContent: collapsed ? "center" : "flex-start",
                                             overflow: "hidden",
                                             bgcolor: isActive ? "rgba(29, 78, 216, 0.1)" : "transparent",
-                                            color: isActive ? "#2563eb" : "#475569",
+                                            color: isActive ? "#2563eb" : "#64748b",
                                             borderLeft: "3px solid transparent",
                                             ...(isActive && {
                                                 borderLeftColor: "#2563eb",
