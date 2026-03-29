@@ -3,6 +3,8 @@ import {jwtDecode} from 'jwt-decode';
 import {useLayoutEffect, useRef, useState} from 'react';
 import {Box, Typography} from '@mui/material';
 import {signin} from '../../services/AuthService';
+import {getApiErrorMessage} from '../../utils/getApiErrorMessage';
+import {showErrorSnackbar} from './AppSnackbar.jsx';
 
 const GSI_BTN_MAX_W = 400;
 const GSI_BTN_MIN_W = 200;
@@ -36,9 +38,10 @@ function GoogleGMark({size = 20}) {
     );
 }
 
+const ACCOUNT_NOT_FOUND_MESSAGE = 'Account not found';
+
 export default function LoginGoogle({onSuccess, onError}) {
     const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState(null);
     const wrapRef = useRef(null);
     const [buttonWidth, setButtonWidth] = useState(GSI_BTN_MAX_W);
 
@@ -60,7 +63,6 @@ export default function LoginGoogle({onSuccess, onError}) {
     const handleLoginSuccess = async (credentialResponse) => {
         try {
             setIsLoading(true);
-            setError(null);
 
             const decoded = jwtDecode(credentialResponse.credential);
             const email = decoded.email;
@@ -82,7 +84,16 @@ export default function LoginGoogle({onSuccess, onError}) {
             }
         } catch (err) {
             console.error('Login error:', err);
-            setError(err.message);
+            const apiMessage = getApiErrorMessage(err);
+            const errSnackOpts = {autoHideDuration: 2500};
+            if (apiMessage === ACCOUNT_NOT_FOUND_MESSAGE) {
+                showErrorSnackbar(
+                    'Chưa có tài khoản trên hệ thống. Vui lòng bấm "Đăng ký tài khoản mới" bên dưới để tạo tài khoản.',
+                    errSnackOpts
+                );
+            } else {
+                showErrorSnackbar(apiMessage, errSnackOpts);
+            }
             if (onError) {
                 onError(err);
             }
@@ -92,8 +103,8 @@ export default function LoginGoogle({onSuccess, onError}) {
     };
 
     const handleLoginError = () => {
-        const errorMessage = 'Google login failed';
-        setError(errorMessage);
+        const errorMessage = 'Đăng nhập Google không thành công. Vui lòng thử lại.';
+        showErrorSnackbar(errorMessage, {autoHideDuration: 2500});
         if (onError) {
             onError(new Error(errorMessage));
         }
@@ -189,8 +200,6 @@ export default function LoginGoogle({onSuccess, onError}) {
                     </Typography>
                 </Box>
             </Box>
-
-            {error && <div className="error-message">{error}</div>}
 
             {isLoading && <div className="loading-message">Processing...</div>}
         </div>
