@@ -9,6 +9,7 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  ListSubheader,
   Menu,
   MenuItem,
   Tooltip,
@@ -25,9 +26,17 @@ import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
 import { signout } from "../../services/AccountService.jsx";
 
-const menuItems = [
-  { text: "Bảng thống kê", icon: <DashboardIcon />, path: "/counsellor/dashboard" },
-  { text: "Tư vấn Phụ Huynh", icon: <GroupsIcon />, path: "/counsellor/parent-consultation" },
+const menuGroups = [
+  {
+    title: "TỔNG QUAN",
+    items: [{ text: "Bảng thống kê", icon: <DashboardIcon />, path: "/counsellor/dashboard" }],
+  },
+  {
+    title: "TƯ VẤN",
+    items: [
+      { text: "Tư vấn Phụ Huynh", icon: <GroupsIcon />, path: "/counsellor/parent-consultation" },
+    ],
+  },
 ];
 
 const LABEL_EASING = "cubic-bezier(0.4, 0, 0.2, 1)";
@@ -192,70 +201,127 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
           },
         }}
       >
-        {menuItems.map((item) => {
-          const isActive =
-            currentPath === item.path ||
-            (item.path !== "/counsellor/dashboard" && currentPath.startsWith(item.path + "/"));
-
-          const button = (
-            <ListItem disablePadding sx={{ mb: 0.5 }}>
-              <ListItemButton
-                onClick={() => navigate(item.path)}
+        {menuGroups.map((group, groupIndex) => (
+          <React.Fragment key={group.title}>
+            {!collapsed && groupIndex > 0 && (
+              <Divider
+                component="li"
                 sx={{
-                  py: 1.25,
-                  px: collapsed ? 1.5 : 2,
-                  justifyContent: collapsed ? "center" : "flex-start",
-                  overflow: "hidden",
-                  bgcolor: isActive ? "rgba(29, 78, 216, 0.1)" : "transparent",
-                  color: isActive ? "#2563eb" : "#475569",
-                  borderLeft: "3px solid transparent",
-                  ...(isActive && {
-                    borderLeftColor: "#2563eb",
-                    fontWeight: 600,
-                  }),
-                  "&:hover": {
-                    bgcolor: isActive ? "rgba(29, 78, 216, 0.14)" : "rgba(100, 116, 139, 0.08)",
-                  },
+                  my: 1.25,
+                  mx: 1.5,
+                  borderColor: "rgba(148, 163, 184, 0.35)",
+                  listStyle: "none",
+                }}
+              />
+            )}
+            {!collapsed && (
+              <ListSubheader
+                disableSticky
+                sx={{
+                  px: 2,
+                  py: 0,
+                  pt: groupIndex === 0 ? 0 : 0.25,
+                  pb: 1,
+                  mb: 0,
+                  lineHeight: 1.2,
+                  bgcolor: "transparent",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: "0.06em",
+                  color: "#0f172a",
+                  textTransform: "uppercase",
                 }}
               >
-                <ListItemIcon
-                  sx={{
-                    color: isActive ? "#2563eb" : "#64748b",
-                    minWidth: 40,
-                    width: 40,
-                    flexShrink: 0,
-                    justifyContent: "center",
-                    mr: collapsed ? 0 : 1.5,
-                  }}
-                >
-                  {item.icon}
-                </ListItemIcon>
-                <Box sx={labelWrapperStyle}>
-                  <Box sx={{ ...labelStyle, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                    <ListItemText
-                      primary={item.text}
-                      primaryTypographyProps={{
-                        fontSize: 14,
-                        fontWeight: isActive ? 600 : 500,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                      }}
-                    />
-                  </Box>
-                </Box>
-              </ListItemButton>
-            </ListItem>
-          );
+                {group.title}
+              </ListSubheader>
+            )}
+            {collapsed && groupIndex > 0 && (
+              <Divider
+                component="li"
+                sx={{
+                  my: 1,
+                  mx: 0.5,
+                  borderColor: "rgba(148, 163, 184, 0.35)",
+                  listStyle: "none",
+                }}
+              />
+            )}
+            {group.items.map((item) => {
+              const isActive =
+                currentPath === item.path ||
+                (item.path !== "/counsellor/dashboard" &&
+                  currentPath.startsWith(item.path + "/"));
 
-          return collapsed ? (
-            <Tooltip key={item.path} title={item.text} placement="right">
-              <span style={{ display: "block" }}>{button}</span>
-            </Tooltip>
-          ) : (
-            <React.Fragment key={item.path}>{button}</React.Fragment>
-          );
-        })}
+              const button = (
+                <ListItem key={item.path} disablePadding sx={{ mb: 0.5 }}>
+                  <ListItemButton
+                    onClick={() => navigate(item.path)}
+                    sx={{
+                      py: 1.25,
+                      px: collapsed ? 1.5 : 2,
+                      justifyContent: collapsed ? "center" : "flex-start",
+                      overflow: "hidden",
+                      bgcolor: isActive ? "rgba(29, 78, 216, 0.1)" : "transparent",
+                      color: isActive ? "#2563eb" : "#64748b",
+                      borderLeft: "3px solid transparent",
+                      ...(isActive && {
+                        borderLeftColor: "#2563eb",
+                        fontWeight: 600,
+                      }),
+                      "&:hover": {
+                        bgcolor: isActive
+                          ? "rgba(29, 78, 216, 0.14)"
+                          : "rgba(100, 116, 139, 0.08)",
+                      },
+                    }}
+                  >
+                    <ListItemIcon
+                      sx={{
+                        color: isActive ? "#2563eb" : "#64748b",
+                        minWidth: 40,
+                        width: 40,
+                        flexShrink: 0,
+                        justifyContent: "center",
+                        mr: collapsed ? 0 : 1.5,
+                      }}
+                    >
+                      {item.icon}
+                    </ListItemIcon>
+                    <Box sx={labelWrapperStyle}>
+                      <Box
+                        sx={{
+                          ...labelStyle,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        <ListItemText
+                          primary={item.text}
+                          primaryTypographyProps={{
+                            fontSize: 14,
+                            fontWeight: isActive ? 600 : 500,
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                          }}
+                        />
+                      </Box>
+                    </Box>
+                  </ListItemButton>
+                </ListItem>
+              );
+
+              return collapsed ? (
+                <Tooltip key={item.path} title={item.text} placement="right">
+                  <span style={{ display: "block" }}>{button}</span>
+                </Tooltip>
+              ) : (
+                <React.Fragment key={item.path}>{button}</React.Fragment>
+              );
+            })}
+          </React.Fragment>
+        ))}
       </List>
 
       <Box
