@@ -41,22 +41,31 @@ import {
 } from "@mui/icons-material";
 import {useNavigate} from "react-router-dom";
 import {
+    APP_PRIMARY_DARK,
+    APP_PRIMARY_MAIN,
+    APP_PRIMARY_SOFT_BG,
+    APP_PRIMARY_SOFT_BORDER,
     BRAND_NAVY,
     BRAND_SKY,
     BRAND_SKY_LIGHT,
+    HEADER_HOME_BAR_BG,
     HOME_PAGE_HERO_BACKDROP,
+    HOME_SCHOOL_SECTION_SURFACE,
+    HOME_CONSULT_SECTION_TOP,
+    HOME_PAGE_HERO_BANNER_GRADIENT,
     HOME_PAGE_SURFACE_GRADIENT,
     landingSectionShadow
 } from "../../constants/homeLandingTheme";
 import Chatbot from "../ui/Chatbot";
 import LayeredMountainSilhouette from "../ui/LayeredMountainSilhouette.jsx";
+import SectionWaveEdge from "../ui/SectionWaveEdge.jsx";
 import admissionCard1Image from "../../assets/Nguyên tắc công bố tuyển sinh (từ Bộ GD&ĐT).jpg";
 import admissionCard2Image from "../../assets/Nhiều trường THPT công bố chỉ tiêu tuyển sinh 2026.jpg";
 import admissionCard3Image from "../../assets/TPHCM chốt 3 môn thi tuyển sinh lớp 10 năm 2026.jpeg";
 import admissionCard4Image from "../../assets/Đề thi lớp 10 2026 thay đổi theo hướng đánh giá năng lựcwebp.webp";
 import admissionCard5Image from "../../assets/TP.HCM tiếp tục kết hợp thi tuyển và xét tuyển.jpg.webp";
 
-const heroMuted = 'rgba(52,102,118,0.82)';
+const heroMuted = '#334155';
 
 const ADMISSION_CAROUSEL_INTERVAL_MS = 7000;
 const ADMISSION_ANIM_MS = 1400;
@@ -279,36 +288,35 @@ const CONSULT_STEPS = [
     }
 ];
 
-// Tiện ích UI: style kính mờ dùng chung cho các lớp trang trí.
 const glassPane = (sx) => ({
     position: 'absolute',
     borderRadius: 3,
     backdropFilter: 'blur(16px)',
     WebkitBackdropFilter: 'blur(16px)',
     border: '1px solid rgba(255,255,255,0.45)',
-    boxShadow: '0 12px 36px rgba(15,23,42,0.06)',
+    boxShadow: '0 12px 36px rgba(51,65,85,0.06)',
     ...sx
 });
 
 function ConsultGraphicCluster({variant = 1, mirror = false}) {
     const palette = {
         1: [
-            ['linear-gradient(145deg, rgba(255,182,193,0.42), rgba(255,205,210,0.32))', -14, 2, 8],
-            ['linear-gradient(145deg, rgba(186,230,253,0.4), rgba(167,243,208,0.3))', 16, 44, 36],
-            ['linear-gradient(145deg, rgba(254,249,195,0.42), rgba(253,224,71,0.28))', 8, 4, 88],
-            ['linear-gradient(145deg, rgba(221,214,254,0.36), rgba(196,181,253,0.28))', -20, 52, 128]
+            ['linear-gradient(145deg, rgba(191,219,254,0.55), rgba(147,197,253,0.38))', -14, 2, 8],
+            ['linear-gradient(145deg, rgba(96,165,250,0.48), rgba(59,130,246,0.32))', 16, 44, 36],
+            ['linear-gradient(145deg, rgba(224,242,254,0.52), rgba(186,230,253,0.36))', 8, 4, 88],
+            ['linear-gradient(145deg, rgba(59,130,246,0.32), rgba(37,99,235,0.22))', -20, 52, 128]
         ],
         2: [
-            ['linear-gradient(145deg, rgba(252,231,243,0.44), rgba(251,207,232,0.32))', -18, 0, 12],
-            ['linear-gradient(145deg, rgba(207,250,254,0.38), rgba(165,243,252,0.28))', 22, 48, 48],
-            ['linear-gradient(145deg, rgba(255,237,213,0.4), rgba(254,215,170,0.3))', -10, 8, 108],
-            ['linear-gradient(145deg, rgba(233,213,255,0.34), rgba(216,180,254,0.26))', 14, 56, 168]
+            ['linear-gradient(145deg, rgba(147,197,253,0.5), rgba(125,211,252,0.34))', -18, 0, 12],
+            ['linear-gradient(145deg, rgba(96,165,250,0.42), rgba(37,99,235,0.26))', 22, 48, 48],
+            ['linear-gradient(145deg, rgba(219,234,254,0.55), rgba(191,219,254,0.38))', -10, 8, 108],
+            ['linear-gradient(145deg, rgba(37,99,235,0.28), rgba(59,130,246,0.2))', 14, 56, 168]
         ],
         3: [
-            ['linear-gradient(145deg, rgba(255,218,185,0.42), rgba(253,186,116,0.32))', 12, 6, 20],
-            ['linear-gradient(145deg, rgba(167,243,208,0.4), rgba(110,231,183,0.28))', -16, 44, 8],
-            ['linear-gradient(145deg, rgba(254,249,195,0.4), rgba(250,232,168,0.28))', -8, 4, 112],
-            ['linear-gradient(145deg, rgba(251,207,232,0.38), rgba(244,114,182,0.22))', 20, 48, 152]
+            ['linear-gradient(145deg, rgba(186,230,253,0.52), rgba(125,211,252,0.36))', 12, 6, 20],
+            ['linear-gradient(145deg, rgba(59,130,246,0.4), rgba(37,99,235,0.28))', -16, 44, 8],
+            ['linear-gradient(145deg, rgba(224,242,254,0.5), rgba(191,219,254,0.34))', -8, 4, 112],
+            ['linear-gradient(145deg, rgba(96,165,250,0.36), rgba(59,130,246,0.24))', 20, 48, 152]
         ]
     };
     const layers = palette[variant] || palette[1];
@@ -346,7 +354,6 @@ function ConsultGraphicCluster({variant = 1, mirror = false}) {
     );
 }
 
-// Component UI: thẻ tin tuyển sinh tái sử dụng.
 function BlogCard({title, description, image, date, tags, url, variant = 'featured'}) {
     const isFeatured = variant === 'featured';
     return (
@@ -360,7 +367,7 @@ function BlogCard({title, description, image, date, tags, url, variant = 'featur
                 height: '100%',
                 borderRadius: isFeatured ? 5 : 3,
                 boxShadow: isFeatured ? landingSectionShadow(5) : landingSectionShadow(3),
-                border: '1px solid rgba(15,23,42,0.07)',
+                border: '1px solid rgba(51,65,85,0.07)',
                 overflow: 'hidden',
                 bgcolor: '#fff',
                 transition: `transform ${ADMISSION_ANIM_MS}ms ${admissionEase}, box-shadow 0.35s ease, opacity ${ADMISSION_ANIM_MS}ms ${admissionEase}`,
@@ -377,7 +384,7 @@ function BlogCard({title, description, image, date, tags, url, variant = 'featur
                     overflow: 'hidden',
                     mt: isFeatured ? 0 : 0.5,
                     mx: isFeatured ? 0 : 1,
-                    boxShadow: isFeatured ? '0 20px 50px rgba(79,70,229,0.12)' : 'none'
+                    boxShadow: isFeatured ? '0 20px 50px rgba(37,99,235,0.14)' : 'none'
                 }}
             >
                 <CardMedia
@@ -395,7 +402,7 @@ function BlogCard({title, description, image, date, tags, url, variant = 'featur
                     sx={{
                         position: 'absolute',
                         inset: 0,
-                        background: 'linear-gradient(180deg, transparent 35%, rgba(15,23,42,0.55) 100%)',
+                        background: 'linear-gradient(180deg, transparent 35%, rgba(51,65,85,0.55) 100%)',
                         pointerEvents: 'none'
                     }}
                 />
@@ -415,7 +422,7 @@ function BlogCard({title, description, image, date, tags, url, variant = 'featur
                     borderRadius: 3,
                     bgcolor: '#fff',
                     border: '1px solid rgba(255,255,255,0.9)',
-                    boxShadow: isFeatured ? '0 16px 40px rgba(15,23,42,0.1)' : landingSectionShadow(2)
+                    boxShadow: isFeatured ? '0 16px 40px rgba(51,65,85,0.1)' : landingSectionShadow(2)
                 }}
             >
                 <Typography sx={{
@@ -431,7 +438,7 @@ function BlogCard({title, description, image, date, tags, url, variant = 'featur
                     sx={{
                         fontWeight: 800,
                         fontSize: isFeatured ? {xs: '1.12rem', md: '1.22rem'} : {xs: '0.95rem', md: '1.02rem'},
-                        color: '#0f172a',
+                        color: '#1e293b',
                         lineHeight: 1.35,
                         mb: 1,
                         display: '-webkit-box',
@@ -465,8 +472,8 @@ function BlogCard({title, description, image, date, tags, url, variant = 'featur
                             size="small"
                             sx={{
                                 borderRadius: 999,
-                                bgcolor: 'rgba(99,102,241,0.1)',
-                                color: '#4338ca',
+                                bgcolor: APP_PRIMARY_SOFT_BG,
+                                color: APP_PRIMARY_DARK,
                                 fontSize: '0.72rem',
                                 fontWeight: 600
                             }}
@@ -497,7 +504,6 @@ function BlogCard({title, description, image, date, tags, url, variant = 'featur
     );
 }
 
-// Component UI: thẻ thông tin trường trong lưới hiển thị.
 function SchoolCard({school}) {
     return (
         <Card
@@ -508,13 +514,13 @@ function SchoolCard({school}) {
                 borderRadius: 3,
                 overflow: 'hidden',
                 bgcolor: '#fff',
-                border: '1px solid rgba(15,23,42,0.08)',
+                border: '1px solid rgba(51,65,85,0.08)',
                 boxShadow: landingSectionShadow(2),
                 transition: 'transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease',
                 '&:hover': {
                     transform: 'translateY(-4px) scale(1.02)',
-                    boxShadow: '0 18px 36px rgba(15,23,42,0.14)',
-                    borderColor: 'rgba(79,70,229,0.26)'
+                    boxShadow: '0 18px 36px rgba(51,65,85,0.14)',
+                    borderColor: APP_PRIMARY_SOFT_BORDER
                 }
             }}
         >
@@ -522,7 +528,7 @@ function SchoolCard({school}) {
                 sx={{
                     position: 'relative',
                     height: 132,
-                    backgroundImage: `linear-gradient(180deg, rgba(15,23,42,0.18) 0%, rgba(15,23,42,0.6) 100%), url(${school.cover})`,
+                    backgroundImage: `linear-gradient(180deg, rgba(51,65,85,0.18) 0%, rgba(51,65,85,0.6) 100%), url(${school.cover})`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center'
                 }}
@@ -549,7 +555,7 @@ function SchoolCard({school}) {
                         bottom: -20,
                         width: 40,
                         height: 40,
-                        bgcolor: 'rgba(15,23,42,0.92)',
+                        bgcolor: 'rgba(51,65,85,0.92)',
                         border: '2px solid #fff',
                         fontSize: '0.72rem',
                         fontWeight: 800
@@ -560,13 +566,13 @@ function SchoolCard({school}) {
             </Box>
 
             <CardContent sx={{pt: 3.5, px: 2, pb: 2, display: 'flex', flexDirection: 'column', gap: 1.25, flex: 1}}>
-                <Typography sx={{fontSize: '1.02rem', fontWeight: 800, color: '#0f172a', lineHeight: 1.35}}>
+                <Typography sx={{fontSize: '1.02rem', fontWeight: 800, color: '#1e293b', lineHeight: 1.35}}>
                     {school.name}
                 </Typography>
 
                 <Box sx={{display: 'flex', flexWrap: 'wrap', gap: 0.75}}>
-                    <Chip size="small" label={school.type} sx={{bgcolor: 'rgba(15,23,42,0.08)', fontWeight: 600}} />
-                    <Chip size="small" icon={<MoneyIcon sx={{fontSize: 14}} />} label={school.tuition} sx={{bgcolor: 'rgba(16,185,129,0.14)', fontWeight: 600}} />
+                    <Chip size="small" label={school.type} sx={{bgcolor: 'rgba(51,65,85,0.08)', fontWeight: 600}} />
+                    <Chip size="small" icon={<MoneyIcon sx={{fontSize: 14}} />} label={school.tuition} sx={{bgcolor: APP_PRIMARY_SOFT_BG, fontWeight: 600}} />
                     <Chip size="small" icon={<LocationIcon sx={{fontSize: 14}} />} label={school.district} sx={{bgcolor: 'rgba(59,130,246,0.12)', fontWeight: 600}} />
                 </Box>
 
@@ -577,7 +583,7 @@ function SchoolCard({school}) {
 
                 <Box sx={{display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', mt: 'auto', pt: 0.5}}>
                     <Box>
-                        <Typography sx={{fontSize: '1.08rem', fontWeight: 800, color: '#f59e0b', lineHeight: 1}}>
+                        <Typography sx={{fontSize: '1.08rem', fontWeight: 800, color: APP_PRIMARY_MAIN, lineHeight: 1}}>
                             {school.rating}
                             <Typography component="span" sx={{fontSize: '0.82rem', color: '#64748b', fontWeight: 600, ml: 0.75}}>
                                 ({school.reviews} đánh giá)
@@ -593,9 +599,9 @@ function SchoolCard({school}) {
                             fontWeight: 700,
                             borderRadius: 999,
                             px: 1.5,
-                            bgcolor: 'rgba(79,70,229,0.08)',
-                            color: '#4338ca',
-                            '&:hover': {bgcolor: 'rgba(79,70,229,0.15)'}
+                            bgcolor: APP_PRIMARY_SOFT_BG,
+                            color: APP_PRIMARY_DARK,
+                            '&:hover': {bgcolor: 'rgba(37,99,235,0.16)'}
                         }}
                     >
                         Xem chi tiết
@@ -606,7 +612,6 @@ function SchoolCard({school}) {
     );
 }
 
-// Section UI: carousel tin tuyển sinh tự động chuyển.
 function LatestAdmissionNewsSection() {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -644,7 +649,7 @@ function LatestAdmissionNewsSection() {
             sx={{
                 pt: {xs: 8, md: 10},
                 pb: {xs: 3, md: 4},
-                background: 'linear-gradient(180deg, #f8f4ff 0%, #f2f4ff 40%, #fbfcfe 100%)',
+                background: 'linear-gradient(180deg, #eff6ff 0%, #e0f2fe 42%, #fbfcfe 100%)',
                 scrollMarginTop: '80px',
                 position: 'relative'
             }}
@@ -665,7 +670,7 @@ function LatestAdmissionNewsSection() {
                         sx={{
                             fontWeight: 800,
                             mb: 2,
-                            color: '#0f172a',
+                            color: '#1e293b',
                             fontSize: {xs: '1.85rem', md: '2.45rem'},
                             letterSpacing: '-0.02em'
                         }}
@@ -806,7 +811,7 @@ function LatestAdmissionNewsSection() {
                                 width: i === active ? 28 : 9,
                                 height: 9,
                                 borderRadius: 999,
-                                bgcolor: i === active ? '#4f46e5' : 'rgba(15,23,42,0.18)',
+                                bgcolor: i === active ? APP_PRIMARY_MAIN : 'rgba(51,65,85,0.18)',
                                 cursor: 'pointer',
                                 transition: `all ${ADMISSION_ANIM_MS * 0.5}ms ${admissionEase}`
                             }}
@@ -821,7 +826,6 @@ function LatestAdmissionNewsSection() {
 
 export default function HomePage() {
     const navigate = useNavigate();
-    // Nghiệp vụ/state: trạng thái modal onboarding và form phụ huynh.
     const [isParentRole, setIsParentRole] = React.useState(false);
     const [showParentFormModal, setShowParentFormModal] = React.useState(false);
     const [isSubmittingParentForm, setIsSubmittingParentForm] = React.useState(false);
@@ -843,7 +847,6 @@ export default function HomePage() {
         []
     );
 
-    // State animation UI: hiện section "quy trình tư vấn" khi cuộn tới.
     const consultSectionRef = React.useRef(null);
     const [consultVisible, setConsultVisible] = React.useState(false);
     const consultMotionEase = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
@@ -893,17 +896,16 @@ export default function HomePage() {
         overflow: 'visible',
         bgcolor: '#fff',
         border: '1px solid rgba(226,232,240,0.95)',
-        boxShadow: '0 20px 56px rgba(15,23,42,0.08)',
+        boxShadow: '0 20px 56px rgba(51,65,85,0.08)',
         ml: {xs: 0, md: isMirror ? 0 : -3.5},
         mr: {xs: 0, md: isMirror ? -3.5 : 0},
         transition: 'transform 0.3s ease, box-shadow 0.3s ease',
         '&:hover': {
             transform: 'translateY(-3px)',
-            boxShadow: '0 24px 64px rgba(15,23,42,0.1)'
+            boxShadow: '0 24px 64px rgba(51,65,85,0.1)'
         }
     });
 
-    // Side-effect nghiệp vụ: đọc user hiện tại + xử lý cuộn mượt theo hash.
     React.useEffect(() => {
         const userData = localStorage.getItem('user');
         if (userData) {
@@ -963,7 +965,6 @@ export default function HomePage() {
         return () => window.removeEventListener('hashchange', handleHashNavigation);
     }, []);
 
-    // Side-effect UI: kích hoạt animation khi section vào viewport.
     React.useEffect(() => {
         const el = consultSectionRef.current;
         if (!el) return;
@@ -980,12 +981,10 @@ export default function HomePage() {
         return () => obs.disconnect();
     }, []);
 
-    // Hành động nghiệp vụ: điều hướng tới luồng đăng ký.
     const handleRegisterClick = () => {
         window.location.href = '/register';
     };
 
-    // Hành động nghiệp vụ: cập nhật controlled form theo tên field.
     const handleParentFormChange = (field) => (event) => {
         setParentFormData({
             ...parentFormData,
@@ -993,7 +992,6 @@ export default function HomePage() {
         });
     };
 
-    // Hành động nghiệp vụ: validate và gửi cập nhật hồ sơ phụ huynh.
     const handleParentFormSubmit = async () => {
         if (isSubmittingParentForm || submitRef.current) {
             return;
@@ -1079,7 +1077,6 @@ export default function HomePage() {
         }
     };
 
-    // Hành động nghiệp vụ: đóng modal onboarding phụ huynh.
     const handleParentFormClose = () => {
         setShowParentFormModal(false);
     };
@@ -1101,7 +1098,7 @@ export default function HomePage() {
                 PaperProps={{
                     sx: {
                         borderRadius: 3,
-                        boxShadow: '0 12px 40px rgba(15,23,42,0.15)',
+                        boxShadow: '0 12px 40px rgba(51,65,85,0.15)',
                     }
                 }}
             >
@@ -1212,7 +1209,7 @@ export default function HomePage() {
                             fontWeight: 600,
                             px: 3,
                             '&:hover': {
-                                bgcolor: '#265a6b',
+                                bgcolor: APP_PRIMARY_DARK,
                             },
                             '&:disabled': {
                                 bgcolor: BRAND_SKY_LIGHT,
@@ -1233,8 +1230,11 @@ export default function HomePage() {
                     pt: {xs: 'calc(72px + 40px)', md: 'calc(80px + 56px)'},
                     pb: {xs: 18, md: 26},
                     overflow: 'hidden',
-                    background: HOME_PAGE_HERO_BACKDROP,
-                    boxShadow: '0 24px 48px rgba(45, 95, 115, 0.045)'
+                    bgcolor: HEADER_HOME_BAR_BG,
+                    backgroundImage: HOME_PAGE_HERO_BANNER_GRADIENT,
+                    backgroundRepeat: 'no-repeat',
+                    backgroundSize: '100% 100%',
+                    boxShadow: 'none'
                 }}
             >
                 <LayeredMountainSilhouette variant="hero"/>
@@ -1244,21 +1244,42 @@ export default function HomePage() {
                             display: 'grid',
                             gridTemplateColumns: {xs: '1fr', md: 'repeat(2, minmax(0, 1fr))'},
                             gap: {xs: 4, md: 6},
-                            alignItems: 'center',
+                            alignItems: 'stretch',
                             width: '100%'
                         }}
                     >
-                        <Box sx={{minWidth: 0, order: {xs: 1, md: 1}}}>
-                            <Box sx={{textAlign: {xs: 'center', md: 'left'}, width: '100%'}}>
+                        <Box
+                            sx={{
+                                minWidth: 0,
+                                order: {xs: 1, md: 1},
+                                display: 'flex',
+                                flexDirection: 'column'
+                            }}
+                        >
+                            <Box
+                                sx={{
+                                    textAlign: {xs: 'center', md: 'left'},
+                                    width: '100%',
+                                    flex: 1,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    minHeight: 0
+                                }}
+                            >
                                 <Box
                                     sx={{
                                         p: {xs: 2.25, md: 3},
                                         borderRadius: 4,
-                                        bgcolor: 'rgba(255,255,255,0.44)',
-                                        backdropFilter: 'blur(14px)',
-                                        WebkitBackdropFilter: 'blur(14px)',
-                                        border: '1px solid rgba(255,255,255,0.65)',
-                                        boxShadow: '0 16px 48px rgba(45,95,115,0.06)'
+                                        overflow: 'visible',
+                                        bgcolor: 'rgba(255,255,255,0.9)',
+                                        backdropFilter: 'blur(16px)',
+                                        WebkitBackdropFilter: 'blur(16px)',
+                                        border: '1px solid rgba(255,255,255,0.98)',
+                                        boxShadow: '0 20px 50px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(255,255,255,0.8) inset',
+                                        flex: 1,
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        height: '100%'
                                     }}
                                 >
                                 <Box
@@ -1270,10 +1291,10 @@ export default function HomePage() {
                                         px: 2.25,
                                         py: 0.85,
                                         borderRadius: 999,
-                                        bgcolor: 'rgba(255,255,255,0.62)',
+                                        bgcolor: 'rgba(255,255,255,0.95)',
                                         backdropFilter: 'blur(10px)',
-                                        border: `1px solid rgba(85,179,217,0.45)`,
-                                        boxShadow: '0 8px 28px rgba(45,95,115,0.08)'
+                                        border: `1px solid rgba(59,130,246,0.45)`,
+                                        boxShadow: '0 8px 28px rgba(15,23,42,0.08)'
                                     }}
                                 >
                                     <SparkleIcon sx={{fontSize: 20, color: BRAND_SKY}}/>
@@ -1285,15 +1306,18 @@ export default function HomePage() {
                                     variant="h1"
                                     sx={{
                                         fontWeight: 800,
-                                        mb: 2,
-                                        fontSize: {xs: '2.2rem', sm: '2.75rem', md: '3.25rem'},
-                                        lineHeight: 1.08,
-                                        letterSpacing: '-0.03em',
-                                        background: `linear-gradient(120deg, #1a4a5c 0%, ${BRAND_NAVY} 32%, #3a7d96 68%, ${BRAND_SKY} 100%)`,
+                                        mb: 1.5,
+                                        fontSize: {xs: '1.35rem', sm: '1.5rem', md: '1.65rem'},
+                                        lineHeight: 1.35,
+                                        letterSpacing: '-0.02em',
+                                        pt: '0.04em',
+                                        pb: '0.2em',
+                                        overflow: 'visible',
+                                        background: `linear-gradient(120deg, ${APP_PRIMARY_MAIN} 0%, ${BRAND_SKY} 38%, ${BRAND_SKY_LIGHT} 72%, #93c5fd 100%)`,
                                         WebkitBackgroundClip: 'text',
                                         WebkitTextFillColor: 'transparent',
                                         backgroundClip: 'text',
-                                        filter: 'drop-shadow(0 1px 0 rgba(255,255,255,0.65))'
+                                        filter: 'drop-shadow(0 1px 0 rgba(255,255,255,0.85)) drop-shadow(0 2px 8px rgba(255,255,255,0.35))'
                                     }}
                                 >
                                     Kết nối phụ huynh và nhà trường
@@ -1302,10 +1326,10 @@ export default function HomePage() {
                                     variant="h5"
                                     component="p"
                                     sx={{
-                                        mb: 3.5,
+                                        mb: 2.5,
                                         fontWeight: 400,
-                                        fontSize: {xs: '1.05rem', md: '1.2rem'},
-                                        lineHeight: 1.75,
+                                        fontSize: {xs: '0.9rem', md: '0.95rem'},
+                                        lineHeight: 1.65,
                                         color: heroMuted,
                                         maxWidth: 520,
                                         mx: {xs: 'auto', md: 0}
@@ -1313,10 +1337,11 @@ export default function HomePage() {
                                 >
                                     So sánh trường, đặt lịch tư vấn và theo dõi hành trình tuyển sinh — giao diện hiện đại, thao tác rõ ràng cho phụ huynh bận rộn.
                                 </Typography>
+                                <Box sx={{flex: 1, minHeight: 0, minWidth: 0}}/>
                                 <Stack
                                     direction={{xs: 'column', sm: 'row'}}
                                     spacing={1.5}
-                                    sx={{justifyContent: {xs: 'center', md: 'flex-start'}, mb: 3}}
+                                    sx={{justifyContent: {xs: 'center', md: 'flex-start'}, mb: 2}}
                                 >
                                     {!isParentRole && (
                                         <Button
@@ -1326,18 +1351,18 @@ export default function HomePage() {
                                             sx={{
                                                 bgcolor: '#ffffff',
                                                 color: BRAND_NAVY,
-                                                px: 3.5,
-                                                py: 1.35,
-                                                fontSize: '1rem',
+                                                px: 3,
+                                                py: 1.1,
+                                                fontSize: '0.9rem',
                                                 fontWeight: 700,
                                                 borderRadius: 999,
                                                 textTransform: 'none',
-                                                boxShadow: '0 12px 32px rgba(45, 95, 115, 0.12), 0 2px 8px rgba(255,255,255,0.9) inset',
+                                                boxShadow: '0 12px 32px rgba(37, 99, 235, 0.14), 0 2px 8px rgba(255,255,255,0.9) inset',
                                                 minWidth: {xs: '100%', sm: 200},
                                                 transition: `transform 0.35s ${consultMotionEase}, box-shadow 0.35s ease`,
                                                 '&:hover': {
                                                     bgcolor: '#ffffff',
-                                                    boxShadow: '0 18px 44px rgba(45, 95, 115, 0.16), 0 2px 10px rgba(255,255,255,0.95) inset',
+                                                    boxShadow: '0 18px 44px rgba(37, 99, 235, 0.18), 0 2px 10px rgba(255,255,255,0.95) inset',
                                                     transform: 'translateY(-2px)'
                                                 }
                                             }}
@@ -1354,15 +1379,16 @@ export default function HomePage() {
                                             borderRadius: 999,
                                             textTransform: 'none',
                                             fontWeight: 700,
-                                            px: 3,
-                                            py: 1.35,
-                                            borderColor: 'rgba(85,179,217,0.65)',
+                                            px: 2.75,
+                                            py: 1.1,
+                                            fontSize: '0.9rem',
+                                            borderColor: 'rgba(59,130,246,0.7)',
                                             color: BRAND_NAVY,
-                                            bgcolor: 'rgba(255,255,255,0.45)',
+                                            bgcolor: 'rgba(255,255,255,0.88)',
                                             minWidth: {xs: '100%', sm: 200},
                                             '&:hover': {
                                                 borderColor: BRAND_NAVY,
-                                                bgcolor: 'rgba(255,255,255,0.75)'
+                                                bgcolor: '#ffffff'
                                             }
                                         }}
                                     >
@@ -1388,8 +1414,8 @@ export default function HomePage() {
                                                 px: 1.5,
                                                 py: 0.75,
                                                 borderRadius: 999,
-                                                bgcolor: 'rgba(255,255,255,0.5)',
-                                                border: '1px solid rgba(85,179,217,0.35)'
+                                                bgcolor: 'rgba(255,255,255,0.92)',
+                                                border: '1px solid rgba(59,130,246,0.42)'
                                             }}
                                         >
                                             {x.icon}
@@ -1408,7 +1434,8 @@ export default function HomePage() {
                                 width: '100%',
                                 order: {xs: 2, md: 2},
                                 display: 'flex',
-                                justifyContent: {xs: 'center', md: 'stretch'}
+                                flexDirection: 'column',
+                                alignItems: {xs: 'center', md: 'stretch'}
                             }}
                         >
                             <Box
@@ -1418,21 +1445,26 @@ export default function HomePage() {
                                     maxWidth: {xs: 480, md: '100%'},
                                     borderRadius: 3,
                                     p: {xs: 2.5, md: 3},
-                                    background: 'linear-gradient(155deg, rgba(255,255,255,0.88) 0%, rgba(255,255,255,0.52) 100%)',
-                                    backdropFilter: 'blur(18px) saturate(1.15)',
-                                    WebkitBackdropFilter: 'blur(18px) saturate(1.15)',
-                                    border: '1px solid rgba(255,255,255,0.9)',
+                                    background: 'linear-gradient(155deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.88) 100%)',
+                                    backdropFilter: 'blur(20px) saturate(1.12)',
+                                    WebkitBackdropFilter: 'blur(20px) saturate(1.12)',
+                                    border: '1px solid rgba(255,255,255,0.98)',
                                     boxShadow: `
-                                        0 20px 50px rgba(45, 95, 115, 0.1),
-                                        0 0 0 1px rgba(255,255,255,0.65) inset,
-                                        0 1px 0 rgba(255,255,255,0.95) inset
+                                        0 24px 56px rgba(15, 23, 42, 0.14),
+                                        0 0 0 1px rgba(255,255,255,0.9) inset,
+                                        0 1px 0 rgba(255,255,255,1) inset
                                     `,
                                     transition: 'transform 0.45s cubic-bezier(0.22, 0.61, 0.36, 1), box-shadow 0.45s ease',
+                                    flex: 1,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    height: '100%',
+                                    minHeight: 0,
                                     '&:hover': {
                                         transform: 'translateY(-4px)',
                                         boxShadow: `
-                                            0 28px 60px rgba(45, 95, 115, 0.14),
-                                            0 0 0 1px rgba(255,255,255,0.75) inset,
+                                            0 32px 64px rgba(15, 23, 42, 0.16),
+                                            0 0 0 1px rgba(255,255,255,0.92) inset,
                                             0 1px 0 rgba(255,255,255,1) inset
                                         `
                                     },
@@ -1441,22 +1473,22 @@ export default function HomePage() {
                                         position: 'absolute',
                                         inset: -1,
                                         borderRadius: 4,
-                                        background: `linear-gradient(135deg, rgba(85,179,217,0.35), rgba(45,95,115,0.22))`,
+                                        background: `linear-gradient(135deg, rgba(59,130,246,0.22), rgba(37,99,235,0.14))`,
                                         zIndex: -1,
                                         filter: 'blur(8px)',
-                                        opacity: 0.85
+                                        opacity: 0.9
                                     }
                                 }}
                             >
-                                <Stack spacing={0} sx={{mb: 2}}>
-                                    <Typography sx={{fontWeight: 800, fontSize: '0.95rem', color: '#0f172a'}}>
+                                <Stack spacing={0} sx={{mb: 2, flexShrink: 0}}>
+                                    <Typography sx={{fontWeight: 800, fontSize: '0.95rem', color: '#1e293b'}}>
                                         Trò chuyện với EduBridge
                                     </Typography>
                                     <Typography sx={{fontSize: '0.78rem', color: '#64748b'}}>
                                             Gợi ý trường phù hợp theo học lực và khu vực
                                     </Typography>
                                 </Stack>
-                                <Stack spacing={1.5}>
+                                <Stack spacing={1.5} sx={{flex: 1, minHeight: 0}}>
                                     <Box
                                         sx={{
                                             alignSelf: 'flex-start',
@@ -1481,7 +1513,7 @@ export default function HomePage() {
                                             borderRadius: '16px 16px 4px 16px',
                                             background: `linear-gradient(125deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 50%, ${BRAND_SKY_LIGHT} 100%)`,
                                             color: '#fff',
-                                            boxShadow: '0 8px 24px rgba(45,95,115,0.35)'
+                                            boxShadow: '0 8px 24px rgba(37,99,235,0.35)'
                                         }}
                                     >
                                         <Typography sx={{fontSize: '0.875rem', lineHeight: 1.55, fontWeight: 500}}>
@@ -1505,7 +1537,7 @@ export default function HomePage() {
                                                     bgcolor: 'rgba(255,255,255,0.9)',
                                                     fontWeight: 600,
                                                     fontSize: '0.72rem',
-                                                    border: '1px solid rgba(199,210,254,0.9)'
+                                                    border: `1px solid ${APP_PRIMARY_SOFT_BORDER}`
                                                 }}
                                             />
                                         ))}
@@ -1513,12 +1545,13 @@ export default function HomePage() {
                                 </Stack>
                                 <Box
                                     sx={{
-                                        mt: 2.5,
-                                        pt: 2,
+                                        mt: 'auto',
+                                        pt: 2.5,
                                         borderTop: '1px dashed rgba(148,163,184,0.5)',
                                         display: 'flex',
                                         alignItems: 'center',
-                                        gap: 1
+                                        gap: 1,
+                                        flexShrink: 0
                                     }}
                                 >
                                     <Box
@@ -1547,7 +1580,7 @@ export default function HomePage() {
                                             textTransform: 'none',
                                             fontWeight: 700,
                                             background: `linear-gradient(90deg, ${BRAND_NAVY}, ${BRAND_SKY})`,
-                                            '&:hover': {background: `linear-gradient(90deg, #265a6b, ${BRAND_NAVY})`}
+                                            '&:hover': {background: `linear-gradient(90deg, ${APP_PRIMARY_DARK}, ${BRAND_NAVY})`}
                                         }}
                                     >
                                         Gửi
@@ -1562,40 +1595,104 @@ export default function HomePage() {
             <Box
                 id="trường-nổi-bật"
                 sx={{
-                    py: {xs: 8, md: 10},
-                    background: `linear-gradient(180deg, ${HOME_PAGE_HERO_BACKDROP} 0%, rgba(255,250,242,0.88) 28%, #fbfcfe 100%)`,
                     position: 'relative',
-                    scrollMarginTop: '80px',
-                    boxShadow: `inset 0 1px 0 rgba(255,255,255,0.8)`
+                    zIndex: 1,
+                    mt: {xs: -7, md: -9},
+                    pt: {xs: 10, md: 12},
+                    pb: {xs: 11, md: 13},
+                    overflow: 'visible',
+                    background: `linear-gradient(180deg, ${HOME_SCHOOL_SECTION_SURFACE} 0%, #f0f9ff 32%, #fafcff 68%, ${HOME_CONSULT_SECTION_TOP} 100%)`,
+                    scrollMarginTop: '80px'
                 }}
             >
-                <Container maxWidth="xl" sx={{px: {xs: 2, sm: 3, md: 4}}}>
+                <SectionWaveEdge variant="top" fill={HOME_SCHOOL_SECTION_SURFACE}/>
+                <SectionWaveEdge variant="bottom" fill={HOME_CONSULT_SECTION_TOP}/>
+                <Container maxWidth="xl" sx={{px: {xs: 2, sm: 3, md: 4}, position: 'relative', zIndex: 3}}>
                     <Box sx={{mb: 4.5, textAlign: 'center'}}>
-                        <Box sx={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: 0.75,
-                            mb: 1.25,
-                            px: 2,
-                            py: 0.75,
-                            borderRadius: 999,
-                            bgcolor: 'rgba(99,102,241,0.1)',
-                            border: '1px solid rgba(99,102,241,0.22)'
-                        }}>
-                            <StarIcon sx={{fontSize: 18, color: '#7c3aed'}} />
-                            <Typography sx={{fontSize: '0.8125rem', fontWeight: 700, color: '#4f46e5', letterSpacing: '0.05em', textTransform: 'uppercase'}}>
-                                Trường tư thục
+                        <Box
+                            sx={{
+                                maxWidth: 720,
+                                mx: 'auto',
+                                px: {xs: 2.5, md: 3.75},
+                                py: {xs: 3, md: 3.75},
+                                borderRadius: 4,
+                                bgcolor: 'rgba(255,255,255,0.96)',
+                                border: '1px solid rgba(255,255,255,1)',
+                                boxShadow: `
+                                    0 28px 64px rgba(15, 23, 42, 0.11),
+                                    0 0 0 1px rgba(59, 130, 246, 0.08),
+                                    inset 0 1px 0 rgba(255,255,255,1)
+                                `,
+                                backdropFilter: 'blur(16px)',
+                                WebkitBackdropFilter: 'blur(16px)'
+                            }}
+                        >
+                            <Box
+                                sx={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 0.75,
+                                    mb: 1.5,
+                                    px: 2,
+                                    py: 0.75,
+                                    borderRadius: 999,
+                                    bgcolor: 'rgba(255,255,255,0.95)',
+                                    border: `1px solid ${APP_PRIMARY_SOFT_BORDER}`,
+                                    boxShadow: '0 4px 16px rgba(59,130,246,0.08)'
+                                }}
+                            >
+                                <StarIcon sx={{fontSize: 18, color: APP_PRIMARY_MAIN}} />
+                                <Typography sx={{fontSize: '0.8125rem', fontWeight: 800, color: APP_PRIMARY_DARK, letterSpacing: '0.06em', textTransform: 'uppercase'}}>
+                                    Trường tư thục
+                                </Typography>
+                            </Box>
+                            <Typography
+                                variant="h2"
+                                sx={{
+                                    fontWeight: 800,
+                                    mb: 1.25,
+                                    color: '#0f172a',
+                                    fontSize: {xs: '1.75rem', sm: '2.25rem', md: '2.5rem'},
+                                    letterSpacing: '-0.02em',
+                                    lineHeight: 1.2,
+                                    textShadow: '0 1px 0 rgba(255,255,255,0.9)'
+                                }}
+                            >
+                                Danh sách trường tư thục
+                            </Typography>
+                            <Typography
+                                variant="body1"
+                                sx={{
+                                    color: '#334155',
+                                    fontWeight: 500,
+                                    fontSize: {xs: '0.9375rem', md: '1.02rem'},
+                                    maxWidth: '640px',
+                                    mx: 'auto',
+                                    lineHeight: 1.7
+                                }}
+                            >
+                                So sánh nhanh học phí, vị trí và đánh giá để chọn trường tư thục phù hợp cho học sinh.
                             </Typography>
                         </Box>
-                        <Typography variant="h2" sx={{fontWeight: 800, mb: 1, color: '#0f172a', fontSize: {xs: '1.75rem', sm: '2.25rem', md: '2.5rem'}, letterSpacing: '-0.02em', lineHeight: 1.2}}>
-                            Danh sách trường tư thục
-                        </Typography>
-                        <Typography variant="body1" sx={{color: '#64748b', fontSize: {xs: '0.9375rem', md: '1rem'}, maxWidth: '680px', mx: 'auto', lineHeight: 1.65}}>
-                            So sánh nhanh học phí, vị trí và đánh giá để chọn trường tư thục phù hợp cho học sinh.
-                        </Typography>
                     </Box>
-                    <Box sx={{mb: 1.5}}>
-                        <Typography sx={{fontWeight: 800, color: '#0f172a', fontSize: '1.12rem', mb: 1.5}}>
+                    <Box sx={{mb: 1.5, position: 'relative', zIndex: 3}}>
+                        <Typography
+                            sx={{
+                                fontWeight: 800,
+                                color: '#0f172a',
+                                fontSize: '1.12rem',
+                                mb: 1.5,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 0.75,
+                                px: 1.75,
+                                py: 0.75,
+                                borderRadius: 2,
+                                bgcolor: 'rgba(255,255,255,0.88)',
+                                border: '1px solid rgba(59,130,246,0.15)',
+                                boxShadow: '0 6px 20px rgba(15,23,42,0.06)'
+                            }}
+                        >
                             💰 Trường tư thục
                         </Typography>
                         {privateSchools.length === 0 ? (
@@ -1627,9 +1724,9 @@ export default function HomePage() {
                     py: {xs: 10, md: 14},
                     scrollMarginTop: '80px',
                     position: 'relative',
+                    zIndex: 0,
                     overflow: 'visible',
-                    background: 'linear-gradient(165deg, #f2f4ff 0%, #f5f8fa 42%, #fcfaff 100%)',
-                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.9)'
+                    background: `linear-gradient(165deg, ${HOME_CONSULT_SECTION_TOP} 0%, #f0f9ff 45%, #f8fafc 100%)`
                 }}
             >
                 <Container maxWidth="lg" sx={{px: {xs: 2.5, md: 4}}}>
@@ -1680,7 +1777,7 @@ export default function HomePage() {
                                         lineHeight: 1.08,
                                         letterSpacing: {xs: '0.04em', md: '0.06em'},
                                         textTransform: 'uppercase',
-                                        color: '#0f172a',
+                                        color: '#1e293b',
                                         m: 0
                                     }}
                                 >
@@ -1710,13 +1807,13 @@ export default function HomePage() {
                                         px: {xs: 4, md: 5},
                                         py: 1.5,
                                         borderRadius: 999,
-                                        bgcolor: '#0f172a',
+                                        bgcolor: BRAND_NAVY,
                                         color: '#fff',
-                                        boxShadow: '0 12px 32px rgba(15,23,42,0.22)',
+                                        boxShadow: '0 12px 32px rgba(37,99,235,0.28)',
                                         mt: {xs: 0.25, md: 0.25},
                                         '&:hover': {
-                                            bgcolor: '#020617',
-                                            boxShadow: '0 16px 40px rgba(15,23,42,0.28)'
+                                            bgcolor: APP_PRIMARY_DARK,
+                                            boxShadow: '0 16px 40px rgba(59,130,246,0.32)'
                                         }
                                     }}
                                 >
@@ -1762,8 +1859,8 @@ export default function HomePage() {
                                                     bottom: 12,
                                                     right: 12,
                                                     fontSize: 22,
-                                                    color: '#0f172a',
-                                                    opacity: 0.28,
+                                                    color: BRAND_NAVY,
+                                                    opacity: 0.35,
                                                     pointerEvents: 'none'
                                                 }}
                                             />
@@ -1783,7 +1880,7 @@ export default function HomePage() {
                                                     height: 38,
                                                     minWidth: 38,
                                                     borderRadius: '50%',
-                                                    bgcolor: '#0f172a',
+                                                    bgcolor: BRAND_NAVY,
                                                     color: '#fff',
                                                     display: 'flex',
                                                     alignItems: 'center',
@@ -1800,7 +1897,7 @@ export default function HomePage() {
                                                     sx={{
                                                         fontWeight: 800,
                                                         fontSize: {xs: '0.98rem', md: '1.06rem'},
-                                                        color: '#0f172a',
+                                                        color: '#1e293b',
                                                         lineHeight: 1.45,
                                                         letterSpacing: '-0.01em',
                                                         mb: 1

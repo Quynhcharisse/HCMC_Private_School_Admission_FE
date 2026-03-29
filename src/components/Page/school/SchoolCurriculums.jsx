@@ -1117,7 +1117,7 @@ export default function SchoolCurriculums() {
                                 <Box
                                     sx={{
                                         borderRadius: 3,
-                                        bgcolor: "linear-gradient(135deg, rgba(37,99,235,0.08) 0%, rgba(15,23,42,0.03) 100%)",
+                                        bgcolor: "linear-gradient(135deg, rgba(37,99,235,0.08) 0%, rgba(51,65,85,0.03) 100%)",
                                         border: "1px solid rgba(148, 163, 184, 0.35)",
                                         p: 3,
                                     }}

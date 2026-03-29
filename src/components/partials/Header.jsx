@@ -50,7 +50,13 @@ import {getParentMessagesHistory, markParentMessagesRead} from "../../services/M
 import {buildPrivateChatPayload, connectPrivateMessageSocket, disconnect, sendMessage} from "../../services/WebSocketService.jsx";
 import logo from "../../assets/logo.png";
 import {useLocation, useNavigate} from "react-router-dom";
-import {BRAND_NAVY, BRAND_SKY, BRAND_SKY_LIGHT} from "../../constants/homeLandingTheme";
+import {
+    APP_PRIMARY_DARK,
+    BRAND_NAVY,
+    BRAND_SKY,
+    BRAND_SKY_LIGHT,
+    HEADER_HOME_BAR_BG
+} from "../../constants/homeLandingTheme";
 import {OPEN_PARENT_CHAT_EVENT} from "../../constants/parentChatEvents";
 import {GOOGLE_AVATAR_IMG_PROPS, getStoredGooglePictureUrl} from "../../utils/storedUserPicture";
 import {GRADE_LEVELS} from "../Page/childrenInfo/childrenInfoHelpers.js";
@@ -97,12 +103,12 @@ const formatSectionDateLabel = (value) => {
 
 const STUDENT_CHAT_THEMES = [
     {
-        headerGradient: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 52%, #38bdf8 100%)',
-        bubbleGradient: 'linear-gradient(145deg, #38bdf8 0%, #2563eb 52%, #1e3a8a 100%)',
-        accent: '#1d4ed8',
-        accentSoft: 'rgba(37, 99, 235, 0.16)',
-        border: 'rgba(37, 99, 235, 0.34)',
-        peerAvatar: '#1e3a8a',
+        headerGradient: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 52%, #38bdf8 100%)',
+        bubbleGradient: 'linear-gradient(145deg, #38bdf8 0%, #3b82f6 52%, #2563eb 100%)',
+        accent: '#2563eb',
+        accentSoft: 'rgba(59, 130, 246, 0.16)',
+        border: 'rgba(59, 130, 246, 0.34)',
+        peerAvatar: '#2563eb',
     },
     {
         headerGradient: 'linear-gradient(135deg, #065f46 0%, #059669 55%, #2dd4bf 100%)',
@@ -259,7 +265,7 @@ function ParentStudentInfoPanel({studentName, compactInfo, gradeTable}) {
 
     return (
         <>
-            <Typography sx={{fontSize: 12.5, fontWeight: 800, color: '#0f172a', mb: 0.8, flexShrink: 0}}>
+            <Typography sx={{fontSize: 12.5, fontWeight: 800, color: '#1e293b', mb: 0.8, flexShrink: 0}}>
                 Thông tin {studentName}
             </Typography>
             {compactInfo.length > 0 && (
@@ -280,7 +286,7 @@ function ParentStudentInfoPanel({studentName, compactInfo, gradeTable}) {
                             }}
                         >
                             <Typography sx={{fontSize: 11.5, color: '#64748b', fontWeight: 700}}>{item.label}</Typography>
-                            <Typography sx={{fontSize: 12, color: '#0f172a', fontWeight: 600, textAlign: 'right'}}>
+                            <Typography sx={{fontSize: 12, color: '#1e293b', fontWeight: 600, textAlign: 'right'}}>
                                 {item.value}
                             </Typography>
                         </Box>
@@ -1063,10 +1069,9 @@ function MainHeader() {
 
     const navButtonSx = (path) => {
         const active = isActivePath(path);
-        const hero = isHomeHeroTransparent;
-        const inactiveColor = hero ? 'rgba(255,255,255,0.9)' : '#475569';
-        const activeColor = hero ? '#ffffff' : brandIndigo;
-        const underlineBg = hero ? 'rgba(255,255,255,0.85)' : BRAND_SKY;
+        const inactiveColor = '#475569';
+        const activeColor = brandIndigo;
+        const underlineBg = BRAND_SKY;
         return {
             fontWeight: 700,
             color: active ? activeColor : inactiveColor,
@@ -1093,7 +1098,7 @@ function MainHeader() {
                 transition: 'opacity 0.25s ease, transform 0.25s cubic-bezier(0.22, 0.61, 0.36, 1)'
             },
             '&:hover': {
-                color: hero ? '#ffffff' : brandIndigo,
+                color: brandIndigo,
                 bgcolor: 'transparent',
                 backgroundColor: 'transparent',
                 '&::after': {
@@ -1106,8 +1111,8 @@ function MainHeader() {
 
     const navMobileItemSx = (path) => ({
         cursor: 'pointer',
-        bgcolor: isActivePath(path) ? 'rgba(45,95,115,0.1)' : 'transparent',
-        border: isActivePath(path) ? '1px solid rgba(85,179,217,0.35)' : '1px solid transparent',
+        bgcolor: isActivePath(path) ? 'rgba(37,99,235,0.08)' : 'transparent',
+        border: isActivePath(path) ? '1px solid rgba(59,130,246,0.32)' : '1px solid transparent',
         borderRadius: 2,
         borderLeft: isActivePath(path) ? `3px solid ${BRAND_SKY}` : '3px solid transparent'
     });
@@ -1125,24 +1130,23 @@ function MainHeader() {
                 top: 0,
                 left: 0,
                 right: 0,
-                bgcolor: isHomeHeroTransparent
-                    ? 'transparent'
-                    : headerElevated
-                        ? 'rgba(255,255,255,0.97)'
-                        : 'rgba(255,255,255,0.22)',
+                bgcolor: isHomeHeroTransparent ? HEADER_HOME_BAR_BG : headerElevated
+                    ? 'rgba(255,255,255,0.97)'
+                    : 'rgba(255,255,255,0.22)',
+                backgroundImage: 'none',
                 backdropFilter: isHomeHeroTransparent ? 'none' : headerElevated ? 'none' : 'blur(16px)',
                 WebkitBackdropFilter: isHomeHeroTransparent ? 'none' : headerElevated ? 'none' : 'blur(16px)',
                 boxShadow: isHomeHeroTransparent
                     ? 'none'
                     : headerElevated
-                        ? '0 1px 0 rgba(15,23,42,0.06), 0 12px 40px rgba(15,23,42,0.07)'
+                        ? '0 1px 0 rgba(51,65,85,0.06), 0 12px 40px rgba(51,65,85,0.07)'
                         : '0 1px 0 rgba(255,255,255,0.55)',
                 borderBottom: isHomeHeroTransparent
                     ? 'none'
                     : headerElevated
                         ? '1px solid rgba(226,232,240,0.95)'
                         : '1px solid rgba(255,255,255,0.45)',
-                transition: 'background-color 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease, backdrop-filter 0.35s ease'
+                transition: 'background 0.35s ease, background-color 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease, backdrop-filter 0.35s ease'
             }}
         >
             <Container maxWidth="lg" sx={{px: {xs: 2, md: 4}}}>
@@ -1165,10 +1169,10 @@ function MainHeader() {
                                 borderRadius: '50%',
                                 p: 0.75,
                                 boxShadow: isHomeHeroTransparent
-                                    ? '0 4px 20px rgba(15,23,42,0.15)'
+                                    ? '0 4px 18px rgba(37,99,235,0.14)'
                                     : headerElevated
-                                        ? '0 4px 18px rgba(45,95,115,0.22)'
-                                        : '0 6px 22px rgba(45,95,115,0.24)',
+                                        ? '0 4px 18px rgba(37,99,235,0.14)'
+                                        : '0 6px 22px rgba(37,99,235,0.16)',
                                 border: '2px solid rgba(255,255,255,0.95)',
                                 transition: 'box-shadow 0.35s ease'
                             }}
@@ -1181,17 +1185,10 @@ function MainHeader() {
                                 fontWeight: 800,
                                 letterSpacing: 0.4,
                                 fontSize: {xs: '1.15rem', sm: '1.35rem'},
-                                ...(isHomeHeroTransparent
-                                    ? {
-                                          color: '#ffffff',
-                                          textShadow: '0 1px 2px rgba(15,23,42,0.35)'
-                                      }
-                                    : {
-                                          background: `linear-gradient(120deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 50%, ${BRAND_SKY_LIGHT} 100%)`,
-                                          WebkitBackgroundClip: 'text',
-                                          WebkitTextFillColor: 'transparent',
-                                          backgroundClip: 'text'
-                                      })
+                                background: `linear-gradient(120deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 50%, ${BRAND_SKY_LIGHT} 100%)`,
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                backgroundClip: 'text'
                             }}
                         >
                             EduBridgeHCM
@@ -1311,29 +1308,15 @@ function MainHeader() {
                                             sx={{
                                                 width: 42,
                                                 height: 42,
-                                                ...(isHomeHeroTransparent
-                                                    ? {
-                                                          bgcolor: 'rgba(255,255,255,0.14)',
-                                                          color: '#ffffff',
-                                                          border: '1px solid rgba(255,255,255,0.38)',
-                                                          '&:hover': {
-                                                              bgcolor: 'rgba(255,255,255,0.22)',
-                                                              color: '#ffffff',
-                                                              transform: 'translateY(-1px)',
-                                                              boxShadow: '0 4px 14px rgba(0,0,0,0.2)'
-                                                          }
-                                                      }
-                                                    : {
-                                                          bgcolor: 'rgba(45,95,115,0.08)',
-                                                          color: BRAND_NAVY,
-                                                          border: '1px solid rgba(85,179,217,0.4)',
-                                                          '&:hover': {
-                                                              bgcolor: 'rgba(45,95,115,0.12)',
-                                                              color: '#265a6b',
-                                                              transform: 'translateY(-1px)',
-                                                              boxShadow: '0 4px 14px rgba(45,95,115,0.22)'
-                                                          }
-                                                      }),
+                                                bgcolor: 'rgba(37,99,235,0.08)',
+                                                color: BRAND_NAVY,
+                                                border: '1px solid rgba(59,130,246,0.35)',
+                                                '&:hover': {
+                                                    bgcolor: 'rgba(37,99,235,0.12)',
+                                                    color: APP_PRIMARY_DARK,
+                                                    transform: 'translateY(-1px)',
+                                                    boxShadow: '0 4px 14px rgba(37,99,235,0.18)'
+                                                },
                                                 transition: 'all 0.2s ease'
                                             }}
                                         >
@@ -1352,8 +1335,8 @@ function MainHeader() {
                                         paper: {
                                             sx: {
                                                 borderRadius: 3,
-                                                border: '1px solid rgba(45,95,115,0.18)',
-                                                boxShadow: '0 22px 48px rgba(15,23,42,0.16), 0 0 0 1px rgba(255,255,255,0.6) inset',
+                                                border: '1px solid rgba(59,130,246,0.18)',
+                                                boxShadow: '0 22px 48px rgba(51,65,85,0.16), 0 0 0 1px rgba(255,255,255,0.6) inset',
                                                 minWidth: 360,
                                                 maxWidth: 380,
                                                 mt: 1.2,
@@ -1369,12 +1352,12 @@ function MainHeader() {
                                         sx={{
                                             px: 2,
                                             py: 1.75,
-                                            borderBottom: '1px solid rgba(45,95,115,0.1)',
+                                            borderBottom: '1px solid rgba(59,130,246,0.1)',
                                             background: 'linear-gradient(135deg, rgba(238,242,255,0.95) 0%, rgba(255,255,255,0.98) 100%)'
                                         }}
                                     >
                                         <Box sx={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-                                            <Typography sx={{fontSize: 17, fontWeight: 800, color: '#0f172a', letterSpacing: '-0.02em'}}>
+                                            <Typography sx={{fontSize: 17, fontWeight: 800, color: '#1e293b', letterSpacing: '-0.02em'}}>
                                                 Tin nhắn
                                             </Typography>
                                         </Box>
@@ -1384,8 +1367,8 @@ function MainHeader() {
                                                 px: 1.25,
                                                 py: 0.85,
                                                 borderRadius: 999,
-                                                bgcolor: 'rgba(45,95,115,0.06)',
-                                                border: '1px solid rgba(45,95,115,0.12)',
+                                                bgcolor: 'rgba(59,130,246,0.06)',
+                                                border: '1px solid rgba(59,130,246,0.12)',
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 gap: 1
@@ -1431,22 +1414,22 @@ function MainHeader() {
                                                             sx={{
                                                                 px: 2,
                                                                 py: 1.25,
-                                                                borderBottom: '1px solid rgba(15,23,42,0.06)',
+                                                                borderBottom: '1px solid rgba(51,65,85,0.06)',
                                                                 display: 'flex',
                                                                 alignItems: 'center',
                                                                 gap: 1.5,
                                                                 cursor: 'pointer',
                                                                 transition: 'background-color 0.2s ease',
                                                                 '&:hover': {
-                                                                    bgcolor: 'rgba(45,95,115,0.08)'
+                                                                    bgcolor: 'rgba(59,130,246,0.08)'
                                                                 }
                                                             }}
                                                         >
-                                                            <Avatar sx={{width: 40, height: 40, bgcolor: BRAND_NAVY, fontSize: 15, fontWeight: 700, boxShadow: '0 4px 12px rgba(45,95,115,0.35)'}}>
+                                                            <Avatar sx={{width: 40, height: 40, bgcolor: BRAND_NAVY, fontSize: 15, fontWeight: 700, boxShadow: '0 4px 12px rgba(59,130,246,0.35)'}}>
                                                                 {conversationName.charAt(0).toUpperCase()}
                                                             </Avatar>
                                                             <Box sx={{minWidth: 0, flex: 1}}>
-                                                                <Typography noWrap sx={{fontSize: 14, fontWeight: 700, color: '#0f172a'}}>
+                                                                <Typography noWrap sx={{fontSize: 14, fontWeight: 700, color: '#1e293b'}}>
                                                                     {conversationName}
                                                                 </Typography>
                                                                 <Typography noWrap sx={{fontSize: 13, color: '#475569'}}>
@@ -1472,7 +1455,7 @@ function MainHeader() {
                                         )}
 
                                         {hasMoreConversations && (
-                                            <Box sx={{px: 2, py: 1.25, borderTop: '1px solid rgba(15,23,42,0.08)'}}>
+                                            <Box sx={{px: 2, py: 1.25, borderTop: '1px solid rgba(51,65,85,0.08)'}}>
                                                 <Button
                                                     fullWidth
                                                     size="small"
@@ -1484,7 +1467,7 @@ function MainHeader() {
                                                         fontWeight: 600,
                                                         color: BRAND_NAVY,
                                                         '&:hover': {
-                                                            bgcolor: 'rgba(45,95,115,0.08)'
+                                                            bgcolor: 'rgba(59,130,246,0.08)'
                                                         }
                                                     }}
                                                 >
@@ -1509,7 +1492,7 @@ function MainHeader() {
                                             flexDirection: 'column',
                                             bgcolor: '#f8fafc',
                                             border: `1px solid ${selectedStudentTheme.border}`,
-                                            boxShadow: '0 24px 56px rgba(15,23,42,0.18), 0 0 0 1px rgba(255,255,255,0.5) inset'
+                                            boxShadow: '0 24px 56px rgba(51,65,85,0.18), 0 0 0 1px rgba(255,255,255,0.5) inset'
                                         }}
                                     >
                                         <Box
@@ -1611,7 +1594,7 @@ function MainHeader() {
                                                 <Typography sx={{fontSize: 13, color: '#dc2626'}}>{messageError}</Typography>
                                             ) : messageItems.length === 0 ? (
                                                 <Box sx={{textAlign: 'center', py: 4, px: 2}}>
-                                                    <ChatBubbleRoundedIcon sx={{fontSize: 40, color: 'rgba(45,95,115,0.35)', mb: 1}}/>
+                                                    <ChatBubbleRoundedIcon sx={{fontSize: 40, color: 'rgba(59,130,246,0.35)', mb: 1}}/>
                                                     <Typography sx={{fontSize: 13, color: '#64748b', lineHeight: 1.55}}>
                                                         Chưa có tin nhắn. Hãy bắt đầu cuộc trò chuyện cho {selectedStudentName}.
                                                     </Typography>
@@ -1631,7 +1614,7 @@ function MainHeader() {
                                                                     borderRadius: 999,
                                                                     bgcolor: 'rgba(255,255,255,0.85)',
                                                                     border: '1px solid rgba(148,163,184,0.35)',
-                                                                    boxShadow: '0 1px 2px rgba(15,23,42,0.06)'
+                                                                    boxShadow: '0 1px 2px rgba(51,65,85,0.06)'
                                                                 }}
                                                             >
                                                                 {group.label}
@@ -1666,7 +1649,7 @@ function MainHeader() {
                                                                                         fontSize: 13,
                                                                                         fontWeight: 700,
                                                                                         bgcolor: selectedStudentTheme.peerAvatar,
-                                                                                        boxShadow: '0 2px 8px rgba(45,95,115,0.35)'
+                                                                                        boxShadow: '0 2px 8px rgba(59,130,246,0.35)'
                                                                                     }}
                                                                                 >
                                                                                     {peerChatInitial}
@@ -1687,11 +1670,11 @@ function MainHeader() {
                                                                                 background: isMine
                                                                                     ? selectedStudentTheme.bubbleGradient
                                                                                     : '#ffffff',
-                                                                                color: isMine ? '#ffffff' : '#0f172a',
+                                                                                color: isMine ? '#ffffff' : '#1e293b',
                                                                                 border: isMine ? 'none' : '1px solid rgba(148,163,184,0.4)',
                                                                                 boxShadow: isMine
-                                                                                    ? '0 2px 8px rgba(45,95,115,0.3), 0 1px 0 rgba(255,255,255,0.12) inset'
-                                                                                    : '0 1px 3px rgba(15,23,42,0.06)'
+                                                                                    ? '0 2px 8px rgba(59,130,246,0.3), 0 1px 0 rgba(255,255,255,0.12) inset'
+                                                                                    : '0 1px 3px rgba(51,65,85,0.06)'
                                                                             }}
                                                                         >
                                                                             <Typography sx={{fontSize: 13.5, whiteSpace: 'pre-wrap', lineHeight: 1.5, wordBreak: 'break-word'}}>
@@ -1773,14 +1756,14 @@ function MainHeader() {
                                                             }
                                                         }}
                                                         placeholder="Nhập tin nhắn…"
-                                                        sx={{flex: 1, fontSize: 14, color: '#0f172a', '& ::placeholder': {color: '#94a3b8', opacity: 1}}}
+                                                        sx={{flex: 1, fontSize: 14, color: '#1e293b', '& ::placeholder': {color: '#94a3b8', opacity: 1}}}
                                                     />
                                                     <IconButton
                                                         size="small"
                                                         onClick={handleSendMessage}
                                                         disabled={!chatInput.trim()}
                                                         sx={{
-                                                            color: chatInput.trim() ? selectedStudentTheme.accent : 'rgba(45,95,115,0.35)',
+                                                            color: chatInput.trim() ? selectedStudentTheme.accent : 'rgba(59,130,246,0.35)',
                                                             bgcolor: chatInput.trim() ? selectedStudentTheme.accentSoft : 'transparent',
                                                             '&:hover': {bgcolor: chatInput.trim() ? selectedStudentTheme.accentSoft : 'transparent'}
                                                         }}
@@ -1823,7 +1806,7 @@ function MainHeader() {
                                                     width: 56,
                                                     height: 56,
                                                     bgcolor: selectedStudentTheme.peerAvatar,
-                                                    boxShadow: '0 10px 28px rgba(45,95,115,0.45)',
+                                                    boxShadow: '0 10px 28px rgba(59,130,246,0.45)',
                                                     border: '2px solid rgba(255,255,255,0.35)'
                                                 }}
                                             >
@@ -1845,14 +1828,14 @@ function MainHeader() {
                                                     transform: 'translateY(2px) scale(0.92)',
                                                     transition: 'opacity 0.15s ease, transform 0.15s ease',
                                                     color: '#ffffff',
-                                                    bgcolor: 'rgba(15,23,42,0.95)',
+                                                    bgcolor: 'rgba(51,65,85,0.95)',
                                                     border: '1px solid rgba(255,255,255,0.14)',
                                                     borderRadius: '50%',
                                                     padding: 0.25,
                                                     width: 18,
                                                     height: 18,
                                                     '&:hover': {
-                                                        bgcolor: 'rgba(15,23,42,1)'
+                                                        bgcolor: 'rgba(51,65,85,1)'
                                                     }
                                                 }}
                                             >
@@ -1880,7 +1863,7 @@ function MainHeader() {
                                                 position: 'relative',
                                                 borderRadius: 2,
                                                 border: `1px solid ${selectedStudentTheme.border}`,
-                                                boxShadow: '0 16px 40px rgba(15,23,42,0.18)',
+                                                boxShadow: '0 16px 40px rgba(51,65,85,0.18)',
                                                 p: 1.2,
                                                 overflow: 'visible'
                                             }
@@ -1939,7 +1922,7 @@ function MainHeader() {
                                         borderRadius: '50%',
                                         transition: 'background 0.2s',
                                         '&:hover': {
-                                            bgcolor: isHomeHeroTransparent ? 'rgba(255,255,255,0.14)' : 'rgba(45,95,115,0.1)'
+                                            bgcolor: 'rgba(37,99,235,0.08)'
                                         }
                                     }}
                                 >
@@ -1950,7 +1933,7 @@ function MainHeader() {
                                             width: 40,
                                             height: 40,
                                             bgcolor: BRAND_NAVY,
-                                            boxShadow: '0 4px 14px rgba(45,95,115,0.35)'
+                                            boxShadow: '0 4px 14px rgba(59,130,246,0.35)'
                                         }}
                                     >
                                         {!avatarUrl && (displayName.charAt(0).toUpperCase())}
@@ -2035,8 +2018,8 @@ function MainHeader() {
                                                     gap: 1.5,
                                                     mt: 0.5,
                                                     '&:hover': {
-                                                        bgcolor: 'rgba(45,95,115,0.08)',
-                                                        color: '#265a6b',
+                                                        bgcolor: 'rgba(59,130,246,0.08)',
+                                                        color: APP_PRIMARY_DARK,
                                                     },
                                                     transition: 'background 0.2s, color 0.2s',
                                                 }}
@@ -2056,8 +2039,8 @@ function MainHeader() {
                                                     gap: 1.5,
                                                     mt: 0.5,
                                                     '&:hover': {
-                                                        bgcolor: 'rgba(45,95,115,0.08)',
-                                                        color: '#265a6b',
+                                                        bgcolor: 'rgba(59,130,246,0.08)',
+                                                        color: APP_PRIMARY_DARK,
                                                     },
                                                     transition: 'background 0.2s, color 0.2s',
                                                 }}
@@ -2091,8 +2074,8 @@ function MainHeader() {
                                             gap: 1.5,
                                             mt: 0.5,
                                             '&:hover': {
-                                                bgcolor: 'rgba(45,95,115,0.08)',
-                                                color: '#265a6b',
+                                                bgcolor: 'rgba(59,130,246,0.08)',
+                                                color: APP_PRIMARY_DARK,
                                             },
                                             transition: 'background 0.2s, color 0.2s',
                                         }}
@@ -2134,13 +2117,27 @@ function MainHeader() {
                                     py: 1.15,
                                     fontSize: 15,
                                     textTransform: 'none',
-                                    color: '#fff',
-                                    background: `linear-gradient(90deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 100%)`,
-                                    boxShadow: '0 8px 24px rgba(45, 95, 115, 0.32)',
-                                    '&:hover': {
-                                        background: `linear-gradient(90deg, #265a6b 0%, ${BRAND_NAVY} 100%)`,
-                                        boxShadow: '0 12px 32px rgba(45, 95, 115, 0.42)'
-                                    }
+                                    ...(isHomeHeroTransparent
+                                        ? {
+                                              color: BRAND_NAVY,
+                                              bgcolor: '#ffffff',
+                                              background: '#ffffff',
+                                              boxShadow: '0 4px 18px rgba(15,23,42,0.12)',
+                                              '&:hover': {
+                                                  bgcolor: '#f1f5f9',
+                                                  background: '#f1f5f9',
+                                                  boxShadow: '0 6px 22px rgba(15,23,42,0.16)'
+                                              }
+                                          }
+                                        : {
+                                              color: '#fff',
+                                              background: `linear-gradient(90deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 100%)`,
+                                              boxShadow: '0 8px 24px rgba(37, 99, 235, 0.28)',
+                                              '&:hover': {
+                                                  background: `linear-gradient(90deg, ${APP_PRIMARY_DARK} 0%, ${BRAND_NAVY} 100%)`,
+                                                  boxShadow: '0 12px 32px rgba(37, 99, 235, 0.36)'
+                                              }
+                                          })
                                 }}
                                 onClick={handleButtonClick}
                             >
@@ -2152,19 +2149,10 @@ function MainHeader() {
                         color="inherit"
                         sx={{
                             display: {md: 'none'},
-                            ...(isHomeHeroTransparent
-                                ? {
-                                      color: '#ffffff',
-                                      border: '1px solid rgba(255,255,255,0.45)',
-                                      bgcolor: 'rgba(255,255,255,0.12)',
-                                      '&:hover': {bgcolor: 'rgba(255,255,255,0.2)'}
-                                  }
-                                : {
-                                      color: BRAND_NAVY,
-                                      border: '1px solid rgba(85,179,217,0.45)',
-                                      bgcolor: 'rgba(255,255,255,0.65)',
-                                      '&:hover': {bgcolor: 'rgba(45,95,115,0.08)'}
-                                  })
+                            color: BRAND_NAVY,
+                            border: '1px solid rgba(59,130,246,0.38)',
+                            bgcolor: 'rgba(255,255,255,0.72)',
+                            '&:hover': {bgcolor: 'rgba(37,99,235,0.08)'}
                         }}
                         onClick={handleMobileMenuToggle}
                     >
@@ -2176,7 +2164,7 @@ function MainHeader() {
                         bgcolor: 'rgba(255,255,255,0.98)',
                         borderTop: '1px solid rgba(226,232,240,0.95)',
                         py: 2,
-                        boxShadow: '0 12px 32px rgba(15,23,42,0.06)'
+                        boxShadow: '0 12px 32px rgba(51,65,85,0.06)'
                     }}>
                         <List>
                             {isSignedIn && isParent ? (
@@ -2394,9 +2382,9 @@ export function ScrollTopButton() {
                     onClick={handleClick}
                     aria-label="scroll back to top"
                     sx={{
-                        boxShadow: '0 8px 20px rgba(15,23,42,0.35)',
+                        boxShadow: '0 8px 20px rgba(51,65,85,0.35)',
                         '&:hover': {
-                            boxShadow: '0 12px 28px rgba(15,23,42,0.45)'
+                            boxShadow: '0 12px 28px rgba(51,65,85,0.45)'
                         }
                     }}
                 >

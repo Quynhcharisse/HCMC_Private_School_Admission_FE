@@ -14,6 +14,7 @@ import {
     Close as CloseIcon,
     SmartToy as BotIcon
 } from '@mui/icons-material';
+import {APP_PRIMARY_DARK, APP_PRIMARY_MAIN} from '../../constants/homeLandingTheme';
 
 const Chatbot = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -121,13 +122,13 @@ const Chatbot = () => {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        bgcolor: '#1976d2',
+                        bgcolor: APP_PRIMARY_MAIN,
                         color: 'white',
                         transition: 'all 0.3s ease',
                         '&:hover': {
-                            bgcolor: '#1565c0',
+                            bgcolor: APP_PRIMARY_DARK,
                             transform: 'scale(1.1)',
-                            boxShadow: '0 8px 24px rgba(25,118,210,0.4)'
+                            boxShadow: '0 8px 24px rgba(37,99,235,0.4)'
                         }
                     }}
                 >
@@ -164,7 +165,7 @@ const Chatbot = () => {
                             {/* Header */}
                             <Box
                                 sx={{
-                                    bgcolor: '#1976d2',
+                                    bgcolor: APP_PRIMARY_MAIN,
                                     color: 'white',
                                     p: 2,
                                     display: 'flex',
@@ -242,7 +243,7 @@ const Chatbot = () => {
                                         {message.sender === 'bot' && (
                                             <Avatar
                                                 sx={{
-                                                    bgcolor: '#1976d2',
+                                                    bgcolor: APP_PRIMARY_MAIN,
                                                     width: 32,
                                                     height: 32,
                                                     order: 0
@@ -254,7 +255,7 @@ const Chatbot = () => {
                                         <Box
                                             sx={{
                                                 maxWidth: '75%',
-                                                bgcolor: message.sender === 'user' ? '#1976d2' : '#ffffff',
+                                                bgcolor: message.sender === 'user' ? APP_PRIMARY_MAIN : '#ffffff',
                                                 color: message.sender === 'user' ? 'white' : '#333',
                                                 p: 1.5,
                                                 borderRadius: 2,
@@ -290,8 +291,8 @@ const Chatbot = () => {
                                         {message.sender === 'user' && (
                                             <Avatar
                                                 sx={{
-                                                    bgcolor: '#e3f2fd',
-                                                    color: '#1976d2',
+                                                    bgcolor: '#dbeafe',
+                                                    color: APP_PRIMARY_MAIN,
                                                     width: 32,
                                                     height: 32,
                                                     order: 1
@@ -336,13 +337,13 @@ const Chatbot = () => {
                                                     px: 1.5,
                                                     py: 0.75,
                                                     borderRadius: 2,
-                                                    bgcolor: '#e3f2fd',
-                                                    color: '#1976d2',
+                                                    bgcolor: '#dbeafe',
+                                                    color: APP_PRIMARY_MAIN,
                                                     fontSize: '0.75rem',
                                                     cursor: 'pointer',
                                                     transition: 'all 0.2s ease',
                                                     '&:hover': {
-                                                        bgcolor: '#bbdefb',
+                                                        bgcolor: '#bfdbfe',
                                                         transform: 'translateY(-2px)'
                                                     }
                                                 }}
@@ -383,10 +384,10 @@ const Chatbot = () => {
                                                 borderColor: '#e5e7eb'
                                             },
                                             '&:hover fieldset': {
-                                                borderColor: '#1976d2'
+                                                borderColor: APP_PRIMARY_MAIN
                                             },
                                             '&.Mui-focused fieldset': {
-                                                borderColor: '#1976d2'
+                                                borderColor: APP_PRIMARY_MAIN
                                             }
                                         }
                                     }}
@@ -395,12 +396,12 @@ const Chatbot = () => {
                                     onClick={handleSendMessage}
                                     disabled={inputMessage.trim() === ''}
                                     sx={{
-                                        bgcolor: '#1976d2',
+                                        bgcolor: APP_PRIMARY_MAIN,
                                         color: 'white',
                                         width: 40,
                                         height: 40,
                                         '&:hover': {
-                                            bgcolor: '#1565c0'
+                                            bgcolor: APP_PRIMARY_DARK
                                         },
                                         '&.Mui-disabled': {
                                             bgcolor: '#e0e0e0',

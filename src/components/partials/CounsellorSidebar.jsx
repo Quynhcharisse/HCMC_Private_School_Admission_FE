@@ -132,7 +132,7 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
                 variant="caption"
                 sx={{
                   fontWeight: 700,
-                  color: "#1d4ed8",
+                  color: "#2563eb",
                   letterSpacing: "-0.01em",
                   flexShrink: 0,
                 }}
@@ -146,7 +146,7 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
               variant="subtitle1"
               sx={{
                 fontWeight: 700,
-                color: "#1d4ed8",
+                color: "#2563eb",
                 letterSpacing: "-0.01em",
                 whiteSpace: "nowrap",
                 overflow: "hidden",
@@ -207,10 +207,10 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
                   justifyContent: collapsed ? "center" : "flex-start",
                   overflow: "hidden",
                   bgcolor: isActive ? "rgba(29, 78, 216, 0.1)" : "transparent",
-                  color: isActive ? "#1d4ed8" : "#475569",
+                  color: isActive ? "#2563eb" : "#475569",
                   borderLeft: "3px solid transparent",
                   ...(isActive && {
-                    borderLeftColor: "#1d4ed8",
+                    borderLeftColor: "#2563eb",
                     fontWeight: 600,
                   }),
                   "&:hover": {
@@ -220,7 +220,7 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
               >
                 <ListItemIcon
                   sx={{
-                    color: isActive ? "#1d4ed8" : "#64748b",
+                    color: isActive ? "#2563eb" : "#64748b",
                     minWidth: 40,
                     width: 40,
                     flexShrink: 0,
@@ -284,7 +284,7 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
               sx={{
                 width: 36,
                 height: 36,
-                bgcolor: "#1d4ed8",
+                bgcolor: "#2563eb",
                 fontSize: 14,
                 flexShrink: 0,
               }}

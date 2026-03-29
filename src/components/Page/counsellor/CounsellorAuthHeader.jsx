@@ -142,7 +142,7 @@ export default function CounsellorAuthHeader({ headerLeftOffset }) {
                 variant="h6"
                 sx={{
                   fontWeight: 800,
-                  color: "#1d4ed8",
+                  color: "#2563eb",
                   letterSpacing: 0.5,
                 }}
               >
@@ -172,7 +172,7 @@ export default function CounsellorAuthHeader({ headerLeftOffset }) {
                   sx={{
                     width: 40,
                     height: 40,
-                    bgcolor: "#1d4ed8",
+                    bgcolor: "#2563eb",
                     boxShadow: "0 2px 8px rgba(37, 99, 235, 0.3)",
                   }}
                 >
@@ -216,7 +216,7 @@ export default function CounsellorAuthHeader({ headerLeftOffset }) {
                       sx={{
                         width: 48,
                         height: 48,
-                        bgcolor: "#1d4ed8",
+                        bgcolor: "#2563eb",
                       }}
                     >
                       {!avatarUrl && displayName.charAt(0).toUpperCase()}
@@ -231,7 +231,7 @@ export default function CounsellorAuthHeader({ headerLeftOffset }) {
                         </Typography>
                       )}
                       {userInfo?.role && (
-                        <Typography sx={{ fontSize: 11, color: "#1d4ed8", mt: 0.5 }}>
+                        <Typography sx={{ fontSize: 11, color: "#2563eb", mt: 0.5 }}>
                           {userInfo.role === "STUDENT"
                             ? "Học sinh"
                             : userInfo.role === "SCHOOL"
@@ -255,13 +255,13 @@ export default function CounsellorAuthHeader({ headerLeftOffset }) {
                   sx={{
                     fontSize: 15,
                     fontWeight: 500,
-                    color: "#1d4ed8",
+                    color: "#2563eb",
                     borderRadius: 1,
                     gap: 1.5,
                     mt: 0.5,
                     "&:hover": {
-                      bgcolor: "rgba(29,78,216,0.08)",
-                      color: "#1e40af",
+                      bgcolor: "rgba(59,130,246,0.08)",
+                      color: "#2563eb",
                     },
                     transition: "background 0.2s, color 0.2s",
                   }}

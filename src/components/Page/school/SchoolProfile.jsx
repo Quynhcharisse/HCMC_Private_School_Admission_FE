@@ -45,7 +45,7 @@ const SectionHeader = ({ icon: Icon, title }) => (
                 justifyContent: "center",
             }}
         >
-            <Icon sx={{ color: "#1d4ed8", fontSize: 22 }} />
+            <Icon sx={{ color: "#2563eb", fontSize: 22 }} />
         </Box>
         <Typography variant="subtitle1" fontWeight={700} sx={{ color: "#1e293b" }}>
             {title}
@@ -868,7 +868,7 @@ export default function SchoolProfile() {
                 </DialogContent>
                 <DialogActions sx={{ px: 3, py: 2 }}>
                     <Button onClick={() => setEditOpen(false)} sx={{ textTransform: "none" }}>Hủy</Button>
-                    <Button variant="contained" onClick={handleSaveProfile} disabled={saving} sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2, bgcolor: "#1d4ed8", "&:hover": { bgcolor: "#1e40af" } }}>
+                    <Button variant="contained" onClick={handleSaveProfile} disabled={saving} sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2, bgcolor: "#2563eb", "&:hover": { bgcolor: "#2563eb" } }}>
                         {saving ? "Đang lưu..." : "Lưu thay đổi"}
                     </Button>
                 </DialogActions>

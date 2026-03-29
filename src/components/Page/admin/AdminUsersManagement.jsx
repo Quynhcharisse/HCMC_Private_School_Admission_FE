@@ -48,6 +48,7 @@ import {enqueueSnackbar} from "notistack";
 import {getUsersByRole, setAccountRestricted} from "../../../services/AdminService.jsx";
 import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
 import * as XLSX from "xlsx";
+import {APP_PRIMARY_MAIN} from "../../../constants/homeLandingTheme";
 
 /** BE trả accId; thêm các alias thường gặp để tương thích */
 const resolveAccountId = (u) => {
@@ -454,8 +455,8 @@ export default function AdminUsersManagement() {
                 boxShadow: "0 5px 12px rgba(37,99,235,0.08)",
             }}
         >
-            <Typography sx={{fontSize: 12, color: "#1d4ed8", mb: 0.35, fontWeight: 700}}>{label}</Typography>
-            <Typography sx={{fontSize: 14, color: "#0f172a", fontWeight: 600}}>{value || "-"}</Typography>
+            <Typography sx={{fontSize: 12, color: "#2563eb", mb: 0.35, fontWeight: 700}}>{label}</Typography>
+            <Typography sx={{fontSize: 14, color: "#1e293b", fontWeight: 600}}>{value || "-"}</Typography>
         </Box>
     );
 
@@ -619,7 +620,7 @@ export default function AdminUsersManagement() {
                 p: {xs: 1, md: 2},
                 borderRadius: 4,
                 bgcolor: "#ffffff",
-                color: "#0f172a",
+                color: "#1e293b",
             }}
         >
             <Breadcrumbs separator="›" aria-label="breadcrumb" sx={{mb: 1, color: "#64748b"}}>
@@ -703,7 +704,7 @@ export default function AdminUsersManagement() {
                                         <Typography sx={{fontSize: 12, color: "#64748b"}}>
                                             {item.label}
                                         </Typography>
-                                        <Typography sx={{fontSize: 30, lineHeight: 1.2, fontWeight: 800, color: "#0f172a"}}>
+                                        <Typography sx={{fontSize: 30, lineHeight: 1.2, fontWeight: 800, color: "#1e293b"}}>
                                             {item.value}
                                         </Typography>
                                     </Box>
@@ -768,7 +769,7 @@ export default function AdminUsersManagement() {
                                     textTransform: "none",
                                     color: "#64748b",
                                     fontWeight: 700,
-                                    "&.Mui-selected": {color: "#0f172a", bgcolor: "#ede9fe"},
+                                    "&.Mui-selected": {color: "#1e293b", bgcolor: "#ede9fe"},
                                 }}
                             />
                             <Tab
@@ -781,7 +782,7 @@ export default function AdminUsersManagement() {
                                     textTransform: "none",
                                     color: "#64748b",
                                     fontWeight: 700,
-                                    "&.Mui-selected": {color: "#0f172a", bgcolor: "#e0f2fe"},
+                                    "&.Mui-selected": {color: "#1e293b", bgcolor: "#e0f2fe"},
                                 }}
                             />
                         </Tabs>
@@ -801,7 +802,7 @@ export default function AdminUsersManagement() {
                                     "& .MuiOutlinedInput-root": {
                                         borderRadius: 999,
                                         bgcolor: "#ffffff",
-                                        color: "#0f172a",
+                                        color: "#1e293b",
                                         "& fieldset": {borderColor: "#cbd5e1"},
                                         "&:hover fieldset": {borderColor: "#7dd3fc"},
                                         "&.Mui-focused fieldset": {borderColor: "#38bdf8"},
@@ -928,9 +929,9 @@ export default function AdminUsersManagement() {
                                                         width: 28,
                                                         height: 24,
                                                         fontWeight: 700,
-                                                        bgcolor: "rgba(139,92,246,0.22)",
-                                                        color: "#7c3aed",
-                                                        border: "1px solid rgba(196,181,253,0.3)",
+                                                        bgcolor: "rgba(37,99,235,0.18)",
+                                                        color: APP_PRIMARY_MAIN,
+                                                        border: "1px solid rgba(96,165,250,0.35)",
                                                     }}
                                                 />
                                             </TableCell>
@@ -946,7 +947,7 @@ export default function AdminUsersManagement() {
                                                         </Avatar>
                                                     </TableCell>
                                                     <TableCell align="left" sx={{pl: 0.5}}>
-                                                        <Typography sx={{fontWeight: 600, fontSize: 14, color: "#0f172a"}}>
+                                                        <Typography sx={{fontWeight: 600, fontSize: 14, color: "#1e293b"}}>
                                                             {user.schoolName || "Trường chưa đặt tên"}
                                                         </Typography>
                                                     </TableCell>
@@ -991,7 +992,7 @@ export default function AdminUsersManagement() {
                                             {roleTab === "PARENT" && (
                                                 <>
                                                     <TableCell align="center">
-                                                        <Typography sx={{fontSize: 14, fontWeight: 700, color: "#0f172a"}}>
+                                                        <Typography sx={{fontSize: 14, fontWeight: 700, color: "#1e293b"}}>
                                                             {user.name || "-"}
                                                         </Typography>
                                                     </TableCell>
@@ -1078,10 +1079,10 @@ export default function AdminUsersManagement() {
                                     borderColor: "#a5b4fc",
                                 },
                                 "& .Mui-selected": {
-                                    bgcolor: "#4f46e5 !important",
+                                    bgcolor: `${APP_PRIMARY_MAIN} !important`,
                                     color: "#ffffff",
-                                    borderColor: "#4f46e5",
-                                    boxShadow: "0 6px 14px rgba(79,70,229,0.35)",
+                                    borderColor: APP_PRIMARY_MAIN,
+                                    boxShadow: "0 6px 14px rgba(37,99,235,0.35)",
                                 },
                             }}
                         />
@@ -1106,7 +1107,7 @@ export default function AdminUsersManagement() {
                 <DialogTitle
                     sx={{
                         fontWeight: 800,
-                        color: "#0f172a",
+                        color: "#1e293b",
                         pb: 1.2,
                         background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 48%, #93c5fd 100%)",
                         borderBottom: "1px solid #93c5fd",
@@ -1125,8 +1126,8 @@ export default function AdminUsersManagement() {
                     <Stack spacing={1.5}>
                         <Box sx={detailSectionSx}>
                             <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
-                                <PeopleIcon sx={{fontSize: 17, color: "#1e40af"}} />
-                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                <PeopleIcon sx={{fontSize: 17, color: "#2563eb"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#2563eb"}}>
                                     Thông tin cơ bản
                                 </Typography>
                             </Stack>
@@ -1140,8 +1141,8 @@ export default function AdminUsersManagement() {
 
                         <Box sx={detailSectionSx}>
                             <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
-                                <CallIcon sx={{fontSize: 17, color: "#1e40af"}} />
-                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                <CallIcon sx={{fontSize: 17, color: "#2563eb"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#2563eb"}}>
                                     Liên hệ
                                 </Typography>
                             </Stack>
@@ -1154,8 +1155,8 @@ export default function AdminUsersManagement() {
 
                         <Box sx={detailSectionSx}>
                             <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
-                                <BadgeIcon sx={{fontSize: 17, color: "#1e40af"}} />
-                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                <BadgeIcon sx={{fontSize: 17, color: "#2563eb"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#2563eb"}}>
                                     Thông tin cá nhân
                                 </Typography>
                             </Stack>
@@ -1168,18 +1169,18 @@ export default function AdminUsersManagement() {
 
                         <Box sx={detailSectionSx}>
                             <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
-                                <LockIcon sx={{fontSize: 17, color: "#1e40af"}} />
-                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                <LockIcon sx={{fontSize: 17, color: "#2563eb"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#2563eb"}}>
                                     Trạng thái tài khoản
                                 </Typography>
                             </Stack>
                             <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
                                 <Box sx={{border: "1px solid #bfdbfe", borderRadius: 2.25, bgcolor: "#ffffff", px: 1.3, py: 1.1, boxShadow: "0 5px 12px rgba(37,99,235,0.08)"}}>
-                                    <Typography sx={{fontSize: 12, color: "#1d4ed8", mb: 0.5, fontWeight: 700}}>Trạng thái</Typography>
+                                    <Typography sx={{fontSize: 12, color: "#2563eb", mb: 0.5, fontWeight: 700}}>Trạng thái</Typography>
                                     {renderStatusChip(selectedParent?.status)}
                                 </Box>
                                 <Box sx={{border: "1px solid #bfdbfe", borderRadius: 2.25, bgcolor: "#ffffff", px: 1.3, py: 1.1, boxShadow: "0 5px 12px rgba(37,99,235,0.08)"}}>
-                                    <Typography sx={{fontSize: 12, color: "#1d4ed8", mb: 0.5, fontWeight: 700}}>Bị hạn chế</Typography>
+                                    <Typography sx={{fontSize: 12, color: "#2563eb", mb: 0.5, fontWeight: 700}}>Bị hạn chế</Typography>
                                     {renderRestrictedChip(!!selectedParent?.isRestricted)}
                                 </Box>
                                 {selectedParent?.isRestricted && renderDetailField("Lý do hạn chế", selectedParent?.restrictionReason, true)}
@@ -1206,7 +1207,7 @@ export default function AdminUsersManagement() {
                 <DialogTitle
                     sx={{
                         fontWeight: 800,
-                        color: "#0f172a",
+                        color: "#1e293b",
                         pb: 1.2,
                         background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 48%, #93c5fd 100%)",
                         borderBottom: "1px solid #93c5fd",
@@ -1218,8 +1219,8 @@ export default function AdminUsersManagement() {
                     <Stack spacing={1.5}>
                         <Box sx={detailSectionSx}>
                             <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
-                                <ApartmentIcon sx={{fontSize: 17, color: "#1e40af"}} />
-                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                <ApartmentIcon sx={{fontSize: 17, color: "#2563eb"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#2563eb"}}>
                                     Thông tin chung
                                 </Typography>
                             </Stack>
@@ -1244,10 +1245,10 @@ export default function AdminUsersManagement() {
                                     {(selectedSchool?.schoolName || "S").charAt(0).toUpperCase()}
                                 </Avatar>
                                 <Box sx={{minWidth: 0}}>
-                                    <Typography sx={{fontSize: 18, color: "#0f172a", fontWeight: 700, lineHeight: 1.25, mb: 0.9}}>
+                                    <Typography sx={{fontSize: 18, color: "#1e293b", fontWeight: 700, lineHeight: 1.25, mb: 0.9}}>
                                         {selectedSchool?.schoolName || "-"}
                                     </Typography>
-                                    <Typography sx={{fontSize: 14, color: "#0f172a", lineHeight: 1.45}}>
+                                    <Typography sx={{fontSize: 14, color: "#1e293b", lineHeight: 1.45}}>
                                         {selectedSchool?.schoolDescription || "-"}
                                     </Typography>
                                 </Box>
@@ -1256,8 +1257,8 @@ export default function AdminUsersManagement() {
 
                         <Box sx={detailSectionSx}>
                             <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
-                                <PlaceIcon sx={{fontSize: 17, color: "#1e40af"}} />
-                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                <PlaceIcon sx={{fontSize: 17, color: "#2563eb"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#2563eb"}}>
                                     Cơ sở chính
                                 </Typography>
                             </Stack>
@@ -1270,8 +1271,8 @@ export default function AdminUsersManagement() {
 
                         <Box sx={detailSectionSx}>
                             <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
-                                <InsightsIcon sx={{fontSize: 17, color: "#1e40af"}} />
-                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                <InsightsIcon sx={{fontSize: 17, color: "#2563eb"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#2563eb"}}>
                                     Thông tin hệ thống
                                 </Typography>
                             </Stack>
@@ -1285,8 +1286,8 @@ export default function AdminUsersManagement() {
 
                         <Box sx={detailSectionSx}>
                             <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
-                                <CallIcon sx={{fontSize: 17, color: "#1e40af"}} />
-                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                <CallIcon sx={{fontSize: 17, color: "#2563eb"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#2563eb"}}>
                                     Liên hệ
                                 </Typography>
                             </Stack>
@@ -1298,8 +1299,8 @@ export default function AdminUsersManagement() {
 
                         <Box sx={detailSectionSx}>
                             <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
-                                <BadgeIcon sx={{fontSize: 17, color: "#1e40af"}} />
-                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                <BadgeIcon sx={{fontSize: 17, color: "#2563eb"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#2563eb"}}>
                                     Đại diện
                                 </Typography>
                             </Stack>
@@ -1310,14 +1311,14 @@ export default function AdminUsersManagement() {
 
                         <Box sx={detailSectionSx}>
                             <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
-                                <LockIcon sx={{fontSize: 17, color: "#1e40af"}} />
-                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                <LockIcon sx={{fontSize: 17, color: "#2563eb"}} />
+                                <Typography sx={{fontSize: 13, fontWeight: 800, color: "#2563eb"}}>
                                     Trạng thái
                                 </Typography>
                             </Stack>
                             <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
                                 <Box sx={{border: "1px solid #bfdbfe", borderRadius: 2.25, bgcolor: "#ffffff", px: 1.3, py: 1.1, boxShadow: "0 5px 12px rgba(37,99,235,0.08)"}}>
-                                    <Typography sx={{fontSize: 12, color: "#1d4ed8", mb: 0.5, fontWeight: 700}}>Trạng thái tổng</Typography>
+                                    <Typography sx={{fontSize: 12, color: "#2563eb", mb: 0.5, fontWeight: 700}}>Trạng thái tổng</Typography>
                                     {renderStatusChip(selectedSchool?.overallStatus || selectedSchool?.status)}
                                 </Box>
                             </Box>
@@ -1345,7 +1346,7 @@ export default function AdminUsersManagement() {
                     border: "1px solid rgba(59,130,246,0.25)",
                 }}
                 titleSx={{
-                    background: "linear-gradient(90deg, rgba(37,99,235,0.2) 0%, rgba(79,70,229,0.12) 100%)",
+                    background: "linear-gradient(90deg, rgba(37,99,235,0.2) 0%, rgba(59,130,246,0.14) 100%)",
                     borderBottom: "none",
                 }}
                 confirmButtonSx={{
@@ -1394,7 +1395,7 @@ export default function AdminUsersManagement() {
                     border: "1px solid rgba(59,130,246,0.25)",
                 }}
                 titleSx={{
-                    background: "linear-gradient(90deg, rgba(37,99,235,0.2) 0%, rgba(79,70,229,0.12) 100%)",
+                    background: "linear-gradient(90deg, rgba(37,99,235,0.2) 0%, rgba(59,130,246,0.14) 100%)",
                     borderBottom: "none",
                 }}
             />

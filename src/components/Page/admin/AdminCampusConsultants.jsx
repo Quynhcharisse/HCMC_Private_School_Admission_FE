@@ -111,7 +111,7 @@ export default function AdminCampusConsultants() {
                     <IconButton onClick={() => navigate(-1)} size="small">
                         <ArrowBackIcon/>
                     </IconButton>
-                    <GroupIcon sx={{fontSize: 30, color: "#1d4ed8"}}/>
+                    <GroupIcon sx={{fontSize: 30, color: "#2563eb"}}/>
                     <Typography variant="h5" sx={{fontWeight: 700, color: "#1e293b"}}>
                         Danh Sách Tư Vấn Viên
                     </Typography>
@@ -134,7 +134,7 @@ export default function AdminCampusConsultants() {
 
                     {consultants.length === 0 && !loading ? (
                         <Box sx={{py: 4, textAlign: "center"}}>
-                            <Typography variant="h6" sx={{mb: 1, color: "#0f172a"}}>
+                            <Typography variant="h6" sx={{mb: 1, color: "#1e293b"}}>
                                 Campus này chưa có tư vấn viên
                             </Typography>
                             <Typography variant="body2" sx={{color: "#64748b"}}>

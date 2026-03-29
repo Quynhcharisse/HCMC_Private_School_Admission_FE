@@ -22,9 +22,9 @@ import {enqueueSnackbar} from 'notistack';
 import {showErrorSnackbar, showSuccessSnackbar} from '../ui/AppSnackbar.jsx';
 import CloudinaryUpload from '../ui/CloudinaryUpload.jsx';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import {BRAND_NAVY, BRAND_SKY, BRAND_SKY_LIGHT} from '../../constants/homeLandingTheme';
+import {APP_PRIMARY_DARK, BRAND_NAVY, BRAND_SKY, BRAND_SKY_LIGHT} from '../../constants/homeLandingTheme';
 
-const HEADER_MUTED = 'rgba(52,102,118,0.82)';
+const HEADER_MUTED = 'rgba(30, 58, 138, 0.82)';
 
 const SchoolRegistrationForm = ({email, onBack}) => {
     const navigate = useNavigate();
@@ -355,7 +355,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                 justifyContent: 'center',
                 py: {xs: 2, md: 3},
                 px: {xs: 2, md: 0},
-                backgroundImage: `linear-gradient(135deg, rgba(45,95,115,0.46), rgba(45,95,115,0.26)), url(${backgroundLogin})`,
+                backgroundImage: `linear-gradient(135deg, rgba(59,130,246,0.46), rgba(59,130,246,0.26)), url(${backgroundLogin})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
@@ -468,7 +468,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         variant="subtitle1"
                                         sx={{
                                             fontWeight: 700,
-                                            color: '#0f172a',
+                                            color: '#1e293b',
                                             mb: 0.55,
                                             fontSize: '0.84rem',
                                             letterSpacing: '0.2px',
@@ -572,7 +572,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         variant="subtitle1" 
                                         sx={{
                                             fontWeight: 700,
-                                            color: '#0f172a',
+                                            color: '#1e293b',
                                             mb: 0.55,
                                             fontSize: '0.84rem',
                                             letterSpacing: '0.2px',
@@ -714,7 +714,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         variant="subtitle1" 
                                         sx={{
                                             fontWeight: 700,
-                                            color: '#0f172a',
+                                            color: '#1e293b',
                                             mb: 0.55,
                                             fontSize: '0.84rem',
                                             letterSpacing: '0.2px',
@@ -826,7 +826,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         variant="subtitle1" 
                                         sx={{
                                             fontWeight: 700,
-                                            color: '#0f172a',
+                                            color: '#1e293b',
                                             mb: 0.55,
                                             fontSize: '0.84rem',
                                             letterSpacing: '0.2px',
@@ -1001,10 +1001,10 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             fontSize: '0.85rem',
                                             borderRadius: 2,
                                             background: `linear-gradient(90deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 100%)`,
-                                            boxShadow: '0 8px 18px rgba(45,95,115,0.24)',
+                                            boxShadow: '0 8px 18px rgba(59,130,246,0.24)',
                                             '&:hover': {
-                                                background: `linear-gradient(90deg, #265a6b 0%, ${BRAND_NAVY} 100%)`,
-                                                boxShadow: '0 10px 20px rgba(45,95,115,0.3)',
+                                                background: `linear-gradient(90deg, ${APP_PRIMARY_DARK} 0%, ${BRAND_NAVY} 100%)`,
+                                                boxShadow: '0 10px 20px rgba(59,130,246,0.3)',
                                             },
                                         }}
                                     >

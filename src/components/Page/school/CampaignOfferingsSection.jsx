@@ -566,7 +566,7 @@ export default function CampaignOfferingsSection({
                     borderRadius: 2,
                     border: "1px solid #e2e8f0",
                     bgcolor: "#fff",
-                    boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
+                    boxShadow: "0 1px 3px rgba(51,65,85,0.06)",
                 }}
             >
                 <CardContent sx={{ py: 2 }}>
@@ -629,7 +629,7 @@ export default function CampaignOfferingsSection({
                     border: "1px solid #e2e8f0",
                     overflow: "hidden",
                     bgcolor: "#fff",
-                    boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
+                    boxShadow: "0 1px 3px rgba(51,65,85,0.06)",
                 }}
             >
                 <TableContainer>
@@ -814,7 +814,7 @@ export default function CampaignOfferingsSection({
                                     borderRadius: "14px",
                                     border: "1px solid #e2e8f0",
                                     overflow: "hidden",
-                                    boxShadow: "0 1px 3px rgba(15,23,42,0.06)",
+                                    boxShadow: "0 1px 3px rgba(51,65,85,0.06)",
                                 }}
                             >
                                 <Box
@@ -843,7 +843,7 @@ export default function CampaignOfferingsSection({
                                         </Box>
                                         <Typography
                                             variant="subtitle1"
-                                            sx={{ fontWeight: 700, color: "#0f172a", minWidth: 0 }}
+                                            sx={{ fontWeight: 700, color: "#1e293b", minWidth: 0 }}
                                         >
                                             {title}
                                         </Typography>
@@ -881,7 +881,7 @@ export default function CampaignOfferingsSection({
                                                     variant="body2"
                                                     sx={{
                                                         fontWeight: 600,
-                                                        color: "#0f172a",
+                                                        color: "#1e293b",
                                                         wordBreak: "break-word",
                                                     }}
                                                 >

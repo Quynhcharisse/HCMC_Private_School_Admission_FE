@@ -27,6 +27,11 @@ import BarChartIcon from "@mui/icons-material/BarChart";
 import PieChartIcon from "@mui/icons-material/PieChart";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
+import {
+    APP_PRIMARY_DARK,
+    APP_PRIMARY_MAIN,
+    APP_PRIMARY_SOFT_BG,
+} from "../../../constants/homeLandingTheme";
 
 const statCards = [
     {
@@ -34,7 +39,7 @@ const statCards = [
         value: 1250,
         trend: "+12% tháng này",
         icon: <PeopleIcon sx={{fontSize: 28}}/>,
-        color: "#1d4ed8",
+        color: "#2563eb",
     },
     {
         label: "Tổng trường học",
@@ -55,7 +60,7 @@ const statCards = [
         value: 8,
         trend: "Không đổi",
         icon: <AdminPanelSettingsIcon sx={{fontSize: 28}}/>,
-        color: "#6366f1",
+        color: APP_PRIMARY_MAIN,
     },
 ];
 
@@ -109,9 +114,9 @@ export default function AdminDashboard() {
                 elevation={0}
                 sx={{
                     borderRadius: 3,
-                    background: "linear-gradient(135deg, #E0EAFF 0%, #B3C8FF 50%, #EEF2FF 100%)",
+                    background: "linear-gradient(135deg, #dbeafe 0%, #93c5fd 50%, #eff6ff 100%)",
                     boxShadow: "0 12px 30px rgba(15, 23, 42, 0.18)",
-                    color: "#0f172a",
+                    color: "#1e293b",
                     overflow: "hidden",
                 }}
             >
@@ -128,7 +133,7 @@ export default function AdminDashboard() {
                     <Box>
                         <Typography
                             variant="overline"
-                            sx={{letterSpacing: "0.16em", opacity: 0.7, fontSize: 11, color: "#4f46e5"}}
+                            sx={{letterSpacing: "0.16em", opacity: 0.7, fontSize: 11, color: APP_PRIMARY_MAIN}}
                         >
                             ADMIN DASHBOARD
                         </Typography>
@@ -177,11 +182,11 @@ export default function AdminDashboard() {
                                     borderRadius: 999,
                                     px: 2.5,
                                     py: 1,
-                                    borderColor: "#4f46e5",
-                                    color: "#4f46e5",
+                                    borderColor: APP_PRIMARY_MAIN,
+                                    color: APP_PRIMARY_MAIN,
                                     "&:hover": {
-                                        borderColor: "#4338ca",
-                                        bgcolor: "rgba(79,70,229,0.06)",
+                                        borderColor: APP_PRIMARY_DARK,
+                                        bgcolor: APP_PRIMARY_SOFT_BG,
                                     },
                                 }}
                                 endIcon={<ArrowForwardIosIcon sx={{fontSize: 14}}/>}
@@ -202,11 +207,11 @@ export default function AdminDashboard() {
                                 borderRadius: 3,
                                 border: "1px solid #e2e8f0",
                                 bgcolor: "#ffffff",
-                                boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
+                                boxShadow: "0 10px 30px rgba(51,65,85,0.08)",
                                 transition: "transform 0.18s ease, box-shadow 0.18s ease",
                                 "&:hover": {
                                     transform: "translateY(-4px)",
-                                    boxShadow: "0 16px 40px rgba(15,23,42,0.14)",
+                                    boxShadow: "0 16px 40px rgba(51,65,85,0.14)",
                                 },
                             }}
                         >
@@ -229,7 +234,7 @@ export default function AdminDashboard() {
                                             sx={{
                                                 mt: 0.5,
                                                 fontWeight: 800,
-                                                color: "#0f172a",
+                                                color: "#1e293b",
                                                 letterSpacing: "-0.04em",
                                             }}
                                         >
@@ -275,7 +280,7 @@ export default function AdminDashboard() {
                     >
                         <CardContent sx={{p: 3}}>
                             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-                                <Typography variant="h6" sx={{fontWeight: 700, color: "#0f172a"}}>
+                                <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
                                     Tăng trưởng người dùng theo thời gian
                                 </Typography>
                                 <IconButton size="small" sx={{color: "#64748b"}}>
@@ -327,7 +332,7 @@ export default function AdminDashboard() {
                     >
                         <CardContent sx={{p: 3}}>
                             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-                                <Typography variant="h6" sx={{fontWeight: 700, color: "#0f172a"}}>
+                                <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
                                     Đăng ký theo khu vực
                                 </Typography>
                                 <IconButton size="small" sx={{color: "#64748b"}}>
@@ -393,7 +398,7 @@ export default function AdminDashboard() {
                     >
                         <CardContent sx={{p: 3}}>
                             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-                                <Typography variant="h6" sx={{fontWeight: 700, color: "#0f172a"}}>
+                                <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
                                     Phân bố trường theo gói sử dụng
                                 </Typography>
                                 <IconButton size="small" sx={{color: "#64748b"}}>
@@ -434,7 +439,7 @@ export default function AdminDashboard() {
                                         <Typography variant="caption" sx={{color: "#64748b"}}>
                                             Tổng
                                         </Typography>
-                                        <Typography variant="h6" sx={{fontWeight: 700, color: "#0f172a"}}>
+                                        <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
                                             100%
                                         </Typography>
                                     </Box>
@@ -444,7 +449,7 @@ export default function AdminDashboard() {
                                         <Box
                                             sx={{width: 10, height: 10, borderRadius: "50%", bgcolor: "#6366F1"}}
                                         />
-                                        <Typography variant="body2" sx={{color: "#0f172a"}}>
+                                        <Typography variant="body2" sx={{color: "#1e293b"}}>
                                             Gói Premium · 45%
                                         </Typography>
                                     </Stack>
@@ -452,7 +457,7 @@ export default function AdminDashboard() {
                                         <Box
                                             sx={{width: 10, height: 10, borderRadius: "50%", bgcolor: "#22c55e"}}
                                         />
-                                        <Typography variant="body2" sx={{color: "#0f172a"}}>
+                                        <Typography variant="body2" sx={{color: "#1e293b"}}>
                                             Gói Standard · 30%
                                         </Typography>
                                     </Stack>
@@ -460,7 +465,7 @@ export default function AdminDashboard() {
                                         <Box
                                             sx={{width: 10, height: 10, borderRadius: "50%", bgcolor: "#f97316"}}
                                         />
-                                        <Typography variant="body2" sx={{color: "#0f172a"}}>
+                                        <Typography variant="body2" sx={{color: "#1e293b"}}>
                                             Gói Cơ bản · 25%
                                         </Typography>
                                     </Stack>
@@ -483,7 +488,7 @@ export default function AdminDashboard() {
                     >
                         <CardContent sx={{p: 3}}>
                             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-                                <Typography variant="h6" sx={{fontWeight: 700, color: "#0f172a"}}>
+                                <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
                                     Hoạt động hệ thống gần đây
                                 </Typography>
                                 <Button
@@ -551,7 +556,7 @@ export default function AdminDashboard() {
                                                                     .join("")
                                                                     .toUpperCase()}
                                                             </Avatar>
-                                                            <Typography sx={{fontWeight: 500, color: "#0f172a"}}>
+                                                            <Typography sx={{fontWeight: 500, color: "#1e293b"}}>
                                                                 {row.actor}
                                                             </Typography>
                                                         </Stack>
@@ -598,7 +603,7 @@ export default function AdminDashboard() {
                         }}
                     >
                         <CardContent sx={{p: 3}}>
-                            <Typography variant="h6" sx={{fontWeight: 700, color: "#0f172a", mb: 2}}>
+                            <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b", mb: 2}}>
                                 Thao tác nhanh
                             </Typography>
                             <Stack spacing={1.5}>
@@ -611,7 +616,7 @@ export default function AdminDashboard() {
                                         borderRadius: 2,
                                         textTransform: "none",
                                         borderColor: "#e2e8f0",
-                                        color: "#0f172a",
+                                        color: "#1e293b",
                                         "&:hover": {borderColor: "#6366F1", bgcolor: "#eff6ff"},
                                     }}
                                 >
@@ -626,7 +631,7 @@ export default function AdminDashboard() {
                                         borderRadius: 2,
                                         textTransform: "none",
                                         borderColor: "#e2e8f0",
-                                        color: "#0f172a",
+                                        color: "#1e293b",
                                         "&:hover": {borderColor: "#6366F1", bgcolor: "#eff6ff"},
                                     }}
                                 >
@@ -641,7 +646,7 @@ export default function AdminDashboard() {
                                         borderRadius: 2,
                                         textTransform: "none",
                                         borderColor: "#e2e8f0",
-                                        color: "#0f172a",
+                                        color: "#1e293b",
                                         "&:hover": {borderColor: "#6366F1", bgcolor: "#eff6ff"},
                                     }}
                                 >
@@ -656,7 +661,7 @@ export default function AdminDashboard() {
                                         borderRadius: 2,
                                         textTransform: "none",
                                         borderColor: "#e2e8f0",
-                                        color: "#0f172a",
+                                        color: "#1e293b",
                                         "&:hover": {borderColor: "#6366F1", bgcolor: "#eff6ff"},
                                     }}
                                 >

@@ -43,6 +43,7 @@ import {enqueueSnackbar} from "notistack";
 import {showSuccessSnackbar} from "../../ui/AppSnackbar.jsx";
 import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
 import {getPendingSchoolRegistrations, verifySchoolRegistration} from "../../../services/AdminService.jsx";
+import {APP_PRIMARY_MAIN} from "../../../constants/homeLandingTheme";
 
 export default function AdminSchoolVerification() {
     const navigate = useNavigate();
@@ -278,8 +279,8 @@ export default function AdminSchoolVerification() {
                 gridColumn: fullWidth ? {xs: "auto", md: "1 / span 2"} : "auto",
             }}
         >
-            <Typography sx={{fontSize: 12, color: "#1d4ed8", mb: 0.35, fontWeight: 700}}>{label}</Typography>
-            <Typography sx={{fontSize: 14, color: "#0f172a", fontWeight: 600, wordBreak: "break-all"}}>{value || "-"}</Typography>
+            <Typography sx={{fontSize: 12, color: "#2563eb", mb: 0.35, fontWeight: 700}}>{label}</Typography>
+            <Typography sx={{fontSize: 14, color: "#1e293b", fontWeight: 600, wordBreak: "break-all"}}>{value || "-"}</Typography>
         </Box>
     );
 
@@ -290,7 +291,7 @@ export default function AdminSchoolVerification() {
                 gridColumn: fullWidth ? {xs: "auto", md: "1 / span 2"} : "auto",
             }}
         >
-            <Typography sx={{fontSize: 12, color: "#1d4ed8", mb: 0.35, fontWeight: 700}}>{label}</Typography>
+            <Typography sx={{fontSize: 12, color: "#2563eb", mb: 0.35, fontWeight: 700}}>{label}</Typography>
             {url ? (
                 <Link
                     href={url}
@@ -303,7 +304,7 @@ export default function AdminSchoolVerification() {
                         wordBreak: "break-all",
                         color: "#2563eb",
                         display: "inline-block",
-                        "&:hover": {color: "#1d4ed8"},
+                        "&:hover": {color: "#2563eb"},
                     }}
                 >
                     {url}
@@ -320,7 +321,7 @@ export default function AdminSchoolVerification() {
                 p: {xs: 1, md: 2},
                 borderRadius: 4,
                 bgcolor: "#ffffff",
-                color: "#0f172a",
+                color: "#1e293b",
             }}
         >
             <Breadcrumbs separator="›" aria-label="breadcrumb" sx={{mb: 1, color: "#64748b"}}>
@@ -406,7 +407,7 @@ export default function AdminSchoolVerification() {
                         >
                             <Box>
                                 <Typography sx={{fontSize: 12, color: "#64748b"}}>{item.label}</Typography>
-                                <Typography sx={{fontSize: 30, lineHeight: 1.2, fontWeight: 800, color: "#0f172a"}}>
+                                <Typography sx={{fontSize: 30, lineHeight: 1.2, fontWeight: 800, color: "#1e293b"}}>
                                     {item.value}
                                 </Typography>
                             </Box>
@@ -447,7 +448,7 @@ export default function AdminSchoolVerification() {
                             flexWrap: "wrap",
                         }}
                     >
-                        <Typography variant="h6" sx={{fontWeight: 800, color: "#0f172a", fontSize: {xs: 17, sm: 18}}}>
+                        <Typography variant="h6" sx={{fontWeight: 800, color: "#1e293b", fontSize: {xs: 17, sm: 18}}}>
                             Danh sách hồ sơ chờ duyệt
                             <Typography component="span" sx={{display: "block", fontSize: 13, fontWeight: 500, color: "#64748b", mt: 0.35}}>
                                 {displayedRegistrations.length} hồ sơ
@@ -463,7 +464,7 @@ export default function AdminSchoolVerification() {
                                     borderRadius: 999,
                                     border: "1px solid #cbd5e1",
                                     bgcolor: sortBy === "newest" ? "#ede9fe" : "#ffffff",
-                                    color: sortBy === "newest" ? "#0f172a" : "#64748b",
+                                    color: sortBy === "newest" ? "#1e293b" : "#64748b",
                                     fontWeight: 700,
                                 }}
                             />
@@ -476,7 +477,7 @@ export default function AdminSchoolVerification() {
                                     borderRadius: 999,
                                     border: "1px solid #cbd5e1",
                                     bgcolor: sortBy === "name" ? "#ede9fe" : "#ffffff",
-                                    color: sortBy === "name" ? "#0f172a" : "#64748b",
+                                    color: sortBy === "name" ? "#1e293b" : "#64748b",
                                     fontWeight: 700,
                                 }}
                             />
@@ -553,9 +554,9 @@ export default function AdminSchoolVerification() {
                                                         width: 28,
                                                         height: 24,
                                                         fontWeight: 700,
-                                                        bgcolor: "rgba(139,92,246,0.22)",
-                                                        color: "#7c3aed",
-                                                        border: "1px solid rgba(196,181,253,0.3)",
+                                                        bgcolor: "rgba(37,99,235,0.18)",
+                                                        color: APP_PRIMARY_MAIN,
+                                                        border: "1px solid rgba(96,165,250,0.35)",
                                                     }}
                                                 />
                                             </TableCell>
@@ -569,7 +570,7 @@ export default function AdminSchoolVerification() {
                                                 </Avatar>
                                             </TableCell>
                                             <TableCell align="left" sx={{pl: 0.5}}>
-                                                <Typography sx={{fontWeight: 600, fontSize: 14, color: "#0f172a"}}>
+                                                <Typography sx={{fontWeight: 600, fontSize: 14, color: "#1e293b"}}>
                                                     {item.schoolName || "Trường chưa đặt tên"}
                                                 </Typography>
                                             </TableCell>
@@ -655,7 +656,7 @@ export default function AdminSchoolVerification() {
                         justifyContent: "space-between",
                         gap: 1,
                         fontWeight: 800,
-                        color: "#0f172a",
+                        color: "#1e293b",
                         pb: 1.2,
                         pr: 1,
                         background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 48%, #93c5fd 100%)",
@@ -671,7 +672,7 @@ export default function AdminSchoolVerification() {
                         size="small"
                         sx={{
                             color: "#475569",
-                            "&:hover": {bgcolor: "rgba(255,255,255,0.55)", color: "#0f172a"},
+                            "&:hover": {bgcolor: "rgba(255,255,255,0.55)", color: "#1e293b"},
                         }}
                     >
                         <CloseIcon fontSize="small"/>
@@ -689,8 +690,8 @@ export default function AdminSchoolVerification() {
                         <Stack spacing={1.5}>
                             <Box sx={detailSectionSx}>
                                 <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
-                                    <ApartmentIcon sx={{fontSize: 17, color: "#1e40af"}} />
-                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                    <ApartmentIcon sx={{fontSize: 17, color: "#2563eb"}} />
+                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#2563eb"}}>
                                         Thông tin chung
                                     </Typography>
                                 </Stack>
@@ -715,7 +716,7 @@ export default function AdminSchoolVerification() {
                                         {(detailItem.schoolName || "S").charAt(0).toUpperCase()}
                                     </Avatar>
                                     <Box sx={{minWidth: 0}}>
-                                        <Typography sx={{fontSize: 18, color: "#0f172a", fontWeight: 700, lineHeight: 1.25, mb: 0.9}}>
+                                        <Typography sx={{fontSize: 18, color: "#1e293b", fontWeight: 700, lineHeight: 1.25, mb: 0.9}}>
                                             {detailItem.schoolName || "-"}
                                         </Typography>
                                         <Typography sx={{fontSize: 14, color: "#64748b", lineHeight: 1.45}}>
@@ -727,8 +728,8 @@ export default function AdminSchoolVerification() {
 
                             <Box sx={detailSectionSx}>
                                 <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
-                                    <PlaceIcon sx={{fontSize: 17, color: "#1e40af"}} />
-                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                    <PlaceIcon sx={{fontSize: 17, color: "#2563eb"}} />
+                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#2563eb"}}>
                                         Cơ sở đăng ký
                                     </Typography>
                                 </Stack>
@@ -741,8 +742,8 @@ export default function AdminSchoolVerification() {
 
                             <Box sx={detailSectionSx}>
                                 <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
-                                    <InsightsIcon sx={{fontSize: 17, color: "#1e40af"}} />
-                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                    <InsightsIcon sx={{fontSize: 17, color: "#2563eb"}} />
+                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#2563eb"}}>
                                         Thông tin hồ sơ
                                     </Typography>
                                 </Stack>
@@ -755,8 +756,8 @@ export default function AdminSchoolVerification() {
 
                             <Box sx={detailSectionSx}>
                                 <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
-                                    <CallIcon sx={{fontSize: 17, color: "#1e40af"}} />
-                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                    <CallIcon sx={{fontSize: 17, color: "#2563eb"}} />
+                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#2563eb"}}>
                                         Liên hệ & liên kết
                                     </Typography>
                                 </Stack>
@@ -769,8 +770,8 @@ export default function AdminSchoolVerification() {
 
                             <Box sx={detailSectionSx}>
                                 <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
-                                    <BadgeIcon sx={{fontSize: 17, color: "#1e40af"}} />
-                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                    <BadgeIcon sx={{fontSize: 17, color: "#2563eb"}} />
+                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#2563eb"}}>
                                         Đại diện
                                     </Typography>
                                 </Stack>
@@ -781,8 +782,8 @@ export default function AdminSchoolVerification() {
 
                             <Box sx={detailSectionSx}>
                                 <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
-                                    <LockIcon sx={{fontSize: 17, color: "#1e40af"}} />
-                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#1e40af"}}>
+                                    <LockIcon sx={{fontSize: 17, color: "#2563eb"}} />
+                                    <Typography sx={{fontSize: 13, fontWeight: 800, color: "#2563eb"}}>
                                         Trạng thái
                                     </Typography>
                                 </Stack>
@@ -797,7 +798,7 @@ export default function AdminSchoolVerification() {
                                             boxShadow: "0 5px 12px rgba(37,99,235,0.08)",
                                         }}
                                     >
-                                        <Typography sx={{fontSize: 12, color: "#1d4ed8", mb: 0.5, fontWeight: 700}}>
+                                        <Typography sx={{fontSize: 12, color: "#2563eb", mb: 0.5, fontWeight: 700}}>
                                             Trạng thái hồ sơ
                                         </Typography>
                                         {renderStatusChip(detailItem.status)}
@@ -828,7 +829,7 @@ export default function AdminSchoolVerification() {
                     border: "1px solid rgba(59,130,246,0.25)",
                 }}
                 titleSx={{
-                    background: "linear-gradient(90deg, rgba(37,99,235,0.2) 0%, rgba(79,70,229,0.12) 100%)",
+                    background: "linear-gradient(90deg, rgba(37,99,235,0.2) 0%, rgba(59,130,246,0.14) 100%)",
                     borderBottom: "none",
                 }}
             />

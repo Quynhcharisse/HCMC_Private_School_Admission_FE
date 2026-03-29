@@ -217,7 +217,7 @@ const ParentProfile = ({onBack}) => {
                 justifyContent: 'center',
                 py: {xs: 2, md: 3},
                 px: {xs: 2, md: 0},
-                backgroundImage: `linear-gradient(135deg, rgba(15,23,42,0.55), rgba(15,23,42,0.35)), url(${backgroundLogin})`,
+                backgroundImage: `linear-gradient(135deg, rgba(51,65,85,0.55), rgba(51,65,85,0.35)), url(${backgroundLogin})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
                 backgroundRepeat: 'no-repeat',
@@ -281,7 +281,7 @@ const ParentProfile = ({onBack}) => {
                                         src={formData.avatar || undefined}
                                         imgProps={GOOGLE_AVATAR_IMG_PROPS}
                                         alt={formData.name || 'Phụ huynh'}
-                                        sx={{width: 88, height: 88, boxShadow: '0 8px 24px rgba(15,23,42,0.12)'}}
+                                        sx={{width: 88, height: 88, boxShadow: '0 8px 24px rgba(51,65,85,0.12)'}}
                                     >
                                         {(formData.name || '?').charAt(0).toUpperCase()}
                                     </Avatar>
@@ -477,10 +477,10 @@ const ParentProfile = ({onBack}) => {
                                             textTransform: 'none',
                                             fontWeight: 700,
                                             borderRadius: 2,
-                                            background: 'linear-gradient(90deg, #1d4ed8 0%, #2563eb 100%)',
+                                            background: 'linear-gradient(90deg, #2563eb 0%, #2563eb 100%)',
                                             boxShadow: '0 10px 30px rgba(37, 99, 235, 0.35)',
                                             '&:hover': {
-                                                background: 'linear-gradient(90deg, #1d4ed8 0%, #1d4ed8 100%)',
+                                                background: 'linear-gradient(90deg, #2563eb 0%, #2563eb 100%)',
                                                 boxShadow: '0 12px 36px rgba(30, 64, 175, 0.45)',
                                             },
                                         }}
@@ -519,10 +519,10 @@ const ParentProfile = ({onBack}) => {
                                                 textTransform: 'none',
                                                 fontWeight: 700,
                                                 borderRadius: 2,
-                                                background: 'linear-gradient(90deg, #1d4ed8 0%, #2563eb 100%)',
+                                                background: 'linear-gradient(90deg, #2563eb 0%, #2563eb 100%)',
                                                 boxShadow: '0 10px 30px rgba(37, 99, 235, 0.35)',
                                                 '&:hover': {
-                                                    background: 'linear-gradient(90deg, #1d4ed8 0%, #1d4ed8 100%)',
+                                                    background: 'linear-gradient(90deg, #2563eb 0%, #2563eb 100%)',
                                                     boxShadow: '0 12px 36px rgba(30, 64, 175, 0.45)',
                                                 },
                                             }}

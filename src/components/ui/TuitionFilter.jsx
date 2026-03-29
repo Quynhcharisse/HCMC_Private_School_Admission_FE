@@ -73,12 +73,12 @@ export default function TuitionFilter({ tuitionMin = 0, tuitionMax = 30, onChang
                         height: 18,
                         backgroundColor: BRAND_NAVY,
                         border: '2px solid white',
-                        boxShadow: '0 2px 8px rgba(45,95,115,0.3)',
+                        boxShadow: '0 2px 8px rgba(59,130,246,0.3)',
                         '&:hover': {
-                            boxShadow: '0 4px 12px rgba(45,95,115,0.4)',
+                            boxShadow: '0 4px 12px rgba(59,130,246,0.4)',
                         },
                         '&.Mui-active': {
-                            boxShadow: '0 4px 16px rgba(45,95,115,0.45)',
+                            boxShadow: '0 4px 16px rgba(59,130,246,0.45)',
                         },
                         '&:first-of-type': {
                             cursor: 'not-allowed',

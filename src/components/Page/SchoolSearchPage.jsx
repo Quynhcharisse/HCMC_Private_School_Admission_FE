@@ -40,8 +40,12 @@ import {
 import {useLocation, useNavigate} from "react-router-dom";
 import {GoogleMap, MarkerF, useJsApiLoader} from "@react-google-maps/api";
 import {
+    APP_PRIMARY_DARK,
+    APP_PRIMARY_MAIN,
+    APP_PRIMARY_MUTED_BORDER,
     BRAND_NAVY,
     BRAND_SKY,
+    BRAND_SKY_LIGHT,
     HOME_PAGE_HERO_BACKDROP,
     HOME_PAGE_SURFACE_GRADIENT,
     landingSectionShadow
@@ -236,7 +240,7 @@ const contactRowSx = {
     py: 1.65,
     minHeight: 48
 };
-const contactDividerSx = {borderColor: "rgba(15,23,42,0.1)"};
+const contactDividerSx = {borderColor: "rgba(51,65,85,0.1)"};
 
 function SchoolContactPanel({school}) {
     const c = buildSchoolContact(school);
@@ -245,14 +249,14 @@ function SchoolContactPanel({school}) {
             sx={{
                 p: {xs: 2, sm: 2.5},
                 borderRadius: 3,
-                border: "1px solid rgba(15,23,42,0.08)",
+                border: "1px solid rgba(51,65,85,0.08)",
                 boxShadow: landingSectionShadow(2),
                 position: {md: "sticky"},
                 top: {md: 16},
                 bgcolor: "#fff"
             }}
         >
-            <Typography sx={{fontWeight: 800, color: "#0f172a", fontSize: "1.05rem", mb: 0.5}}>
+            <Typography sx={{fontWeight: 800, color: "#1e293b", fontSize: "1.05rem", mb: 0.5}}>
                 Thông tin liên hệ
             </Typography>
             <Divider sx={{...contactDividerSx, mb: 0.5}}/>
@@ -447,7 +451,7 @@ export default function SchoolSearchPage() {
         fontSize: '0.8125rem',
         color: isSelected ? BRAND_NAVY : '#64748b',
         bgcolor: isSelected ? 'rgba(45, 95, 115, 0.12)' : 'rgba(255,255,255,0.9)',
-        border: `1px solid ${isSelected ? 'rgba(45,95,115,0.42)' : 'rgba(15,23,42,0.10)'}`,
+        border: `1px solid ${isSelected ? 'rgba(59,130,246,0.42)' : 'rgba(51,65,85,0.10)'}`,
         cursor: 'pointer',
         px: 1,
         py: 0.35,
@@ -456,7 +460,7 @@ export default function SchoolSearchPage() {
         '&:hover': {
             bgcolor: isSelected ? 'rgba(45, 95, 115, 0.18)' : 'rgba(255,255,255,1)',
             color: BRAND_NAVY,
-            borderColor: isSelected ? '#265a6b' : 'rgba(45,95,115,0.28)',
+            borderColor: isSelected ? APP_PRIMARY_DARK : APP_PRIMARY_MUTED_BORDER,
             transform: 'translateY(-1px)',
             boxShadow: landingSectionShadow(3)
         }
@@ -778,7 +782,7 @@ export default function SchoolSearchPage() {
                         backdropFilter: 'blur(14px)',
                         WebkitBackdropFilter: 'blur(14px)',
                         border: '1px solid rgba(85,179,217,0.28)',
-                        boxShadow: '0 16px 48px rgba(45,95,115,0.06)'
+                        boxShadow: '0 16px 48px rgba(59,130,246,0.06)'
                     }}
                 >
                     <Box sx={{display: 'inline-flex', alignItems: 'center', gap: 1, mb: 1.5}}>
@@ -793,7 +797,7 @@ export default function SchoolSearchPage() {
                                 bgcolor: 'rgba(255,255,255,0.72)',
                                 backdropFilter: 'blur(10px)',
                                 border: '1px solid rgba(85,179,217,0.45)',
-                                boxShadow: '0 8px 28px rgba(45,95,115,0.08)'
+                                boxShadow: '0 8px 28px rgba(59,130,246,0.08)'
                             }}
                         >
                             <SparkleIcon sx={{fontSize: 18, color: BRAND_SKY}}/>
@@ -809,7 +813,7 @@ export default function SchoolSearchPage() {
                             lineHeight: 1.15,
                             letterSpacing: '-0.03em',
                             mb: 1,
-                            background: `linear-gradient(120deg, #1a4a5c 0%, ${BRAND_NAVY} 32%, #3a7d96 68%, ${BRAND_SKY} 100%)`,
+                            background: `linear-gradient(120deg, #1e293b 0%, ${BRAND_NAVY} 28%, ${APP_PRIMARY_MAIN} 62%, ${BRAND_SKY_LIGHT} 100%)`,
                             WebkitBackgroundClip: 'text',
                             WebkitTextFillColor: 'transparent',
                             backgroundClip: 'text'
@@ -827,7 +831,7 @@ export default function SchoolSearchPage() {
                         sx={{
                             p: 2,
                             borderRadius: 4,
-                            border: '1px solid rgba(15,23,42,0.08)',
+                            border: '1px solid rgba(51,65,85,0.08)',
                             bgcolor: 'rgba(255,255,255,0.88)',
                             backdropFilter: 'blur(12px)',
                             WebkitBackdropFilter: 'blur(12px)',
@@ -840,7 +844,7 @@ export default function SchoolSearchPage() {
                         <Typography sx={{fontWeight: 800, color: BRAND_NAVY, mb: 1.5, fontSize: '1.05rem'}}>
                             Bộ lọc tìm trường
                         </Typography>
-                        <Divider sx={{mb: 2, borderColor: 'rgba(15,23,42,0.08)'}}/>
+                        <Divider sx={{mb: 2, borderColor: 'rgba(51,65,85,0.08)'}}/>
                         <Stack spacing={2}>
                             <Box>
                                 <Typography sx={{fontWeight: 700, fontSize: 13, mb: 1, color: '#64748b', letterSpacing: '0.02em'}}>Tỉnh, Thành phố</Typography>
@@ -873,8 +877,8 @@ export default function SchoolSearchPage() {
                                             height: 36,
                                             transition: 'all 0.32s cubic-bezier(0.2, 0, 0, 1)',
                                             bgcolor: 'rgba(255,255,255,0.9)',
-                                            '& fieldset': {borderColor: 'rgba(45,95,115,0.22)'},
-                                            '&:hover fieldset': {borderColor: 'rgba(45,95,115,0.4)'},
+                                            '& fieldset': {borderColor: 'rgba(59,130,246,0.22)'},
+                                            '&:hover fieldset': {borderColor: 'rgba(59,130,246,0.4)'},
                                             '&.Mui-focused fieldset': {borderColor: BRAND_NAVY, borderWidth: 2}
                                         },
                                         '& .MuiSelect-select': {
@@ -883,7 +887,7 @@ export default function SchoolSearchPage() {
                                             display: 'flex',
                                             alignItems: 'center',
                                             fontWeight: 600,
-                                            color: '#0f172a'
+                                            color: '#1e293b'
                                         },
                                         '& .MuiSelect-icon': {
                                             color: '#64748b',
@@ -986,7 +990,7 @@ export default function SchoolSearchPage() {
                                                     borderRadius: 999,
                                                     boxShadow: '0 8px 22px rgba(45, 95, 115, 0.28)',
                                                     '&:hover': {
-                                                        background: `linear-gradient(90deg, #265a6b, ${BRAND_NAVY})`,
+                                                        background: `linear-gradient(90deg, ${APP_PRIMARY_DARK}, ${BRAND_NAVY})`,
                                                         boxShadow: '0 10px 28px rgba(45, 95, 115, 0.35)'
                                                     }
                                                 }}
@@ -1007,10 +1011,10 @@ export default function SchoolSearchPage() {
                                         borderRadius: 999,
                                         pr: 0.5,
                                         '& fieldset': {
-                                            border: '1px solid rgba(45,95,115,0.2)',
+                                            border: '1px solid rgba(59,130,246,0.2)',
                                         },
                                         '&:hover fieldset': {
-                                            border: '1px solid rgba(45,95,115,0.38)',
+                                            border: '1px solid rgba(59,130,246,0.38)',
                                         },
                                         '&.Mui-focused fieldset': {
                                             border: `2px solid ${BRAND_NAVY}`,
@@ -1019,7 +1023,7 @@ export default function SchoolSearchPage() {
                                     '& .MuiInputBase-input': {
                                         py: 1.2,
                                         pl: 1.25,
-                                        color: '#0f172a',
+                                        color: '#1e293b',
                                         fontSize: '0.9rem',
                                         fontWeight: 500
                                     },
@@ -1032,7 +1036,7 @@ export default function SchoolSearchPage() {
                         </Box>
 
                         <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 2, flexWrap: 'wrap'}}>
-                            <Typography sx={{fontWeight: 800, color: '#0f172a', fontSize: '1rem'}}>
+                            <Typography sx={{fontWeight: 800, color: '#1e293b', fontSize: '1rem'}}>
                                 {totalCount === 0 ? "0 trường" : `${totalCount} trường`}
                             </Typography>
                             <Box sx={{display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap'}}>
@@ -1047,7 +1051,7 @@ export default function SchoolSearchPage() {
                                             borderRadius: 999,
                                             px: 2,
                                             bgcolor: BRAND_NAVY,
-                                            "&:hover": {bgcolor: "#265a6b"}
+                                            "&:hover": {bgcolor: APP_PRIMARY_DARK}
                                         }}
                                     >
                                         So sánh ({compareCount})
@@ -1063,8 +1067,8 @@ export default function SchoolSearchPage() {
                                         '& .MuiOutlinedInput-root': {
                                             borderRadius: 999,
                                             bgcolor: 'rgba(255,255,255,0.92)',
-                                            '& fieldset': {borderColor: 'rgba(45,95,115,0.2)'},
-                                            '&:hover fieldset': {borderColor: 'rgba(45,95,115,0.38)'},
+                                            '& fieldset': {borderColor: 'rgba(59,130,246,0.2)'},
+                                            '&:hover fieldset': {borderColor: 'rgba(59,130,246,0.38)'},
                                             '&.Mui-focused fieldset': {borderColor: BRAND_NAVY, borderWidth: 2}
                                         }
                                     }}
@@ -1092,7 +1096,7 @@ export default function SchoolSearchPage() {
                                             gap: 2,
                                             p: 2,
                                             borderRadius: 4,
-                                            border: '1px solid rgba(15,23,42,0.07)',
+                                            border: '1px solid rgba(51,65,85,0.07)',
                                             bgcolor: 'rgba(255,255,255,0.85)',
                                             backdropFilter: 'blur(8px)',
                                             boxShadow: landingSectionShadow(3),
@@ -1101,7 +1105,7 @@ export default function SchoolSearchPage() {
                                             '&:hover': {
                                                 transform: 'translateY(-4px)',
                                                 boxShadow: landingSectionShadow(5),
-                                                borderColor: 'rgba(45,95,115,0.22)'
+                                                borderColor: 'rgba(59,130,246,0.22)'
                                             }
                                         }}
                                     >
@@ -1123,11 +1127,11 @@ export default function SchoolSearchPage() {
                                                 sx={{
                                                     bgcolor: "rgba(255,255,255,0.92)",
                                                     border: `1px solid ${
-                                                        inCompare ? "rgba(45,95,115,0.42)" : "rgba(45,95,115,0.2)"
+                                                        inCompare ? "rgba(59,130,246,0.42)" : "rgba(59,130,246,0.2)"
                                                     }`,
                                                     "&:hover": {
                                                         bgcolor: "#fff",
-                                                        borderColor: inCompare ? BRAND_NAVY : "rgba(45,95,115,0.32)"
+                                                        borderColor: inCompare ? BRAND_NAVY : "rgba(59,130,246,0.32)"
                                                     },
                                                     opacity: 1,
                                                     cursor: "pointer"
@@ -1152,8 +1156,8 @@ export default function SchoolSearchPage() {
                                                 }
                                                 sx={{
                                                     bgcolor: "rgba(255,255,255,0.92)",
-                                                    border: "1px solid rgba(45,95,115,0.2)",
-                                                    "&:hover": {bgcolor: "#fff", borderColor: "rgba(45,95,115,0.32)"},
+                                                    border: "1px solid rgba(59,130,246,0.2)",
+                                                    "&:hover": {bgcolor: "#fff", borderColor: "rgba(59,130,246,0.32)"},
                                                     "&.Mui-disabled": {opacity: 0.55}
                                                 }}
                                             >
@@ -1172,11 +1176,11 @@ export default function SchoolSearchPage() {
                                             height: {xs: 180, sm: 170},
                                             borderRadius: 3,
                                             objectFit: 'cover',
-                                            border: '1px solid rgba(15,23,42,0.06)'
+                                            border: '1px solid rgba(51,65,85,0.06)'
                                         }}
                                     />
                                     <Box>
-                                        <Typography sx={{fontWeight: 800, fontSize: {xs: '1.15rem', sm: '1.35rem'}, color: '#0f172a', lineHeight: 1.25, pr: {xs: 10, sm: 11}}}>
+                                        <Typography sx={{fontWeight: 800, fontSize: {xs: '1.15rem', sm: '1.35rem'}, color: '#1e293b', lineHeight: 1.25, pr: {xs: 10, sm: 11}}}>
                                             {school.school}
                                         </Typography>
                                         <Typography sx={{mt: 0.75, color: '#64748b', fontSize: '0.95rem'}}>
@@ -1190,7 +1194,7 @@ export default function SchoolSearchPage() {
                                                     borderRadius: 999,
                                                     fontWeight: 600,
                                                     bgcolor: 'rgba(241,245,249,0.95)',
-                                                    border: '1px solid rgba(15,23,42,0.08)',
+                                                    border: '1px solid rgba(51,65,85,0.08)',
                                                     color: '#64748b'
                                                 }}
                                             />
@@ -1217,7 +1221,7 @@ export default function SchoolSearchPage() {
                                                     fontWeight: 700,
                                                     borderRadius: 999,
                                                     px: 2,
-                                                    borderColor: 'rgba(45,95,115,0.4)',
+                                                    borderColor: 'rgba(59,130,246,0.4)',
                                                     color: BRAND_NAVY,
                                                     bgcolor: 'rgba(255,255,255,0.6)',
                                                     '&:hover': {
@@ -1247,7 +1251,7 @@ export default function SchoolSearchPage() {
                                     '& .Mui-selected': {
                                         bgcolor: `${BRAND_NAVY} !important`,
                                         color: '#fff',
-                                        '&:hover': {bgcolor: '#265a6b !important'}
+                                        '&:hover': {bgcolor: `${APP_PRIMARY_DARK} !important`}
                                     }
                                 }}
                             />
@@ -1277,10 +1281,10 @@ export default function SchoolSearchPage() {
                             left: 12,
                             zIndex: 1400,
                             color: "#fff",
-                            bgcolor: "rgba(15,23,42,0.45)",
+                            bgcolor: "rgba(51,65,85,0.45)",
                             border: "1px solid rgba(255,255,255,0.35)",
                             boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
-                            "&:hover": {bgcolor: "rgba(15,23,42,0.62)"}
+                            "&:hover": {bgcolor: "rgba(51,65,85,0.62)"}
                         }}
                     >
                         <ArrowBackIcon/>
@@ -1303,7 +1307,7 @@ export default function SchoolSearchPage() {
                             position: "relative",
                             minHeight: {xs: 280, sm: 320},
                             backgroundImage: `
-                                linear-gradient(180deg, rgba(15,23,42,0.55) 0%, rgba(15,23,42,0.82) 100%),
+                                linear-gradient(180deg, rgba(51,65,85,0.55) 0%, rgba(51,65,85,0.82) 100%),
                                 url(${DEFAULT_SCHOOL_IMAGE})
                             `,
                             backgroundSize: "cover",
@@ -1512,9 +1516,9 @@ export default function SchoolSearchPage() {
                                     pb: 0,
                                     mb: 1.5,
                                     borderBottom: 1,
-                                    borderColor: "rgba(15,23,42,0.08)",
+                                    borderColor: "rgba(51,65,85,0.08)",
                                     pl: {xs: 6.5, sm: 7},
-                                    boxShadow: "0 1px 0 rgba(15,23,42,0.04)"
+                                    boxShadow: "0 1px 0 rgba(51,65,85,0.04)"
                                 }}
                             >
                                 <Tabs
@@ -1610,7 +1614,7 @@ export default function SchoolSearchPage() {
                                             height={200}
                                             image={DEFAULT_SCHOOL_IMAGE}
                                             alt=""
-                                            sx={{mt: 1, borderRadius: 2, objectFit: "cover", border: "1px solid rgba(15,23,42,0.08)"}}
+                                            sx={{mt: 1, borderRadius: 2, objectFit: "cover", border: "1px solid rgba(51,65,85,0.08)"}}
                                         />
                                         <Typography sx={{color: "#475569", lineHeight: 1.75, fontSize: "0.95rem", mt: 2.5, mb: 1}}>
                                             (Nội dung mở rộng phía dưới minh họa phần cuộn dài — có thể thay bằng HTML/API từ backend.)
@@ -1651,7 +1655,7 @@ export default function SchoolSearchPage() {
                                                     textTransform: "none",
                                                     fontWeight: 700,
                                                     bgcolor: BRAND_NAVY,
-                                                    "&:hover": {bgcolor: "#265a6b"}
+                                                    "&:hover": {bgcolor: APP_PRIMARY_DARK}
                                                 }}
                                             >
                                                 Chỉ đường đến trường
@@ -1673,9 +1677,9 @@ export default function SchoolSearchPage() {
                                             sx={{
                                                 p: 2.5,
                                                 borderRadius: 2,
-                                                border: "1px solid rgba(45,95,115,0.2)",
+                                                border: "1px solid rgba(59,130,246,0.2)",
                                                 bgcolor: "rgba(255,255,255,0.98)",
-                                                boxShadow: "0 4px 20px rgba(15,23,42,0.06)"
+                                                boxShadow: "0 4px 20px rgba(51,65,85,0.06)"
                                             }}
                                         >
                                             <Stack direction="row" alignItems="flex-start" spacing={1.5}>
@@ -1702,7 +1706,7 @@ export default function SchoolSearchPage() {
                                                                 textTransform: "none",
                                                                 fontWeight: 700,
                                                                 bgcolor: BRAND_NAVY,
-                                                                "&:hover": {bgcolor: "#265a6b"}
+                                                                "&:hover": {bgcolor: APP_PRIMARY_DARK}
                                                             }}
                                                         >
                                                             Soạn email đặt lịch

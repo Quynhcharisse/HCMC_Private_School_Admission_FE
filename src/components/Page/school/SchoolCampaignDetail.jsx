@@ -337,7 +337,7 @@ export default function SchoolCampaignDetail() {
                         p: 4,
                         textAlign: "center",
                         border: "1px solid #e2e8f0",
-                        boxShadow: "0 4px 24px rgba(15,23,42,0.06)",
+                        boxShadow: "0 4px 24px rgba(51,65,85,0.06)",
                     }}
                 >
                     <CampaignIcon sx={{ fontSize: 64, color: "#cbd5e1", mb: 2 }} />
@@ -364,7 +364,7 @@ export default function SchoolCampaignDetail() {
                 sx={{
                     borderRadius: "16px",
                     border: "1px solid #e2e8f0",
-                    boxShadow: "0 4px 24px rgba(15,23,42,0.06)",
+                    boxShadow: "0 4px 24px rgba(51,65,85,0.06)",
                     overflow: "hidden",
                 }}
             >
@@ -465,11 +465,11 @@ export default function SchoolCampaignDetail() {
                 sx={{
                     borderRadius: "16px",
                     border: "1px solid #e2e8f0",
-                    boxShadow: "0 4px 24px rgba(15,23,42,0.06)",
+                    boxShadow: "0 4px 24px rgba(51,65,85,0.06)",
                 }}
             >
                 <CardContent sx={{ p: 3 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: "#0f172a" }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: "#1e293b" }}>
                         Thông tin chiến dịch
                     </Typography>
                     <Stack
@@ -566,11 +566,11 @@ export default function SchoolCampaignDetail() {
                 sx={{
                     borderRadius: "16px",
                     border: "1px solid #e2e8f0",
-                    boxShadow: "0 4px 24px rgba(15,23,42,0.06)",
+                    boxShadow: "0 4px 24px rgba(51,65,85,0.06)",
                 }}
             >
                 <CardContent sx={{ p: 3 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: "#0f172a" }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: "#1e293b" }}>
                         Tiến độ thời gian
                     </Typography>
                     <LinearProgress
@@ -594,7 +594,7 @@ export default function SchoolCampaignDetail() {
                 sx={{
                     borderRadius: "16px",
                     border: "1px solid #e2e8f0",
-                    boxShadow: "0 4px 24px rgba(15,23,42,0.06)",
+                    boxShadow: "0 4px 24px rgba(51,65,85,0.06)",
                     p: 0,
                 }}
             >

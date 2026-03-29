@@ -14,7 +14,7 @@ const sectionTitleSx = {
     position: 'relative',
     display: 'inline-block',
     pl: {xs: 0, md: 1.5},
-    textShadow: '0 1px 3px rgba(0,0,0,0.45)',
+    textShadow: '0 1px 2px rgba(51,65,85,0.35)',
     '&::before': {
         content: '""',
         display: {xs: 'none', md: 'block'},
@@ -34,7 +34,7 @@ const linkSx = {
     display: 'inline-block',
     py: 0.25,
     borderRadius: 1,
-    textShadow: '0 1px 2px rgba(0,0,0,0.35)',
+    textShadow: '0 1px 2px rgba(51,65,85,0.28)',
     transition: 'color 0.2s ease, transform 0.2s ease, background-color 0.2s ease',
     '&:hover': {
         color: BRAND_AQUA,
@@ -73,12 +73,12 @@ export default function Footer() {
                     sx={{
                         p: {xs: 2.5, md: 3.5},
                         borderRadius: {xs: 2.5, md: 3},
-                        bgcolor: 'rgba(18, 38, 54, 0.74)',
-                        backdropFilter: 'blur(14px)',
-                        WebkitBackdropFilter: 'blur(14px)',
-                        border: '1px solid rgba(255,255,255,0.18)',
-                        boxShadow: '0 10px 32px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.1)',
-                        color: 'rgba(255,255,255,0.95)'
+                        bgcolor: 'rgba(30, 58, 100, 0.52)',
+                        backdropFilter: 'blur(16px)',
+                        WebkitBackdropFilter: 'blur(16px)',
+                        border: '1px solid rgba(255,255,255,0.28)',
+                        boxShadow: '0 8px 28px rgba(37,99,235,0.1), inset 0 1px 0 rgba(255,255,255,0.2)',
+                        color: 'rgba(255,255,255,0.96)'
                     }}
                 >
                 <Grid
@@ -182,7 +182,7 @@ export default function Footer() {
                         </Box>
                     </Grid>
                 </Grid>
-                <Divider sx={{my: 4, borderColor: 'rgba(255,255,255,0.18)'}}/>
+                <Divider sx={{my: 4, borderColor: 'rgba(255,255,255,0.26)'}}/>
                 <Box sx={{
                     display: 'flex',
                     flexDirection: 'column',

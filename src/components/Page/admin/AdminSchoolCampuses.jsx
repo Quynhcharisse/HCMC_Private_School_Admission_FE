@@ -24,6 +24,7 @@ import SupportAgentIcon from "@mui/icons-material/SupportAgent";
 import {useNavigate, useParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {getSchoolCampuses} from "../../../services/AdminService.jsx";
+import {APP_PRIMARY_MAIN} from "../../../constants/homeLandingTheme";
 
 export default function AdminSchoolCampuses() {
     const navigate = useNavigate();
@@ -157,7 +158,7 @@ export default function AdminSchoolCampuses() {
                     <IconButton onClick={() => navigate("/admin/users?tab=SCHOOL")} size="small">
                         <ArrowBackIcon/>
                     </IconButton>
-                    <ApartmentIcon sx={{fontSize: 30, color: "#1d4ed8"}}/>
+                    <ApartmentIcon sx={{fontSize: 30, color: "#2563eb"}}/>
                     <Typography variant="h5" sx={{fontWeight: 700, color: "#1e293b"}}>
                         Danh Sách Campus
                     </Typography>
@@ -180,7 +181,7 @@ export default function AdminSchoolCampuses() {
 
                     {campuses.length === 0 && !loading ? (
                         <Box sx={{py: 4, textAlign: "center"}}>
-                            <Typography variant="h6" sx={{mb: 1, color: "#0f172a"}}>
+                            <Typography variant="h6" sx={{mb: 1, color: "#1e293b"}}>
                                 Trường này chưa có campus
                             </Typography>
                             <Typography variant="body2" sx={{color: "#64748b"}}>
@@ -258,9 +259,9 @@ export default function AdminSchoolCampuses() {
                                                             width: 28,
                                                             height: 24,
                                                             fontWeight: 700,
-                                                            bgcolor: "rgba(139,92,246,0.22)",
-                                                            color: "#7c3aed",
-                                                            border: "1px solid rgba(196,181,253,0.3)",
+                                                            bgcolor: "rgba(37,99,235,0.18)",
+                                                            color: APP_PRIMARY_MAIN,
+                                                            border: "1px solid rgba(96,165,250,0.35)",
                                                         }}
                                                     />
                                                 </TableCell>

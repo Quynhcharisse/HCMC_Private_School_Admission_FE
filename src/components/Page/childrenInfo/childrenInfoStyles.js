@@ -37,7 +37,7 @@ export const cardContentPaddingSx = {
 export const sectionHeadingSx = {
     fontWeight: 800,
     fontSize: {xs: 17, sm: 18},
-    color: '#0f172a',
+    color: '#1e293b',
     letterSpacing: -0.02,
     mb: 0.5,
 };
@@ -60,7 +60,7 @@ export const pageShellSx = {
 
 export const backButtonSx = {
     textTransform: 'none',
-    color: '#1e40af',
+    color: '#2563eb',
     fontSize: 15,
     borderRadius: 999,
     px: 1.25,
@@ -121,6 +121,6 @@ export const mbtiRadioSx = {
         fontSize: 16,
     },
     '&.Mui-checked': {
-        color: '#1d4ed8',
+        color: '#2563eb',
     },
 };

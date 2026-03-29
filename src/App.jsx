@@ -4,6 +4,7 @@ import {lazy, Suspense} from "react";
 import {SnackbarProvider} from 'notistack';
 import {createTheme, CssBaseline, Slide, ThemeProvider} from '@mui/material';
 import {GlobalLoadingOverlay, LoadingProvider} from './contexts/LoadingContext.jsx';
+import {APP_PRIMARY_DARK, APP_PRIMARY_LIGHT, APP_PRIMARY_MAIN} from './constants/homeLandingTheme';
 
 const WebAppLayout = lazy(() => import("./components/ui/WebAppLayout.jsx"));
 const HomePage = lazy(() => import("./components/Page/HomePage.jsx"));
@@ -49,6 +50,13 @@ const LoadingFallback = () => {
 };
 
 const theme = createTheme({
+    palette: {
+        primary: {
+            main: APP_PRIMARY_MAIN,
+            dark: APP_PRIMARY_DARK,
+            light: APP_PRIMARY_LIGHT,
+        },
+    },
     typography: {
         fontFamily: '"Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
         h1: {

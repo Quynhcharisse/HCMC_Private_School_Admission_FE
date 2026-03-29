@@ -10,7 +10,7 @@ const statCards = [
 export default function CounsellorDashboard() {
   return (
     <Box>
-      <Typography variant="h5" sx={{ fontWeight: 700, color: "#0f172a", mb: 0.5 }}>
+      <Typography variant="h5" sx={{ fontWeight: 700, color: "#1e293b", mb: 0.5 }}>
         Dashboard Tư vấn viên
       </Typography>
       <Typography variant="body2" sx={{ color: "#64748b", mb: 3 }}>
@@ -31,7 +31,7 @@ export default function CounsellorDashboard() {
                 <Typography variant="body2" sx={{ color: "#64748b", mb: 1 }}>
                   {item.title}
                 </Typography>
-                <Typography variant="h4" sx={{ fontWeight: 700, color: "#1d4ed8" }}>
+                <Typography variant="h4" sx={{ fontWeight: 700, color: "#2563eb" }}>
                   {item.value}
                 </Typography>
               </CardContent>

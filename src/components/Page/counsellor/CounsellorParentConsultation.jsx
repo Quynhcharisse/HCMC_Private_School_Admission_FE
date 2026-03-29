@@ -35,8 +35,9 @@ import {
   disconnect,
   sendMessage,
 } from "../../../services/WebSocketService.jsx";
+import {APP_PRIMARY_DARK, APP_PRIMARY_MAIN} from "../../../constants/homeLandingTheme";
 
-const fallbackAvatarColors = ["#f97316", "#6366f1", "#ec4899", "#22c55e", "#0ea5e9", "#a855f7"];
+const fallbackAvatarColors = ["#2563eb", "#3b82f6", "#38bdf8", "#0ea5e9", "#60a5fa", "#7dd3fc"];
 
 const formatMessageTime = (value) => {
   if (!value) return "";
@@ -543,15 +544,15 @@ export default function CounsellorParentConsultation() {
           alignItems: "stretch",
           borderRadius: 4.5,
           overflow: "hidden",
-          border: "1px solid rgba(79,70,229,0.16)",
-          boxShadow: "0 18px 45px rgba(15,23,42,0.12)",
+          border: "1px solid rgba(37,99,235,0.16)",
+          boxShadow: "0 18px 45px rgba(51,65,85,0.12)",
           bgcolor: "rgba(255,255,255,0.86)",
           backdropFilter: "blur(12px)",
         }}
       >
         <Box
           sx={{
-            borderRight: { xs: "none", md: "1px solid rgba(79,70,229,0.12)" },
+            borderRight: { xs: "none", md: "1px solid rgba(37,99,235,0.12)" },
             display: "flex",
             flexDirection: "column",
             minHeight: 0,
@@ -559,13 +560,13 @@ export default function CounsellorParentConsultation() {
             overflow: "hidden",
             bgcolor: {
               xs: "rgba(248,250,252,0.8)",
-              md: "linear-gradient(180deg, rgba(79,70,229,0.07) 0%, rgba(248,250,252,0.98) 48%, #f8fafc 100%)",
+              md: "linear-gradient(180deg, rgba(37,99,235,0.07) 0%, rgba(248,250,252,0.98) 48%, #f8fafc 100%)",
             },
             px: 2,
           }}
         >
           <Box sx={{ pt: 2.25, pb: 1.75 }}>
-            <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0f172a", mb: 0.25 }}>
+            <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#1e293b", mb: 0.25 }}>
               Tin nhắn
             </Typography>
             <Typography sx={{ fontSize: 11, color: "#64748b", mb: 1, fontWeight: 500 }}>
@@ -581,7 +582,7 @@ export default function CounsellorParentConsultation() {
                 borderRadius: 999,
                 borderColor: "rgba(148,163,184,0.8)",
                 bgcolor: "#ffffff",
-                boxShadow: "0 8px 20px rgba(79,70,229,0.08)",
+                boxShadow: "0 8px 20px rgba(37,99,235,0.08)",
               }}
             >
               <SearchIcon fontSize="small" sx={{ color: "#94a3b8", mr: 1 }} />
@@ -641,13 +642,13 @@ export default function CounsellorParentConsultation() {
                       alignItems: "center",
                       width: "100%",
                       cursor: "pointer",
-                      bgcolor: isActive ? "rgba(79,70,229,0.08)" : "transparent",
-                      border: isActive ? "1px solid rgba(79,70,229,0.35)" : "1px solid transparent",
-                      boxShadow: isActive ? "0 10px 22px rgba(79,70,229,0.15)" : "none",
+                      bgcolor: isActive ? "rgba(37,99,235,0.08)" : "transparent",
+                      border: isActive ? "1px solid rgba(37,99,235,0.35)" : "1px solid transparent",
+                      boxShadow: isActive ? "0 10px 22px rgba(37,99,235,0.15)" : "none",
                       transition:
                         "all 0.22s ease-in-out",
                       "&:hover": {
-                        bgcolor: isActive ? "rgba(79,70,229,0.12)" : "#f1f5f9",
+                        bgcolor: isActive ? "rgba(37,99,235,0.12)" : "#f1f5f9",
                         transform: "translateY(-1px)",
                       },
                     }}
@@ -678,7 +679,7 @@ export default function CounsellorParentConsultation() {
                             sx={{
                               fontSize: 14,
                               fontWeight: isActive ? 600 : 500,
-                              color: "#0f172a",
+                              color: "#1e293b",
                               mr: 1,
                               whiteSpace: "nowrap",
                               overflow: "hidden",
@@ -754,7 +755,7 @@ export default function CounsellorParentConsultation() {
                     {selectedConversation.name.charAt(0).toUpperCase()}
                   </Avatar>
                   <Box>
-                    <Typography sx={{ fontSize: 15, fontWeight: 600, color: "#0f172a" }}>
+                    <Typography sx={{ fontSize: 15, fontWeight: 600, color: "#1e293b" }}>
                       {selectedConversation.name}
                     </Typography>
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
@@ -850,7 +851,7 @@ export default function CounsellorParentConsultation() {
                             <Box
                               sx={{
                                 bgcolor: isMine ? "#0084ff" : "#e5e5ea",
-                                color: isMine ? "#ffffff" : "#0f172a",
+                                color: isMine ? "#ffffff" : "#1e293b",
                                 px: 1.75,
                                 py: 1.05,
                                 borderRadius: "18px",
@@ -954,13 +955,13 @@ export default function CounsellorParentConsultation() {
                 bgcolor: "#f8fafc",
                 transition: "all 0.2s ease-in-out",
                 "&:focus-within": {
-                  borderColor: "rgba(79,70,229,0.45)",
-                  boxShadow: "0 0 0 4px rgba(79,70,229,0.08)",
+                  borderColor: "rgba(37,99,235,0.45)",
+                  boxShadow: "0 0 0 4px rgba(37,99,235,0.08)",
                 },
               }}
             >
               <Tooltip title="Dinh kem">
-                <IconButton size="small" sx={{ color: "#6366f1", ml: 0.25 }}>
+                <IconButton size="small" sx={{ color: APP_PRIMARY_MAIN, ml: 0.25 }}>
                   <AttachFileRoundedIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
@@ -983,7 +984,7 @@ export default function CounsellorParentConsultation() {
                 }}
               />
               <Tooltip title="Emoji">
-                <IconButton size="small" sx={{ color: "#6366f1" }}>
+                <IconButton size="small" sx={{ color: APP_PRIMARY_MAIN }}>
                   <MoodRoundedIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
@@ -997,8 +998,8 @@ export default function CounsellorParentConsultation() {
                   "&:hover": {
                     bgcolor:
                       inputValue.trim() && selectedConversation
-                        ? "#4338ca"
-                        : "rgba(79,70,229,0.08)",
+                        ? APP_PRIMARY_DARK
+                        : "rgba(37,99,235,0.08)",
                   },
                   "&:active": { transform: "scale(0.95)" },
                   transition: "all 0.2s ease-in-out",

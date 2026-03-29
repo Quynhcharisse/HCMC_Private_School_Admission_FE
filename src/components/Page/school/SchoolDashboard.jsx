@@ -35,7 +35,7 @@ const statCards = [
         value: 4,
         trend: "+5% tuần này",
         icon: <ApartmentIcon sx={{fontSize: 28}}/>,
-        color: "#1d4ed8",
+        color: "#2563eb",
     },
     {
         label: "Tổng số tư vấn viên",
@@ -63,7 +63,7 @@ const statCards = [
         value: 65,
         trend: "+8% tuần này",
         icon: <SchoolIcon sx={{fontSize: 28}}/>,
-        color: "#6366f1",
+        color: "#2563eb",
     },
 ];
 
@@ -147,7 +147,7 @@ export default function SchoolDashboard() {
                                 mt: 1,
                                 fontWeight: 800,
                                 letterSpacing: "-0.03em",
-                                textShadow: "0 1px 3px rgba(15,23,42,0.4)",
+                                textShadow: "0 1px 3px rgba(51,65,85,0.4)",
                             }}
                         >
                             Chào mừng bạn trở lại
@@ -187,9 +187,9 @@ export default function SchoolDashboard() {
                                     borderRadius: 999,
                                     px: 3,
                                     py: 1,
-                                    bgcolor: "rgba(15,23,42,0.9)",
+                                    bgcolor: "rgba(51,65,85,0.9)",
                                     "&:hover": {
-                                        bgcolor: "rgba(15,23,42,1)",
+                                        bgcolor: "rgba(51,65,85,1)",
                                     },
                                 }}
                             >
@@ -206,7 +206,7 @@ export default function SchoolDashboard() {
                                     color: "white",
                                     "&:hover": {
                                         borderColor: "white",
-                                        bgcolor: "rgba(15,23,42,0.25)",
+                                        bgcolor: "rgba(51,65,85,0.25)",
                                     },
                                 }}
                                 endIcon={<ArrowForwardIosIcon sx={{fontSize: 14}}/>}
@@ -227,11 +227,11 @@ export default function SchoolDashboard() {
                                 borderRadius: 3,
                                 border: "1px solid #e2e8f0",
                                 bgcolor: "#ffffff",
-                                boxShadow: "0 10px 30px rgba(15,23,42,0.08)",
+                                boxShadow: "0 10px 30px rgba(51,65,85,0.08)",
                                 transition: "transform 0.18s ease, box-shadow 0.18s ease",
                                 "&:hover": {
                                     transform: "translateY(-4px)",
-                                    boxShadow: "0 16px 40px rgba(15,23,42,0.14)",
+                                    boxShadow: "0 16px 40px rgba(51,65,85,0.14)",
                                 },
                             }}
                         >
@@ -254,7 +254,7 @@ export default function SchoolDashboard() {
                                             sx={{
                                                 mt: 0.5,
                                                 fontWeight: 800,
-                                                color: "#0f172a",
+                                                color: "#1e293b",
                                                 letterSpacing: "-0.04em",
                                             }}
                                         >
@@ -300,7 +300,7 @@ export default function SchoolDashboard() {
                     >
                         <CardContent sx={{p: 3}}>
                             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-                                <Typography variant="h6" sx={{fontWeight: 700, color: "#0f172a"}}>
+                                <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
                                     Yêu cầu tư vấn theo thời gian
                                 </Typography>
                                 <IconButton size="small" sx={{color: "#64748b"}}>
@@ -353,7 +353,7 @@ export default function SchoolDashboard() {
                     >
                         <CardContent sx={{p: 3}}>
                             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-                                <Typography variant="h6" sx={{fontWeight: 700, color: "#0f172a"}}>
+                                <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
                                     Học sinh đăng ký theo cơ sở
                                 </Typography>
                                 <IconButton size="small" sx={{color: "#64748b"}}>
@@ -419,7 +419,7 @@ export default function SchoolDashboard() {
                     >
                         <CardContent sx={{p: 3}}>
                             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-                                <Typography variant="h6" sx={{fontWeight: 700, color: "#0f172a"}}>
+                                <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
                                     Phân bố học sinh theo chiến dịch
                                 </Typography>
                                 <IconButton size="small" sx={{color: "#64748b"}}>
@@ -460,7 +460,7 @@ export default function SchoolDashboard() {
                                         <Typography variant="caption" sx={{color: "#64748b"}}>
                                             Tổng
                                         </Typography>
-                                        <Typography variant="h6" sx={{fontWeight: 700, color: "#0f172a"}}>
+                                        <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
                                             100%
                                         </Typography>
                                     </Box>
@@ -470,7 +470,7 @@ export default function SchoolDashboard() {
                                         <Box
                                             sx={{width: 10, height: 10, borderRadius: "50%", bgcolor: "#0D64DE"}}
                                         />
-                                        <Typography variant="body2" sx={{color: "#0f172a"}}>
+                                        <Typography variant="body2" sx={{color: "#1e293b"}}>
                                             Chiến dịch lớp 10 · 40%
                                         </Typography>
                                     </Stack>
@@ -478,7 +478,7 @@ export default function SchoolDashboard() {
                                         <Box
                                             sx={{width: 10, height: 10, borderRadius: "50%", bgcolor: "#22c55e"}}
                                         />
-                                        <Typography variant="body2" sx={{color: "#0f172a"}}>
+                                        <Typography variant="body2" sx={{color: "#1e293b"}}>
                                             Chiến dịch lớp 6 · 30%
                                         </Typography>
                                     </Stack>
@@ -486,7 +486,7 @@ export default function SchoolDashboard() {
                                         <Box
                                             sx={{width: 10, height: 10, borderRadius: "50%", bgcolor: "#f97316"}}
                                         />
-                                        <Typography variant="body2" sx={{color: "#0f172a"}}>
+                                        <Typography variant="body2" sx={{color: "#1e293b"}}>
                                             Khác · 30%
                                         </Typography>
                                     </Stack>
@@ -509,7 +509,7 @@ export default function SchoolDashboard() {
                     >
                         <CardContent sx={{p: 3}}>
                             <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-                                <Typography variant="h6" sx={{fontWeight: 700, color: "#0f172a"}}>
+                                <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
                                     Hoạt động tư vấn gần đây
                                 </Typography>
                                 <Button
@@ -577,7 +577,7 @@ export default function SchoolDashboard() {
                                                                     .join("")
                                                                     .toUpperCase()}
                                                             </Avatar>
-                                                            <Typography sx={{fontWeight: 500, color: "#0f172a"}}>
+                                                            <Typography sx={{fontWeight: 500, color: "#1e293b"}}>
                                                                 {row.parent}
                                                             </Typography>
                                                         </Stack>
@@ -624,7 +624,7 @@ export default function SchoolDashboard() {
                         }}
                     >
                         <CardContent sx={{p: 3}}>
-                            <Typography variant="h6" sx={{fontWeight: 700, color: "#0f172a", mb: 2}}>
+                            <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b", mb: 2}}>
                                 Thao tác nhanh
                             </Typography>
                             <Stack spacing={1.5}>
@@ -637,7 +637,7 @@ export default function SchoolDashboard() {
                                         borderRadius: 2,
                                         textTransform: "none",
                                         borderColor: "#e2e8f0",
-                                        color: "#0f172a",
+                                        color: "#1e293b",
                                         "&:hover": {borderColor: "#0D64DE", bgcolor: "#eff6ff"},
                                     }}
                                 >
@@ -652,7 +652,7 @@ export default function SchoolDashboard() {
                                         borderRadius: 2,
                                         textTransform: "none",
                                         borderColor: "#e2e8f0",
-                                        color: "#0f172a",
+                                        color: "#1e293b",
                                         "&:hover": {borderColor: "#0D64DE", bgcolor: "#eff6ff"},
                                     }}
                                 >
@@ -667,7 +667,7 @@ export default function SchoolDashboard() {
                                         borderRadius: 2,
                                         textTransform: "none",
                                         borderColor: "#e2e8f0",
-                                        color: "#0f172a",
+                                        color: "#1e293b",
                                         "&:hover": {borderColor: "#0D64DE", bgcolor: "#eff6ff"},
                                     }}
                                 >
@@ -682,7 +682,7 @@ export default function SchoolDashboard() {
                                         borderRadius: 2,
                                         textTransform: "none",
                                         borderColor: "#e2e8f0",
-                                        color: "#0f172a",
+                                        color: "#1e293b",
                                         "&:hover": {borderColor: "#0D64DE", bgcolor: "#eff6ff"},
                                     }}
                                 >

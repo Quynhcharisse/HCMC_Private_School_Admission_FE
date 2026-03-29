@@ -32,7 +32,7 @@ import {
     landingSectionShadow
 } from "../../constants/homeLandingTheme";
 
-const SCHOOL_ICON_TINTS = ["#2563eb", "#ea580c", "#0891b2", "#7c3aed"];
+const SCHOOL_ICON_TINTS = ["#2563eb", "#3b82f6", "#0ea5e9", "#38bdf8"];
 
 function formatLocation(row) {
     if (row?.locationLabel) return String(row.locationLabel);
@@ -120,7 +120,7 @@ export default function CompareSchoolsPage() {
                             fontWeight: 800,
                             fontSize: 14,
                             lineHeight: 1.3,
-                            color: "#0f172a",
+                            color: "#1e293b",
                             wordBreak: "break-word"
                         }}
                     >
@@ -136,7 +136,7 @@ export default function CompareSchoolsPage() {
                         top: 4,
                         right: 2,
                         color: "#94a3b8",
-                        "&:hover": {color: BRAND_NAVY, bgcolor: "rgba(45,95,115,0.08)"}
+                        "&:hover": {color: BRAND_NAVY, bgcolor: "rgba(59,130,246,0.08)"}
                     }}
                     aria-label="Tùy chọn trường"
                 >
@@ -191,7 +191,7 @@ export default function CompareSchoolsPage() {
                 ...(!locked && {
                     "&:hover": {
                         borderColor: BRAND_NAVY,
-                        bgcolor: "rgba(45,95,115,0.04)"
+                        bgcolor: "rgba(59,130,246,0.04)"
                     }
                 })
             }}
@@ -236,7 +236,7 @@ export default function CompareSchoolsPage() {
                         gap: 1.5
                     }}
                 >
-                    <Typography sx={{fontWeight: 800, fontSize: 20, color: "#0f172a"}}>
+                    <Typography sx={{fontWeight: 800, fontSize: 20, color: "#1e293b"}}>
                         So sánh trường
                     </Typography>
                     <Button
@@ -245,9 +245,9 @@ export default function CompareSchoolsPage() {
                         sx={{
                             textTransform: "none",
                             fontWeight: 600,
-                            borderColor: "rgba(45,95,115,0.35)",
+                            borderColor: "rgba(59,130,246,0.35)",
                             color: BRAND_NAVY,
-                            "&:hover": {borderColor: BRAND_NAVY, bgcolor: "rgba(45,95,115,0.06)"}
+                            "&:hover": {borderColor: BRAND_NAVY, bgcolor: "rgba(59,130,246,0.06)"}
                         }}
                     >
                         Tìm thêm trường

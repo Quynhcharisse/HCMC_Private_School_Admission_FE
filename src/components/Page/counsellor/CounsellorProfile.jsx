@@ -40,7 +40,7 @@ const SectionHeader = ({ icon: Icon, title }) => (
         justifyContent: "center",
       }}
     >
-      <Icon sx={{ color: "#1d4ed8", fontSize: 22 }} />
+      <Icon sx={{ color: "#2563eb", fontSize: 22 }} />
     </Box>
     <Typography variant="subtitle1" fontWeight={700} sx={{ color: "#1e293b" }}>
       {title}
@@ -377,8 +377,8 @@ export default function CounsellorProfile() {
               textTransform: "none",
               fontWeight: 600,
               borderRadius: 2,
-              bgcolor: "#1d4ed8",
-              "&:hover": { bgcolor: "#1e40af" },
+              bgcolor: "#2563eb",
+              "&:hover": { bgcolor: "#2563eb" },
             }}
           >
             {saving ? "Đang lưu..." : "Lưu thay đổi"}

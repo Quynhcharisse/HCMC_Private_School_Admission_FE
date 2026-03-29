@@ -113,7 +113,7 @@ export default function ChildrenInfoPage() {
                             sx={{
                                 fontWeight: 800,
                                 fontSize: {xs: 26, sm: 30},
-                                color: '#0f172a',
+                                color: '#1e293b',
                                 letterSpacing: -0.03,
                                 lineHeight: 1.15,
                                 mb: 1,
@@ -189,11 +189,11 @@ export default function ChildrenInfoPage() {
                                         transition: 'all 0.2s ease',
                                         '&:hover': {
                                             bgcolor: 'rgba(219, 234, 254, 0.58)',
-                                            color: '#1e3a8a',
+                                            color: '#2563eb',
                                         },
                                         '&.Mui-selected': {
                                             bgcolor: '#f8fbff',
-                                            color: '#0f172a',
+                                            color: '#1e293b',
                                             fontWeight: 700,
                                             borderColor: 'rgba(59, 130, 246, 0.35)',
                                             boxShadow:
@@ -216,18 +216,18 @@ export default function ChildrenInfoPage() {
                                     borderRadius: '14px 14px 0 0',
                                     background:
                                         'linear-gradient(180deg, rgba(224, 242, 254, 0.95) 0%, rgba(219, 234, 254, 0.95) 100%)',
-                                    color: '#1d4ed8',
+                                    color: '#2563eb',
                                     border: '1px dashed rgba(37, 99, 235, 0.5)',
                                     borderBottom: 'none',
                                     '&:hover': {
                                         background:
                                             'linear-gradient(180deg, rgba(219, 234, 254, 1) 0%, rgba(191, 219, 254, 0.95) 100%)',
-                                        color: '#1e40af',
+                                        color: '#2563eb',
                                     },
                                     '&.Mui-selected': {
                                         background:
                                             'linear-gradient(180deg, rgba(191, 219, 254, 0.95) 0%, rgba(147, 197, 253, 0.9) 100%)',
-                                        color: '#1e3a8a',
+                                        color: '#2563eb',
                                     },
                                 }}
                             />
@@ -321,7 +321,7 @@ export default function ChildrenInfoPage() {
                                             sx={{
                                                 fontWeight: 600,
                                                 fontSize: 15,
-                                                color: '#1e40af',
+                                                color: '#2563eb',
                                                 mb: 0.75,
                                             }}
                                         >
@@ -406,14 +406,14 @@ export default function ChildrenInfoPage() {
                                                                                             sx={{
                                                                                                 fontSize: 15,
                                                                                                 lineHeight: 1.35,
-                                                                                                color: '#0f172a',
+                                                                                                color: '#1e293b',
                                                                                             }}
                                                                                         >
                                                                                             <Box
                                                                                                 component="span"
                                                                                                 sx={{
                                                                                                     fontWeight: 700,
-                                                                                                    color: '#1e40af',
+                                                                                                    color: '#2563eb',
                                                                                                 }}
                                                                                             >
                                                                                                 {item.code}
@@ -465,7 +465,7 @@ export default function ChildrenInfoPage() {
                                                                         sx={{
                                                                             fontSize: 14,
                                                                             fontWeight: 700,
-                                                                            color: '#0f172a',
+                                                                            color: '#1e293b',
                                                                             mb: 0.35,
                                                                             lineHeight: 1.35,
                                                                         }}
@@ -771,7 +771,7 @@ export default function ChildrenInfoPage() {
                                                                                 sx={{
                                                                                     fontSize: 14,
                                                                                     fontWeight: 600,
-                                                                                    color: '#1e40af',
+                                                                                    color: '#2563eb',
                                                                                     mb: 0.35,
                                                                                     lineHeight: 1.35,
                                                                                 }}
@@ -820,7 +820,7 @@ export default function ChildrenInfoPage() {
                                                     target="_blank"
                                                     rel="noopener noreferrer"
                                                     sx={{
-                                                        color: '#1d4ed8',
+                                                        color: '#2563eb',
                                                         fontWeight: 600,
                                                         wordBreak: 'break-all',
                                                     }}
@@ -854,7 +854,7 @@ export default function ChildrenInfoPage() {
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             sx={{
-                                                color: '#1d4ed8',
+                                                color: '#2563eb',
                                                 fontWeight: 500,
                                                 wordBreak: 'break-all',
                                             }}
@@ -870,7 +870,7 @@ export default function ChildrenInfoPage() {
                                             href="https://mbti.vn/"
                                             target="_blank"
                                             rel="noopener noreferrer"
-                                            sx={{color: '#1d4ed8', fontWeight: 500, wordBreak: 'break-all'}}
+                                            sx={{color: '#2563eb', fontWeight: 500, wordBreak: 'break-all'}}
                                         >
                                             https://mbti.vn/
                                         </Link>
@@ -974,7 +974,7 @@ export default function ChildrenInfoPage() {
                                                                                             color: '#94a3b8',
                                                                                             alignSelf: 'center',
                                                                                             '&.Mui-checked': {
-                                                                                                color: '#1d4ed8',
+                                                                                                color: '#2563eb',
                                                                                             },
                                                                                         }}
                                                                                     />
@@ -988,7 +988,7 @@ export default function ChildrenInfoPage() {
                                                                                                 fontSize: 11,
                                                                                                 fontWeight: 800,
                                                                                                 letterSpacing: 0.4,
-                                                                                                color: '#1d4ed8',
+                                                                                                color: '#2563eb',
                                                                                                 mb: 0.35,
                                                                                             }}
                                                                                         >
@@ -1097,7 +1097,7 @@ export default function ChildrenInfoPage() {
                                                         bgcolor: 'rgba(241, 245, 249, 0.98)',
                                                         fontWeight: 800,
                                                         fontSize: 13,
-                                                        color: '#0f172a',
+                                                        color: '#1e293b',
                                                         border: '1px solid rgba(226, 232, 240, 0.95)',
                                                         minWidth: 200,
                                                     }}
@@ -1111,7 +1111,7 @@ export default function ChildrenInfoPage() {
                                                         bgcolor: 'rgba(241, 245, 249, 0.98)',
                                                         fontWeight: 800,
                                                         fontSize: 13,
-                                                        color: '#0f172a',
+                                                        color: '#1e293b',
                                                         border: '1px solid rgba(226, 232, 240, 0.95)',
                                                         letterSpacing: 0.5,
                                                     }}

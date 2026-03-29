@@ -10,6 +10,7 @@ import {
     setSavedSchools
 } from "../../utils/savedSchoolsStorage";
 import {
+    APP_PRIMARY_DARK,
     BRAND_NAVY,
     HOME_PAGE_SURFACE_GRADIENT,
     landingSectionShadow
@@ -48,7 +49,7 @@ export default function SavedSchoolsPage() {
     const cardSurface = {
         bgcolor: "#fff",
         borderRadius: 3,
-        border: "1px solid rgba(15,23,42,0.08)",
+        border: "1px solid rgba(51,65,85,0.08)",
         boxShadow: landingSectionShadow(2)
     };
 
@@ -62,7 +63,7 @@ export default function SavedSchoolsPage() {
         >
             <Box sx={{maxWidth: 1200, mx: "auto", px: {xs: 2, md: 3}, pb: 5}}>
                 <Box sx={{display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2}}>
-                    <Typography sx={{fontWeight: 800, fontSize: 20, color: "#0f172a"}}>
+                    <Typography sx={{fontWeight: 800, fontSize: 20, color: "#1e293b"}}>
                         Trường đã lưu
                     </Typography>
                     {!isParent && (
@@ -73,7 +74,7 @@ export default function SavedSchoolsPage() {
                                 textTransform: "none",
                                 fontWeight: 600,
                                 bgcolor: BRAND_NAVY,
-                                "&:hover": {bgcolor: "#265a6b"}
+                                "&:hover": {bgcolor: APP_PRIMARY_DARK}
                             }}
                         >
                             Đăng nhập
@@ -89,7 +90,7 @@ export default function SavedSchoolsPage() {
                     </Card>
                 ) : (
                     <>
-                        <Divider sx={{mb: 2, borderColor: "rgba(15,23,42,0.08)"}}/>
+                        <Divider sx={{mb: 2, borderColor: "rgba(51,65,85,0.08)"}}/>
                         {savedSchools.length === 0 ? (
                             <Card sx={{p: 3, ...cardSurface}}>
                                 <Typography sx={{color: "#64748b"}}>
@@ -111,8 +112,8 @@ export default function SavedSchoolsPage() {
                                             transition: "transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease",
                                             "&:hover": {
                                                 transform: "translateY(-4px)",
-                                                boxShadow: "0 18px 36px rgba(15,23,42,0.14)",
-                                                borderColor: "rgba(45,95,115,0.28)"
+                                                boxShadow: "0 18px 36px rgba(51,65,85,0.14)",
+                                                borderColor: "rgba(59,130,246,0.28)"
                                             }
                                         }}
                                     >
@@ -123,7 +124,7 @@ export default function SavedSchoolsPage() {
                                             sx={{height: {xs: 180, sm: 170}, borderRadius: 2}}
                                         />
                                         <Box>
-                                            <Typography sx={{fontWeight: 800, fontSize: 18, color: "#0f172a"}}>
+                                            <Typography sx={{fontWeight: 800, fontSize: 18, color: "#1e293b"}}>
                                                 {item?.schoolName}
                                             </Typography>
                                             <Typography sx={{mt: 0.5, color: "#64748b", fontSize: "0.88rem"}}>
@@ -134,7 +135,7 @@ export default function SavedSchoolsPage() {
                                                 <IconButton
                                                     size="small"
                                                     onClick={() => onRemove(item)}
-                                                    sx={{color: BRAND_NAVY, "&:hover": {bgcolor: "rgba(45,95,115,0.08)"}}}
+                                                    sx={{color: BRAND_NAVY, "&:hover": {bgcolor: "rgba(59,130,246,0.08)"}}}
                                                     title="Bỏ lưu"
                                                 >
                                                     <BookmarkIcon fontSize="small"/>

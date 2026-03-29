@@ -92,7 +92,7 @@ export default function UserProfilePage() {
                 <Typography variant="h4" sx={{fontWeight: 700, mb: 3}}>
                     Hồ sơ cá nhân
                 </Typography>
-                <Card sx={{borderRadius: 3, boxShadow: "0 8px 24px rgba(15,23,42,0.08)"}}>
+                <Card sx={{borderRadius: 3, boxShadow: "0 8px 24px rgba(51,65,85,0.08)"}}>
                     <CardContent sx={{p: 4}}>
                         <Grid container spacing={3}>
                             <Grid item xs={12}>

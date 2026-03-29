@@ -360,7 +360,7 @@ export default function SchoolCampaigns() {
                 sx={{
                     borderRadius: "16px",
                     border: "1px solid #e2e8f0",
-                    boxShadow: "0 4px 24px rgba(15,23,42,0.06)",
+                    boxShadow: "0 4px 24px rgba(51,65,85,0.06)",
                     bgcolor: "#fff",
                 }}
             >
@@ -432,7 +432,7 @@ export default function SchoolCampaigns() {
                 sx={{
                     borderRadius: "16px",
                     border: "1px solid #e2e8f0",
-                    boxShadow: "0 4px 24px rgba(15,23,42,0.06)",
+                    boxShadow: "0 4px 24px rgba(51,65,85,0.06)",
                     overflow: "hidden",
                     bgcolor: "#fff",
                 }}

@@ -47,13 +47,13 @@ const ConfirmDialog = ({
             sx={{
                 ...dialogSx,
                 "& .MuiBackdrop-root": {
-                    backgroundColor: alpha("#0f172a", 0.45),
+                    backgroundColor: alpha("#1e293b", 0.45),
                     ...backdropSx,
                 },
                 '& .MuiPaper-root': {
                     borderRadius: 3,
                     boxShadow:
-                        '0 18px 45px rgba(15,23,42,0.28)',
+                        '0 18px 45px rgba(51,65,85,0.28)',
                     border: '1px solid rgba(148,163,184,0.25)',
                     background:
                         'radial-gradient(circle at top left, #eff6ff 0, #ffffff 45%, #f9fafb 100%)',
@@ -67,14 +67,14 @@ const ConfirmDialog = ({
                     sx={{
                         cursor: "default",
                         fontWeight: 700,
-                        color: "#0f172a",
+                        color: "#1e293b",
                         fontSize: 18,
                         display: "flex",
                         alignItems: "center",
                         gap: 1,
                         pt: 2,
                         pb: 2.1,
-                        background: "linear-gradient(135deg, rgba(37,99,235,0.14), rgba(79,70,229,0.08))",
+                        background: "linear-gradient(135deg, rgba(37,99,235,0.14), rgba(59,130,246,0.1))",
                         borderBottom: "none",
                         ...titleSx,
                     }}
@@ -88,7 +88,7 @@ const ConfirmDialog = ({
                         <DialogContentText
                             sx={{
                                 fontSize: 14,
-                                color: "#0f172a",
+                                color: "#1e293b",
                                 mt: title ? 0.6 : 0,
                                 mb: extraDescription || children != null ? 0.5 : 0,
                             }}
