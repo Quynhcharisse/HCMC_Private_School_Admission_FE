@@ -31,10 +31,11 @@ export const markParentMessagesRead = async ({conversationId, username}) => {
     return response || null;
 };
 
-export const getCounsellorMessagesHistory = async ({parentEmail, counsellorEmail, cursorId}) => {
+export const getCounsellorMessagesHistory = async ({parentEmail, counsellorEmail, studentProfileId, cursorId}) => {
     const encodedParentEmail = encodeURIComponent(parentEmail || "");
     const encodedCounsellorEmail = encodeURIComponent(counsellorEmail || "");
-    const endpoint = `/counsellor/messages/history/${encodedParentEmail}/${encodedCounsellorEmail}`;
+    const encodedStudentProfileId = encodeURIComponent(studentProfileId || "");
+    const endpoint = `/counsellor/messages/history/${encodedParentEmail}/${encodedCounsellorEmail}/${encodedStudentProfileId}`;
 
     const response = await axiosClient.request({
         url: endpoint,

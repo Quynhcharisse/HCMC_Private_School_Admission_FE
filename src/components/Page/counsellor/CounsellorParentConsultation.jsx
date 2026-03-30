@@ -1,13 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Avatar,
   Box,
+  Divider,
+  Drawer,
   IconButton,
   InputBase,
   List,
   ListItem,
   ListItemAvatar,
   ListItemText,
+  Menu,
+  MenuItem,
   Paper,
   Typography,
   Tooltip,
@@ -23,6 +30,9 @@ import MoodRoundedIcon from "@mui/icons-material/MoodRounded";
 import ReplyRoundedIcon from "@mui/icons-material/ReplyRounded";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import WorkOutlineRoundedIcon from "@mui/icons-material/WorkOutlineRounded";
 
 import { getCounsellorConversations } from "../../../services/ConversationService.jsx";
 import {
@@ -38,6 +48,12 @@ import {
 import {APP_PRIMARY_DARK, APP_PRIMARY_MAIN} from "../../../constants/homeLandingTheme";
 
 const fallbackAvatarColors = ["#2563eb", "#3b82f6", "#38bdf8", "#0ea5e9", "#60a5fa", "#7dd3fc"];
+const getInitials = (name) => {
+  const clean = (name || "").trim();
+  if (!clean) return "ST";
+  const words = clean.split(/\s+/).slice(0, 2);
+  return words.map((w) => w.charAt(0).toUpperCase()).join("");
+};
 
 const formatMessageTime = (value) => {
   if (!value) return "";
@@ -78,6 +94,23 @@ const mergeUniqueMessages = (messages) => {
 };
 
 const isSameConversationId = (a, b) => a != null && b != null && String(a) === String(b);
+const scoreColor = (score) => {
+  const numeric = Number(score);
+  if (!Number.isFinite(numeric)) return "#64748b";
+  if (numeric >= 8) return "#16a34a";
+  if (numeric >= 6.5) return "#2563eb";
+  if (numeric >= 5) return "#ca8a04";
+  return "#dc2626";
+};
+
+/** GRADE_06 → Lớp 06 */
+const formatGradeLevelLabel = (gradeLevel) => {
+  const s = String(gradeLevel ?? "").trim();
+  if (!s) return "Lớp";
+  const m = s.match(/^GRADE_(\d{2})$/i);
+  if (m) return `Lớp ${m[1]}`;
+  return s;
+};
 
 export default function CounsellorParentConsultation() {
   const userInfo = useMemo(() => {
@@ -108,6 +141,9 @@ export default function CounsellorParentConsultation() {
   const [messageError, setMessageError] = useState("");
   const [messageNextCursorId, setMessageNextCursorId] = useState(null);
   const [messageHasMore, setMessageHasMore] = useState(false);
+  const [studentProfileData, setStudentProfileData] = useState(null);
+  const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
+  const [moreAnchorEl, setMoreAnchorEl] = useState(null);
 
   const loadingMoreRef = useRef(false);
   const hasMarkedReadRef = useRef(false);
@@ -184,6 +220,15 @@ export default function CounsellorParentConsultation() {
           : [],
       nextCursorId: payload?.nextCursorId ?? payload?.cursorId ?? null,
       hasMore: !!payload?.hasMore,
+      profile: {
+        favouriteJob: payload?.favouriteJob ?? "",
+        traits: Array.isArray(payload?.traits) ? payload.traits : [],
+        gender: payload?.gender ?? "",
+        conversationId: payload?.conversationId ?? null,
+        academicProfileMetadata: Array.isArray(payload?.academicProfileMetadata) ? payload.academicProfileMetadata : [],
+        childName: payload?.childName ?? "",
+        personalityCode: payload?.personalityCode ?? "",
+      },
     };
   };
 
@@ -204,6 +249,11 @@ export default function CounsellorParentConsultation() {
     return {
       conversationId,
       name: c?.name ?? c?.parentName ?? c?.participantName ?? c?.parent?.name ?? c?.otherUser ?? "Phụ huynh",
+      studentName: c?.studentName ?? "",
+      studentProfileId: c?.studentProfileId ?? c?.student?.profileId ?? null,
+      avatarUrl: c?.avatarUrl ?? "",
+      otherUser: c?.otherUser ?? "",
+      updatedAt: c?.updatedAt ?? "",
       avatarColor: c?.avatarColor ?? fallbackAvatarColors[index % fallbackAvatarColors.length],
       lastMessage: c?.lastMessage ?? c?.lastText ?? c?.lastContent ?? c?.last?.content ?? "",
       time: c?.time ?? c?.lastMessageTime ?? c?.last?.sentAt ?? "",
@@ -242,6 +292,14 @@ export default function CounsellorParentConsultation() {
       conversation?.counsellorEmail ?? conversation?.counsellor?.email ?? userInfo?.email ?? "";
     return { parentEmail, counsellorEmail };
   };
+
+  const genderLabel = useMemo(() => {
+    const gender = studentProfileData?.gender;
+    if (!gender) return "N/A";
+    if (gender === "FEMALE") return "Nữ";
+    if (gender === "MALE") return "Nam";
+    return gender;
+  }, [studentProfileData]);
 
   /**
    * Tin do tư vấn viên gửi (bên phải / xanh). BE thường lưu senderName/receiverName, không phải email.
@@ -302,6 +360,8 @@ export default function CounsellorParentConsultation() {
   const handleSelectConversation = async (conversation) => {
     if (!conversation?.conversationId) return;
     setSelectedConversationId(conversation.conversationId);
+    setStudentProfileData(null);
+    setProfileDrawerOpen(false);
     hasMarkedReadRef.current = false;
     setMessageItems([]);
     setMessageNextCursorId(null);
@@ -339,7 +399,8 @@ export default function CounsellorParentConsultation() {
     }
     try {
       const { parentEmail, counsellorEmail } = getConversationEmails(conversation);
-      if (!parentEmail || !counsellorEmail) {
+      const studentProfileId = conversation?.studentProfileId;
+      if (!parentEmail || !counsellorEmail || !studentProfileId) {
         if (!silent) setMessageError("Thiếu thông tin email để tải lịch sử.");
         return;
       }
@@ -347,6 +408,7 @@ export default function CounsellorParentConsultation() {
       const response = await getCounsellorMessagesHistory({
         parentEmail,
         counsellorEmail,
+        studentProfileId,
         cursorId,
       });
 
@@ -364,6 +426,7 @@ export default function CounsellorParentConsultation() {
         );
         setMessageNextCursorId(parsed.nextCursorId);
         setMessageHasMore(parsed.hasMore);
+        setStudentProfileData(parsed.profile);
       } else if (!silent) {
         setMessageError("Không thể tải lịch sử tin nhắn.");
       }
@@ -521,6 +584,13 @@ export default function CounsellorParentConsultation() {
     });
   };
 
+  const handleOpenMoreMenu = (event) => setMoreAnchorEl(event.currentTarget);
+  const handleCloseMoreMenu = () => setMoreAnchorEl(null);
+  const handleOpenStudentProfile = () => {
+    setProfileDrawerOpen(true);
+    handleCloseMoreMenu();
+  };
+
   return (
     <Box
       sx={{
@@ -667,8 +737,9 @@ export default function CounsellorParentConsultation() {
                             fontSize: 14,
                             bgcolor: c.avatarColor,
                           }}
+                          src={c.avatarUrl || undefined}
                         >
-                          {(c.name || "P").charAt(0).toUpperCase()}
+                          {getInitials(c.studentName || c.name || "P")}
                         </Avatar>
                       </Badge>
                     </ListItemAvatar>
@@ -751,8 +822,9 @@ export default function CounsellorParentConsultation() {
                       bgcolor: selectedConversation.avatarColor,
                       fontSize: 16,
                     }}
+                    src={selectedConversation.avatarUrl || undefined}
                   >
-                    {selectedConversation.name.charAt(0).toUpperCase()}
+                    {getInitials(selectedConversation.studentName || selectedConversation.name)}
                   </Avatar>
                   <Box>
                     <Typography sx={{ fontSize: 15, fontWeight: 600, color: "#1e293b" }}>
@@ -778,10 +850,29 @@ export default function CounsellorParentConsultation() {
                 </Box>
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
                   <Tooltip title="Tuỳ chọn thêm">
-                    <IconButton size="small">
+                    <IconButton size="small" onClick={handleOpenMoreMenu}>
                       <MoreVertIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
+                  <Menu
+                    anchorEl={moreAnchorEl}
+                    open={Boolean(moreAnchorEl)}
+                    onClose={handleCloseMoreMenu}
+                    anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                    transformOrigin={{ vertical: "top", horizontal: "right" }}
+                    PaperProps={{
+                      sx: {
+                        borderRadius: 2.5,
+                        minWidth: 220,
+                        border: "1px solid rgba(148,163,184,0.28)",
+                        boxShadow: "0 16px 30px rgba(15,23,42,0.14)",
+                      },
+                    }}
+                  >
+                    <MenuItem onClick={handleOpenStudentProfile} sx={{ fontSize: 13.5 }}>
+                      View Student Profile
+                    </MenuItem>
+                  </Menu>
                 </Box>
               </>
             ) : (
@@ -1011,6 +1102,149 @@ export default function CounsellorParentConsultation() {
           </Box>
         </Box>
       </Paper>
+
+      <Drawer
+        anchor="right"
+        open={profileDrawerOpen}
+        onClose={() => setProfileDrawerOpen(false)}
+        ModalProps={{ keepMounted: true }}
+        PaperProps={{
+          sx: {
+            width: { xs: "100%", sm: 460, md: 500 },
+            borderTopLeftRadius: { xs: 0, sm: 16 },
+            borderBottomLeftRadius: { xs: 0, sm: 16 },
+            bgcolor: "#f8fafc",
+            boxShadow: "-12px 0 35px rgba(15,23,42,0.2)",
+            overflow: "hidden",
+          },
+        }}
+      >
+        <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+          <Box
+            sx={{
+              px: 2.5,
+              py: 2,
+              borderBottom: "1px solid #e2e8f0",
+              bgcolor: "rgba(255,255,255,0.95)",
+              position: "sticky",
+              top: 0,
+              zIndex: 2,
+            }}
+          >
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1.5 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+                <Avatar
+                  src={selectedConversation?.avatarUrl || undefined}
+                  sx={{ width: 50, height: 50, bgcolor: "#4f46e5", fontSize: 18, fontWeight: 700 }}
+                >
+                  {getInitials(studentProfileData?.childName || selectedConversation?.studentName || "Student")}
+                </Avatar>
+                <Box>
+                  <Typography sx={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>
+                    {studentProfileData?.childName || selectedConversation?.studentName || "Student Profile"}
+                  </Typography>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.5, flexWrap: "wrap" }}>
+                    <Chip
+                      size="small"
+                      label={genderLabel}
+                      sx={{ height: 22, bgcolor: "rgba(59,130,246,0.14)", color: "#1d4ed8", fontWeight: 600 }}
+                    />
+                    <Chip
+                      size="small"
+                      label={studentProfileData?.personalityCode || "N/A"}
+                      sx={{ height: 22, bgcolor: "rgba(99,102,241,0.16)", color: "#4338ca", fontWeight: 700 }}
+                    />
+                  </Box>
+                </Box>
+              </Box>
+              <IconButton onClick={() => setProfileDrawerOpen(false)}>
+                <CloseRoundedIcon />
+              </IconButton>
+            </Box>
+          </Box>
+
+          <Box sx={{ p: 2.25, overflowY: "auto", flex: 1 }}>
+            <Paper elevation={0} sx={{ p: 2, mb: 2, borderRadius: 3, border: "1px solid #e2e8f0" }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1, color: "#0f172a" }}>
+                Tổng quan về tính cách
+              </Typography>
+              <Chip
+                size="small"
+                label={studentProfileData?.personalityCode || "N/A"}
+                sx={{ mb: 1.25, bgcolor: "rgba(99,102,241,0.12)", color: "#4f46e5", fontWeight: 700 }}
+              />
+              {studentProfileData?.traits?.length ? (
+                studentProfileData.traits.map((trait, idx) => (
+                  <Accordion key={`${trait?.name || "trait"}-${idx}`} disableGutters elevation={0} sx={{ mb: 0.75, borderRadius: 2, border: "1px solid #e2e8f0", "&:before": { display: "none" } }}>
+                    <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />} sx={{ minHeight: 46 }}>
+                      <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>{trait?.name || "Trait"}</Typography>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ pt: 0 }}>
+                      <Typography sx={{ fontSize: 13, color: "#475569", lineHeight: 1.55 }}>
+                        {trait?.description || "No description."}
+                      </Typography>
+                    </AccordionDetails>
+                  </Accordion>
+                ))
+              ) : (
+                <Typography sx={{ fontSize: 13, color: "#64748b" }}>No traits available.</Typography>
+              )}
+            </Paper>
+
+            <Paper elevation={0} sx={{ p: 2, mb: 2, borderRadius: 3, border: "1px solid #e2e8f0" }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1, color: "#0f172a" }}>
+              Sở thích nghề nghiệp
+              </Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, p: 1.25, borderRadius: 2.5, bgcolor: "rgba(59,130,246,0.08)" }}>
+                <WorkOutlineRoundedIcon sx={{ color: "#1d4ed8" }} />
+                <Box>
+                  <Typography sx={{ fontSize: 13.5, fontWeight: 700, color: "#1e293b" }}>
+                    {studentProfileData?.favouriteJob || "Chưa có định hướng nghề nghiệp"}
+                  </Typography>
+                </Box>
+              </Box>
+            </Paper>
+
+            <Paper elevation={0} sx={{ p: 2, mb: 2, borderRadius: 3, border: "1px solid #e2e8f0" }}>
+              <Typography sx={{ fontSize: 14, fontWeight: 700, mb: 1, color: "#0f172a" }}>
+              Thành tích học tập
+              </Typography>
+              {!studentProfileData?.academicProfileMetadata?.length ? (
+                <Typography sx={{ fontSize: 13, color: "#64748b" }}>No academic data yet.</Typography>
+              ) : (
+                studentProfileData.academicProfileMetadata.map((grade, idx) => (
+                  <Accordion key={`${grade?.gradeLevel || "grade"}-${idx}`} disableGutters elevation={0} sx={{ mb: 0.75, borderRadius: 2, border: "1px solid #e2e8f0", "&:before": { display: "none" } }}>
+                    <AccordionSummary expandIcon={<ExpandMoreRoundedIcon />} sx={{ minHeight: 46 }}>
+                      <Typography sx={{ fontSize: 13.5, fontWeight: 600 }}>
+                        {formatGradeLevelLabel(grade?.gradeLevel)}
+                      </Typography>
+                    </AccordionSummary>
+                    <AccordionDetails sx={{ pt: 0 }}>
+                      {(grade?.subjectResults || []).map((subject, subjectIdx) => {
+                        const isMainSubject = ["Toán", "Ngữ Văn"].includes(subject?.subjectName);
+                        return (
+                          <Box key={`${subject?.subjectName || "subject"}-${subjectIdx}`}>
+                            <Box sx={{ py: 0.9, display: "flex", justifyContent: "space-between", gap: 1 }}>
+                              <Typography sx={{ fontSize: 13, fontWeight: isMainSubject ? 700 : 500, color: "#1e293b" }}>
+                                {subject?.subjectName || "Môn học"}
+                              </Typography>
+                              <Typography sx={{ fontSize: 12.5, fontWeight: 600, color: scoreColor(subject?.score) }}>
+                                {subject?.score == null ? "Chưa có dữ liệu" : subject.score}
+                              </Typography>
+                            </Box>
+                            {subjectIdx < (grade?.subjectResults?.length || 0) - 1 ? <Divider /> : null}
+                          </Box>
+                        );
+                      })}
+                    </AccordionDetails>
+                  </Accordion>
+                ))
+              )}
+            </Paper>
+
+          </Box>
+        </Box>
+      </Drawer>
     </Box>
   );
 }
