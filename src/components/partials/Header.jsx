@@ -10,7 +10,6 @@ import {
     CircularProgress,
     Divider,
     Fab,
-    FormControl,
     IconButton,
     InputBase,
     List,
@@ -20,7 +19,6 @@ import {
     MenuItem,
     Paper,
     Popover,
-    Select,
     Table,
     TableBody,
     TableCell,
@@ -40,6 +38,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import CloseIcon from "@mui/icons-material/Close";
 import RemoveIcon from "@mui/icons-material/Remove";
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import Fade from '@mui/material/Fade';
 import {enqueueSnackbar} from "notistack";
@@ -82,7 +81,7 @@ function findConversationForSchool(items, schoolName, schoolEmail) {
     if (!name) return null;
     return (
         items.find((c) => {
-            const t = normalizeMatchKey(c.title || c.name || c.schoolName || c.participantName || "");
+            const t = normalizeMatchKey(c.title || c.name || c.schoolName || c.school || c.participantName || "");
             return t && (t === name || t.includes(name) || name.includes(t));
         }) || null
     );
@@ -152,7 +151,7 @@ const normalizeParentStudent = (student, index) => {
 const lowerString = (value) => (value ?? '').toString().trim().toLowerCase();
 
 const getConversationDisplayTitle = (c) =>
-    c?.title || c?.name || c?.schoolName || 'Cuộc trò chuyện';
+    c?.title || c?.name || c?.schoolName || c?.school || 'Cuộc trò chuyện';
 
 const subjectLabelFromRow = (r) => {
     const n = r?.subjectName ?? r?.name ?? r?.subject;
@@ -209,6 +208,58 @@ const getStudentCompactInfo = (student) => {
     return items;
 };
 
+const pickFirstNonEmpty = (...values) => {
+    for (const value of values) {
+        if (value == null) continue;
+        const text = String(value).trim();
+        if (text) return text;
+    }
+    return '';
+};
+
+const MBTI_FALLBACK_INSIGHTS = {
+    INTP: {
+        highlightedTraits: 'Tư duy logic, thích phân tích sâu, độc lập trong cách học và giải quyết vấn đề.',
+        strengths: 'Giỏi lập luận, sáng tạo trong ý tưởng, học nhanh khi gặp chủ đề đúng sở thích.',
+        weaknesses: 'Dễ mất hứng với việc lặp lại, có thể ít bộc lộ cảm xúc và chậm ra quyết định thực tế.'
+    }
+};
+
+const extractPersonalityInsights = (raw) => {
+    if (!raw || typeof raw !== 'object') return {
+        highlightedTraits: '',
+        strengths: '',
+        weaknesses: ''
+    };
+    const personality = raw?.personalityType ?? {};
+    const personalityCode = pickFirstNonEmpty(raw?.personalityTypeCode, personality?.code).toUpperCase();
+    const fallback = MBTI_FALLBACK_INSIGHTS[personalityCode] || null;
+    const highlightedTraits = pickFirstNonEmpty(
+        personality?.highlightedTraits,
+        personality?.keyTraits,
+        personality?.traits,
+        raw?.personalityHighlights,
+        raw?.personalityTraitHighlights,
+        raw?.personalityTraits,
+        fallback?.highlightedTraits
+    );
+    const strengths = pickFirstNonEmpty(
+        personality?.strengths,
+        personality?.advantages,
+        raw?.personalityStrengths,
+        raw?.strengths,
+        fallback?.strengths
+    );
+    const weaknesses = pickFirstNonEmpty(
+        personality?.weaknesses,
+        personality?.disadvantages,
+        raw?.personalityWeaknesses,
+        raw?.weaknesses,
+        fallback?.weaknesses
+    );
+    return {highlightedTraits, strengths, weaknesses};
+};
+
 const normalizeGradeLevelKey = (gl) => {
     if (gl == null) return '';
     const s = String(gl).toUpperCase().replace(/\s+/g, '_');
@@ -259,8 +310,9 @@ const buildAcademicScoreTable = (raw) => {
     return {subjects, getScore};
 };
 
-function ParentStudentInfoPanel({studentName, compactInfo, gradeTable}) {
+function ParentStudentInfoPanel({studentName, compactInfo, gradeTable, personalityInsights}) {
     const hasAnyData = compactInfo.length > 0 || gradeTable;
+    const [personalityExpanded, setPersonalityExpanded] = useState(false);
 
     return (
         <>
@@ -269,27 +321,71 @@ function ParentStudentInfoPanel({studentName, compactInfo, gradeTable}) {
             </Typography>
             {compactInfo.length > 0 && (
                 <Box sx={{display: 'grid', gap: 0.6, mb: gradeTable ? 1 : 0, flexShrink: 0}}>
-                    {compactInfo.map((item) => (
-                        <Box
-                            key={item.label}
-                            sx={{
-                                display: 'flex',
-                                alignItems: 'flex-start',
-                                justifyContent: 'space-between',
-                                gap: 0.75,
-                                px: 0.75,
-                                py: 0.55,
-                                borderRadius: 1.1,
-                                bgcolor: 'rgba(248,250,252,0.95)',
-                                border: '1px solid rgba(226,232,240,0.85)'
-                            }}
-                        >
-                            <Typography sx={{fontSize: 11.5, color: '#64748b', fontWeight: 700}}>{item.label}</Typography>
-                            <Typography sx={{fontSize: 12, color: '#1e293b', fontWeight: 600, textAlign: 'right'}}>
-                                {item.value}
-                            </Typography>
-                        </Box>
-                    ))}
+                    {compactInfo.map((item) => {
+                        const isPersonality = item.label === 'Nhóm tính cách';
+                        const canToggle = isPersonality;
+                        return (
+                            <Box
+                                key={item.label}
+                                sx={{
+                                    px: 0.75,
+                                    py: 0.55,
+                                    borderRadius: 1.1,
+                                    bgcolor: 'rgba(248,250,252,0.95)',
+                                    border: '1px solid rgba(226,232,240,0.85)'
+                                }}
+                            >
+                                <Box
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'flex-start',
+                                        justifyContent: 'space-between',
+                                        gap: 0.75,
+                                    }}
+                                >
+                                    <Typography sx={{fontSize: 11.5, color: '#64748b', fontWeight: 700}}>{item.label}</Typography>
+                                    <Box sx={{display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.2}}>
+                                        <Typography sx={{fontSize: 12, color: '#1e293b', fontWeight: 600}}>
+                                            {item.value}
+                                        </Typography>
+                                        {canToggle ? (
+                                            <IconButton
+                                                size="small"
+                                                onClick={() => setPersonalityExpanded((prev) => !prev)}
+                                                sx={{
+                                                    ml: 0.2,
+                                                    p: 0.25,
+                                                    color: '#64748b',
+                                                    transition: 'transform 0.18s ease',
+                                                    transform: personalityExpanded ? 'rotate(180deg)' : 'rotate(0deg)'
+                                                }}
+                                            >
+                                                <ExpandMoreIcon sx={{fontSize: 16}} />
+                                            </IconButton>
+                                        ) : null}
+                                    </Box>
+                                </Box>
+                                {canToggle ? (
+                                    <Collapse in={personalityExpanded} timeout={200} unmountOnExit>
+                                        <Box sx={{mt: 0.7, pt: 0.65, borderTop: '1px dashed rgba(148,163,184,0.4)', display: 'grid', gap: 0.55}}>
+                                            <Typography sx={{fontSize: 11.25, color: '#334155', lineHeight: 1.45}}>
+                                                <Box component="span" sx={{fontWeight: 700}}>Đặc điểm nổi bật: </Box>
+                                                {personalityInsights?.highlightedTraits || 'Chưa có dữ liệu'}
+                                            </Typography>
+                                            <Typography sx={{fontSize: 11.25, color: '#334155', lineHeight: 1.45}}>
+                                                <Box component="span" sx={{fontWeight: 700}}>Ưu điểm: </Box>
+                                                {personalityInsights?.strengths || 'Chưa có dữ liệu'}
+                                            </Typography>
+                                            <Typography sx={{fontSize: 11.25, color: '#334155', lineHeight: 1.45}}>
+                                                <Box component="span" sx={{fontWeight: 700}}>Nhược điểm: </Box>
+                                                {personalityInsights?.weaknesses || 'Chưa có dữ liệu'}
+                                            </Typography>
+                                        </Box>
+                                    </Collapse>
+                                ) : null}
+                            </Box>
+                        );
+                    })}
                 </Box>
             )}
             <Divider sx={{my: 1, flexShrink: 0}} />
@@ -414,7 +510,6 @@ function MainHeader() {
     const [chatWindowOpen, setChatWindowOpen] = useState(false);
     const [chatWindowMinimized, setChatWindowMinimized] = useState(false);
     const [parentStudents, setParentStudents] = useState([]);
-    const [selectedStudentKey, setSelectedStudentKey] = useState('');
     const [studentInfoAnchorEl, setStudentInfoAnchorEl] = useState(null);
     const [headerScrolled, setHeaderScrolled] = useState(false);
 
@@ -455,25 +550,38 @@ function MainHeader() {
                 .map((v) => String(v).toLowerCase())
         );
     }, [userInfo]);
-    const selectedParentStudent = useMemo(
-        () => parentStudents.find((item) => item.key === selectedStudentKey) ?? null,
-        [parentStudents, selectedStudentKey]
-    );
+    const selectedParentStudent = useMemo(() => {
+        if (!parentStudents.length) return null;
+        const conversationStudentId = lowerString(selectedConversation?.studentId);
+        const conversationStudentName = lowerString(selectedConversation?.studentName || selectedConversation?.childName);
+        const matched =
+            parentStudents.find((item) => lowerString(item?.id) === conversationStudentId) ||
+            parentStudents.find((item) => lowerString(item?.name) === conversationStudentName);
+        return matched || parentStudents[0] || null;
+    }, [parentStudents, selectedConversation]);
     const filteredConversationItems = useMemo(
-        () => conversationItems.filter((conversation) => doesConversationMatchStudent(conversation, selectedParentStudent)),
-        [conversationItems, selectedParentStudent]
+        () => conversationItems,
+        [conversationItems]
     );
     const selectedStudentTheme = useMemo(() => {
         const studentIndex = Math.max(0, selectedParentStudent?.index ?? 0);
         return STUDENT_CHAT_THEMES[studentIndex % STUDENT_CHAT_THEMES.length];
     }, [selectedParentStudent]);
-    const selectedStudentName = selectedParentStudent?.name || 'Học sinh';
+    const selectedStudentName =
+        selectedConversation?.studentName ||
+        selectedConversation?.childName ||
+        selectedParentStudent?.name ||
+        'Học sinh';
     const selectedStudentCompactInfo = useMemo(
         () => getStudentCompactInfo(selectedParentStudent),
         [selectedParentStudent]
     );
     const selectedStudentGradeTable = useMemo(
         () => buildAcademicScoreTable(selectedParentStudent?.raw),
+        [selectedParentStudent]
+    );
+    const selectedStudentPersonalityInsights = useMemo(
+        () => extractPersonalityInsights(selectedParentStudent?.raw),
         [selectedParentStudent]
     );
     const selectedConversationTitle = useMemo(
@@ -506,8 +614,23 @@ function MainHeader() {
             participantEmail: conversation?.otherUser ?? conversation?.participantEmail ?? conversation?.counsellorEmail ?? conversation?.schoolEmail ?? '',
             counsellorEmail: conversation?.otherUser ?? conversation?.counsellorEmail ?? conversation?.participantEmail ?? conversation?.schoolEmail ?? '',
             schoolEmail: conversation?.schoolEmail ?? conversation?.otherUser ?? conversation?.participantEmail ?? '',
-            name: conversation?.name ?? conversation?.participantName ?? conversation?.title ?? conversation?.otherUser ?? 'Cuộc trò chuyện',
-            title: conversation?.title ?? conversation?.name ?? conversation?.participantName ?? conversation?.otherUser ?? 'Cuộc trò chuyện',
+            schoolName: conversation?.schoolName ?? conversation?.school ?? '',
+            name:
+                conversation?.name ??
+                conversation?.participantName ??
+                conversation?.title ??
+                conversation?.schoolName ??
+                conversation?.school ??
+                conversation?.otherUser ??
+                'Cuộc trò chuyện',
+            title:
+                conversation?.title ??
+                conversation?.name ??
+                conversation?.participantName ??
+                conversation?.schoolName ??
+                conversation?.school ??
+                conversation?.otherUser ??
+                'Cuộc trò chuyện',
             lastMessage: conversation?.lastMessage?.content ?? conversation?.lastMessage ?? conversation?.latestMessage ?? '',
             updatedAt: conversation?.updatedAt ?? conversation?.lastMessageTime ?? conversation?.time ?? null
         };
@@ -776,7 +899,6 @@ function MainHeader() {
         const loadParentStudents = async () => {
             if (!isSignedIn || !isParent) {
                 setParentStudents([]);
-                setSelectedStudentKey('');
                 return;
             }
             try {
@@ -784,35 +906,18 @@ function MainHeader() {
                 if (response?.status === 200) {
                     const normalized = parseParentStudentsResponse(response).map(normalizeParentStudent);
                     setParentStudents(normalized);
-                    setSelectedStudentKey((prev) => {
-                        if (prev && normalized.some((student) => student.key === prev)) return prev;
-                        return normalized[0]?.key || '';
-                    });
                 }
             } catch (error) {
                 console.error('Error fetching parent students:', error);
                 setParentStudents([]);
-                setSelectedStudentKey('');
             }
         };
         loadParentStudents();
     }, [isSignedIn, isParent]);
 
     useEffect(() => {
-        if (!selectedConversation) return;
-        if (doesConversationMatchStudent(selectedConversation, selectedParentStudent)) return;
-        setSelectedConversation(null);
-        selectedConversationRef.current = null;
-        setMessageItems([]);
-        setMessageError('');
-        setChatInput('');
-        setChatWindowOpen(false);
-        setChatWindowMinimized(false);
-    }, [selectedConversation, selectedParentStudent]);
-
-    useEffect(() => {
         setStudentInfoAnchorEl(null);
-    }, [selectedStudentKey]);
+    }, [selectedConversation?.conversationId, selectedConversation?.id]);
 
     useEffect(() => {
         const onScroll = () => {
@@ -967,8 +1072,7 @@ function MainHeader() {
                 setNextCursorId(parsed.nextCursorId);
                 setHasMoreConversations(parsed.hasMore);
 
-                const scopedItems = items.filter((item) => doesConversationMatchStudent(item, selectedParentStudent));
-                let match = findConversationForSchool(scopedItems, schoolName, schoolEmail);
+                let match = findConversationForSchool(items, schoolName, schoolEmail);
                 if (!match && schoolEmail) {
                     match = normalizeConversation({
                         title: schoolName,
@@ -1390,7 +1494,7 @@ function MainHeader() {
                                             <Box sx={{px: 2, py: 4, textAlign: 'center'}}>
                                                 <ChatBubbleRoundedIcon sx={{fontSize: 30, color: '#94a3b8'}}/>
                                                 <Typography sx={{fontSize: 14, color: '#475569', mt: 1}}>
-                                                    Chưa có tin nhắn cho {selectedStudentName}
+                                                    Chưa có tin nhắn
                                                 </Typography>
                                             </Box>
                                         ) : (
@@ -1519,37 +1623,9 @@ function MainHeader() {
                                                         {selectedConversationTitle}
                                                     </Typography>
                                                     <Box sx={{display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.15}}>
-                                                        {parentStudents.length > 1 ? (
-                                                            <FormControl variant="standard" sx={{minWidth: 140}}>
-                                                                <Select
-                                                                    size="small"
-                                                                    value={selectedStudentKey}
-                                                                    onChange={(e) => setSelectedStudentKey(e.target.value)}
-                                                                    disableUnderline
-                                                                    sx={{
-                                                                        fontSize: 11.5,
-                                                                        color: 'rgba(255,255,255,0.9)',
-                                                                        '& .MuiSelect-icon': {color: 'rgba(255,255,255,0.9)'},
-                                                                        '& .MuiSelect-select': {
-                                                                            py: 0.15,
-                                                                            px: 0.75,
-                                                                            borderRadius: 1,
-                                                                            bgcolor: 'rgba(255,255,255,0.14)'
-                                                                        }
-                                                                    }}
-                                                                >
-                                                                    {parentStudents.map((student) => (
-                                                                        <MenuItem key={student.key} value={student.key}>
-                                                                            {student.name}
-                                                                        </MenuItem>
-                                                                    ))}
-                                                                </Select>
-                                                            </FormControl>
-                                                        ) : (
-                                                            <Typography sx={{fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.78)'}}>
-                                                                {selectedStudentName}
-                                                            </Typography>
-                                                        )}
+                                                        <Typography sx={{fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.78)'}}>
+                                                            {selectedStudentName}
+                                                        </Typography>
                                                     </Box>
                                                 </Box>
                                             </Box>
@@ -1903,6 +1979,7 @@ function MainHeader() {
                                             studentName={selectedStudentName}
                                             compactInfo={selectedStudentCompactInfo}
                                             gradeTable={selectedStudentGradeTable}
+                                            personalityInsights={selectedStudentPersonalityInsights}
                                         />
                                     </Box>
                                 </Popover>
