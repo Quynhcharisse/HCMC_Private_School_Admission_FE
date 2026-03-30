@@ -16,7 +16,6 @@ const ProtectedRoute = lazy(() => import("./configs/ProtectedRoute.jsx"));
 const AdminLayout = lazy(() => import("./components/layouts/AdminLayout.jsx"));
 const AdminDashboard = lazy(() => import("./components/Page/admin/AdminDashboard.jsx"));
 const AdminUsersManagement = lazy(() => import("./components/Page/admin/AdminUsersManagement.jsx"));
-const AdminPlatformSettings = lazy(() => import("./components/Page/admin/AdminPlatformSettings.jsx"));
 const AdminSchoolVerification = lazy(() => import("./components/Page/admin/AdminSchoolVerification.jsx"));
 const AdminSchoolCampuses = lazy(() => import("./components/Page/admin/AdminSchoolCampuses.jsx"));
 const AdminCampusConsultants = lazy(() => import("./components/Page/admin/AdminCampusConsultants.jsx"));
@@ -33,6 +32,12 @@ const SchoolCampaignDetail = lazy(() =>
     import("./components/Page/school/SchoolCampaignDetail.jsx")
 );
 const SchoolProfile = lazy(() => import("./components/Page/school/SchoolProfile.jsx"));
+const SchoolFacilityOverview = lazy(() =>
+    import("./components/Page/school/SchoolFacilityOverview.jsx")
+);
+const SchoolFacilityConfiguration = lazy(() =>
+    import("./components/Page/school/SchoolFacilityConfiguration.jsx")
+);
 const CounsellorLayout = lazy(() => import("./components/layouts/CounsellorLayout.jsx"));
 const CounsellorDashboard = lazy(() => import("./components/Page/counsellor/CounsellorDashboard.jsx"));
 const CounsellorParentConsultation = lazy(() =>
@@ -283,6 +288,22 @@ const router = createBrowserRouter([
                 )
             },
             {
+                path: 'facility-config',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolFacilityOverview/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'facility-config/detail',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolFacilityConfiguration/>
+                    </Suspense>
+                )
+            },
+            {
                 path: 'counselors',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
@@ -377,14 +398,6 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <AdminUsersManagement/>
-                    </Suspense>
-                )
-            },
-            {
-                path: 'platform-settings',
-                element: (
-                    <Suspense fallback={<LoadingFallback/>}>
-                        <AdminPlatformSettings/>
                     </Suspense>
                 )
             },
