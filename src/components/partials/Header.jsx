@@ -353,11 +353,22 @@ function ParentStudentInfoPanel({studentName, compactInfo, gradeTable, personali
 
     return (
         <>
-            <Typography sx={{fontSize: 12.5, fontWeight: 800, color: '#1e293b', mb: 0.8, flexShrink: 0}}>
+            <Box
+                sx={{
+                    mb: 1,
+                    px: 1,
+                    py: 0.9,
+                    borderRadius: 1.5,
+                    background: 'linear-gradient(135deg, rgba(59,130,246,0.12), rgba(99,102,241,0.08))',
+                    border: '1px solid rgba(99,102,241,0.2)'
+                }}
+            >
+            <Typography sx={{fontSize: 13, fontWeight: 900, color: '#0f172a', flexShrink: 0, letterSpacing: 0.1}}>
                 Thông tin {studentName}
             </Typography>
+            </Box>
             {compactInfo.length > 0 && (
-                <Box sx={{display: 'grid', gap: 0.6, mb: gradeTable ? 1 : 0, flexShrink: 0}}>
+                <Box sx={{display: 'grid', gap: 0.65, mb: gradeTable ? 1.1 : 0, flexShrink: 0}}>
                     {compactInfo.map((item) => {
                         const isPersonality = item.label === 'Nhóm tính cách';
                         const canToggle = isPersonality;
@@ -365,11 +376,17 @@ function ParentStudentInfoPanel({studentName, compactInfo, gradeTable, personali
                             <Box
                                 key={item.label}
                                 sx={{
-                                    px: 0.75,
-                                    py: 0.55,
-                                    borderRadius: 1.1,
-                                    bgcolor: 'rgba(248,250,252,0.95)',
-                                    border: '1px solid rgba(226,232,240,0.85)'
+                                    px: 0.9,
+                                    py: 0.68,
+                                    borderRadius: 1.35,
+                                    bgcolor: '#ffffff',
+                                    border: '1px solid rgba(191,219,254,0.8)',
+                                    boxShadow: '0 6px 14px rgba(15,23,42,0.05)',
+                                    transition: 'transform 0.18s ease, box-shadow 0.18s ease',
+                                    '&:hover': {
+                                        transform: 'translateY(-1px)',
+                                        boxShadow: '0 10px 20px rgba(59,130,246,0.12)'
+                                    }
                                 }}
                             >
                                 <Box
@@ -380,9 +397,9 @@ function ParentStudentInfoPanel({studentName, compactInfo, gradeTable, personali
                                         gap: 0.75,
                                     }}
                                 >
-                                    <Typography sx={{fontSize: 11.5, color: '#64748b', fontWeight: 700}}>{item.label}</Typography>
+                                    <Typography sx={{fontSize: 11.4, color: '#475569', fontWeight: 800}}>{item.label}</Typography>
                                     <Box sx={{display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 0.2}}>
-                                        <Typography sx={{fontSize: 12, color: '#1e293b', fontWeight: 600}}>
+                                        <Typography sx={{fontSize: 12.1, color: '#0f172a', fontWeight: 700}}>
                                             {item.value}
                                         </Typography>
                                         {canToggle ? (
@@ -404,21 +421,21 @@ function ParentStudentInfoPanel({studentName, compactInfo, gradeTable, personali
                                 </Box>
                                 {canToggle ? (
                                     <Collapse in={personalityExpanded} timeout={200} unmountOnExit>
-                                        <Box sx={{mt: 0.7, pt: 0.65, borderTop: '1px dashed rgba(148,163,184,0.4)', display: 'grid', gap: 0.55}}>
+                                        <Box sx={{mt: 0.72, pt: 0.72, borderTop: '1px dashed rgba(148,163,184,0.45)', display: 'grid', gap: 0.58}}>
                                             {Array.isArray(personalityInsights?.traitItems) && personalityInsights.traitItems.length > 0 ? (
                                                 <Box sx={{display: 'grid', gap: 0.6}}>
                                                     {personalityInsights.traitItems.map((trait, idx) => (
                                                         <Box
                                                             key={`${trait.name || 'trait'}-${idx}`}
                                                             sx={{
-                                                                px: 0.65,
-                                                                py: 0.55,
-                                                                borderRadius: 1,
-                                                                bgcolor: 'rgba(255,255,255,0.75)',
-                                                                border: '1px solid rgba(226,232,240,0.8)'
+                                                                px: 0.72,
+                                                                py: 0.58,
+                                                                borderRadius: 1.1,
+                                                                bgcolor: 'rgba(239,246,255,0.85)',
+                                                                border: '1px solid rgba(191,219,254,0.85)'
                                                             }}
                                                         >
-                                                            <Typography sx={{fontSize: 11.2, color: '#0f172a', fontWeight: 700, mb: 0.2}}>
+                                                            <Typography sx={{fontSize: 11.2, color: '#1d4ed8', fontWeight: 800, mb: 0.2}}>
                                                                 {trait.name || `Đặc điểm ${idx + 1}`}
                                                             </Typography>
                                                             <Typography sx={{fontSize: 11.1, color: '#334155', lineHeight: 1.45}}>
@@ -450,8 +467,8 @@ function ParentStudentInfoPanel({studentName, compactInfo, gradeTable, personali
                     })}
                 </Box>
             )}
-            <Divider sx={{my: 1, flexShrink: 0}} />
-            <Typography sx={{fontSize: 11.5, fontWeight: 800, color: '#475569', mb: 0.75, flexShrink: 0}}>
+            <Divider sx={{my: 1.05, flexShrink: 0}} />
+            <Typography sx={{fontSize: 12, fontWeight: 900, color: '#334155', mb: 0.8, flexShrink: 0}}>
                 Bảng điểm (cả năm)
             </Typography>
             {gradeTable ? (
@@ -463,9 +480,10 @@ function ParentStudentInfoPanel({studentName, compactInfo, gradeTable, personali
                         minHeight: 'unset',
                         maxHeight: 'none',
                         overflow: 'visible',
-                        border: '1px solid rgba(226,232,240,0.95)',
-                        borderRadius: 1.25,
-                        bgcolor: 'rgba(255,255,255,0.98)'
+                        border: '1px solid rgba(191,219,254,0.95)',
+                        borderRadius: 1.45,
+                        bgcolor: 'rgba(255,255,255,0.99)',
+                        boxShadow: '0 10px 24px rgba(15,23,42,0.06)'
                     }}
                 >
                     <Table size="small" stickyHeader sx={{minWidth: 360}}>
@@ -475,7 +493,7 @@ function ParentStudentInfoPanel({studentName, compactInfo, gradeTable, personali
                                     sx={{
                                         fontWeight: 800,
                                         fontSize: 11,
-                                        bgcolor: 'rgba(241,245,249,0.98)',
+                                        bgcolor: 'rgba(219,234,254,0.7)',
                                         minWidth: 120,
                                         position: 'sticky',
                                         left: 0,
@@ -493,7 +511,7 @@ function ParentStudentInfoPanel({studentName, compactInfo, gradeTable, personali
                                             fontWeight: 800,
                                             fontSize: 10.5,
                                             whiteSpace: 'nowrap',
-                                            bgcolor: 'rgba(241,245,249,0.98)',
+                                            bgcolor: 'rgba(219,234,254,0.7)',
                                             px: 0.65,
                                             borderBottom: '1px solid rgba(226,232,240,0.95)'
                                         }}
@@ -512,7 +530,7 @@ function ParentStudentInfoPanel({studentName, compactInfo, gradeTable, personali
                                             fontWeight: 600,
                                             position: 'sticky',
                                             left: 0,
-                                            bgcolor: 'rgba(255,255,255,0.98)',
+                                            bgcolor: 'rgba(255,255,255,0.99)',
                                             borderBottom: '1px solid rgba(241,245,249,0.95)',
                                             maxWidth: 140
                                         }}
@@ -525,7 +543,7 @@ function ParentStudentInfoPanel({studentName, compactInfo, gradeTable, personali
                                             align="center"
                                             sx={{
                                                 fontSize: 11.5,
-                                                borderBottom: '1px solid rgba(241,245,249,0.95)',
+                                                borderBottom: '1px solid rgba(226,232,240,0.95)',
                                                 px: 0.5
                                             }}
                                         >
@@ -2026,7 +2044,8 @@ function MainHeader() {
                                                 position: 'relative',
                                                 borderRadius: 2,
                                                 border: `1px solid ${selectedStudentTheme.border}`,
-                                                boxShadow: '0 16px 40px rgba(51,65,85,0.18)',
+                                                boxShadow: '0 22px 48px rgba(30,41,59,0.2)',
+                                                background: 'linear-gradient(180deg, #f8fbff 0%, #f8fafc 38%, #ffffff 100%)',
                                                 p: 1.2,
                                                 overflow: 'hidden'
                                             }
