@@ -1,14 +1,19 @@
 import axiosClient from "../configs/APIConfig.jsx";
 
-export const getParentMessagesHistory = async ({parentEmail, counsellorEmail, cursorId}) => {
+export const getParentMessagesHistory = async ({parentEmail, counsellorEmail, studentProfileId, cursorId}) => {
     const encodedParentEmail = encodeURIComponent(parentEmail || "");
     const encodedCounsellorEmail = encodeURIComponent(counsellorEmail || "");
-    const endpoint = `/parent/messages/history/${encodedParentEmail}/${encodedCounsellorEmail}`;
+    const normalizedStudentProfileId = studentProfileId != null ? String(studentProfileId).trim() : "";
+    if (!normalizedStudentProfileId) {
+        throw new Error("studentProfileId is required for parent messages history");
+    }
+    const endpoint = `/parent/messages/history/${encodedParentEmail}/${encodedCounsellorEmail}/${encodeURIComponent(normalizedStudentProfileId)}`;
+    const params = cursorId ? {cursorId} : undefined;
 
     const response = await axiosClient.request({
         url: endpoint,
         method: "get",
-        params: cursorId ? {cursorId} : undefined,
+        params,
         headers: {
             "X-Device-Type": "web"
         }
