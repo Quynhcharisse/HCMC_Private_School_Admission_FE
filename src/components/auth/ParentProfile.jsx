@@ -34,6 +34,7 @@ const relationshipOptions = [
 
 const ParentProfile = ({onBack}) => {
     const navigate = useNavigate();
+    const [avatarUrl, setAvatarUrl] = useState(null);
     const [formData, setFormData] = useState({
         name: '',
         gender: '',
@@ -76,6 +77,34 @@ const ParentProfile = ({onBack}) => {
 
                     setFormData(next);
                     setInitialData(next);
+                    const nextAvatarFromBody =
+                        parent.picture ||
+                        parent.avatar ||
+                        body.picture ||
+                        body.avatar ||
+                        parent.profile?.picture ||
+                        parent.profile?.avatar ||
+                        null;
+
+                    let nextAvatar = nextAvatarFromBody;
+                    if (!nextAvatar) {
+                        const storedUser = localStorage.getItem('user');
+                        if (storedUser) {
+                            try {
+                                const parsed = JSON.parse(storedUser);
+                                nextAvatar =
+                                    parsed?.picture ||
+                                    parsed?.avatar ||
+                                    parsed?.profile?.picture ||
+                                    parsed?.profile?.avatar ||
+                                    null;
+                            } catch {
+                                // ignore parse errors
+                            }
+                        }
+                    }
+
+                    setAvatarUrl(nextAvatar);
                 }
             } catch (error) {
                 console.error('Error loading parent profile:', error);
@@ -272,9 +301,12 @@ const ParentProfile = ({onBack}) => {
                                 <Box sx={{display: 'flex', justifyContent: 'center', py: 0.5}}>
                                     <Avatar
                                         alt={formData.name || 'Phụ huynh'}
+                                        src={avatarUrl || undefined}
                                         sx={{width: 88, height: 88, boxShadow: '0 8px 24px rgba(51,65,85,0.12)'}}
                                     >
-                                        {(formData.name || '?').charAt(0).toUpperCase()}
+                                        {!avatarUrl
+                                            ? (formData.name || '?').charAt(0).toUpperCase()
+                                            : null}
                                     </Avatar>
                                 </Box>
                             )}

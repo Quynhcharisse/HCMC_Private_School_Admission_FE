@@ -34,6 +34,7 @@ const relationshipOptions = [
 
 const ParentRegistrationForm = ({email, name: initialName, onBack, isFirstLogin = false}) => {
     const navigate = useNavigate();
+    const [avatarUrl, setAvatarUrl] = useState(null);
     const [formData, setFormData] = useState({
         name: initialName || '',
         gender: '',
@@ -60,6 +61,30 @@ const ParentRegistrationForm = ({email, name: initialName, onBack, isFirstLogin 
                             name: parsed.name,
                         }));
                     }
+                    const nextAvatar =
+                        parsed?.picture ||
+                        parsed?.avatar ||
+                        parsed?.profile?.picture ||
+                        parsed?.profile?.avatar ||
+                        null;
+                    setAvatarUrl(nextAvatar);
+                } catch {
+                    // ignore parse errors
+                }
+            }
+        }
+        if (initialName) {
+            const storedUser = localStorage.getItem('user');
+            if (storedUser) {
+                try {
+                    const parsed = JSON.parse(storedUser);
+                    const nextAvatar =
+                        parsed?.picture ||
+                        parsed?.avatar ||
+                        parsed?.profile?.picture ||
+                        parsed?.profile?.avatar ||
+                        null;
+                    setAvatarUrl(nextAvatar);
                 } catch {
                     // ignore parse errors
                 }
@@ -259,9 +284,10 @@ const ParentRegistrationForm = ({email, name: initialName, onBack, isFirstLogin 
                             <Box sx={{display: 'flex', justifyContent: 'center', py: 0.5}}>
                                 <Avatar
                                     alt={formData.name || 'Phụ huynh'}
+                                    src={avatarUrl || undefined}
                                     sx={{width: 88, height: 88, boxShadow: '0 8px 24px rgba(51,65,85,0.12)'}}
                                 >
-                                    {(formData.name || '?').trim().slice(0, 1).toUpperCase() || '?'}
+                                    {!avatarUrl && ((formData.name || '?').trim().slice(0, 1).toUpperCase() || '?')}
                                 </Avatar>
                             </Box>
 
