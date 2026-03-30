@@ -437,10 +437,12 @@ export default function ChildrenInfoPage() {
                                                         flex: 1,
                                                         minHeight: 0,
                                                         borderTop: '1px solid rgba(147, 197, 253, 0.45)',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
                                                     }}
                                                 >
                                                     <Typography sx={{...sectionLabelSx, mb: 0.65}}>
-                                                        Đặc điểm
+                                                        ĐẶC ĐIỂM NỔI BẬT
                                                     </Typography>
                                                     {!selectedPersonality ? (
                                                         <Typography sx={{fontSize: 14, color: '#64748b'}}>
@@ -451,39 +453,49 @@ export default function ChildrenInfoPage() {
                                                             Loại này chưa có dữ liệu traits.
                                                         </Typography>
                                                     ) : (
-                                                        <Stack spacing={1}>
-                                                            {selectedPersonality.traits.map((trait) => (
-                                                                <Box
-                                                                    key={`${trait.name}-${trait.description?.slice(0, 24)}`}
-                                                                    sx={{
-                                                                        pl: 1.15,
-                                                                        borderLeft: '2px solid rgba(147, 197, 253, 0.85)',
-                                                                        py: 0.15,
-                                                                    }}
-                                                                >
-                                                                    <Typography
+                                                        <Box
+                                                            sx={{
+                                                                flex: 1,
+                                                                minHeight: 0,
+                                                                overflowY: 'auto',
+                                                                pr: 0.5,
+                                                                mr: -0.5,
+                                                            }}
+                                                        >
+                                                            <Stack spacing={1}>
+                                                                {selectedPersonality.traits.map((trait) => (
+                                                                    <Box
+                                                                        key={`${trait.name}-${trait.description?.slice(0, 24)}`}
                                                                         sx={{
-                                                                            fontSize: 14,
-                                                                            fontWeight: 700,
-                                                                            color: '#1e293b',
-                                                                            mb: 0.35,
-                                                                            lineHeight: 1.35,
+                                                                            pl: 1.15,
+                                                                            borderLeft: '2px solid rgba(147, 197, 253, 0.85)',
+                                                                            py: 0.15,
                                                                         }}
                                                                     >
-                                                                        {trait.name}
-                                                                    </Typography>
-                                                                    <Typography
-                                                                        sx={{
-                                                                            fontSize: 14,
-                                                                            color: '#64748b',
-                                                                            lineHeight: 1.6,
-                                                                        }}
-                                                                    >
-                                                                        {trait.description}
-                                                                    </Typography>
-                                                                </Box>
-                                                            ))}
-                                                        </Stack>
+                                                                        <Typography
+                                                                            sx={{
+                                                                                fontSize: 14,
+                                                                                fontWeight: 700,
+                                                                                color: '#1e293b',
+                                                                                mb: 0.35,
+                                                                                lineHeight: 1.35,
+                                                                            }}
+                                                                        >
+                                                                            {trait.name}
+                                                                        </Typography>
+                                                                        <Typography
+                                                                            sx={{
+                                                                                fontSize: 14,
+                                                                                color: '#64748b',
+                                                                                lineHeight: 1.6,
+                                                                            }}
+                                                                        >
+                                                                            {trait.description}
+                                                                        </Typography>
+                                                                    </Box>
+                                                                ))}
+                                                            </Stack>
+                                                        </Box>
                                                     )}
                                                 </Box>
                                             </>
@@ -1190,49 +1202,83 @@ export default function ChildrenInfoPage() {
                                                 );
                                             })}
                                             {foreignSubjects.length > 0 &&
-                                                foreignRows.map((fr) => {
+                                                [...foreignRows]
+                                                    .sort((a, b) => {
+                                                        const aPending = a.subjectId === '' ? 1 : 0;
+                                                        const bPending = b.subjectId === '' ? 1 : 0;
+                                                        return aPending - bPending;
+                                                    })
+                                                    .map((fr) => {
                                                     const rowGrades =
                                                         foreignGrades[fr.rowId] || emptyGrades();
                                                     const options = foreignOptionsForRow(
                                                         fr.rowId,
                                                         fr.subjectId,
                                                     );
+                                                    const selectedForeignSubject =
+                                                        fr.subjectId === ''
+                                                            ? null
+                                                            : foreignSubjects.find(
+                                                                  (s) => s.id === fr.subjectId,
+                                                              ) || null;
                                                     return (
                                                         <TableRow key={fr.rowId} hover>
                                                             <TableCell
                                                                 sx={{
                                                                     border: '1px solid rgba(241, 245, 249, 0.95)',
-                                                                    p: 1,
-                                                                    verticalAlign: 'top',
+                                                                    fontWeight: 600,
+                                                                    fontSize: 14,
+                                                                    color: '#1e293b',
+                                                                    verticalAlign: 'middle',
                                                                 }}
                                                             >
-                                                                <FormControl fullWidth size="small">
-                                                                    <InputLabel id={`fl-${fr.rowId}`}>
-                                                                        Ngôn ngữ
-                                                                    </InputLabel>
-                                                                    <Select
-                                                                        labelId={`fl-${fr.rowId}`}
-                                                                        label="Ngôn ngữ"
-                                                                        value={fr.subjectId === '' ? '' : fr.subjectId}
-                                                                        disabled={fieldsDisabled}
-                                                                        onChange={(e) => {
-                                                                            const v = e.target.value;
-                                                                            handleForeignSubjectChange(
-                                                                                fr.rowId,
-                                                                                v === '' ? '' : Number(v),
-                                                                            );
+                                                                {!selectedForeignSubject ? (
+                                                                    <FormControl fullWidth size="small">
+                                                                        <InputLabel id={`fl-${fr.rowId}`}>
+                                                                            Ngôn ngữ
+                                                                        </InputLabel>
+                                                                        <Select
+                                                                            labelId={`fl-${fr.rowId}`}
+                                                                            label="Ngôn ngữ"
+                                                                            value={
+                                                                                fr.subjectId === ''
+                                                                                    ? ''
+                                                                                    : fr.subjectId
+                                                                            }
+                                                                            disabled={fieldsDisabled}
+                                                                            onChange={(e) => {
+                                                                                const v = e.target.value;
+                                                                                handleForeignSubjectChange(
+                                                                                    fr.rowId,
+                                                                                    v === '' ? '' : Number(v),
+                                                                                );
+                                                                            }}
+                                                                        >
+                                                                            <MenuItem value="">
+                                                                                <em>Chọn ngôn ngữ</em>
+                                                                            </MenuItem>
+                                                                            {options.map((s) => (
+                                                                                <MenuItem key={s.id} value={s.id}>
+                                                                                    {s.name}
+                                                                                </MenuItem>
+                                                                            ))}
+                                                                        </Select>
+                                                                    </FormControl>
+                                                                ) : (
+                                                                    <Typography
+                                                                        sx={{
+                                                                            fontWeight: 600,
+                                                                            fontSize: 14,
+                                                                            color: '#1e293b',
+                                                                            lineHeight: 1.45,
+                                                                            minHeight: 40,
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
                                                                         }}
                                                                     >
-                                                                        <MenuItem value="">
-                                                                            <em>Chọn ngôn ngữ</em>
-                                                                        </MenuItem>
-                                                                        {options.map((s) => (
-                                                                            <MenuItem key={s.id} value={s.id}>
-                                                                                {s.name}
-                                                                            </MenuItem>
-                                                                        ))}
-                                                                    </Select>
-                                                                </FormControl>
+                                                                        {selectedForeignSubject.name}
+                                                                    </Typography>
+                                                                )}
                                                             </TableCell>
                                                             {GRADE_LEVELS.map((g) => (
                                                                 <TableCell
