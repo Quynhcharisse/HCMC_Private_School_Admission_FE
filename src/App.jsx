@@ -19,6 +19,7 @@ const AdminUsersManagement = lazy(() => import("./components/Page/admin/AdminUse
 const AdminSchoolVerification = lazy(() => import("./components/Page/admin/AdminSchoolVerification.jsx"));
 const AdminSchoolCampuses = lazy(() => import("./components/Page/admin/AdminSchoolCampuses.jsx"));
 const AdminCampusConsultants = lazy(() => import("./components/Page/admin/AdminCampusConsultants.jsx"));
+const AdminPlatformSettings = lazy(() => import("./components/Page/admin/AdminPlatformSettings.jsx"));
 const SchoolLayout = lazy(() => import("./components/layouts/SchoolLayout.jsx"));
 const SchoolDashboard = lazy(() => import("./components/Page/school/SchoolDashboard.jsx"));
 const SchoolCampus = lazy(() => import("./components/Page/school/SchoolCampus.jsx"));
@@ -422,6 +423,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <AdminSchoolVerification/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'platform-settings',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminPlatformSettings/>
                     </Suspense>
                 )
             }
