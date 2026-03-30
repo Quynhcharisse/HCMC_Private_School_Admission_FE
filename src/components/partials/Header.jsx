@@ -43,7 +43,6 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import Fade from '@mui/material/Fade';
 import {enqueueSnackbar} from "notistack";
 import {signout, getProfile} from "../../services/AccountService.jsx";
-import {getParentStudent} from "../../services/ParentService.jsx";
 import {getParentConversations} from "../../services/ConversationService.jsx";
 import {getParentMessagesHistory, markParentMessagesRead} from "../../services/MessageService.jsx";
 import {buildPrivateChatPayload, connectPrivateMessageSocket, disconnect, sendMessage} from "../../services/WebSocketService.jsx";
@@ -61,6 +60,7 @@ import {GRADE_LEVELS} from "../Page/childrenInfo/childrenInfoHelpers.js";
 
 const PARENT_CHAT_POLL_INTERVAL_MS = 3500;
 const SEND_MESSAGE_HISTORY_DELAY_MS = 400;
+const ENABLE_PARENT_CHAT_POLLING = false;
 
 const isSameConversationId = (a, b) => a != null && b != null && String(a) === String(b);
 
@@ -125,28 +125,6 @@ const STUDENT_CHAT_THEMES = [
         peerAvatar: '#9a3412',
     },
 ];
-
-const parseParentStudentsResponse = (response) => {
-    const payload = response?.data?.body?.body ?? response?.data?.body ?? response?.data ?? null;
-    if (Array.isArray(payload?.students)) return payload.students;
-    if (Array.isArray(payload?.data)) return payload.data;
-    if (Array.isArray(payload)) return payload;
-    return payload && typeof payload === 'object' ? [payload] : [];
-};
-
-const normalizeParentStudent = (student, index) => {
-    const idCandidate = student?.id ?? student?.studentId ?? student?.student?.id;
-    const id = idCandidate != null && String(idCandidate).trim() !== '' ? String(idCandidate).trim() : '';
-    const name =
-        student?.studentName ??
-        student?.name ??
-        student?.fullName ??
-        student?.student?.name ??
-        `Con ${index + 1}`;
-    const safeName = String(name || '').trim() || `Con ${index + 1}`;
-    const key = id || `${safeName}-${index}`;
-    return {key, id, name: safeName, index, raw: student};
-};
 
 const lowerString = (value) => (value ?? '').toString().trim().toLowerCase();
 
@@ -227,6 +205,7 @@ const MBTI_FALLBACK_INSIGHTS = {
 
 const extractPersonalityInsights = (raw) => {
     if (!raw || typeof raw !== 'object') return {
+        traitItems: [],
         highlightedTraits: '',
         strengths: '',
         weaknesses: ''
@@ -234,7 +213,24 @@ const extractPersonalityInsights = (raw) => {
     const personality = raw?.personalityType ?? {};
     const personalityCode = pickFirstNonEmpty(raw?.personalityTypeCode, personality?.code).toUpperCase();
     const fallback = MBTI_FALLBACK_INSIGHTS[personalityCode] || null;
+    const traits = Array.isArray(raw?.traits) ? raw.traits : [];
+    const traitItems = traits
+        .map((t) => ({
+            name: pickFirstNonEmpty(t?.name),
+            description: pickFirstNonEmpty(t?.description)
+        }))
+        .filter((t) => t.name || t.description);
+    const traitNamesText = traits
+        .map((t) => pickFirstNonEmpty(t?.name))
+        .filter(Boolean)
+        .join(', ');
+    const traitDescriptionsText = traits
+        .map((t) => pickFirstNonEmpty(t?.description))
+        .filter(Boolean)
+        .join(' ');
     const highlightedTraits = pickFirstNonEmpty(
+        traitDescriptionsText,
+        traitNamesText,
         personality?.highlightedTraits,
         personality?.keyTraits,
         personality?.traits,
@@ -257,7 +253,48 @@ const extractPersonalityInsights = (raw) => {
         raw?.weaknesses,
         fallback?.weaknesses
     );
-    return {highlightedTraits, strengths, weaknesses};
+    return {traitItems, highlightedTraits, strengths, weaknesses};
+};
+
+const areStudentProfilesEquivalent = (a, b) => {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    const aTraits = Array.isArray(a?.traits) ? a.traits : [];
+    const bTraits = Array.isArray(b?.traits) ? b.traits : [];
+    if (aTraits.length !== bTraits.length) return false;
+    for (let i = 0; i < aTraits.length; i += 1) {
+        const at = aTraits[i] || {};
+        const bt = bTraits[i] || {};
+        if ((at?.name || '') !== (bt?.name || '') || (at?.description || '') !== (bt?.description || '')) return false;
+    }
+    return (
+        String(a?.studentProfileId ?? '') === String(b?.studentProfileId ?? '') &&
+        String(a?.childName ?? '') === String(b?.childName ?? '') &&
+        String(a?.favouriteJob ?? '') === String(b?.favouriteJob ?? '') &&
+        String(a?.gender ?? '') === String(b?.gender ?? '') &&
+        String(a?.personalityCode ?? a?.personalityTypeCode ?? '') ===
+            String(b?.personalityCode ?? b?.personalityTypeCode ?? '') &&
+        String(a?.academicProfileMetadata?.length ?? 0) === String(b?.academicProfileMetadata?.length ?? 0)
+    );
+};
+
+const areMessageListsEquivalent = (prev, next) => {
+    if (prev === next) return true;
+    if (!Array.isArray(prev) || !Array.isArray(next)) return false;
+    if (prev.length !== next.length) return false;
+    for (let i = 0; i < prev.length; i += 1) {
+        const p = prev[i] || {};
+        const n = next[i] || {};
+        if (
+            String(p?.id ?? '') !== String(n?.id ?? '') ||
+            String(p?.text ?? '') !== String(n?.text ?? '') ||
+            String(p?.sender ?? '') !== String(n?.sender ?? '') ||
+            String(p?.sentAt ?? '') !== String(n?.sentAt ?? '')
+        ) {
+            return false;
+        }
+    }
+    return true;
 };
 
 const normalizeGradeLevelKey = (gl) => {
@@ -368,10 +405,35 @@ function ParentStudentInfoPanel({studentName, compactInfo, gradeTable, personali
                                 {canToggle ? (
                                     <Collapse in={personalityExpanded} timeout={200} unmountOnExit>
                                         <Box sx={{mt: 0.7, pt: 0.65, borderTop: '1px dashed rgba(148,163,184,0.4)', display: 'grid', gap: 0.55}}>
-                                            <Typography sx={{fontSize: 11.25, color: '#334155', lineHeight: 1.45}}>
-                                                <Box component="span" sx={{fontWeight: 700}}>Đặc điểm nổi bật: </Box>
-                                                {personalityInsights?.highlightedTraits || 'Chưa có dữ liệu'}
-                                            </Typography>
+                                            {Array.isArray(personalityInsights?.traitItems) && personalityInsights.traitItems.length > 0 ? (
+                                                <Box sx={{display: 'grid', gap: 0.6}}>
+                                                    {personalityInsights.traitItems.map((trait, idx) => (
+                                                        <Box
+                                                            key={`${trait.name || 'trait'}-${idx}`}
+                                                            sx={{
+                                                                px: 0.65,
+                                                                py: 0.55,
+                                                                borderRadius: 1,
+                                                                bgcolor: 'rgba(255,255,255,0.75)',
+                                                                border: '1px solid rgba(226,232,240,0.8)'
+                                                            }}
+                                                        >
+                                                            <Typography sx={{fontSize: 11.2, color: '#0f172a', fontWeight: 700, mb: 0.2}}>
+                                                                {trait.name || `Đặc điểm ${idx + 1}`}
+                                                            </Typography>
+                                                            <Typography sx={{fontSize: 11.1, color: '#334155', lineHeight: 1.45}}>
+                                                                {trait.description || 'Chưa có mô tả'}
+                                                            </Typography>
+                                                        </Box>
+                                                    ))}
+                                                </Box>
+                                            ) : null}
+                                            {Array.isArray(personalityInsights?.traitItems) && personalityInsights.traitItems.length > 0 ? null : (
+                                                <Typography sx={{fontSize: 11.25, color: '#334155', lineHeight: 1.45}}>
+                                                    <Box component="span" sx={{fontWeight: 700}}>Đặc điểm nổi bật: </Box>
+                                                    {personalityInsights?.highlightedTraits || 'Chưa có dữ liệu'}
+                                                </Typography>
+                                            )}
                                             <Typography sx={{fontSize: 11.25, color: '#334155', lineHeight: 1.45}}>
                                                 <Box component="span" sx={{fontWeight: 700}}>Ưu điểm: </Box>
                                                 {personalityInsights?.strengths || 'Chưa có dữ liệu'}
@@ -397,10 +459,10 @@ function ParentStudentInfoPanel({studentName, compactInfo, gradeTable, personali
                     component={Paper}
                     elevation={0}
                     sx={{
-                        flex: 1,
-                        minHeight: 0,
-                        maxHeight: 320,
-                        overflow: 'auto',
+                        flex: '0 0 auto',
+                        minHeight: 'unset',
+                        maxHeight: 'none',
+                        overflow: 'visible',
                         border: '1px solid rgba(226,232,240,0.95)',
                         borderRadius: 1.25,
                         bgcolor: 'rgba(255,255,255,0.98)'
@@ -509,7 +571,7 @@ function MainHeader() {
     const [chatInput, setChatInput] = useState('');
     const [chatWindowOpen, setChatWindowOpen] = useState(false);
     const [chatWindowMinimized, setChatWindowMinimized] = useState(false);
-    const [parentStudents, setParentStudents] = useState([]);
+    const [selectedConversationStudent, setSelectedConversationStudent] = useState(null);
     const [studentInfoAnchorEl, setStudentInfoAnchorEl] = useState(null);
     const [headerScrolled, setHeaderScrolled] = useState(false);
 
@@ -517,6 +579,7 @@ function MainHeader() {
     const loadingMoreRef = React.useRef(false);
     const hasMarkedReadRef = React.useRef(false);
     const selectedConversationRef = React.useRef(null);
+    const forbiddenHistoryConversationIdsRef = React.useRef(new Set());
 
     const location = useLocation();
     const navigate = useNavigate();
@@ -551,14 +614,24 @@ function MainHeader() {
         );
     }, [userInfo]);
     const selectedParentStudent = useMemo(() => {
-        if (!parentStudents.length) return null;
-        const conversationStudentId = lowerString(selectedConversation?.studentId);
-        const conversationStudentName = lowerString(selectedConversation?.studentName || selectedConversation?.childName);
-        const matched =
-            parentStudents.find((item) => lowerString(item?.id) === conversationStudentId) ||
-            parentStudents.find((item) => lowerString(item?.name) === conversationStudentName);
-        return matched || parentStudents[0] || null;
-    }, [parentStudents, selectedConversation]);
+        if (!selectedConversationStudent && !selectedConversation) return null;
+        const idCandidate =
+            selectedConversationStudent?.studentProfileId ??
+            selectedConversation?.studentProfileId ??
+            selectedConversation?.studentId ??
+            selectedConversation?.student?.id;
+        const nameCandidate =
+            selectedConversationStudent?.childName ??
+            selectedConversationStudent?.studentName ??
+            selectedConversation?.studentName ??
+            selectedConversation?.childName;
+        return {
+            id: idCandidate != null ? String(idCandidate) : '',
+            name: String(nameCandidate || '').trim() || 'Học sinh',
+            index: 0,
+            raw: selectedConversationStudent || selectedConversation || null
+        };
+    }, [selectedConversationStudent, selectedConversation]);
     const filteredConversationItems = useMemo(
         () => conversationItems,
         [conversationItems]
@@ -643,10 +716,17 @@ function MainHeader() {
             : Array.isArray(payload?.items)
               ? payload.items
               : [];
+        const studentProfile = {
+            ...payload,
+            studentProfileId: payload?.studentProfileId ?? payload?.studentId ?? null,
+            childName: payload?.childName ?? payload?.studentName ?? '',
+            personalityTypeCode: payload?.personalityCode ?? payload?.personalityTypeCode ?? ''
+        };
         return {
             items,
             nextCursorId: payload?.nextCursorId ?? payload?.cursorId ?? null,
-            hasMore: !!payload?.hasMore
+            hasMore: !!payload?.hasMore,
+            studentProfile
         };
     };
 
@@ -769,10 +849,23 @@ function MainHeader() {
 
     const loadMessageHistory = async ({conversation, cursorId = null, silent = false}) => {
         if (!conversation) return;
+        const conversationKey = String(conversation?.conversationId ?? conversation?.id ?? '');
+        if (silent && conversationKey && forbiddenHistoryConversationIdsRef.current.has(conversationKey)) {
+            return;
+        }
         const {parentEmail, counsellorEmail} = resolveConversationEmails(conversation);
 
         if (!parentEmail || !counsellorEmail) {
             if (!silent) setMessageError('Thiếu thông tin email để tải lịch sử tin nhắn.');
+            return;
+        }
+        const studentProfileId =
+            conversation?.studentProfileId ??
+            conversation?.studentId ??
+            conversation?.student?.id ??
+            null;
+        if (studentProfileId == null || String(studentProfileId).trim() === '') {
+            if (!silent) setMessageError('Thiếu studentProfileId để tải lịch sử tin nhắn.');
             return;
         }
 
@@ -784,22 +877,36 @@ function MainHeader() {
             const response = await getParentMessagesHistory({
                 parentEmail,
                 counsellorEmail,
+                studentProfileId,
                 cursorId
             });
             if (response?.status === 200) {
+                if (conversationKey) forbiddenHistoryConversationIdsRef.current.delete(conversationKey);
                 const parsed = parseHistoryResponse(response);
+                setSelectedConversationStudent((prev) =>
+                    areStudentProfilesEquivalent(prev, parsed.studentProfile || null) ? prev : (parsed.studentProfile || null)
+                );
                 const normalized = parsed.items.map(normalizeMessage);
                 setMessageItems((prev) => {
-                    if (cursorId) return mergeUniqueMessages([...normalized, ...prev]);
-                    if (!normalized.length) return prev;
-                    return mergeUniqueMessages(normalized);
+                    const next = cursorId
+                        ? mergeUniqueMessages([...normalized, ...prev])
+                        : normalized.length
+                          ? mergeUniqueMessages(normalized)
+                          : prev;
+                    return areMessageListsEquivalent(prev, next) ? prev : next;
                 });
                 setMessageNextCursorId(parsed.nextCursorId);
                 setMessageHasMore(parsed.hasMore);
+            } else if (response?.status === 403) {
+                if (conversationKey) forbiddenHistoryConversationIdsRef.current.add(conversationKey);
+                if (!silent) setMessageError('Bạn không có quyền xem lịch sử tin nhắn của cuộc trò chuyện này.');
             } else if (!silent) {
                 setMessageError('Không thể tải lịch sử tin nhắn.');
             }
         } catch (error) {
+            if (error?.response?.status === 403 && conversationKey) {
+                forbiddenHistoryConversationIdsRef.current.add(conversationKey);
+            }
             console.error('Error fetching message history:', error);
             if (!silent) setMessageError('Không thể tải lịch sử tin nhắn.');
         } finally {
@@ -808,6 +915,7 @@ function MainHeader() {
     };
 
     useEffect(() => {
+        if (!ENABLE_PARENT_CHAT_POLLING) return;
         if (!isSignedIn || !isParent || !chatWindowOpen || !selectedConversation) return;
         const intervalId = setInterval(() => {
             if (document.visibilityState !== 'visible') return;
@@ -818,6 +926,9 @@ function MainHeader() {
     }, [isSignedIn, isParent, chatWindowOpen, selectedConversation?.conversationId]);
 
     const handleSelectConversation = async (conversation) => {
+        const conversationKey = String(conversation?.conversationId ?? conversation?.id ?? '');
+        if (conversationKey) forbiddenHistoryConversationIdsRef.current.delete(conversationKey);
+        setSelectedConversationStudent(null);
         setSelectedConversation(conversation);
         selectedConversationRef.current = conversation;
         setMessageItems([]);
@@ -894,26 +1005,6 @@ function MainHeader() {
         await new Promise((resolve) => setTimeout(resolve, SEND_MESSAGE_HISTORY_DELAY_MS));
         await loadMessageHistory({ conversation: selectedConversation, cursorId: null });
     };
-
-    useEffect(() => {
-        const loadParentStudents = async () => {
-            if (!isSignedIn || !isParent) {
-                setParentStudents([]);
-                return;
-            }
-            try {
-                const response = await getParentStudent();
-                if (response?.status === 200) {
-                    const normalized = parseParentStudentsResponse(response).map(normalizeParentStudent);
-                    setParentStudents(normalized);
-                }
-            } catch (error) {
-                console.error('Error fetching parent students:', error);
-                setParentStudents([]);
-            }
-        };
-        loadParentStudents();
-    }, [isSignedIn, isParent]);
 
     useEffect(() => {
         setStudentInfoAnchorEl(null);
@@ -1919,7 +2010,8 @@ function MainHeader() {
                                     anchorEl={studentInfoAnchorEl}
                                     onClose={handleCloseStudentInfo}
                                     anchorOrigin={{vertical: 'bottom', horizontal: 'left'}}
-                                    transformOrigin={{vertical: 'bottom', horizontal: 'right'}}
+                                    transformOrigin={{vertical: 'top', horizontal: 'right'}}
+                                    marginThreshold={8}
                                     slotProps={{
                                         root: {sx: {zIndex: 1700}},
                                         paper: {
@@ -1927,7 +2019,8 @@ function MainHeader() {
                                                 ml: '-20px',
                                                 maxWidth: {xs: 'min(92vw, 520px)', sm: 520},
                                                 width: {xs: 'min(92vw, 520px)', sm: 520},
-                                                maxHeight: 'min(78vh, 640px)',
+                                                height: 540,
+                                                maxHeight: 540,
                                                 display: 'flex',
                                                 flexDirection: 'column',
                                                 position: 'relative',
@@ -1935,7 +2028,7 @@ function MainHeader() {
                                                 border: `1px solid ${selectedStudentTheme.border}`,
                                                 boxShadow: '0 16px 40px rgba(51,65,85,0.18)',
                                                 p: 1.2,
-                                                overflow: 'visible'
+                                                overflow: 'hidden'
                                             }
                                         }
                                     }}
@@ -1964,6 +2057,9 @@ function MainHeader() {
                                         />
                                     </Box>
                                     <Box
+                                        onWheel={(event) => {
+                                            event.stopPropagation();
+                                        }}
                                         sx={{
                                             position: 'relative',
                                             zIndex: 1,
@@ -1971,8 +2067,12 @@ function MainHeader() {
                                             minHeight: 0,
                                             display: 'flex',
                                             flexDirection: 'column',
-                                            overflow: 'auto',
-                                            maxHeight: 'min(calc(78vh - 24px), 616px)',
+                                            overflowY: 'auto',
+                                            overflowX: 'hidden',
+                                            overscrollBehavior: 'contain',
+                                            WebkitOverflowScrolling: 'touch',
+                                            scrollbarGutter: 'stable',
+                                            maxHeight: 516,
                                         }}
                                     >
                                         <ParentStudentInfoPanel
