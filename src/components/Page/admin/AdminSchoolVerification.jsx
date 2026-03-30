@@ -324,17 +324,6 @@ export default function AdminSchoolVerification() {
                 color: "#1e293b",
             }}
         >
-            <Breadcrumbs separator="›" aria-label="breadcrumb" sx={{mb: 1, color: "#64748b"}}>
-                <Link
-                    underline="hover"
-                    color="inherit"
-                    onClick={() => navigate("/admin/schools/verification")}
-                    sx={{cursor: "pointer", color: "#2563eb"}}
-                >
-                    Xác thực trường
-                </Link>
-            </Breadcrumbs>
-
             <Card
                 elevation={0}
                 sx={{

@@ -16,6 +16,7 @@ const ProtectedRoute = lazy(() => import("./configs/ProtectedRoute.jsx"));
 const AdminLayout = lazy(() => import("./components/layouts/AdminLayout.jsx"));
 const AdminDashboard = lazy(() => import("./components/Page/admin/AdminDashboard.jsx"));
 const AdminUsersManagement = lazy(() => import("./components/Page/admin/AdminUsersManagement.jsx"));
+const AdminPlatformSettings = lazy(() => import("./components/Page/admin/AdminPlatformSettings.jsx"));
 const AdminSchoolVerification = lazy(() => import("./components/Page/admin/AdminSchoolVerification.jsx"));
 const AdminSchoolCampuses = lazy(() => import("./components/Page/admin/AdminSchoolCampuses.jsx"));
 const AdminCampusConsultants = lazy(() => import("./components/Page/admin/AdminCampusConsultants.jsx"));
@@ -376,6 +377,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <AdminUsersManagement/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'platform-settings',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminPlatformSettings/>
                     </Suspense>
                 )
             },

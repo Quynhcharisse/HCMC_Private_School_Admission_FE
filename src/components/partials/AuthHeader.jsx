@@ -41,14 +41,6 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar, 
         fetchProfile();
     }, [isSignedIn]);
 
-    const handleUserMenuClick = (event) => {
-        setAnchorEl(event.currentTarget);
-    };
-
-    const handleUserMenuClose = () => {
-        setAnchorEl(null);
-    };
-
     const handleLogout = async () => {
         try {
             const response = await signout();
@@ -72,7 +64,12 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar, 
         }
     };
 
-    // Get user info from localStorage or profile data
+    const handleUserMenuClick = (event) => {
+        setAnchorEl(event.currentTarget);
+    };
+
+    const handleUserMenuClose = () => setAnchorEl(null);
+
     const getUserInfo = () => {
         if (localStorage.getItem('user')) {
             try {
@@ -103,7 +100,6 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar, 
     const isAdmin = userInfo?.role === 'ADMIN';
 
     const handleGoHome = () => {
-        // Với role ADMIN không cho click về /home từ logo
         if (isAdmin) return;
         window.location.href = '/home';
     };
@@ -190,7 +186,7 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar, 
                         </Box>
                     </Box>
 
-                    {isSignedIn && (
+                    {isSignedIn && (headerLeftOffset == null || headerLeftOffset === undefined) && (
                         <>
                             <Box
                                 onClick={handleUserMenuClick}
