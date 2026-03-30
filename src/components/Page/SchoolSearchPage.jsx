@@ -18,7 +18,8 @@ import {
     Tab,
     Tabs,
     TextField,
-    Typography
+    Typography,
+    CircularProgress
 } from "@mui/material";
 import {
     Add as AddIcon,
@@ -64,116 +65,67 @@ import {
     getUserIdentity,
     setSavedSchools
 } from "../../utils/savedSchoolsStorage";
+import {getPublicSchoolDetail, getPublicSchoolList} from "../../services/SchoolPublicService.jsx";
 
-const MOCK_SCHOOLS = [
-    {
-        province: "TP.HCM",
-        ward: "Phường Sài Gòn",
-        school: "THPT Quốc tế Á Châu – Cơ sở 2",
-        website: "https://www.aisvietnam.edu.vn",
-        address: "200 Pasteur, Phường Sài Gòn, Quận 1, TP.HCM",
-        phone: "(028) 3827 8800",
-        email: "admissions@aisvietnam.edu.vn",
-        locationLabel: "TP.HCM"
-    },
-    {
-        province: "TP.HCM",
-        ward: "Phường Tân Định",
-        school: "Asian International Primary, Secondary and High School",
-        website: "https://www.aisvietnam.edu.vn",
-        address: "220 Hồng Bàng, Phường Tân Định, Quận 1, TP.HCM",
-        phone: "(028) 3931 0708",
-        email: "info@aisvietnam.edu.vn",
-        locationLabel: "TP.HCM"
-    },
-    {province: "TP.HCM", ward: "Phường Bến Thành", school: "Trường THCS & THPT Đăng Khoa"},
-    {province: "TP.HCM", ward: "Phường Xuân Hòa", school: "THPT Tây Úc"},
-    {province: "TP.HCM", ward: "Phường Xuân Hòa", school: "Western Australian Primary and High School"},
-    {province: "TP.HCM", ward: "Phường Nhiêu Lộc", school: "Trường Quốc Tế Tây Úc - Cơ Sở BHTQ"},
-    {province: "TP.HCM", ward: "Phường An Đông", school: "Trường THPT Dân Lập An Đông"},
-    {province: "TP.HCM", ward: "Phường Chợ Lớn", school: "THPT Văn Lang"},
-    {province: "TP.HCM", ward: "Phường Bình Tây", school: "Trường THCS - THPT Phan Bội Châu"},
-    {province: "TP.HCM", ward: "Phường Phú Lâm", school: "Trường THPT Quốc Trí"},
-    {province: "TP.HCM", ward: "Phường Tân Thuận", school: "Đức Trí Secondary - High School"},
-    {province: "TP.HCM", ward: "Phường Tân Thuận", school: "Emasi Nam Long Primary, Secondary and High School"},
-    {province: "TP.HCM", ward: "Phường Phú Thuận", school: "Đức Trí Secondary - High School"},
-    {province: "TP.HCM", ward: "Phường Tân Mỹ", school: "Canadian International School Vietnam"},
-    {province: "TP.HCM", ward: "Phường Tân Mỹ", school: "Korean International School, HCMC (Trường Quốc tế Hàn Quốc – TP. HCM)"},
-    {province: "TP.HCM", ward: "Phường Tân Mỹ", school: "Taipei School in Ho Chi Minh City (Trường Đài Bắc)"},
-    {province: "TP.HCM", ward: "Phường Tân Hưng", school: "Trường THPT Tân Phong"},
-    {province: "TP.HCM", ward: "Phường Tân Hưng", school: "Trường THPT Lê Thánh Tôn"},
-    {province: "TP.HCM", ward: "Phường Tân Hưng", school: "Trường THCS & THPT Đức Trí"},
-    {province: "TP.HCM", ward: "Phường Tân Hưng", school: "Trường THCS & THPT Sao Việt (VSTAR School)"},
-    {province: "TP.HCM", ward: "Phường Hòa Hưng", school: "Trường THCS & THPT Duy Tân"},
-    {province: "TP.HCM", ward: "Phường Hòa Hưng", school: "Trường TH – THCS – THPT Vạn Hạnh"},
-    {province: "TP.HCM", ward: "Phường Minh Phụng", school: "Trường THPT Quốc Trí"},
-    {province: "TP.HCM", ward: "Phường Minh Phụng", school: "Nam Kỳ Khởi Nghĩa High School"},
-    {province: "TP.HCM", ward: "Phường Bình Thới", school: "Trường Tiểu học, THCS, THPT Việt Mỹ Quận 11"},
-    {province: "TP.HCM", ward: "Phường Phú Thọ", school: "APU International School"},
-    {province: "TP.HCM", ward: "Phường Phú Thọ", school: "Tran Quoc Tuan High School"},
-    {province: "TP.HCM", ward: "Phường Đông Hưng Thuận", school: "Ngoc Vien Dong Middle School and High School"},
-    {province: "TP.HCM", ward: "Phường Trung Mỹ Tây", school: "Trường THPT Huỳnh Túc Kháng"},
-    {province: "TP.HCM", ward: "Phường Trung Mỹ Tây", school: "THPT Nhân Việt – Cơ sở 3"},
-    {province: "TP.HCM", ward: "Phường Trung Mỹ Tây", school: "Bamboo School Tân Chánh Hiệp - Trường Hội nhập Quốc tế"},
-    {province: "TP.HCM", ward: "Phường Tân Thới Hiệp", school: "Viet Au High School"},
-    {province: "TP.HCM", ward: "Phường Thới An", school: "Trường THCS và THPT Lạc Hồng cơ sở 2"},
-    {province: "TP.HCM", ward: "Phường An Phú Đông", school: "Trường THPT Đông Dương"},
-    {province: "TP.HCM", ward: "Phường Bình Tân", school: "THPT Trí Tuệ Việt"},
-    {province: "TP.HCM", ward: "Phường Bình Trị Đông", school: "TRƯỜNG THPT TRẦN NHÂN TÔNG"},
-    {province: "TP.HCM", ward: "Phường Bình Hưng Hòa", school: "THPT Chu Văn An"},
-    {province: "TP.HCM", ward: "Phường Bình Thạnh", school: "Trường THPT Tư Thục Quốc Văn Sài Gòn 3"},
-    {province: "TP.HCM", ward: "Phường Bình Thạnh", school: "Trường Trung học phổ thông Sài Gòn"},
-    {province: "TP.HCM", ward: "Phường An Nhơn", school: "Ly Thai To High School"},
-    {province: "TP.HCM", ward: "Phường Gò Vấp", school: "Hong Ha Secondary School & High School"},
-    {province: "TP.HCM", ward: "Phường Đức Nhuận", school: "Trường Việt Anh"},
-    {province: "TP.HCM", ward: "Phường Đức Nhuận", school: "Trường THCS & THPT Đức Trí"},
-    {province: "TP.HCM", ward: "Phường Đức Nhuận", school: "Trường THCS và THPT Việt Mỹ VASS"},
-    {province: "TP.HCM", ward: "Phường Đức Nhuận", school: "Trường THCS - THPT Phan Bội Châu"},
-    {province: "TP.HCM", ward: "Phường Đức Nhuận", school: "The International School"},
-    {province: "TP.HCM", ward: "Phường Tân Sơn Hòa", school: "TRƯỜNG THÁI BÌNH DƯƠNG (PHS)"},
-    {province: "TP.HCM", ward: "Phường Bảy Hiền", school: "Thái Bình Private Secondary and High School"},
-    {province: "TP.HCM", ward: "Phường Bảy Hiền", school: "Thanh Bình Primary, Middle and High School"},
-    {province: "TP.HCM", ward: "Phường Tân Sơn", school: "Trung học Pathway Tuệ Đức – Cơ sở Nguyễn Sỹ Sách"},
-    {province: "TP.HCM", ward: "Phường Tân Sơn Nhì", school: "THPT Thành Nhân"},
-    {province: "TP.HCM", ward: "Phường Tân Phú", school: "Trường TH‑THCS‑THPT Tân Phú"},
-    {province: "TP.HCM", ward: "Phường Tân Phú", school: "Tri Duc Private High School"},
-    {province: "TP.HCM", ward: "Phường Tân Phú", school: "Trường THCS & THPT Nhân Văn"},
-    {province: "TP.HCM", ward: "Phường Tân Phú", school: "Trường Tiểu Học ‑ Trung Học Cơ Sở ‑ THPT Hòa Bình"},
-    {province: "TP.HCM", ward: "Phường Tân Phú", school: "Bamboo Tân Phú"},
-    {province: "TP.HCM", ward: "Phường Hiệp Bình", school: "Hiep Binh High School"},
-    {province: "TP.HCM", ward: "Phường Hiệp Bình", school: "Bach Viet Private High School"},
-    {province: "TP.HCM", ward: "Phường Long Trường", school: "Trường Trung học Phổ thông Long Trường"},
-    {province: "TP.HCM", ward: "Xã Bình Hưng", school: "The ABC International School"},
-    {province: "TP.HCM", ward: "Xã Bình Hưng", school: "Singapore International School @ Saigon South (cơ sở Trung Sơn, Binh Hung)"},
-    {province: "TP.HCM", ward: "Xã Bình Hưng", school: "Albert Einstein School (ESH)"},
-    {province: "TP.HCM", ward: "Xã Tân An Hội", school: "Trường THPT Chiến Thắng"},
-    {province: "TP.HCM", ward: "Xã An Nhơn Tây", school: "Trường Trung học Phổ thông An Nhơn Tây"},
-    {province: "TP.HCM", ward: "Xã Xuân Thới Sơn", school: "Bamboo Xuân Thới Sơn"},
+/** API hiện chưa trả tỉnh/phường — dùng giá trị chung để bộ lọc vẫn hoạt động. */
+const LOCATION_FALLBACK_PROVINCE = "Tất cả";
+const LOCATION_FALLBACK_WARD = "Tất cả";
 
-    {province: "Bình Dương", ward: "Phường Dĩ An", school: "THPT Hoa Sen"},
-    {province: "Bình Dương", ward: "Phường Dĩ An", school: "THPT Phan Chu Trinh"},
-    {province: "Bình Dương", ward: "Phường Dĩ An", school: "THPT Việt Anh 2"},
-    {province: "Bình Dương", ward: "Phường Bình Dương", school: "Trường THPT An Mỹ"},
-    {province: "Bình Dương", ward: "Phường Long Nguyên", school: "INschool – Ben Cat Campus"},
+function mapPublicSchoolToRow(api) {
+    if (!api || typeof api !== "object") return null;
+    return {
+        id: api.id,
+        school: api.name ?? "",
+        province: LOCATION_FALLBACK_PROVINCE,
+        ward: LOCATION_FALLBACK_WARD,
+        website: api.websiteUrl || "",
+        phone: api.hotline || "",
+        email: "",
+        address: api.description ? String(api.description) : "Đang cập nhật",
+        locationLabel: "TP.HCM",
+        description: api.description,
+        averageRating: typeof api.averageRating === "number" ? api.averageRating : 0,
+        totalCampus: api.totalCampus ?? 0,
+        logoUrl: api.logoUrl || null,
+        isFavourite: Boolean(api.isFavourite),
+        foundingDate: api.foundingDate,
+        representativeName: api.representativeName,
+        campusList: [],
+        curriculumList: [],
+        boardingType: "",
+        hasDetailLoaded: false
+    };
+}
 
-    {province: "Bà Rịa - Vũng Tàu", ward: "Phường Vũng Tàu", school: "Trường Việt Mỹ chi nhánh Vũng Tàu"},
-    {province: "Bà Rịa - Vũng Tàu", ward: "Phường Vũng Tàu", school: "Trường Thpt Song Ngữ Vũng Tàu"},
-    {province: "Bà Rịa - Vũng Tàu", ward: "Phường Vũng Tàu", school: "Singapore International School @ Vung Tau"},
-    {province: "Bà Rịa - Vũng Tàu", ward: "Phường Tam Thắng", school: "Trường THPT Tư thục Lê Hồng Phong"},
-    {province: "Bà Rịa - Vũng Tàu", ward: "Phường Tam Thắng", school: "Singapore International School @ Vung Tau (SIS Vũng Tàu)"},
-];
-
-const PROVINCES = Array.from(new Set(MOCK_SCHOOLS.map((s) => s.province)));
-const ALL_WARDS = Array.from(new Set(MOCK_SCHOOLS.map((s) => s.ward)));
-const WARDS_BY_PROVINCE = PROVINCES.reduce((acc, province) => {
-    acc[province] = Array.from(
-        new Set(MOCK_SCHOOLS.filter((s) => s.province === province).map((s) => s.ward))
-    );
-    return acc;
-}, {});
-
-const DEFAULT_PROVINCE = PROVINCES[0] ?? null;
-const DEFAULT_WARD = DEFAULT_PROVINCE ? (WARDS_BY_PROVINCE[DEFAULT_PROVINCE]?.[0] ?? "") : "";
+function mapPublicSchoolDetailToRow(api) {
+    if (!api || typeof api !== "object") return null;
+    const campusList = Array.isArray(api.campustList) ? api.campustList : [];
+    const firstCampus = campusList[0] ?? null;
+    const province = (firstCampus?.city || "").trim() || LOCATION_FALLBACK_PROVINCE;
+    const ward = (firstCampus?.district || "").trim() || LOCATION_FALLBACK_WARD;
+    return {
+        id: api.id,
+        school: api.name ?? "",
+        province,
+        ward,
+        website: api.websiteUrl || "",
+        phone: firstCampus?.phoneNumber || api.hotline || "",
+        email: "",
+        address: firstCampus?.address || (api.description ? String(api.description) : "Đang cập nhật"),
+        locationLabel: province,
+        description: api.description,
+        averageRating: typeof api.averageRating === "number" ? api.averageRating : 0,
+        totalCampus: api.totalCampus ?? campusList.length,
+        logoUrl: api.logoUrl || null,
+        isFavourite: Boolean(api.isFavourite),
+        foundingDate: api.foundingDate,
+        representativeName: api.representativeName,
+        campusList,
+        curriculumList: Array.isArray(api.curriculumList) ? api.curriculumList : [],
+        boardingType: firstCampus?.boardingType || "",
+        hasDetailLoaded: true
+    };
+}
 
 const DEFAULT_SCHOOL_IMAGE =
     "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=900&q=80";
@@ -419,11 +371,65 @@ export default function SchoolSearchPage() {
     const canSaveSchool = Boolean(isParent && userInfo);
 
     const [searchKeyword, setSearchKeyword] = React.useState('');
-    const [selectedDistrict, setSelectedDistrict] = React.useState(DEFAULT_WARD);
+    const [schools, setSchools] = React.useState([]);
+    const [listLoading, setListLoading] = React.useState(true);
+    const [listError, setListError] = React.useState(null);
+    const [detailLoading, setDetailLoading] = React.useState(false);
+    const [detailError, setDetailError] = React.useState(null);
+    const [selectedDistrict, setSelectedDistrict] = React.useState("");
     const [tuitionMin, setTuitionMin] = React.useState(0);
     const [tuitionMax, setTuitionMax] = React.useState(30);
-    const [selectedProvince, setSelectedProvince] = React.useState(DEFAULT_PROVINCE);
+    const [selectedProvince, setSelectedProvince] = React.useState("");
     const [selectedBoardingType, setSelectedBoardingType] = React.useState(null);
+
+    const provinces = React.useMemo(
+        () => Array.from(new Set(schools.map((s) => s.province).filter(Boolean))),
+        [schools]
+    );
+    const wardsByProvince = React.useMemo(() => {
+        const acc = {};
+        for (const s of schools) {
+            const p = s.province;
+            if (!p) continue;
+            if (!acc[p]) acc[p] = new Set();
+            acc[p].add(s.ward);
+        }
+        return Object.fromEntries(Object.entries(acc).map(([k, v]) => [k, Array.from(v)]));
+    }, [schools]);
+    const allWards = React.useMemo(() => Array.from(new Set(schools.map((s) => s.ward).filter(Boolean))), [schools]);
+
+    React.useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            setListLoading(true);
+            setListError(null);
+            try {
+                const raw = await getPublicSchoolList();
+                if (cancelled) return;
+                const rows = raw.map(mapPublicSchoolToRow).filter(Boolean);
+                setSchools(rows);
+            } catch (e) {
+                if (!cancelled) {
+                    const msg =
+                        e?.response?.data?.message ||
+                        e?.message ||
+                        "Không tải được danh sách trường.";
+                    setListError(msg);
+                    setSchools([]);
+                }
+            } finally {
+                if (!cancelled) setListLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    React.useEffect(() => {
+        if (!schools.length || !provinces.length) return;
+        setSelectedProvince((prev) => (prev && provinces.includes(prev) ? prev : provinces[0]));
+    }, [schools, provinces]);
 
     React.useEffect(() => {
         window.scrollTo({top: 0, left: 0, behavior: 'auto'});
@@ -467,9 +473,9 @@ export default function SchoolSearchPage() {
     });
 
     React.useEffect(() => {
-        const wards = selectedProvince ? (WARDS_BY_PROVINCE[selectedProvince] ?? []) : ALL_WARDS;
+        const wards = selectedProvince ? (wardsByProvince[selectedProvince] ?? []) : allWards;
         setSelectedDistrict((prev) => (wards.includes(prev) ? prev : (wards[0] ?? "")));
-    }, [selectedProvince]);
+    }, [selectedProvince, wardsByProvince, allWards]);
 
     React.useEffect(() => {
         if (!isParent || !userInfo) {
@@ -485,9 +491,9 @@ export default function SchoolSearchPage() {
         setCompareSchoolKeys(new Set(compare.map((x) => x?.schoolKey).filter(Boolean)));
     }, [userIdentity]);
 
-    const availableDistricts = selectedProvince ? (WARDS_BY_PROVINCE[selectedProvince] ?? []) : ALL_WARDS;
+    const availableDistricts = selectedProvince ? (wardsByProvince[selectedProvince] ?? []) : allWards;
     const normalizedKeyword = searchKeyword.trim().toLowerCase();
-    const filteredSchools = MOCK_SCHOOLS.filter((s) => {
+    const filteredSchools = schools.filter((s) => {
         const matchProvince = selectedProvince ? s.province === selectedProvince : true;
         const matchWard = selectedDistrict ? s.ward === selectedDistrict : true;
         const matchKeyword = normalizedKeyword ? s.school.toLowerCase().includes(normalizedKeyword) : true;
@@ -505,8 +511,50 @@ export default function SchoolSearchPage() {
 
     const detailSchool = React.useMemo(() => {
         if (!detailKeyRaw) return null;
-        return MOCK_SCHOOLS.find((s) => getSchoolStorageKey(s) === detailKeyRaw) ?? null;
-    }, [detailKeyRaw]);
+        return schools.find((s) => getSchoolStorageKey(s) === detailKeyRaw) ?? null;
+    }, [detailKeyRaw, schools]);
+
+    React.useEffect(() => {
+        if (!detailSchool?.id || detailSchool?.hasDetailLoaded) {
+            setDetailError(null);
+            setDetailLoading(false);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            setDetailLoading(true);
+            setDetailError(null);
+            try {
+                const detailBody = await getPublicSchoolDetail(detailSchool.id);
+                if (cancelled || !detailBody) return;
+                const mapped = mapPublicSchoolDetailToRow(detailBody);
+                if (!mapped) return;
+                setSchools((prev) =>
+                    prev.map((item) =>
+                        item?.id === mapped.id
+                            ? {
+                                ...item,
+                                ...mapped
+                            }
+                            : item
+                    )
+                );
+            } catch (e) {
+                if (!cancelled) {
+                    const msg =
+                        e?.response?.data?.message ||
+                        e?.message ||
+                        "Không tải được chi tiết trường.";
+                    setDetailError(msg);
+                }
+            } finally {
+                if (!cancelled) setDetailLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [detailSchool?.id, detailSchool?.hasDetailLoaded]);
 
     const openSchoolDetail = React.useCallback(
         (school) => {
@@ -849,7 +897,7 @@ export default function SchoolSearchPage() {
                             <Box>
                                 <Typography sx={{fontWeight: 700, fontSize: 13, mb: 1, color: '#64748b', letterSpacing: '0.02em'}}>Tỉnh, Thành phố</Typography>
                                 <Box sx={{display: 'flex', gap: 1, flexWrap: 'wrap'}}>
-                                    {PROVINCES.map((province) => (
+                                    {provinces.map((province) => (
                                         <Chip
                                             key={province}
                                             label={province}
@@ -1037,7 +1085,7 @@ export default function SchoolSearchPage() {
 
                         <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 2, flexWrap: 'wrap'}}>
                             <Typography sx={{fontWeight: 800, color: '#1e293b', fontSize: '1rem'}}>
-                                {totalCount === 0 ? "0 trường" : `${totalCount} trường`}
+                                {listLoading ? "Đang tải…" : totalCount === 0 ? "0 trường" : `${totalCount} trường`}
                             </Typography>
                             <Box sx={{display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap'}}>
                                 {compareCount > 0 && (
@@ -1080,6 +1128,17 @@ export default function SchoolSearchPage() {
                             </Box>
                         </Box>
 
+                        {listError && (
+                            <Typography sx={{color: "#b45309", fontSize: "0.95rem", mb: 2, fontWeight: 600}}>
+                                {listError}
+                            </Typography>
+                        )}
+
+                        {listLoading ? (
+                            <Box sx={{display: "flex", justifyContent: "center", py: 6}}>
+                                <CircularProgress sx={{color: BRAND_NAVY}}/>
+                            </Box>
+                        ) : (
                         <Stack spacing={2}>
                             {shownSchools.map((school) => {
                                 const schoolKey = getSchoolStorageKey(school);
@@ -1088,7 +1147,7 @@ export default function SchoolSearchPage() {
 
                                 return (
                                     <Card
-                                        key={`${school.province}-${school.ward}-${school.school}`}
+                                        key={school.id != null ? `school-${school.id}` : `${school.province}-${school.ward}-${school.school}`}
                                         sx={{
                                             position: "relative",
                                             display: 'grid',
@@ -1170,7 +1229,7 @@ export default function SchoolSearchPage() {
                                         </Box>
                                     <CardMedia
                                         component="img"
-                                        image={DEFAULT_SCHOOL_IMAGE}
+                                        image={school.logoUrl || DEFAULT_SCHOOL_IMAGE}
                                         alt={school.school}
                                         sx={{
                                             height: {xs: 180, sm: 170},
@@ -1238,7 +1297,9 @@ export default function SchoolSearchPage() {
                                 );
                             })}
                         </Stack>
+                        )}
 
+                        {!listLoading && (
                         <Box sx={{display: 'flex', justifyContent: 'center', mt: 3}}>
                             <Pagination
                                 count={paginationCount}
@@ -1256,6 +1317,7 @@ export default function SchoolSearchPage() {
                                 }}
                             />
                         </Box>
+                        )}
                     </Box>
                 </Box>
             </Container>
@@ -1308,7 +1370,7 @@ export default function SchoolSearchPage() {
                             minHeight: {xs: 280, sm: 320},
                             backgroundImage: `
                                 linear-gradient(180deg, rgba(51,65,85,0.55) 0%, rgba(51,65,85,0.82) 100%),
-                                url(${DEFAULT_SCHOOL_IMAGE})
+                                url(${detailSchool.logoUrl || DEFAULT_SCHOOL_IMAGE})
                             `,
                             backgroundSize: "cover",
                             backgroundPosition: "center",
@@ -1344,18 +1406,35 @@ export default function SchoolSearchPage() {
                                 sx={{mt: 1.25, gap: 1}}
                             >
                                 <Chip
-                                    label="A+"
+                                    label={
+                                        detailSchool.averageRating > 0
+                                            ? `${detailSchool.averageRating.toFixed(1)} / 5`
+                                            : "Chưa có đánh giá"
+                                    }
                                     size="small"
                                     sx={{
-                                        bgcolor: "rgba(16,185,129,0.95)",
+                                        bgcolor:
+                                            detailSchool.averageRating > 0
+                                                ? "rgba(16,185,129,0.95)"
+                                                : "rgba(100,116,139,0.85)",
                                         color: "#fff",
                                         fontWeight: 800,
                                         border: "none"
                                     }}
                                 />
                                 <Stack direction="row" alignItems="center" spacing={0.5}>
-                                    <Rating value={4.8} precision={0.1} readOnly size="small" sx={{color: "#fbbf24"}}/>
-                                    <Typography sx={{fontSize: "0.85rem", opacity: 0.95}}>4.8</Typography>
+                                    <Rating
+                                        value={Math.min(5, Math.max(0, Number(detailSchool.averageRating) || 0))}
+                                        precision={0.1}
+                                        readOnly
+                                        size="small"
+                                        sx={{color: "#fbbf24"}}
+                                    />
+                                    <Typography sx={{fontSize: "0.85rem", opacity: 0.95}}>
+                                        {detailSchool.averageRating > 0
+                                            ? detailSchool.averageRating.toFixed(1)
+                                            : "—"}
+                                    </Typography>
                                 </Stack>
                                 <Typography sx={{fontSize: "0.85rem", opacity: 0.9}}>
                                     · {detailSchool.ward}, {detailSchool.province}
@@ -1372,7 +1451,11 @@ export default function SchoolSearchPage() {
                                     size="small"
                                     variant="outlined"
                                     startIcon={<LanguageIcon sx={{fontSize: 18}}/>}
-                                    href={`https://www.google.com/search?q=${encodeURIComponent(detailSchool.school)}`}
+                                    href={
+                                        (detailSchool.website || "").trim()
+                                            ? detailSchool.website
+                                            : `https://www.google.com/search?q=${encodeURIComponent(detailSchool.school)}`
+                                    }
                                     target="_blank"
                                     rel="noreferrer"
                                     sx={{
@@ -1383,7 +1466,7 @@ export default function SchoolSearchPage() {
                                         "&:hover": {borderColor: "#fff", bgcolor: "rgba(255,255,255,0.12)"}
                                     }}
                                 >
-                                    Tìm trên web
+                                    {(detailSchool.website || "").trim() ? "Website trường" : "Tìm trên web"}
                                 </Button>
                                 <Button
                                     size="small"
@@ -1570,6 +1653,16 @@ export default function SchoolSearchPage() {
                                     <Tab label="Đặt lịch tư vấn" disableRipple/>
                                 </Tabs>
                             </Box>
+                            {detailLoading && (
+                                <Typography sx={{fontSize: "0.85rem", color: "#64748b", mb: 1}}>
+                                    Đang tải chi tiết trường...
+                                </Typography>
+                            )}
+                            {!!detailError && (
+                                <Typography sx={{fontSize: "0.85rem", color: "#b45309", mb: 1}}>
+                                    {detailError}
+                                </Typography>
+                            )}
 
                             <Box
                                 sx={{
@@ -1589,9 +1682,25 @@ export default function SchoolSearchPage() {
                                             Giới thiệu trường
                                         </Typography>
                                         <Typography sx={{color: "#475569", lineHeight: 1.75, fontSize: "0.95rem", mb: 2}}>
-                                            Thông tin tổng quan về {detailSchool.school} tại {detailSchool.ward}, {detailSchool.province}. Nội dung
-                                            chi tiết sẽ được đồng bộ từ hệ thống quản lý trường khi có kết nối API.
+                                            {detailSchool.description
+                                                ? String(detailSchool.description)
+                                                : `Thông tin tổng quan về ${detailSchool.school}. Nội dung chi tiết sẽ được cập nhật từ nhà trường trên hệ thống EduBridge.`}
                                         </Typography>
+                                        {detailSchool.totalCampus > 0 && (
+                                            <Typography sx={{color: "#64748b", fontSize: "0.9rem", mb: 2}}>
+                                                Số cơ sở: {detailSchool.totalCampus}
+                                            </Typography>
+                                        )}
+                                        {!!detailSchool.boardingType && (
+                                            <Typography sx={{color: "#64748b", fontSize: "0.9rem", mb: 2}}>
+                                                Hình thức nội trú: {detailSchool.boardingType}
+                                            </Typography>
+                                        )}
+                                        {!!detailSchool.foundingDate && (
+                                            <Typography sx={{color: "#64748b", fontSize: "0.9rem", mb: 2}}>
+                                                Năm thành lập: {detailSchool.foundingDate}
+                                            </Typography>
+                                        )}
                                         <Typography sx={{color: "#475569", lineHeight: 1.75, fontSize: "0.95rem", mb: 2}}>
                                             Trường tập trung phát triển năng lực học thuật, kỹ năng và phẩm chất cho học sinh; chương trình được
                                             cập nhật theo khung của Bộ Giáo dục và Đào tạo kết hợp hoạt động trải nghiệm, câu lạc bộ và tư vấn hướng nghiệp.
@@ -1612,7 +1721,7 @@ export default function SchoolSearchPage() {
                                         <CardMedia
                                             component="img"
                                             height={200}
-                                            image={DEFAULT_SCHOOL_IMAGE}
+                                            image={detailSchool.logoUrl || DEFAULT_SCHOOL_IMAGE}
                                             alt=""
                                             sx={{mt: 1, borderRadius: 2, objectFit: "cover", border: "1px solid rgba(51,65,85,0.08)"}}
                                         />

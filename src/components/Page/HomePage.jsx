@@ -63,6 +63,7 @@ import admissionCard2Image from "../../assets/Nhiều trường THPT công bố 
 import admissionCard3Image from "../../assets/TPHCM chốt 3 môn thi tuyển sinh lớp 10 năm 2026.jpeg";
 import admissionCard4Image from "../../assets/Đề thi lớp 10 2026 thay đổi theo hướng đánh giá năng lựcwebp.webp";
 import admissionCard5Image from "../../assets/TP.HCM tiếp tục kết hợp thi tuyển và xét tuyển.jpg.webp";
+import {getPublicSchoolList} from "../../services/SchoolPublicService.jsx";
 
 const heroMuted = '#334155';
 
@@ -113,151 +114,8 @@ const ADMISSION_POSTS = [
     }
 ];
 
-const SCHOOL_SHOWCASE = [
-    {
-        name: 'THPT Chuyên Lê Hồng Phong',
-        district: 'Quận 5',
-        location: 'Quận 5, TP.HCM',
-        type: 'Công lập',
-        tuition: 'Miễn phí',
-        rating: 4.9,
-        reviews: 12,
-        grade: 'A+',
-        featured: true,
-        badge: 'Top 1 Quận 5',
-        cover: 'https://images.pexels.com/photos/5212345/pexels-photo-5212345.jpeg?auto=compress&cs=tinysrgb&w=1200'
-    },
-    {
-        name: 'THPT Nguyễn Thị Minh Khai',
-        district: 'Quận 3',
-        location: 'Quận 3, TP.HCM',
-        type: 'Công lập',
-        tuition: 'Miễn phí',
-        rating: 4.8,
-        reviews: 8,
-        grade: 'A',
-        featured: true,
-        badge: 'Nổi bật',
-        cover: 'https://images.pexels.com/photos/8471835/pexels-photo-8471835.jpeg?auto=compress&cs=tinysrgb&w=1200'
-    },
-    {
-        name: 'THPT Trần Đại Nghĩa',
-        district: 'Quận 1',
-        location: 'Quận 1, TP.HCM',
-        type: 'Công lập',
-        tuition: 'Miễn phí',
-        rating: 4.9,
-        reviews: 15,
-        grade: 'A+',
-        featured: true,
-        badge: 'Tỷ lệ đậu cao',
-        cover: 'https://images.pexels.com/photos/8617737/pexels-photo-8617737.jpeg?auto=compress&cs=tinysrgb&w=1200'
-    },
-    {
-        name: 'THPT Gia Định',
-        district: 'Bình Thạnh',
-        location: 'Bình Thạnh, TP.HCM',
-        type: 'Công lập',
-        tuition: 'Miễn phí',
-        rating: 4.7,
-        reviews: 10,
-        grade: 'A',
-        featured: false,
-        badge: 'Uy tín khu vực',
-        cover: 'https://images.pexels.com/photos/7972737/pexels-photo-7972737.jpeg?auto=compress&cs=tinysrgb&w=1200'
-    },
-    {
-        name: 'THPT Nguyễn Du',
-        district: 'Quận 10',
-        location: 'Quận 10, TP.HCM',
-        type: 'Công lập',
-        tuition: 'Miễn phí',
-        rating: 4.8,
-        reviews: 9,
-        grade: 'A',
-        featured: false,
-        badge: 'Top lựa chọn',
-        cover: 'https://images.pexels.com/photos/1184587/pexels-photo-1184587.jpeg?auto=compress&cs=tinysrgb&w=1200'
-    },
-    {
-        name: 'THCS-THPT Hoa Sen',
-        district: 'Phú Nhuận',
-        location: 'Phú Nhuận, TP.HCM',
-        type: 'Tư thục',
-        tuition: '3,5 triệu/tháng',
-        rating: 4.6,
-        reviews: 18,
-        grade: 'A',
-        featured: false,
-        badge: 'Học bổng tốt',
-        cover: 'https://images.pexels.com/photos/5905445/pexels-photo-5905445.jpeg?auto=compress&cs=tinysrgb&w=1200'
-    },
-    {
-        name: 'THCS-THPT Việt Âu',
-        district: 'Tân Bình',
-        location: 'Tân Bình, TP.HCM',
-        type: 'Tư thục',
-        tuition: '4,2 triệu/tháng',
-        rating: 4.5,
-        reviews: 14,
-        grade: 'B+',
-        featured: false,
-        badge: 'Cơ sở vật chất mới',
-        cover: 'https://images.pexels.com/photos/256417/pexels-photo-256417.jpeg?auto=compress&cs=tinysrgb&w=1200'
-    },
-    {
-        name: 'THCS-THPT Quốc Trí',
-        district: 'Gò Vấp',
-        location: 'Gò Vấp, TP.HCM',
-        type: 'Tư thục',
-        tuition: '3,8 triệu/tháng',
-        rating: 4.6,
-        reviews: 11,
-        grade: 'A',
-        featured: false,
-        badge: 'Đội ngũ tư vấn tốt',
-        cover: 'https://images.pexels.com/photos/7972504/pexels-photo-7972504.jpeg?auto=compress&cs=tinysrgb&w=1200'
-    },
-    {
-        name: 'THCS-THPT Ánh Dương',
-        district: 'Thủ Đức',
-        location: 'TP Thủ Đức, TP.HCM',
-        type: 'Tư thục',
-        tuition: '4,6 triệu/tháng',
-        rating: 4.7,
-        reviews: 16,
-        grade: 'A',
-        featured: false,
-        badge: 'Tỷ lệ đậu cao',
-        cover: 'https://images.pexels.com/photos/4144222/pexels-photo-4144222.jpeg?auto=compress&cs=tinysrgb&w=1200'
-    },
-    {
-        name: 'THCS-THPT Trí Đức',
-        district: 'Quận 7',
-        location: 'Quận 7, TP.HCM',
-        type: 'Tư thục',
-        tuition: '4,0 triệu/tháng',
-        rating: 4.5,
-        reviews: 13,
-        grade: 'B+',
-        featured: false,
-        badge: 'Hoạt động ngoại khóa mạnh',
-        cover: 'https://images.pexels.com/photos/207691/pexels-photo-207691.jpeg?auto=compress&cs=tinysrgb&w=1200'
-    },
-    {
-        name: 'THCS-THPT Bình Minh',
-        district: 'Quận 12',
-        location: 'Quận 12, TP.HCM',
-        type: 'Tư thục',
-        tuition: '3,2 triệu/tháng',
-        rating: 4.4,
-        reviews: 9,
-        grade: 'B+',
-        featured: false,
-        badge: 'Học phí hợp lý',
-        cover: 'https://images.pexels.com/photos/1181359/pexels-photo-1181359.jpeg?auto=compress&cs=tinysrgb&w=1200'
-    }
-];
+const DEFAULT_SCHOOL_IMAGE =
+    "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=900&q=80";
 
 const CONSULT_STEPS = [
     {
@@ -504,6 +362,13 @@ function BlogCard({title, description, image, date, tags, url, variant = 'featur
 }
 
 function SchoolCard({school}) {
+    const rating = Number(school.rating) || 0;
+    const shortName = (school.name || "")
+        .split(" ")
+        .filter(Boolean)
+        .slice(-2)
+        .map((w) => w[0])
+        .join("");
     return (
         <Card
             sx={{
@@ -527,7 +392,7 @@ function SchoolCard({school}) {
                 sx={{
                     position: 'relative',
                     height: 132,
-                    backgroundImage: `linear-gradient(180deg, rgba(51,65,85,0.18) 0%, rgba(51,65,85,0.6) 100%), url(${school.cover})`,
+                    backgroundImage: `linear-gradient(180deg, rgba(51,65,85,0.18) 0%, rgba(51,65,85,0.6) 100%), url(${school.cover || DEFAULT_SCHOOL_IMAGE})`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center'
                 }}
@@ -560,7 +425,7 @@ function SchoolCard({school}) {
                         fontWeight: 800
                     }}
                 >
-                    {school.name.split(' ').slice(-2).map((w) => w[0]).join('')}
+                    {shortName || "EB"}
                 </Avatar>
             </Box>
 
@@ -570,25 +435,27 @@ function SchoolCard({school}) {
                 </Typography>
 
                 <Box sx={{display: 'flex', flexWrap: 'wrap', gap: 0.75}}>
-                    <Chip size="small" label={school.type} sx={{bgcolor: 'rgba(51,65,85,0.08)', fontWeight: 600}} />
-                    <Chip size="small" icon={<MoneyIcon sx={{fontSize: 14}} />} label={school.tuition} sx={{bgcolor: APP_PRIMARY_SOFT_BG, fontWeight: 600}} />
-                    <Chip size="small" icon={<LocationIcon sx={{fontSize: 14}} />} label={school.district} sx={{bgcolor: 'rgba(59,130,246,0.12)', fontWeight: 600}} />
+                    <Chip size="small" label={school.type || "Trường"} sx={{bgcolor: 'rgba(51,65,85,0.08)', fontWeight: 600}} />
+                    <Chip size="small" icon={<MoneyIcon sx={{fontSize: 14}} />} label={school.tuition || "Đang cập nhật"} sx={{bgcolor: APP_PRIMARY_SOFT_BG, fontWeight: 600}} />
+                    <Chip size="small" icon={<LocationIcon sx={{fontSize: 14}} />} label={school.district || "TP.HCM"} sx={{bgcolor: 'rgba(59,130,246,0.12)', fontWeight: 600}} />
                 </Box>
 
                 <Typography sx={{display: 'flex', alignItems: 'center', gap: 0.75, color: '#64748b', fontSize: '0.88rem'}}>
                     <LocationIcon sx={{fontSize: 16}} />
-                    {school.location}
+                    {school.location || "TP.HCM"}
                 </Typography>
 
                 <Box sx={{display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', mt: 'auto', pt: 0.5}}>
                     <Box>
                         <Typography sx={{fontSize: '1.08rem', fontWeight: 800, color: APP_PRIMARY_MAIN, lineHeight: 1}}>
-                            {school.rating}
+                            {rating > 0 ? rating.toFixed(1) : "—"}
                             <Typography component="span" sx={{fontSize: '0.82rem', color: '#64748b', fontWeight: 600, ml: 0.75}}>
-                                ({school.reviews} đánh giá)
+                                ({school.reviews || 0} đánh giá)
                             </Typography>
                         </Typography>
-                        <Typography sx={{fontSize: '0.78rem', color: '#64748b', mt: 0.35}}>Xếp hạng học lực: {school.grade}</Typography>
+                        <Typography sx={{fontSize: '0.78rem', color: '#64748b', mt: 0.35}}>
+                            {school.grade ? `Xếp hạng học lực: ${school.grade}` : "Đang cập nhật"}
+                        </Typography>
                     </Box>
                     <Button
                         size="small"
@@ -825,6 +692,8 @@ function LatestAdmissionNewsSection() {
 
 export default function HomePage() {
     const navigate = useNavigate();
+    const [homeSchools, setHomeSchools] = React.useState([]);
+    const [schoolLoading, setSchoolLoading] = React.useState(true);
     const [isParentRole, setIsParentRole] = React.useState(false);
     const [showParentFormModal, setShowParentFormModal] = React.useState(false);
     const [isSubmittingParentForm, setIsSubmittingParentForm] = React.useState(false);
@@ -839,11 +708,9 @@ export default function HomePage() {
         workplace: '',
         currentAddress: ''
     });
-    const privateSchools = React.useMemo(
-        () => SCHOOL_SHOWCASE
-            .filter((school) => school.type === 'Tư thục')
-            .sort((a, b) => b.rating - a.rating),
-        []
+    const showcaseSchools = React.useMemo(
+        () => [...homeSchools].sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0)).slice(0, 6),
+        [homeSchools]
     );
 
     const consultSectionRef = React.useRef(null);
@@ -904,6 +771,41 @@ export default function HomePage() {
             boxShadow: '0 24px 64px rgba(51,65,85,0.1)'
         }
     });
+
+    React.useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            setSchoolLoading(true);
+            try {
+                const rows = await getPublicSchoolList();
+                if (cancelled) return;
+                const mapped = (Array.isArray(rows) ? rows : []).map((item, idx) => ({
+                    id: item.id,
+                    name: item.name || "Trường đang cập nhật",
+                    district: "TP.HCM",
+                    location: "TP.HCM",
+                    type: "Trường",
+                    tuition: "Đang cập nhật",
+                    rating: typeof item.averageRating === "number" ? item.averageRating : 0,
+                    reviews: 0,
+                    grade: "",
+                    featured: idx < 3,
+                    badge: idx < 3 ? "Nổi bật" : "Gợi ý",
+                    cover: item.logoUrl || DEFAULT_SCHOOL_IMAGE
+                }));
+                setHomeSchools(mapped);
+            } catch {
+                if (!cancelled) {
+                    setHomeSchools([]);
+                }
+            } finally {
+                if (!cancelled) setSchoolLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     React.useEffect(() => {
         const userData = localStorage.getItem('user');
@@ -1668,7 +1570,7 @@ export default function HomePage() {
                                     lineHeight: 1.7
                                 }}
                             >
-                                So sánh nhanh học phí, vị trí và đánh giá để chọn trường tư thục phù hợp cho học sinh.
+                                Khám phá nhanh các trường đang được quan tâm để bắt đầu hành trình chọn trường phù hợp.
                             </Typography>
                         </Box>
                     </Box>
@@ -1690,10 +1592,15 @@ export default function HomePage() {
                                 boxShadow: '0 6px 20px rgba(15,23,42,0.06)'
                             }}
                         >
-                            💰 Trường tư thục
+                            💰 Trường nổi bật
                         </Typography>
-                        {privateSchools.length === 0 ? (
-                            <Typography sx={{color: '#64748b', fontSize: '0.9rem'}}>Hiện chưa có dữ liệu trường tư thục.</Typography>
+                        {schoolLoading ? (
+                            <Box sx={{display: "flex", alignItems: "center", gap: 1}}>
+                                <CircularProgress size={18} sx={{color: BRAND_NAVY}} />
+                                <Typography sx={{color: '#64748b', fontSize: '0.9rem'}}>Đang tải danh sách trường...</Typography>
+                            </Box>
+                        ) : showcaseSchools.length === 0 ? (
+                            <Typography sx={{color: '#64748b', fontSize: '0.9rem'}}>Hiện chưa có dữ liệu trường.</Typography>
                         ) : (
                             <Box
                                 sx={{
@@ -1706,8 +1613,8 @@ export default function HomePage() {
                                     gap: 3
                                 }}
                             >
-                                {privateSchools.map((school) => (
-                                    <SchoolCard key={school.name} school={school} />
+                                {showcaseSchools.map((school) => (
+                                    <SchoolCard key={school.id || school.name} school={school} />
                                 ))}
                             </Box>
                         )}

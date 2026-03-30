@@ -44,7 +44,11 @@ export function setSavedSchools(userInfo, schools) {
     localStorage.setItem(key, JSON.stringify(Array.isArray(schools) ? schools : []));
 }
 
-export function getSchoolStorageKey({province, ward, school}) {
+export function getSchoolStorageKey({province, ward, school, id}) {
+    const sid = id !== undefined && id !== null ? String(id).trim() : "";
+    if (sid) {
+        return `id:${sid}`;
+    }
     return `${safeString(province)}||${safeString(ward)}||${safeString(school)}`;
 }
 
