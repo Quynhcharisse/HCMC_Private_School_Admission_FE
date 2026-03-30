@@ -12,7 +12,6 @@ import {
 } from "@mui/material";
 import {enqueueSnackbar} from "notistack";
 import {getProfile, updateProfile} from "../../services/AccountService.jsx";
-
 export default function UserProfilePage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -86,6 +85,7 @@ export default function UserProfilePage() {
         );
     }
 
+    
     return (
         <Box sx={{pt: 10, pb: 6, bgcolor: "#F3F4F6", minHeight: "100vh"}}>
             <Container maxWidth="md">
