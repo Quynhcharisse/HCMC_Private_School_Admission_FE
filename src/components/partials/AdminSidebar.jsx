@@ -40,6 +40,16 @@ const menuGroups = [
         title: "XÁC THỰC",
         items: [{ text: "Xác thực trường học", icon: <SchoolIcon />, path: "/admin/schools/verification" }],
     },
+    {
+        title: "QUẢN LÝ NỀN TẢNG",
+        items: [
+            {
+                text: "Cài đặt nền tảng",
+                icon: <SettingsOutlinedIcon />,
+                path: "/admin/platform-settings",
+            },
+        ],
+    },
 ];
 
 export default function AdminSidebar({ currentPath, collapsed = false, onToggleCollapse }) {
