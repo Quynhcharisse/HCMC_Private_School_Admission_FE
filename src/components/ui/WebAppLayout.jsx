@@ -4,6 +4,7 @@ import {Outlet, useLocation, useNavigate} from "react-router-dom";
 import Header, {ScrollTopButton} from "../partials/Header.jsx";
 import Footer from "../partials/Footer.jsx";
 import AuthHeader from "../partials/AuthHeader.jsx";
+import Chatbot from "./Chatbot.jsx";
 
 export default function WebAppLayout() {
     const location = useLocation();
@@ -84,6 +85,7 @@ export default function WebAppLayout() {
             </Box>
             {!isAuthPage && !isParentFirstLoginRoute && !isParentProfileRoute && <Footer/>}
             {!isAuthPage && <ScrollTopButton/>}
+            {!isAuthPage && <Chatbot/>}
         </Box>
     );
 }

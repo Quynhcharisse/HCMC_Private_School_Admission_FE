@@ -55,7 +55,6 @@ import {
     HOME_PAGE_SURFACE_GRADIENT,
     landingSectionShadow
 } from "../../constants/homeLandingTheme";
-import Chatbot from "../ui/Chatbot";
 import LayeredMountainSilhouette from "../ui/LayeredMountainSilhouette.jsx";
 import SectionWaveEdge from "../ui/SectionWaveEdge.jsx";
 import admissionCard1Image from "../../assets/Nguyên tắc công bố tuyển sinh (từ Bộ GD&ĐT).jpg";
@@ -1830,8 +1829,6 @@ export default function HomePage() {
             </Box>
 
             <LatestAdmissionNewsSection/>
-
-            <Chatbot />
         </Box>
     );
 }
