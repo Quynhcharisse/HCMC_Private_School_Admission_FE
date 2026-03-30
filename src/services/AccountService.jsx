@@ -32,7 +32,7 @@ export const getProfile = async () => {
     return normalizeProfileResponse(response) || null;
 }
 
-/** Role SCHOOL: gửi `{ campusData: { ... } }` (không gửi parentData/counsellorData). */
+/** Role SCHOOL: PUT chỉ cần `campusData` theo contract (gồm `schoolData` + các trường campus). */
 export const updateProfile = async (profileData) => {
     const response = await axiosClient.put("/account/profile", profileData, {
         headers: {

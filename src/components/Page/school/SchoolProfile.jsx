@@ -77,6 +77,17 @@ function toIsoUploadDateForPut(raw) {
     return new Date().toISOString();
 }
 
+function normalizeDateForInput(raw) {
+    if (raw == null) return "";
+    if (typeof raw === "string") {
+        // If backend returns ISO datetime, keep only YYYY-MM-DD for `<TextField type="date" />`
+        if (raw.length >= 10) return raw.slice(0, 10);
+        return raw;
+    }
+    if (raw instanceof Date && !Number.isNaN(raw.getTime())) return raw.toISOString().slice(0, 10);
+    return "";
+}
+
 function imageItemIsUsage(item) {
     if (item == null) return true;
     if (typeof item.isUsage === "boolean") return item.isUsage;
@@ -89,7 +100,6 @@ export default function SchoolProfile() {
     const [profile, setProfile] = useState(null);
     const [editOpen, setEditOpen] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [policyDetailProvided, setPolicyDetailProvided] = useState(false);
     const [formValues, setFormValues] = useState({
         campusName: "",
         phoneNumber: "",
@@ -113,8 +123,6 @@ export default function SchoolProfile() {
         if (body == null) return;
         setProfile(body);
         const campus = body?.campus || {};
-        const hasPolicyDetail = Object.prototype.hasOwnProperty.call(campus, "policyDetail");
-        setPolicyDetailProvided(hasPolicyDetail);
         const legacySchoolData = campus.schoolData || {};
         const facilityJson = campus.facilityJson || campus.facility || {};
         const imageJson = campus.imageJson || {};
@@ -133,7 +141,7 @@ export default function SchoolProfile() {
             representativeName: campus.representativeName ?? legacySchoolData.representativeName ?? "",
             hotline: campus.hotline ?? legacySchoolData.hotline ?? "",
             businessLicenseUrl: campus.businessLicenseUrl ?? legacySchoolData.businessLicenseUrl ?? "",
-            foundingDate: campus.foundingDate ?? legacySchoolData.foundingDate ?? "",
+            foundingDate: normalizeDateForInput(campus.foundingDate ?? legacySchoolData.foundingDate ?? ""),
             coverUrl: imageJson.coverUrl || "",
             itemList: list.map((item) => ({
                 name: item.name || "",
@@ -206,29 +214,11 @@ export default function SchoolProfile() {
     const handleSaveProfile = async () => {
         setSaving(true);
         try {
-            const itemListPayload = formValues.itemList
-                .filter((item) => item.url?.trim())
-                .map((item) => ({
-                    name: item.name?.trim() || "",
-                    url: item.url?.trim() || "",
-                    altName: item.altName?.trim() || "",
-                    uploadDate: toIsoUploadDateForPut(item.uploadDate),
-                    isUsage: item.isUsage !== false,
-                }));
-            const facilityItemListPayload = formValues.facilityItemList.map((item) => ({
-                facilityCode: item.facilityCode?.trim() || "",
-                name: item.name?.trim() || "",
-                value: item.value?.trim() || "",
-                unit: item.unit?.trim() || "",
-                category: item.category?.trim() || "",
-            }));
-
-            const hasImages = !!formValues.coverUrl?.trim() || itemListPayload.length > 0;
             const payload = {
                 campusData: {
                     name: formValues.campusName?.trim() || "",
                     phoneNumber: formValues.phoneNumber?.trim() || "",
-                    policyDetail: policyDetailProvided ? formValues.policyDetail?.trim() || "" : "",
+                    policyDetail: formValues.policyDetail?.trim() || "",
                     address: formValues.address?.trim() || "",
                     schoolData: {
                         description: formValues.schoolDescription?.trim() || "",
@@ -237,20 +227,8 @@ export default function SchoolProfile() {
                         representativeName: formValues.representativeName?.trim() || "",
                         hotline: formValues.hotline?.trim() || "",
                         businessLicenseUrl: formValues.businessLicenseUrl?.trim() || "",
-                        foundingDate: formValues.foundingDate?.trim() || "",
+                        foundingDate: normalizeDateForInput(formValues.foundingDate?.trim() || ""),
                     },
-                    facilityJson: {
-                        overview: formValues.facilityOverview?.trim() || "",
-                        itemList: facilityItemListPayload,
-                    },
-                    ...(hasImages
-                        ? {
-                              imageJson: {
-                                  coverUrl: formValues.coverUrl?.trim() || "",
-                                  itemList: itemListPayload,
-                              },
-                          }
-                        : {}),
                 },
             };
             const res = await updateProfile(payload);
@@ -277,6 +255,8 @@ export default function SchoolProfile() {
     const campus = profile?.campus || {};
     const facility = campus.facility ?? campus.facilityJson ?? { overview: "", itemList: [] };
     const facilityItemList = facility.itemList ?? [];
+    const hasImageJson = !!(campus.imageJson?.coverUrl || (campus.imageJson?.itemList?.length > 0));
+    const hasFacilityJson = !!(facility?.overview || facilityItemList.length > 0);
 
     if (loading) {
         return (
@@ -686,184 +666,190 @@ export default function SchoolProfile() {
                             />
                         </Box>
 
-                        <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b", pt: 1 }}>
-                            Hình ảnh (imageJson)
-                        </Typography>
-                        <Box>
-                            <TextField
-                                label="URL ảnh bìa (coverUrl)"
-                                value={formValues.coverUrl}
-                                onChange={(e) => setFormValues((p) => ({ ...p, coverUrl: e.target.value }))}
-                                fullWidth
-                                size="small"
-                                placeholder="https://..."
-                                InputProps={{
-                                    endAdornment: (
-                                        <InputAdornment position="end">
-                                            <CloudinaryUpload
-                                                inputId="school-profile-cover"
-                                                accept="image/*"
-                                                multiple={false}
-                                                onSuccess={([f]) => {
-                                                    if (f?.url) {
-                                                        setFormValues((p) => ({ ...p, coverUrl: f.url }));
-                                                        enqueueSnackbar("Đã tải ảnh bìa lên Cloudinary", { variant: "success" });
-                                                    }
-                                                }}
-                                                onError={(m) => enqueueSnackbar(m, { variant: "error" })}
-                                            >
-                                                {({ inputId, loading }) => (
-                                                    <IconButton
-                                                        component="label"
-                                                        htmlFor={inputId}
-                                                        disabled={loading}
-                                                        size="small"
-                                                        sx={{
-                                                            borderRadius: 1,
-                                                            bgcolor: loading ? "rgba(25, 118, 210, 0.08)" : "transparent",
+                        {hasImageJson && (
+                            <>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b", pt: 1 }}>
+                                    Hình ảnh (imageJson)
+                                </Typography>
+                                <Box>
+                                    <TextField
+                                        label="URL ảnh bìa (coverUrl)"
+                                        value={formValues.coverUrl}
+                                        onChange={(e) => setFormValues((p) => ({ ...p, coverUrl: e.target.value }))}
+                                        fullWidth
+                                        size="small"
+                                        placeholder="https://..."
+                                        InputProps={{
+                                            endAdornment: (
+                                                <InputAdornment position="end">
+                                                    <CloudinaryUpload
+                                                        inputId="school-profile-cover"
+                                                        accept="image/*"
+                                                        multiple={false}
+                                                        onSuccess={([f]) => {
+                                                            if (f?.url) {
+                                                                setFormValues((p) => ({ ...p, coverUrl: f.url }));
+                                                                enqueueSnackbar("Đã tải ảnh bìa lên Cloudinary", { variant: "success" });
+                                                            }
                                                         }}
+                                                        onError={(m) => enqueueSnackbar(m, { variant: "error" })}
                                                     >
-                                                        <CloudUploadIcon fontSize="small" />
-                                                    </IconButton>
-                                                )}
-                                            </CloudinaryUpload>
-                                        </InputAdornment>
-                                    ),
-                                }}
-                            />
-                        </Box>
-
-                        <Box>
-                            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-                                <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
-                                    Danh sách ảnh (itemList)
-                                </Typography>
-                                <Button size="small" startIcon={<AddPhotoAlternateIcon />} onClick={handleAddImageItem} sx={{ textTransform: "none", fontWeight: 600 }}>
-                                    Thêm ảnh
-                                </Button>
-                            </Box>
-                            <Stack spacing={2}>
-                                {formValues.itemList.map((item, index) => (
-                                    <Box
-                                        key={index}
-                                        sx={{
-                                            p: 1.5,
-                                            borderRadius: 2,
-                                            border: "1px solid #e2e8f0",
-                                            bgcolor: "#f8fafc",
+                                                        {({ inputId, loading }) => (
+                                                            <IconButton
+                                                                component="label"
+                                                                htmlFor={inputId}
+                                                                disabled={loading}
+                                                                size="small"
+                                                                sx={{
+                                                                    borderRadius: 1,
+                                                                    bgcolor: loading ? "rgba(25, 118, 210, 0.08)" : "transparent",
+                                                                }}
+                                                            >
+                                                                <CloudUploadIcon fontSize="small" />
+                                                            </IconButton>
+                                                        )}
+                                                    </CloudinaryUpload>
+                                                </InputAdornment>
+                                            ),
                                         }}
-                                    >
-                                        <Stack spacing={1.5}>
-                                            <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                                                <IconButton size="small" onClick={() => handleRemoveImageItem(index)} aria-label="Xóa ảnh" sx={{ color: "#64748b" }}>
-                                                    <DeleteOutlineIcon fontSize="small" />
-                                                </IconButton>
-                                            </Box>
-                                            <TextField label="URL ảnh" value={item.url} onChange={handleImageItemChange(index, "url")} fullWidth size="small" placeholder="https://..." />
-                                            <CloudinaryUpload
-                                                inputId={`school-profile-gallery-${index}`}
-                                                accept="image/*"
-                                                multiple={false}
-                                                onSuccess={([f]) => {
-                                                    if (!f?.url) return;
-                                                    const next = formValues.itemList.map((it, i) =>
-                                                        i === index ? { ...it, url: f.url } : it
-                                                    );
-                                                    setFormValues((p) => ({ ...p, itemList: next }));
-                                                    enqueueSnackbar("Đã tải ảnh lên Cloudinary", { variant: "success" });
+                                    />
+                                </Box>
+
+                                <Box>
+                                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                                        <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
+                                            Danh sách ảnh (itemList)
+                                        </Typography>
+                                        <Button size="small" startIcon={<AddPhotoAlternateIcon />} onClick={handleAddImageItem} sx={{ textTransform: "none", fontWeight: 600 }}>
+                                            Thêm ảnh
+                                        </Button>
+                                    </Box>
+                                    <Stack spacing={2}>
+                                        {formValues.itemList.map((item, index) => (
+                                            <Box
+                                                key={index}
+                                                sx={{
+                                                    p: 1.5,
+                                                    borderRadius: 2,
+                                                    border: "1px solid #e2e8f0",
+                                                    bgcolor: "#f8fafc",
                                                 }}
-                                                onError={(m) => enqueueSnackbar(m, { variant: "error" })}
                                             >
-                                                {({ inputId, loading }) => (
-                                                    <Button
-                                                        component="label"
-                                                        htmlFor={inputId}
-                                                        disabled={loading}
-                                                        size="small"
-                                                        variant="outlined"
-                                                        startIcon={<CloudUploadIcon />}
-                                                        sx={{ textTransform: "none", alignSelf: "flex-start" }}
+                                                <Stack spacing={1.5}>
+                                                    <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                                                        <IconButton size="small" onClick={() => handleRemoveImageItem(index)} aria-label="Xóa ảnh" sx={{ color: "#64748b" }}>
+                                                            <DeleteOutlineIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Box>
+                                                    <TextField label="URL ảnh" value={item.url} onChange={handleImageItemChange(index, "url")} fullWidth size="small" placeholder="https://..." />
+                                                    <CloudinaryUpload
+                                                        inputId={`school-profile-gallery-${index}`}
+                                                        accept="image/*"
+                                                        multiple={false}
+                                                        onSuccess={([f]) => {
+                                                            if (!f?.url) return;
+                                                            const next = formValues.itemList.map((it, i) => (i === index ? { ...it, url: f.url } : it));
+                                                            setFormValues((p) => ({ ...p, itemList: next }));
+                                                            enqueueSnackbar("Đã tải ảnh lên Cloudinary", { variant: "success" });
+                                                        }}
+                                                        onError={(m) => enqueueSnackbar(m, { variant: "error" })}
                                                     >
-                                                        {loading ? "Đang tải..." : "Tải ảnh (Cloudinary)"}
-                                                    </Button>
-                                                )}
-                                            </CloudinaryUpload>
-                                            <TextField label="Tên" value={item.name} onChange={handleImageItemChange(index, "name")} fullWidth size="small" />
-                                            <TextField label="Alt / Mô tả" value={item.altName} onChange={handleImageItemChange(index, "altName")} fullWidth size="small" />
-                                        </Stack>
-                                    </Box>
-                                ))}
-                                {formValues.itemList.length === 0 && (
-                                    <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>
-                                        Chưa có ảnh. Bấm &quot;Thêm ảnh&quot; để thêm.
-                                    </Typography>
-                                )}
-                            </Stack>
-                        </Box>
+                                                        {({ inputId, loading }) => (
+                                                            <Button
+                                                                component="label"
+                                                                htmlFor={inputId}
+                                                                disabled={loading}
+                                                                size="small"
+                                                                variant="outlined"
+                                                                startIcon={<CloudUploadIcon />}
+                                                                sx={{ textTransform: "none", alignSelf: "flex-start" }}
+                                                            >
+                                                                {loading ? "Đang tải..." : "Tải ảnh (Cloudinary)"}
+                                                            </Button>
+                                                        )}
+                                                    </CloudinaryUpload>
+                                                    <TextField label="Tên" value={item.name} onChange={handleImageItemChange(index, "name")} fullWidth size="small" />
+                                                    <TextField label="Alt / Mô tả" value={item.altName} onChange={handleImageItemChange(index, "altName")} fullWidth size="small" />
+                                                </Stack>
+                                            </Box>
+                                        ))}
+                                        {formValues.itemList.length === 0 && (
+                                            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>
+                                                Chưa có ảnh. Bấm &quot;Thêm ảnh&quot; để thêm.
+                                            </Typography>
+                                        )}
+                                    </Stack>
+                                </Box>
+                            </>
+                        )}
 
-                        <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b", pt: 1 }}>
-                            Cơ sở vật chất (facilityJson)
-                        </Typography>
-                        <TextField
-                            label="Overview"
-                            value={formValues.facilityOverview}
-                            onChange={(e) => setFormValues((p) => ({ ...p, facilityOverview: e.target.value }))}
-                            fullWidth
-                            size="small"
-                            multiline
-                            rows={2}
-                        />
-
-                        <Box>
-                            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-                                <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
-                                    Danh sách facility (itemList)
+                        {hasFacilityJson && (
+                            <>
+                                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b", pt: 1 }}>
+                                    Cơ sở vật chất (facilityJson)
                                 </Typography>
-                                <Button size="small" startIcon={<AddPhotoAlternateIcon />} onClick={handleAddFacilityItem} sx={{ textTransform: "none", fontWeight: 600 }}>
-                                    Thêm facility
-                                </Button>
-                            </Box>
-                            <Stack spacing={2}>
-                                {formValues.facilityItemList.map((item, index) => (
-                                    <Box
-                                        key={index}
-                                        sx={{
-                                            p: 1.5,
-                                            borderRadius: 2,
-                                            border: "1px solid #e2e8f0",
-                                            bgcolor: "#f8fafc",
-                                        }}
-                                    >
-                                        <Stack spacing={1.5}>
-                                            <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
-                                                <IconButton size="small" onClick={() => handleRemoveFacilityItem(index)} aria-label="Xóa facility" sx={{ color: "#64748b" }}>
-                                                    <DeleteOutlineIcon fontSize="small" />
-                                                </IconButton>
-                                            </Box>
-                                            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5 }}>
-                                                <TextField label="Facility code" value={item.facilityCode} onChange={handleFacilityItemChange(index, "facilityCode")} fullWidth size="small" />
-                                                <TextField label="Tên" value={item.name} onChange={handleFacilityItemChange(index, "name")} fullWidth size="small" />
-                                                <TextField label="Giá trị" value={item.value} onChange={handleFacilityItemChange(index, "value")} fullWidth size="small" />
-                                                <TextField label="Đơn vị" value={item.unit} onChange={handleFacilityItemChange(index, "unit")} fullWidth size="small" />
-                                                <TextField
-                                                    label="Category"
-                                                    value={item.category}
-                                                    onChange={handleFacilityItemChange(index, "category")}
-                                                    fullWidth
-                                                    size="small"
-                                                    sx={{ gridColumn: { xs: "auto", sm: "1 / -1" } }}
-                                                />
-                                            </Box>
-                                        </Stack>
+                                <TextField
+                                    label="Overview"
+                                    value={formValues.facilityOverview}
+                                    onChange={(e) => setFormValues((p) => ({ ...p, facilityOverview: e.target.value }))}
+                                    fullWidth
+                                    size="small"
+                                    multiline
+                                    rows={2}
+                                />
+
+                                <Box>
+                                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                                        <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
+                                            Danh sách facility (itemList)
+                                        </Typography>
+                                        <Button size="small" startIcon={<AddPhotoAlternateIcon />} onClick={handleAddFacilityItem} sx={{ textTransform: "none", fontWeight: 600 }}>
+                                            Thêm facility
+                                        </Button>
                                     </Box>
-                                ))}
-                                {formValues.facilityItemList.length === 0 && (
-                                    <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>
-                                        Chưa có facility. Bấm &quot;Thêm facility&quot; để thêm.
-                                    </Typography>
-                                )}
-                            </Stack>
-                        </Box>
+                                    <Stack spacing={2}>
+                                        {formValues.facilityItemList.map((item, index) => (
+                                            <Box
+                                                key={index}
+                                                sx={{
+                                                    p: 1.5,
+                                                    borderRadius: 2,
+                                                    border: "1px solid #e2e8f0",
+                                                    bgcolor: "#f8fafc",
+                                                }}
+                                            >
+                                                <Stack spacing={1.5}>
+                                                    <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+                                                        <IconButton size="small" onClick={() => handleRemoveFacilityItem(index)} aria-label="Xóa facility" sx={{ color: "#64748b" }}>
+                                                            <DeleteOutlineIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </Box>
+                                                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 1.5 }}>
+                                                        <TextField label="Facility code" value={item.facilityCode} onChange={handleFacilityItemChange(index, "facilityCode")} fullWidth size="small" />
+                                                        <TextField label="Tên" value={item.name} onChange={handleFacilityItemChange(index, "name")} fullWidth size="small" />
+                                                        <TextField label="Giá trị" value={item.value} onChange={handleFacilityItemChange(index, "value")} fullWidth size="small" />
+                                                        <TextField label="Đơn vị" value={item.unit} onChange={handleFacilityItemChange(index, "unit")} fullWidth size="small" />
+                                                        <TextField
+                                                            label="Category"
+                                                            value={item.category}
+                                                            onChange={handleFacilityItemChange(index, "category")}
+                                                            fullWidth
+                                                            size="small"
+                                                            sx={{ gridColumn: { xs: "auto", sm: "1 / -1" } }}
+                                                        />
+                                                    </Box>
+                                                </Stack>
+                                            </Box>
+                                        ))}
+                                        {formValues.facilityItemList.length === 0 && (
+                                            <Typography variant="body2" color="text.secondary" sx={{ py: 2, textAlign: "center" }}>
+                                                Chưa có facility. Bấm &quot;Thêm facility&quot; để thêm.
+                                            </Typography>
+                                        )}
+                                    </Stack>
+                                </Box>
+                            </>
+                        )}
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, py: 2 }}>
