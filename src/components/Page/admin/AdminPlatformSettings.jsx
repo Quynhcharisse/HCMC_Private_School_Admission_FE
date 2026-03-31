@@ -7,6 +7,7 @@ import {
     Button,
     Card,
     CardContent,
+    Chip,
     CircularProgress,
     FormControl,
     Grid,
@@ -127,6 +128,22 @@ export default function AdminPlatformSettings() {
         maxFeedbackVideos: "",
     });
     const [mediaLimitsErrors, setMediaLimitsErrors] = useState({});
+
+    const [reportTab, setReportTab] = useState(0);
+    const [reportEditing, setReportEditing] = useState(false);
+    const [severityDraft, setSeverityDraft] = useState([]);
+    const [severityDialogOpen, setSeverityDialogOpen] = useState(false);
+    const [severityDialogMode, setSeverityDialogMode] = useState("add");
+    const [severityDialogIndex, setSeverityDialogIndex] = useState(-1);
+    const [severityDialogValue, setSeverityDialogValue] = useState({
+        name: "",
+        description: "",
+        compensationPct: "",
+    });
+    const [severityDialogError, setSeverityDialogError] = useState({
+        name: "",
+        compensationPct: "",
+    });
 
     const [formatDialogOpen, setFormatDialogOpen] = useState(false);
     const [formatDialogMode, setFormatDialogMode] = useState("add");
@@ -295,6 +312,19 @@ export default function AdminPlatformSettings() {
             maxFeedbackVideos: media.maxFeedbackVideo ?? "",
         });
         setMediaLimitsErrors({});
+
+        const report = configBody?.report || {};
+        setSeverityDraft(report.severityLevels || []);
+        setReportEditing(false);
+        setSeverityDialogOpen(false);
+        setSeverityDialogMode("add");
+        setSeverityDialogIndex(-1);
+        setSeverityDialogValue({
+            name: "",
+            description: "",
+            compensationPct: "",
+        });
+        setSeverityDialogError({ name: "", compensationPct: "" });
         setFormatDialogOpen(false);
         setFormatDialogMode("add");
         setFormatDialogIndex(-1);
@@ -304,6 +334,7 @@ export default function AdminPlatformSettings() {
         setBusinessEditing(false);
         setSubscriptionEditing(false);
         setMediaEditing(false);
+        setReportEditing(false);
         setQuotaEditing(false);
     }, [configBody]);
 
@@ -393,6 +424,128 @@ export default function AdminPlatformSettings() {
     const saveMediaEdit = async () => {
         const ok = await saveMediaFormats();
         if (ok) setMediaEditing(false);
+    };
+
+    const startReportEdit = () => {
+        setReportEditing(true);
+        setStatus({ type: "", message: "" });
+    };
+
+    const cancelReport = () => {
+        if (!configBody) return;
+        const report = configBody?.report || {};
+        setSeverityDraft(report.severityLevels || []);
+        setStatus({ type: "", message: "" });
+    };
+
+    const cancelReportEdit = () => {
+        cancelReport();
+        setReportEditing(false);
+    };
+
+    const saveReportEdit = async () => {
+        if (!configBody) return;
+        setSaving(true);
+        let ok = false;
+        setStatus({ type: "", message: "" });
+        try {
+            const currentReport = configBody.report || {};
+            const updatedBody = {
+                report: {
+                    ...currentReport,
+                    severityLevels: severityDraft,
+                },
+            };
+            await updateSystemConfig(updatedBody);
+            enqueueSnackbar("Cập nhật Cài đặt Báo cáo thành công.", {
+                variant: "success",
+            });
+            setStatus({ type: "success", message: "Cập nhật thành công." });
+            await fetchConfig();
+            ok = true;
+        } catch (e) {
+            console.error("saveReportEdit failed", e);
+            const msg =
+                e?.response?.data?.message || "Cập nhật thất bại. Vui lòng thử lại.";
+            enqueueSnackbar(msg, { variant: "error" });
+            setStatus({ type: "error", message: msg });
+        } finally {
+            setSaving(false);
+        }
+        if (ok) setReportEditing(false);
+        return ok;
+    };
+
+    const openSeverityDialog = (mode, index = -1) => {
+        setSeverityDialogMode(mode);
+        setSeverityDialogIndex(index);
+        setSeverityDialogError({ name: "", compensationPct: "" });
+        if (mode === "edit" && index >= 0 && index < severityDraft.length) {
+            const item = severityDraft[index];
+            const compRaw = Number(item?.compensation) || 0;
+            const compensationPct = compRaw <= 1 ? compRaw * 100 : compRaw;
+            setSeverityDialogValue({
+                name: item?.name || "",
+                description: item?.description || "",
+                compensationPct: String(compensationPct),
+            });
+        } else {
+            setSeverityDialogValue({
+                name: "",
+                description: "",
+                compensationPct: "",
+            });
+        }
+        setSeverityDialogOpen(true);
+    };
+
+    const closeSeverityDialog = () => {
+        setSeverityDialogOpen(false);
+        setSeverityDialogIndex(-1);
+        setSeverityDialogMode("add");
+        setSeverityDialogError({ name: "", compensationPct: "" });
+    };
+
+    const submitSeverityDialog = () => {
+        const errors = { name: "", compensationPct: "" };
+        const name = severityDialogValue.name.trim();
+        const pctNum = parseFinite(severityDialogValue.compensationPct);
+        if (!name) {
+            errors.name = "Vui lòng nhập tên mức độ.";
+        }
+        if (pctNum === null || pctNum < 0 || pctNum > 100) {
+            errors.compensationPct = "Phần trăm bồi thường phải trong khoảng 0–100.";
+        }
+        if (errors.name || errors.compensationPct) {
+            setSeverityDialogError(errors);
+            return;
+        }
+        const compensationDecimal = pctNum / 100;
+
+        if (severityDialogMode === "add") {
+            setSeverityDraft((prev) => [
+                ...prev,
+                {
+                    name,
+                    description: severityDialogValue.description.trim(),
+                    compensation: compensationDecimal,
+                },
+            ]);
+        } else if (severityDialogMode === "edit") {
+            setSeverityDraft((prev) => {
+                const idx = severityDialogIndex;
+                if (idx < 0 || idx >= prev.length) return prev;
+                const next = [...prev];
+                next[idx] = {
+                    ...(next[idx] || {}),
+                    name,
+                    description: severityDialogValue.description.trim(),
+                    compensation: compensationDecimal,
+                };
+                return next;
+            });
+        }
+        closeSeverityDialog();
     };
 
     const toRateDecimal = (ratePctValue) => {
@@ -714,7 +867,7 @@ export default function AdminPlatformSettings() {
                             <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
                                 Tỷ lệ phí dịch vụ (%)
                             </Typography>
-                            <Tooltip title="Nhập số nguyên phần trăm (ví dụ: 5 nghĩa là 5%).">
+                            <Tooltip title="Nhập tỷ lệ phần trăm phí dịch vụ.">
                                 <TextField
                                     size="small"
                                     fullWidth
@@ -729,10 +882,7 @@ export default function AdminPlatformSettings() {
                                         });
                                     }}
                                     error={Boolean(businessErrors.serviceRatePct)}
-                                    helperText={
-                                        businessErrors.serviceRatePct ||
-                                        "Nhập số nguyên phần trăm, ví dụ: 5 nghĩa là 5%."
-                                    }
+                                    helperText={businessErrors.serviceRatePct || ""}
                                     type="number"
                                     inputProps={{ min: 0, max: 100, step: 1 }}
                                 />
@@ -885,7 +1035,7 @@ export default function AdminPlatformSettings() {
 
                 <Box sx={{ flex: "1 1 220px", minWidth: 240, border: "1px solid #e2e8f0", borderRadius: 2, p: 1.25, bgcolor: "#f8fafc", boxSizing: "border-box" }}>
                     <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>Thuế suất (%)</Typography>
-                    <Tooltip title="Nhập số nguyên phần trăm (ví dụ: 5 nghĩa là 5%).">
+                    <Tooltip title="Nhập tỷ lệ phần trăm thuế suất.">
                         <TextField
                             size="small"
                             fullWidth
@@ -1602,91 +1752,496 @@ export default function AdminPlatformSettings() {
         const report = configBody?.report || {};
         const levels = report.severityLevels || [];
         const sortedLevels = [...levels]
-            .filter((x) => Number.isFinite(Number(x?.compensation)))
-            .sort((a, b) => Number(b.compensation) - Number(a.compensation));
+            .filter((x) => typeof x?.name === "string")
+            .sort((a, b) => {
+                const ca = Number(a?.compensation) || 0;
+                const cb = Number(b?.compensation) || 0;
+                return cb - ca;
+            });
+
         const severityNameMap = {
             Minor: "Nhẹ",
             Moderate: "Trung bình",
             Major: "Nặng",
             Critical: "Nghiêm trọng",
         };
-        const chartData = sortedLevels.map((x) => ({
-            level: severityNameMap[x.name] || x.name,
-            compensation: Number(x.compensation) || 0,
-        }));
-        const values = chartData.map((x) => x.compensation);
-        const minValue = values.length ? Math.min(...values) : 0;
-        const maxValue = values.length ? Math.max(...values) : 0;
-        const span = Math.max(maxValue - minValue, 1);
-        const t1 = minValue + span * 0.25;
-        const t2 = minValue + span * 0.5;
-        const t3 = minValue + span * 0.75;
+
         return (
             <Box>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#2563eb", mb: 1.5 }}>
-                    Cấu hình báo cáo
+                    Cài đặt Báo cáo
                 </Typography>
 
-                <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid #e2e8f0", width: "100%" }}>
-                    <CardContent>
-                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
-                            <Typography sx={{ fontWeight: 900, color: "#0f172a" }}>
-                                Mức độ nghiêm trọng
-                            </Typography>
-                            <Box
-                                sx={{
-                                    px: 1.25,
-                                    py: 0.6,
-                                    borderRadius: 2,
-                                    bgcolor: "#eff6ff",
-                                    border: "1px solid #bfdbfe",
-                                    display: "flex",
-                                    alignItems: "center",
-                                    gap: 0.75,
-                                }}
-                            >
-                                <Typography sx={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>
-                                    Số ngày chi trả tối đa
-                                </Typography>
-                                <Typography sx={{ fontSize: 16, color: "#2563eb", fontWeight: 800 }}>
-                                    {report.maxDisbursementDay ?? "-"}
-                                </Typography>
-                            </Box>
-                        </Box>
-                        <Box sx={{ width: "100%" }}>
-                            {chartData.length ? (
-                                <BarChart
-                                    height={240}
-                                    dataset={chartData}
-                                    layout="horizontal"
-                                    xAxis={[
-                                        {
-                                            min: 0,
-                                            colorMap: {
-                                                type: "piecewise",
-                                                thresholds: [t1, t2, t3],
-                                                colors: ["#bfdbfe", "#93c5fd", "#60a5fa", "#3b82f6"],
-                                            },
-                                        },
-                                    ]}
-                                    yAxis={[{ scaleType: "band", dataKey: "level", width: 95 }]}
-                                    series={[
-                                        {
-                                            dataKey: "compensation",
-                                            valueFormatter: (value) => `${value ?? 0}`,
-                                        },
-                                    ]}
-                                    margin={{ left: 0, right: 8, top: 10, bottom: 20 }}
-                                    sx={{ width: "100%" }}
-                                />
+                <Card
+                    elevation={0}
+                    sx={{
+                        borderRadius: 3,
+                        border: "1px solid #e2e8f0",
+                        width: "100%",
+                    }}
+                >
+                    <CardContent sx={{ p: 0 }}>
+                        <Tabs
+                            value={reportTab}
+                            onChange={(_, v) => setReportTab(v)}
+                            variant="scrollable"
+                            scrollButtons="auto"
+                            sx={{
+                                borderBottom: "1px solid #e2e8f0",
+                                "& .MuiTabs-indicator": { height: 3 },
+                            }}
+                        >
+                            <Tab
+                                label="Thời gian chi trả"
+                                sx={{ fontWeight: 700, textTransform: "none", fontSize: 13 }}
+                            />
+                            <Tab
+                                label="Mức độ nghiêm trọng"
+                                sx={{ fontWeight: 700, textTransform: "none", fontSize: 13 }}
+                            />
+                        </Tabs>
+
+                        <Box sx={{ p: { xs: 2, md: 2.5 } }}>
+                            {reportTab === 0 ? (
+                                <Box>
+                                    <Typography
+                                        sx={{
+                                            fontWeight: 700,
+                                            fontSize: 14,
+                                            color: "#0f172a",
+                                            mb: 1.5,
+                                        }}
+                                    >
+                                        Cấu hình thời gian chi trả
+                                    </Typography>
+
+                                    <Box
+                                        sx={{
+                                            maxWidth: 320,
+                                            border: "1px solid #e2e8f0",
+                                            borderRadius: 2,
+                                            p: 1.25,
+                                            bgcolor: "#f8fafc",
+                                        }}
+                                    >
+                                        <Typography
+                                            sx={{
+                                                fontSize: 12,
+                                                fontWeight: 700,
+                                                color: "#64748b",
+                                                mb: 0.5,
+                                            }}
+                                        >
+                                            Số ngày chi trả tối đa
+                                        </Typography>
+                                        <TextField
+                                            size="small"
+                                            fullWidth
+                                            disabled
+                                            value={report.maxDisbursementDay ?? ""}
+                                            InputProps={{
+                                                endAdornment: (
+                                                    <InputAdornment position="end">
+                                                        ngày
+                                                    </InputAdornment>
+                                                ),
+                                            }}
+                                        />
+                                        <Typography
+                                            variant="body2"
+                                            sx={{
+                                                mt: 0.5,
+                                                fontSize: 12,
+                                                color: "#94a3b8",
+                                            }}
+                                        >
+                                            Số ngày tối đa để hoàn tất chi trả sau khi xử lý báo cáo.
+                                        </Typography>
+                                    </Box>
+
+                                    <Box
+                                        sx={{
+                                            mt: 2.5,
+                                            p: { xs: 1.5, md: 2 },
+                                            bgcolor: "#f9fafb",
+                                            borderRadius: 2,
+                                            border: "1px solid #e5e7eb",
+                                        }}
+                                    >
+                                        <Typography
+                                            sx={{
+                                                fontWeight: 700,
+                                                fontSize: 13,
+                                                color: "#0f172a",
+                                                mb: 1,
+                                            }}
+                                        >
+                                            Quy trình chi trả
+                                        </Typography>
+                                        <Typography
+                                            variant="body2"
+                                            sx={{
+                                                fontSize: 13,
+                                                color: "#64748b",
+                                                mb: 1.25,
+                                            }}
+                                        >
+                                            Sau khi báo cáo được giải quyết và khoản bồi thường được phê
+                                            duyệt, hệ thống bắt đầu quy trình chi trả cho người dùng.
+                                        </Typography>
+                                        <Stack
+                                            direction="row"
+                                            spacing={1.5}
+                                            sx={{
+                                                mt: 0.5,
+                                                width: "100%",
+                                            }}
+                                        >
+                                            {[
+                                                "Tiếp nhận báo cáo",
+                                                "Xử lý & xác minh",
+                                                "Phê duyệt bồi thường",
+                                                `${report.maxDisbursementDay ?? "-"} ngày chi trả`,
+                                            ].map((label) => (
+                                                <Chip
+                                                    key={label}
+                                                    label={label}
+                                                    sx={{
+                                                        flex: 1,
+                                                        maxWidth: "25%",
+                                                        bgcolor: "#e0f2fe",
+                                                        borderRadius: 999,
+                                                        fontSize: 12,
+                                                        fontWeight: 600,
+                                                        color: "#0f172a",
+                                                        textAlign: "center",
+                                                    }}
+                                                />
+                                            ))}
+                                        </Stack>
+                                    </Box>
+                                </Box>
                             ) : (
-                                <Typography variant="body2" sx={{ color: "#64748b" }}>
-                                    Không có dữ liệu.
-                                </Typography>
+                                <Box>
+                                    <Box
+                                        sx={{
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                            alignItems: "center",
+                                            mb: 1.5,
+                                        }}
+                                    >
+                                        <Typography
+                                            sx={{
+                                                fontWeight: 700,
+                                                fontSize: 14,
+                                                color: "#0f172a",
+                                            }}
+                                        >
+                                            Cấu hình mức độ nghiêm trọng
+                                        </Typography>
+                                        <Button
+                                            variant="contained"
+                                            onClick={() => openSeverityDialog("add")}
+                                            sx={{
+                                                bgcolor: "#0ea5e9",
+                                                fontWeight: 700,
+                                                borderRadius: 2,
+                                                textTransform: "none",
+                                                "&:hover": { bgcolor: "#0284c7" },
+                                            }}
+                                        >
+                                            + Thêm mức độ
+                                        </Button>
+                                    </Box>
+
+                                    {sortedLevels.length ? (
+                                        <Stack spacing={1}>
+                                            {sortedLevels.map((level) => {
+                                                const compRaw = Number(level.compensation) || 0;
+                                                const compensationPct =
+                                                    compRaw <= 1 ? compRaw * 100 : compRaw;
+                                                const pctLabel = `${compensationPct}% bồi thường`;
+                                                const nameVi =
+                                                    severityNameMap[level.name] || level.name;
+                                                return (
+                                                    <Box
+                                                        key={level.name}
+                                                        sx={{
+                                                            border: "1px solid #e2e8f0",
+                                                            borderRadius: 2,
+                                                            px: 1.5,
+                                                            py: 1,
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "space-between",
+                                                            gap: 2,
+                                                            bgcolor: "#ffffff",
+                                                        }}
+                                                    >
+                                                        <Box
+                                                            sx={{
+                                                                display: "flex",
+                                                                alignItems: "center",
+                                                                gap: 1.25,
+                                                                flex: 1,
+                                                                minWidth: 0,
+                                                            }}
+                                                        >
+                                                            <Box
+                                                                sx={{
+                                                                    width: 10,
+                                                                    height: 10,
+                                                                    borderRadius: "50%",
+                                                                    bgcolor:
+                                                                        level.name === "Critical"
+                                                                            ? "#ef4444"
+                                                                            : level.name ===
+                                                                              "Major"
+                                                                            ? "#f97316"
+                                                                            : level.name ===
+                                                                              "Moderate"
+                                                                            ? "#eab308"
+                                                                            : "#22c55e",
+                                                                }}
+                                                            />
+                                                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                                <Box
+                                                                    sx={{
+                                                                        display: "flex",
+                                                                        alignItems: "center",
+                                                                        gap: 1,
+                                                                        mb: 0.25,
+                                                                    }}
+                                                                >
+                                                                    <Typography
+                                                                        sx={{
+                                                                            fontWeight: 700,
+                                                                            fontSize: 14,
+                                                                            color: "#0f172a",
+                                                                        }}
+                                                                    >
+                                                                        {nameVi}
+                                                                    </Typography>
+                                                                    <Chip
+                                                                        label="Hoạt động"
+                                                                        size="small"
+                                                                        sx={{
+                                                                            bgcolor: "#16a34a",
+                                                                            color: "#ffffff",
+                                                                            fontSize: 11,
+                                                                            fontWeight: 700,
+                                                                            borderRadius: 999,
+                                                                            px: 0.75,
+                                                                        }}
+                                                                    />
+                                                                    <Chip
+                                                                        label={pctLabel}
+                                                                        size="small"
+                                                                        sx={{
+                                                                            bgcolor: "#eff6ff",
+                                                                            borderRadius: 999,
+                                                                            fontSize: 11,
+                                                                            fontWeight: 700,
+                                                                            color: "#1d4ed8",
+                                                                        }}
+                                                                    />
+                                                                </Box>
+                                                                {level.description ? (
+                                                                    <Typography
+                                                                        variant="body2"
+                                                                        sx={{
+                                                                            fontSize: 12,
+                                                                            color: "#6b7280",
+                                                                        }}
+                                                                    >
+                                                                        {level.description}
+                                                                    </Typography>
+                                                                ) : null}
+                                                            </Box>
+                                                        </Box>
+                                                        <Box
+                                                            sx={{
+                                                                display: "flex",
+                                                                alignItems: "center",
+                                                                gap: 0.5,
+                                                            }}
+                                                        >
+                                                            <IconButton
+                                                                size="small"
+                                                                disabled={!reportEditing}
+                                                                sx={{ color: "#6b7280" }}
+                                                                aria-label={`Chỉnh sửa mức ${nameVi}`}
+                                                                onClick={() =>
+                                                                    openSeverityDialog(
+                                                                        "edit",
+                                                                        severityDraft.findIndex(
+                                                                            (x) => x.name === level.name
+                                                                        )
+                                                                    )
+                                                                }
+                                                            >
+                                                                <EditIcon fontSize="small" />
+                                                            </IconButton>
+                                                            <IconButton
+                                                                size="small"
+                                                                disabled={!reportEditing}
+                                                                sx={{ color: "#ef4444" }}
+                                                                aria-label={`Xóa mức ${nameVi}`}
+                                                                onClick={() =>
+                                                                    setSeverityDraft((prev) =>
+                                                                        prev.filter(
+                                                                            (x) => x.name !== level.name
+                                                                        )
+                                                                    )
+                                                                }
+                                                            >
+                                                                <DeleteOutlineIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Box>
+                                                    </Box>
+                                                );
+                                            })}
+                                        </Stack>
+                                    ) : (
+                                        <Typography variant="body2" sx={{ color: "#64748b" }}>
+                                            Không có dữ liệu mức độ báo cáo.
+                                        </Typography>
+                                    )}
+                                </Box>
                             )}
+
+                            {reportTab === 1 ? (
+                                <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
+                                    {reportEditing ? (
+                                        <>
+                                            <Button
+                                                variant="outlined"
+                                                onClick={cancelReportEdit}
+                                                disabled={saving}
+                                                sx={cancelButtonSx}
+                                            >
+                                                Hủy
+                                            </Button>
+                                            <Button
+                                                variant="contained"
+                                                disabled={saving}
+                                                onClick={() => void saveReportEdit()}
+                                                sx={saveButtonSx}
+                                            >
+                                                Lưu
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <Button
+                                            variant="outlined"
+                                            onClick={startReportEdit}
+                                            disabled={saving}
+                                            sx={cancelButtonSx}
+                                        >
+                                            Chỉnh sửa
+                                        </Button>
+                                    )}
+                                </Box>
+                            ) : null}
+
+                            {activeTabKey === "report" && status.message ? (
+                                <Alert severity={status.type || "success"} sx={{ mt: 2 }}>
+                                    {status.message}
+                                </Alert>
+                            ) : null}
                         </Box>
                     </CardContent>
                 </Card>
+
+                <Dialog
+                    open={severityDialogOpen}
+                    onClose={closeSeverityDialog}
+                    fullWidth
+                    maxWidth="sm"
+                >
+                    <DialogTitle sx={{ fontWeight: 700 }}>
+                        {severityDialogMode === "add" ? "Thêm" : "Chỉnh sửa"} mức độ báo cáo
+                    </DialogTitle>
+                    <DialogContent sx={{ pt: 1.5 }}>
+                        <Stack spacing={2}>
+                            <TextField
+                                label="Tên mức độ"
+                                size="small"
+                                fullWidth
+                                value={severityDialogValue.name}
+                                onChange={(e) => {
+                                    setSeverityDialogValue((prev) => ({
+                                        ...prev,
+                                        name: e.target.value,
+                                    }));
+                                    if (severityDialogError.name) {
+                                        setSeverityDialogError((prev) => ({
+                                            ...prev,
+                                            name: "",
+                                        }));
+                                    }
+                                }}
+                                error={Boolean(severityDialogError.name)}
+                                helperText={severityDialogError.name || ""}
+                            />
+                            <TextField
+                                label="Mô tả"
+                                size="small"
+                                fullWidth
+                                multiline
+                                minRows={2}
+                                value={severityDialogValue.description}
+                                onChange={(e) =>
+                                    setSeverityDialogValue((prev) => ({
+                                        ...prev,
+                                        description: e.target.value,
+                                    }))
+                                }
+                            />
+                            <TextField
+                                label="Phần trăm bồi thường (%)"
+                                size="small"
+                                fullWidth
+                                type="number"
+                                value={severityDialogValue.compensationPct}
+                                onChange={(e) => {
+                                    setSeverityDialogValue((prev) => ({
+                                        ...prev,
+                                        compensationPct: e.target.value,
+                                    }));
+                                    if (severityDialogError.compensationPct) {
+                                        setSeverityDialogError((prev) => ({
+                                            ...prev,
+                                            compensationPct: "",
+                                        }));
+                                    }
+                                }}
+                                error={Boolean(severityDialogError.compensationPct)}
+                                helperText={
+                                    severityDialogError.compensationPct ||
+                                    "Nhập số nguyên từ 0 đến 100, ví dụ: 25."
+                                }
+                            />
+                        </Stack>
+                    </DialogContent>
+                    <DialogActions sx={{ px: 3, pb: 2 }}>
+                        <Button
+                            onClick={closeSeverityDialog}
+                            variant="outlined"
+                            sx={cancelButtonSx}
+                        >
+                            Hủy
+                        </Button>
+                        <Button
+                            onClick={submitSeverityDialog}
+                            variant="contained"
+                            sx={saveButtonSx}
+                        >
+                            Lưu
+                        </Button>
+                    </DialogActions>
+                </Dialog>
             </Box>
         );
     };
