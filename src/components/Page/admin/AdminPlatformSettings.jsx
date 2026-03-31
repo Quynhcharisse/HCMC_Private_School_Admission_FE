@@ -24,12 +24,6 @@ import {
     Stack,
     Tab,
     Tabs,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
     TextField,
     Tooltip,
     Typography,
@@ -37,6 +31,8 @@ import {
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { getSystemConfig, updateSystemConfig } from "../../../services/SystemConfigService.jsx";
 import { enqueueSnackbar } from "notistack";
@@ -79,12 +75,10 @@ export default function AdminPlatformSettings() {
 
     const getSubscriptionInitialForm = (cfg) => {
         const sub = cfg?.subscription || {};
-        const biz = cfg?.business || {};
         return {
             trialDays: sub.trialDays ?? "",
             gracePeriod: sub.gracePeriod ?? "",
             minSubscriptionMonth: sub.minSubscriptionMonth ?? "",
-            taxRatePct: String(Math.round(Number(biz.taxRate ?? 0) * 10000) / 100), // lưu thập phân, hiển thị %
         };
     };
 
@@ -101,7 +95,6 @@ export default function AdminPlatformSettings() {
     const [subscriptionForm, setSubscriptionForm] = useState({
         trialDays: "",
         gracePeriod: "",
-        taxRatePct: "0",
         minSubscriptionMonth: "",
     });
     const [subscriptionErrors, setSubscriptionErrors] = useState({});
@@ -129,8 +122,16 @@ export default function AdminPlatformSettings() {
     });
     const [mediaLimitsErrors, setMediaLimitsErrors] = useState({});
 
-    const [reportTab, setReportTab] = useState(0);
     const [reportEditing, setReportEditing] = useState(false);
+    const [reportForm, setReportForm] = useState({
+        maxResolutionDay: "",
+        responseDeadline: "",
+        activationDeadline: "",
+        bonusDays: "",
+        bonusCondition: "",
+        description: "",
+    });
+    const [reportErrors, setReportErrors] = useState({});
     const [severityDraft, setSeverityDraft] = useState([]);
     const [severityDialogOpen, setSeverityDialogOpen] = useState(false);
     const [severityDialogMode, setSeverityDialogMode] = useState("add");
@@ -175,6 +176,39 @@ export default function AdminPlatformSettings() {
         color: "#ffffff",
         boxShadow: "0 8px 18px rgba(37,99,235,0.28)",
         "&:hover": { bgcolor: "#1d4ed8", boxShadow: "0 10px 22px rgba(29,78,216,0.32)" },
+    };
+    const settingsFieldCardSx = {
+        border: "1px solid #dbeafe",
+        borderRadius: 2.5,
+        p: 1.5,
+        bgcolor: "#ffffff",
+        backgroundImage: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+        boxShadow: "0 6px 16px rgba(37, 99, 235, 0.08)",
+        transition: "all 0.2s ease",
+        height: "100%",
+        boxSizing: "border-box",
+        "&:hover": {
+            borderColor: "#93c5fd",
+            boxShadow: "0 10px 24px rgba(37, 99, 235, 0.14)",
+            transform: "translateY(-1px)",
+        },
+    };
+    const settingsFieldLabelSx = { fontSize: 12, fontWeight: 500, color: "#1d4ed8", mb: 0.75 };
+    const settingsInputSx = {
+        "& .MuiOutlinedInput-root": {
+            borderRadius: 2,
+            bgcolor: "#ffffff",
+            transition: "all 0.2s ease",
+            "& fieldset": { borderColor: "#bfdbfe" },
+            "&:hover fieldset": { borderColor: "#60a5fa" },
+            "&.Mui-focused fieldset": { borderColor: "#2563eb", borderWidth: "1px" },
+            "&.Mui-focused": {
+                boxShadow: "0 0 0 3px rgba(37, 99, 235, 0.18)",
+            },
+        },
+        "& .MuiFormHelperText-root": {
+            marginLeft: 0,
+        },
     };
 
     const parseFinite = (v) => {
@@ -249,18 +283,30 @@ export default function AdminPlatformSettings() {
         const errors = {};
         const trialDays = parseFinite(form.trialDays);
         const gracePeriod = parseFinite(form.gracePeriod);
-        const taxRatePct = parseFinite(form.taxRatePct);
         const minSubscriptionMonth = parseFinite(form.minSubscriptionMonth);
 
         if (trialDays === null) errors.trialDays = "Vui lòng nhập Số ngày dùng thử.";
         if (gracePeriod === null) errors.gracePeriod = "Vui lòng nhập Thời gian gia hạn.";
         if (minSubscriptionMonth === null) errors.minSubscriptionMonth = "Vui lòng nhập Số tháng đăng ký tối thiểu.";
-        if (taxRatePct === null) errors.taxRatePct = "Vui lòng nhập Thuế suất.";
 
         if (trialDays !== null && trialDays < 0) errors.trialDays = "Số ngày dùng thử không được âm.";
         if (gracePeriod !== null && gracePeriod < 0) errors.gracePeriod = "Thời gian gia hạn không được âm.";
         if (minSubscriptionMonth !== null && minSubscriptionMonth < 1) errors.minSubscriptionMonth = "Số tháng đăng ký tối thiểu phải >= 1.";
-        if (taxRatePct !== null && (taxRatePct < 0 || taxRatePct > 100)) errors.taxRatePct = "Thuế suất phải trong [0..100].";
+
+        return errors;
+    };
+
+    const validateReport = (form) => {
+        const errors = {};
+        const maxResolutionDay = parseFinite(form.maxResolutionDay);
+        const bonusDays = parseFinite(form.bonusDays);
+
+        if (maxResolutionDay === null) errors.maxResolutionDay = "Vui lòng nhập số ngày giải quyết tối đa.";
+        if (bonusDays === null) errors.bonusDays = "Vui lòng nhập số ngày thưởng.";
+
+        if (maxResolutionDay !== null && maxResolutionDay < 0)
+            errors.maxResolutionDay = "Số ngày giải quyết tối đa không được âm.";
+        if (bonusDays !== null && bonusDays < 0) errors.bonusDays = "Số ngày thưởng không được âm.";
 
         return errors;
     };
@@ -315,6 +361,15 @@ export default function AdminPlatformSettings() {
 
         const report = configBody?.report || {};
         setSeverityDraft(report.severityLevels || []);
+        setReportForm({
+            maxResolutionDay: report.maxResolutionDay ?? "",
+            responseDeadline: report.responseDeadline ?? "",
+            activationDeadline: report.activationDeadline ?? "",
+            bonusDays: report.bonusDays ?? "",
+            bonusCondition: report.bonusCondition ?? "",
+            description: report.description ?? "",
+        });
+        setReportErrors({});
         setReportEditing(false);
         setSeverityDialogOpen(false);
         setSeverityDialogMode("add");
@@ -435,6 +490,15 @@ export default function AdminPlatformSettings() {
         if (!configBody) return;
         const report = configBody?.report || {};
         setSeverityDraft(report.severityLevels || []);
+        setReportForm({
+            maxResolutionDay: report.maxResolutionDay ?? "",
+            responseDeadline: report.responseDeadline ?? "",
+            activationDeadline: report.activationDeadline ?? "",
+            bonusDays: report.bonusDays ?? "",
+            bonusCondition: report.bonusCondition ?? "",
+            description: report.description ?? "",
+        });
+        setReportErrors({});
         setStatus({ type: "", message: "" });
     };
 
@@ -445,15 +509,31 @@ export default function AdminPlatformSettings() {
 
     const saveReportEdit = async () => {
         if (!configBody) return;
+        const errors = validateReport(reportForm);
+        setReportErrors(errors);
+        if (Object.keys(errors).length > 0) return;
+
         setSaving(true);
         let ok = false;
         setStatus({ type: "", message: "" });
         try {
             const currentReport = configBody.report || {};
+            const maxResolutionDay = parseFinite(reportForm.maxResolutionDay);
+            const bonusDays = parseFinite(reportForm.bonusDays);
+
             const updatedBody = {
-                report: {
+                reportData: {
+                    maxResolutionDay: maxResolutionDay ?? 0,
+                    responseDeadline: reportForm.responseDeadline || null,
+                    activationDeadline: reportForm.activationDeadline || null,
+                    bonusDays: bonusDays ?? 0,
+                    bonusCondition: reportForm.bonusCondition || "",
+                    description: reportForm.description || "",
+                    levels: (severityDraft || []).map((lvl) => ({
+                        name: lvl.name,
+                    })),
+                    // giữ lại các field khác nếu backend có
                     ...currentReport,
-                    severityLevels: severityDraft,
                 },
             };
             await updateSystemConfig(updatedBody);
@@ -804,16 +884,12 @@ export default function AdminPlatformSettings() {
             const trialDays = parseFinite(subscriptionForm.trialDays);
             const gracePeriod = parseFinite(subscriptionForm.gracePeriod);
             const minSubscriptionMonth = parseFinite(subscriptionForm.minSubscriptionMonth);
-            const taxRate = toRateDecimal(subscriptionForm.taxRatePct);
 
             const updatedBody = {
                 subscription: {
                     trialDays,
                     gracePeriod,
                     minSubscriptionMonth,
-                },
-                business: {
-                    taxRate,
                 },
             };
 
@@ -856,15 +932,44 @@ export default function AdminPlatformSettings() {
                             sx={{
                                 flex: "1 1 220px",
                                 minWidth: 240,
-                                border: "1px solid #e2e8f0",
-                                borderRadius: 2,
-                                p: 1.25,
-                                bgcolor: "#f8fafc",
-                                height: "100%",
-                                boxSizing: "border-box",
+                                ...settingsFieldCardSx,
                             }}
                         >
-                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                            <Typography sx={settingsFieldLabelSx}>
+                                Thuế suất (%)
+                            </Typography>
+                            <Tooltip title="Nhập tỷ lệ phần trăm thuế suất.">
+                                <TextField
+                                    size="small"
+                                    fullWidth
+                                    disabled={businessDisabled}
+                                    value={businessForm.taxRatePct}
+                                    onChange={(e) => {
+                                        const nextVal = e.target.value;
+                                        setBusinessForm((prev) => {
+                                            const next = { ...prev, taxRatePct: nextVal };
+                                            setBusinessErrors(validateBusiness(next));
+                                            return next;
+                                        });
+                                    }}
+                                    error={Boolean(businessErrors.taxRatePct)}
+                                    helperText={businessErrors.taxRatePct || ""}
+                                    type="number"
+                                    inputProps={{ min: 0, max: 100, step: 1 }}
+                                    InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                                    sx={settingsInputSx}
+                                />
+                            </Tooltip>
+                        </Box>
+
+                        <Box
+                            sx={{
+                                flex: "1 1 220px",
+                                minWidth: 240,
+                                ...settingsFieldCardSx,
+                            }}
+                        >
+                            <Typography sx={settingsFieldLabelSx}>
                                 Tỷ lệ phí dịch vụ (%)
                             </Typography>
                             <Tooltip title="Nhập tỷ lệ phần trăm phí dịch vụ.">
@@ -885,6 +990,7 @@ export default function AdminPlatformSettings() {
                                     helperText={businessErrors.serviceRatePct || ""}
                                     type="number"
                                     inputProps={{ min: 0, max: 100, step: 1 }}
+                                    sx={settingsInputSx}
                                 />
                             </Tooltip>
                         </Box>
@@ -893,15 +999,10 @@ export default function AdminPlatformSettings() {
                             sx={{
                                 flex: "1 1 280px",
                                 minWidth: 320,
-                                border: "1px solid #e2e8f0",
-                                borderRadius: 2,
-                                p: 1.25,
-                                bgcolor: "#f8fafc",
-                                height: "100%",
-                                boxSizing: "border-box",
+                                ...settingsFieldCardSx,
                             }}
                         >
-                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                            <Typography sx={settingsFieldLabelSx}>
                                 Số tiền giao dịch tối thiểu
                             </Typography>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -922,8 +1023,9 @@ export default function AdminPlatformSettings() {
                                     error={Boolean(businessErrors.minPay)}
                                     helperText={businessErrors.minPay || ""}
                                     inputProps={{ inputMode: "numeric" }}
+                                    sx={settingsInputSx}
                                 />
-                                <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#64748b", minWidth: 56, textAlign: "right" }}>
+                                <Typography sx={{ fontSize: 12, fontWeight: 500, color: "#1d4ed8", minWidth: 56, textAlign: "right" }}>
                                     VND
                                 </Typography>
                             </Box>
@@ -933,15 +1035,10 @@ export default function AdminPlatformSettings() {
                             sx={{
                                 flex: "1 1 280px",
                                 minWidth: 320,
-                                border: "1px solid #e2e8f0",
-                                borderRadius: 2,
-                                p: 1.25,
-                                bgcolor: "#f8fafc",
-                                height: "100%",
-                                boxSizing: "border-box",
+                                ...settingsFieldCardSx,
                             }}
                         >
-                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                            <Typography sx={settingsFieldLabelSx}>
                                 Số tiền giao dịch tối đa
                             </Typography>
                             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -962,8 +1059,9 @@ export default function AdminPlatformSettings() {
                                     error={Boolean(businessErrors.maxPay)}
                                     helperText={businessErrors.maxPay || ""}
                                     inputProps={{ inputMode: "numeric" }}
+                                    sx={settingsInputSx}
                                 />
-                                <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#64748b", minWidth: 56, textAlign: "right" }}>
+                                <Typography sx={{ fontSize: 12, fontWeight: 500, color: "#1d4ed8", minWidth: 56, textAlign: "right" }}>
                                     VND
                                 </Typography>
                             </Box>
@@ -985,8 +1083,8 @@ export default function AdminPlatformSettings() {
             </Typography>
 
             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, width: "100%", alignItems: "stretch" }}>
-                <Box sx={{ flex: "1 1 220px", minWidth: 240, border: "1px solid #e2e8f0", borderRadius: 2, p: 1.25, bgcolor: "#f8fafc", boxSizing: "border-box" }}>
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>Số ngày dùng thử</Typography>
+                <Box sx={{ flex: "1 1 220px", minWidth: 240, ...settingsFieldCardSx }}>
+                    <Typography sx={settingsFieldLabelSx}>Số ngày dùng thử</Typography>
                     <Tooltip title="Số ngày dùng thử trước khi người dùng bắt đầu giai đoạn thanh toán.">
                         <TextField
                             size="small"
@@ -1005,12 +1103,13 @@ export default function AdminPlatformSettings() {
                             inputProps={{ min: 0 }}
                             error={Boolean(subscriptionErrors.trialDays)}
                             helperText={subscriptionErrors.trialDays || ""}
+                            sx={settingsInputSx}
                         />
                     </Tooltip>
                 </Box>
 
-                <Box sx={{ flex: "1 1 220px", minWidth: 240, border: "1px solid #e2e8f0", borderRadius: 2, p: 1.25, bgcolor: "#f8fafc", boxSizing: "border-box" }}>
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>Thời gian gia hạn</Typography>
+                <Box sx={{ flex: "1 1 220px", minWidth: 240, ...settingsFieldCardSx }}>
+                    <Typography sx={settingsFieldLabelSx}>Thời gian gia hạn</Typography>
                     <Tooltip title="Khoảng thời gian gia hạn sau khi hết hạn thanh toán (đơn vị: ngày).">
                         <TextField
                             size="small"
@@ -1029,37 +1128,13 @@ export default function AdminPlatformSettings() {
                             inputProps={{ min: 0 }}
                             error={Boolean(subscriptionErrors.gracePeriod)}
                             helperText={subscriptionErrors.gracePeriod || ""}
+                            sx={settingsInputSx}
                         />
                     </Tooltip>
                 </Box>
 
-                <Box sx={{ flex: "1 1 220px", minWidth: 240, border: "1px solid #e2e8f0", borderRadius: 2, p: 1.25, bgcolor: "#f8fafc", boxSizing: "border-box" }}>
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>Thuế suất (%)</Typography>
-                    <Tooltip title="Nhập tỷ lệ phần trăm thuế suất.">
-                        <TextField
-                            size="small"
-                            fullWidth
-                            disabled={subscriptionDisabled}
-                            type="number"
-                            value={subscriptionForm.taxRatePct}
-                            onChange={(e) => {
-                                const nextVal = e.target.value;
-                                setSubscriptionForm((prev) => {
-                                    const next = { ...prev, taxRatePct: nextVal };
-                                    setSubscriptionErrors(validateSubscription(next));
-                                    return next;
-                                });
-                            }}
-                            inputProps={{ min: 0, max: 100, step: 1 }}
-                            error={Boolean(subscriptionErrors.taxRatePct)}
-                            helperText={subscriptionErrors.taxRatePct || ""}
-                            InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
-                        />
-                    </Tooltip>
-                </Box>
-
-                <Box sx={{ flex: "1 1 220px", minWidth: 240, border: "1px solid #e2e8f0", borderRadius: 2, p: 1.25, bgcolor: "#f8fafc", boxSizing: "border-box" }}>
-                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>Số tháng đăng ký tối thiểu</Typography>
+                <Box sx={{ flex: "1 1 220px", minWidth: 240, ...settingsFieldCardSx }}>
+                    <Typography sx={settingsFieldLabelSx}>Số tháng đăng ký tối thiểu</Typography>
                     <Tooltip title="Số tháng đăng ký tối thiểu bắt buộc (đơn vị: tháng).">
                         <TextField
                             size="small"
@@ -1078,6 +1153,7 @@ export default function AdminPlatformSettings() {
                             inputProps={{ min: 1 }}
                             error={Boolean(subscriptionErrors.minSubscriptionMonth)}
                             helperText={subscriptionErrors.minSubscriptionMonth || ""}
+                            sx={settingsInputSx}
                         />
                     </Tooltip>
                 </Box>
@@ -1185,14 +1261,10 @@ export default function AdminPlatformSettings() {
                             sx={{
                                 flex: "1 1 25%",
                                 minWidth: 200,
-                                border: "1px solid #e2e8f0",
-                                borderRadius: 2,
-                                p: 1.25,
-                                bgcolor: "#f8fafc",
-                                boxSizing: "border-box",
+                                ...settingsFieldCardSx,
                             }}
                         >
-                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                            <Typography sx={settingsFieldLabelSx}>
                                 Dung lượng ảnh tối đa
                             </Typography>
                             <TextField
@@ -1214,6 +1286,7 @@ export default function AdminPlatformSettings() {
                                 InputProps={{
                                     endAdornment: <InputAdornment position="end">MB</InputAdornment>,
                                 }}
+                                sx={settingsInputSx}
                             />
                         </Box>
 
@@ -1221,14 +1294,10 @@ export default function AdminPlatformSettings() {
                             sx={{
                                 flex: "1 1 25%",
                                 minWidth: 200,
-                                border: "1px solid #e2e8f0",
-                                borderRadius: 2,
-                                p: 1.25,
-                                bgcolor: "#f8fafc",
-                                boxSizing: "border-box",
+                                ...settingsFieldCardSx,
                             }}
                         >
-                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                            <Typography sx={settingsFieldLabelSx}>
                                 Số ảnh tham chiếu tối đa
                             </Typography>
                             <TextField
@@ -1250,6 +1319,7 @@ export default function AdminPlatformSettings() {
                                 InputProps={{
                                     endAdornment: <InputAdornment position="end">ảnh</InputAdornment>,
                                 }}
+                                sx={settingsInputSx}
                             />
                         </Box>
 
@@ -1257,14 +1327,10 @@ export default function AdminPlatformSettings() {
                             sx={{
                                 flex: "1 1 25%",
                                 minWidth: 200,
-                                border: "1px solid #e2e8f0",
-                                borderRadius: 2,
-                                p: 1.25,
-                                bgcolor: "#f8fafc",
-                                boxSizing: "border-box",
+                                ...settingsFieldCardSx,
                             }}
                         >
-                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                            <Typography sx={settingsFieldLabelSx}>
                                 Số ảnh báo cáo tối đa
                             </Typography>
                             <TextField
@@ -1286,6 +1352,7 @@ export default function AdminPlatformSettings() {
                                 InputProps={{
                                     endAdornment: <InputAdornment position="end">ảnh</InputAdornment>,
                                 }}
+                                sx={settingsInputSx}
                             />
                         </Box>
 
@@ -1293,14 +1360,10 @@ export default function AdminPlatformSettings() {
                             sx={{
                                 flex: "1 1 25%",
                                 minWidth: 200,
-                                border: "1px solid #e2e8f0",
-                                borderRadius: 2,
-                                p: 1.25,
-                                bgcolor: "#f8fafc",
-                                boxSizing: "border-box",
+                                ...settingsFieldCardSx,
                             }}
                         >
-                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                            <Typography sx={settingsFieldLabelSx}>
                                 Số ảnh phản hồi tối đa
                             </Typography>
                             <TextField
@@ -1322,6 +1385,7 @@ export default function AdminPlatformSettings() {
                                 InputProps={{
                                     endAdornment: <InputAdornment position="end">ảnh</InputAdornment>,
                                 }}
+                                sx={settingsInputSx}
                             />
                         </Box>
 
@@ -1329,14 +1393,10 @@ export default function AdminPlatformSettings() {
                             sx={{
                                 flex: "1 1 200px",
                                 minWidth: 220,
-                                border: "1px solid #e2e8f0",
-                                borderRadius: 2,
-                                p: 1.25,
-                                bgcolor: "#f8fafc",
-                                boxSizing: "border-box",
+                                ...settingsFieldCardSx,
                             }}
                         >
-                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                            <Typography sx={settingsFieldLabelSx}>
                                 Dung lượng video tối đa
                             </Typography>
                             <TextField
@@ -1358,6 +1418,7 @@ export default function AdminPlatformSettings() {
                                 InputProps={{
                                     endAdornment: <InputAdornment position="end">MB</InputAdornment>,
                                 }}
+                                sx={settingsInputSx}
                             />
                         </Box>
 
@@ -1365,14 +1426,10 @@ export default function AdminPlatformSettings() {
                             sx={{
                                 flex: "1 1 200px",
                                 minWidth: 220,
-                                border: "1px solid #e2e8f0",
-                                borderRadius: 2,
-                                p: 1.25,
-                                bgcolor: "#f8fafc",
-                                boxSizing: "border-box",
+                                ...settingsFieldCardSx,
                             }}
                         >
-                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                            <Typography sx={settingsFieldLabelSx}>
                                 Số video báo cáo tối đa
                             </Typography>
                             <TextField
@@ -1394,6 +1451,7 @@ export default function AdminPlatformSettings() {
                                 InputProps={{
                                     endAdornment: <InputAdornment position="end">video</InputAdornment>,
                                 }}
+                                sx={settingsInputSx}
                             />
                         </Box>
 
@@ -1401,14 +1459,10 @@ export default function AdminPlatformSettings() {
                             sx={{
                                 flex: "1 1 200px",
                                 minWidth: 220,
-                                border: "1px solid #e2e8f0",
-                                borderRadius: 2,
-                                p: 1.25,
-                                bgcolor: "#f8fafc",
-                                boxSizing: "border-box",
+                                ...settingsFieldCardSx,
                             }}
                         >
-                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                            <Typography sx={settingsFieldLabelSx}>
                                 Số video phản hồi tối đa
                             </Typography>
                             <TextField
@@ -1430,6 +1484,7 @@ export default function AdminPlatformSettings() {
                                 InputProps={{
                                     endAdornment: <InputAdornment position="end">video</InputAdornment>,
                                 }}
+                                sx={settingsInputSx}
                             />
                         </Box>
                     </Box>
@@ -1617,79 +1672,117 @@ export default function AdminPlatformSettings() {
                     Cài đặt Hạn mức Tuyển sinh
                 </Typography>
 
-                <Card elevation={0} sx={{ borderRadius: 2, border: "1px solid #e2e8f0" }}>
-                    <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
-                        <TableContainer sx={{ border: "1px solid #e2e8f0", borderRadius: 1 }}>
-                            <Table size="small">
-                                <TableHead>
-                                    <TableRow sx={{ bgcolor: "#f8fafc" }}>
-                                        <TableCell align="center" sx={{ fontWeight: 700, color: "#334155" }}>Năm học</TableCell>
-                                        <TableCell align="center" sx={{ fontWeight: 700, color: "#334155" }}>Nguồn dữ liệu</TableCell>
-                                        <TableCell align="center" sx={{ fontWeight: 700, color: "#334155" }}>Hạn mức tuyển sinh</TableCell>
-                                        <TableCell align="center" sx={{ fontWeight: 700, color: "#334155" }}>
-                                            Thao tác
-                                        </TableCell>
-                                    </TableRow>
-                                </TableHead>
-                                <TableBody>
-                                    {rows.length ? (
-                                        rows.map((row) => (
-                                            <TableRow
-                                                key={row.year}
-                                                sx={{
-                                                    bgcolor: row.year === selectedYear ? "#f0f9ff" : "#fff",
-                                                }}
-                                            >
-                                                <TableCell align="center" sx={{ color: "#0f172a", fontWeight: 600 }}>{row.year}</TableCell>
-                                                <TableCell align="center">
-                                                    {row.sourceUrl ? (
-                                                        <Link
-                                                            href={row.sourceUrl}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            sx={{ color: "#2563eb", textDecorationColor: "#2563eb" }}
-                                                        >
-                                                            {row.sourceUrl}
-                                                        </Link>
-                                                    ) : (
-                                                        <Typography variant="body2" sx={{ color: "#94a3b8" }}>
-                                                            Không có
-                                                        </Typography>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell align="center" sx={{ color: row.hasQuota ? "#0f172a" : "#64748b", fontWeight: 600 }}>
-                                                    {row.hasQuota ? "Đã cấu hình" : "Chưa cấu hình"}
-                                                </TableCell>
-                                                <TableCell align="center">
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={() => {
-                                                            setSelectedQuotaYear(row.year);
-                                                            const form = getQuotaInitialForm(row.year);
-                                                            setQuotaForm(form);
-                                                            setQuotaErrors(validateQuota(form));
-                                                            setQuotaEditing(true);
+                <Box sx={{ px: { xs: 0.5, md: 1 } }}>
+                    {rows.length ? (
+                        <Stack spacing={0.75}>
+                            {rows.map((row) => {
+                                const isSelected = row.year === selectedYear;
+                                return (
+                                    <Box
+                                        key={row.year}
+                                        sx={{
+                                            display: "flex",
+                                            alignItems: { xs: "flex-start", md: "center" },
+                                            flexDirection: { xs: "column", md: "row" },
+                                            gap: 1.25,
+                                            borderRadius: 2,
+                                            px: 1.25,
+                                            py: 1,
+                                            bgcolor: isSelected ? "#f0f9ff" : "#ffffff",
+                                            border: "1px solid",
+                                            borderColor: isSelected ? "#60a5fa" : "#e2e8f0",
+                                            transition: "all 0.15s ease",
+                                            "&:hover": {
+                                                borderColor: "#93c5fd",
+                                                boxShadow: "0 6px 14px rgba(37, 99, 235, 0.10)",
+                                            },
+                                        }}
+                                    >
+                                        {/* Left: title + subtext */}
+                                        <Box
+                                            sx={{
+                                                minWidth: { xs: "100%", md: 260 },
+                                            }}
+                                        >
+                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: "#0f172a", mb: 0.35 }}>
+                                                Năm học {row.year}
+                                            </Typography>
+                                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.6, minWidth: 0 }}>
+                                                <LinkOutlinedIcon sx={{ fontSize: 16, color: "#9ca3af", flexShrink: 0 }} />
+                                                {row.sourceUrl ? (
+                                                    <Link
+                                                        href={row.sourceUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        sx={{
+                                                            fontSize: 12.5,
+                                                            color: "#64748b",
+                                                            textDecorationColor: "#cbd5e1",
+                                                            textUnderlineOffset: "2px",
+                                                            whiteSpace: "nowrap",
+                                                            overflow: "hidden",
+                                                            textOverflow: "ellipsis",
+                                                            display: "block",
                                                         }}
-                                                        sx={{ color: "#2563eb" }}
-                                                        aria-label={`Cập nhật ${row.year}`}
                                                     >
-                                                        <EditIcon fontSize="small" />
-                                                    </IconButton>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))
-                                    ) : (
-                                        <TableRow>
-                                            <TableCell colSpan={4} align="center">
-                                                <Typography variant="body2" sx={{ color: "#64748b", py: 1, textAlign: "center" }}>
-                                                    Không có dữ liệu.
-                                                </Typography>
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                </TableBody>
-                            </Table>
-                        </TableContainer>
+                                                        {row.sourceUrl}
+                                                    </Link>
+                                                ) : (
+                                                    <Typography variant="body2" sx={{ color: "#9ca3af", fontSize: 12.5 }}>
+                                                        Không có nguồn dữ liệu
+                                                    </Typography>
+                                                )}
+                                            </Box>
+                                        </Box>
+
+                                        {/* Middle: status badge */}
+                                        <Box sx={{ minWidth: { xs: "auto", md: 170 } }}>
+                                            <Chip
+                                                size="small"
+                                                label={row.hasQuota ? "Đã cấu hình" : "Chưa cấu hình"}
+                                                sx={{
+                                                    bgcolor: row.hasQuota ? "#dcfce7" : "#fff7ed",
+                                                    color: row.hasQuota ? "#166534" : "#c2410c",
+                                                    borderRadius: 1.5,
+                                                    fontWeight: 600,
+                                                }}
+                                            />
+                                        </Box>
+
+                                        {/* Right: actions */}
+                                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.35, ml: { xs: 0, md: "auto" } }}>
+                                            <IconButton
+                                                size="small"
+                                                onClick={() => {
+                                                    setSelectedQuotaYear(row.year);
+                                                    const form = getQuotaInitialForm(row.year);
+                                                    setQuotaForm(form);
+                                                    setQuotaErrors(validateQuota(form));
+                                                    setQuotaEditing(true);
+                                                }}
+                                                sx={{ color: "#2563eb" }}
+                                                aria-label={`Chỉnh sửa ${row.year}`}
+                                            >
+                                                <EditIcon fontSize="small" />
+                                            </IconButton>
+                                            <IconButton
+                                                size="small"
+                                                sx={{ color: "#94a3b8" }}
+                                                aria-label={`Mở chi tiết ${row.year}`}
+                                                onClick={() => setSelectedQuotaYear(row.year)}
+                                            >
+                                                <ChevronRightIcon fontSize="small" />
+                                            </IconButton>
+                                        </Box>
+                                    </Box>
+                                );
+                            })}
+                        </Stack>
+                    ) : (
+                        <Typography variant="body2" sx={{ color: "#64748b", py: 1, textAlign: "center" }}>
+                            Không có dữ liệu.
+                        </Typography>
+                    )}
 
                         <Dialog
                             open={isEditing}
@@ -1742,8 +1835,7 @@ export default function AdminPlatformSettings() {
                                 {status.message}
                             </Alert>
                         ) : null}
-                    </CardContent>
-                </Card>
+                </Box>
             </Box>
         );
     };
@@ -1766,45 +1858,19 @@ export default function AdminPlatformSettings() {
             Critical: "Nghiêm trọng",
         };
 
+        const isEditing = reportEditing;
+
         return (
             <Box>
                 <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#2563eb", mb: 1.5 }}>
                     Cài đặt Báo cáo
                 </Typography>
 
-                <Card
-                    elevation={0}
-                    sx={{
-                        borderRadius: 3,
-                        border: "1px solid #e2e8f0",
-                        width: "100%",
-                    }}
-                >
-                    <CardContent sx={{ p: 0 }}>
-                        <Tabs
-                            value={reportTab}
-                            onChange={(_, v) => setReportTab(v)}
-                            variant="scrollable"
-                            scrollButtons="auto"
-                            sx={{
-                                borderBottom: "1px solid #e2e8f0",
-                                "& .MuiTabs-indicator": { height: 3 },
-                            }}
-                        >
-                            <Tab
-                                label="Thời gian chi trả"
-                                sx={{ fontWeight: 700, textTransform: "none", fontSize: 13 }}
-                            />
-                            <Tab
-                                label="Mức độ nghiêm trọng"
-                                sx={{ fontWeight: 700, textTransform: "none", fontSize: 13 }}
-                            />
-                        </Tabs>
-
-                        <Box sx={{ p: { xs: 2, md: 2.5 } }}>
-                            {reportTab === 0 ? (
-                                <Box>
-                                    <Typography
+                <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid #e2e8f0", width: "100%" }}>
+                    <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
+                        <Box>
+                            <Box>
+                                <Typography
                                         sx={{
                                             fontWeight: 700,
                                             fontSize: 14,
@@ -1815,59 +1881,88 @@ export default function AdminPlatformSettings() {
                                         Cấu hình thời gian chi trả
                                     </Typography>
 
-                                    <Box
-                                        sx={{
-                                            maxWidth: 320,
-                                            border: "1px solid #e2e8f0",
-                                            borderRadius: 2,
-                                            p: 1.25,
-                                            bgcolor: "#f8fafc",
-                                        }}
-                                    >
-                                        <Typography
-                                            sx={{
-                                                fontSize: 12,
-                                                fontWeight: 700,
-                                                color: "#64748b",
-                                                mb: 0.5,
-                                            }}
-                                        >
-                                            Số ngày chi trả tối đa
-                                        </Typography>
-                                        <TextField
-                                            size="small"
-                                            fullWidth
-                                            disabled
-                                            value={report.maxDisbursementDay ?? ""}
-                                            InputProps={{
-                                                endAdornment: (
-                                                    <InputAdornment position="end">
-                                                        ngày
-                                                    </InputAdornment>
-                                                ),
-                                            }}
-                                        />
-                                        <Typography
-                                            variant="body2"
-                                            sx={{
-                                                mt: 0.5,
-                                                fontSize: 12,
-                                                color: "#94a3b8",
-                                            }}
-                                        >
-                                            Số ngày tối đa để hoàn tất chi trả sau khi xử lý báo cáo.
-                                        </Typography>
-                                    </Box>
+                                    {isEditing ? (
+                                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5 }}>
+                                            <Box sx={{ flex: "1 1 200px", minWidth: 220, ...settingsFieldCardSx }}>
+                                                <Typography sx={settingsFieldLabelSx}>
+                                                    Số ngày giải quyết tối đa
+                                                </Typography>
+                                                <TextField
+                                                    size="small"
+                                                    fullWidth
+                                                    type="number"
+                                                    value={reportForm.maxResolutionDay}
+                                                    onChange={(e) => {
+                                                        const next = { ...reportForm, maxResolutionDay: e.target.value };
+                                                        setReportForm(next);
+                                                        setReportErrors(validateReport(next));
+                                                    }}
+                                                    error={Boolean(reportErrors.maxResolutionDay)}
+                                                    helperText={reportErrors.maxResolutionDay || ""}
+                                                    sx={settingsInputSx}
+                                                    inputProps={{ min: 0 }}
+                                                    InputProps={{
+                                                        endAdornment: (
+                                                            <InputAdornment position="end">
+                                                                ngày
+                                                            </InputAdornment>
+                                                        ),
+                                                    }}
+                                                />
+                                            </Box>
 
-                                    <Box
-                                        sx={{
-                                            mt: 2.5,
-                                            p: { xs: 1.5, md: 2 },
-                                            bgcolor: "#f9fafb",
-                                            borderRadius: 2,
-                                            border: "1px solid #e5e7eb",
-                                        }}
-                                    >
+                                            <Box sx={{ flex: "1 1 260px", minWidth: 260, ...settingsFieldCardSx }}>
+                                                <Typography sx={settingsFieldLabelSx}>
+                                                    Hạn xử lý báo cáo
+                                                </Typography>
+                                                <TextField
+                                                    size="small"
+                                                    fullWidth
+                                                    type="datetime-local"
+                                                    value={reportForm.responseDeadline}
+                                                    onChange={(e) =>
+                                                        setReportForm((prev) => ({
+                                                            ...prev,
+                                                            responseDeadline: e.target.value,
+                                                        }))
+                                                    }
+                                                    sx={settingsInputSx}
+                                                />
+                                            </Box>
+
+                                            <Box sx={{ flex: "1 1 260px", minWidth: 260, ...settingsFieldCardSx }}>
+                                                <Typography sx={settingsFieldLabelSx}>
+                                                    Hạn kích hoạt chi trả
+                                                </Typography>
+                                                <TextField
+                                                    size="small"
+                                                    fullWidth
+                                                    type="datetime-local"
+                                                    value={reportForm.activationDeadline}
+                                                    onChange={(e) =>
+                                                        setReportForm((prev) => ({
+                                                            ...prev,
+                                                            activationDeadline: e.target.value,
+                                                        }))
+                                                    }
+                                                    sx={settingsInputSx}
+                                                />
+                                            </Box>
+                                        </Box>
+                                    ) : (
+                                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5 }}>
+                                            <Box sx={{ flex: "1 1 200px", minWidth: 220, ...settingsFieldCardSx }}>
+                                                <Typography sx={settingsFieldLabelSx}>
+                                                    Số ngày chi trả tối đa
+                                                </Typography>
+                                                <Typography sx={{ fontSize: 14, color: "#0f172a" }}>
+                                                    {report.maxDisbursementDay ?? "-"} ngày
+                                                </Typography>
+                                            </Box>
+                                        </Box>
+                                    )}
+
+                                    <Box sx={{ mt: 2.5, p: { xs: 1.5, md: 2 }, bgcolor: "#f9fafb", borderRadius: 2, border: "1px solid #e5e7eb" }}>
                                         <Typography
                                             sx={{
                                                 fontWeight: 700,
@@ -1889,40 +1984,76 @@ export default function AdminPlatformSettings() {
                                             Sau khi báo cáo được giải quyết và khoản bồi thường được phê
                                             duyệt, hệ thống bắt đầu quy trình chi trả cho người dùng.
                                         </Typography>
-                                        <Stack
-                                            direction="row"
-                                            spacing={1.5}
-                                            sx={{
-                                                mt: 0.5,
-                                                width: "100%",
-                                            }}
-                                        >
-                                            {[
-                                                "Tiếp nhận báo cáo",
-                                                "Xử lý & xác minh",
-                                                "Phê duyệt bồi thường",
-                                                `${report.maxDisbursementDay ?? "-"} ngày chi trả`,
-                                            ].map((label) => (
-                                                <Chip
-                                                    key={label}
-                                                    label={label}
-                                                    sx={{
-                                                        flex: 1,
-                                                        maxWidth: "25%",
-                                                        bgcolor: "#e0f2fe",
-                                                        borderRadius: 999,
-                                                        fontSize: 12,
-                                                        fontWeight: 600,
-                                                        color: "#0f172a",
-                                                        textAlign: "center",
-                                                    }}
-                                                />
-                                            ))}
-                                        </Stack>
-                                    </Box>
-                                </Box>
-                            ) : (
-                                <Box>
+                                        {isEditing ? (
+                                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, mt: 0.5 }}>
+                                                <Box sx={{ flex: "1 1 260px", minWidth: 260, ...settingsFieldCardSx }}>
+                                                    <Typography sx={settingsFieldLabelSx}>
+                                                        Số ngày thưởng thêm
+                                                    </Typography>
+                                                    <TextField
+                                                        size="small"
+                                                        fullWidth
+                                                        type="number"
+                                                        value={reportForm.bonusDays}
+                                                        onChange={(e) => {
+                                                            const next = { ...reportForm, bonusDays: e.target.value };
+                                                            setReportForm(next);
+                                                            setReportErrors(validateReport(next));
+                                                        }}
+                                                        error={Boolean(reportErrors.bonusDays)}
+                                                        helperText={reportErrors.bonusDays || ""}
+                                                        sx={settingsInputSx}
+                                                        inputProps={{ min: 0 }}
+                                                        InputProps={{
+                                                            endAdornment: (
+                                                                <InputAdornment position="end">
+                                                                    ngày
+                                                                </InputAdornment>
+                                                            ),
+                                                        }}
+                                                    />
+                                                </Box>
+                                                <Box sx={{ flex: "1 1 260px", minWidth: 260, ...settingsFieldCardSx }}>
+                                                    <Typography sx={settingsFieldLabelSx}>
+                                                        Điều kiện áp dụng thưởng
+                                                    </Typography>
+                                                    <TextField
+                                                        size="small"
+                                                        fullWidth
+                                                        value={reportForm.bonusCondition}
+                                                        onChange={(e) =>
+                                                            setReportForm((prev) => ({
+                                                                ...prev,
+                                                                bonusCondition: e.target.value,
+                                                            }))
+                                                        }
+                                                        sx={settingsInputSx}
+                                                    />
+                                                </Box>
+                                                <Box sx={{ width: "100%", ...settingsFieldCardSx }}>
+                                                    <Typography sx={settingsFieldLabelSx}>
+                                                        Mô tả quy tắc chi trả
+                                                    </Typography>
+                                                    <TextField
+                                                        size="small"
+                                                        fullWidth
+                                                        multiline
+                                                        minRows={3}
+                                                        value={reportForm.description}
+                                                        onChange={(e) =>
+                                                            setReportForm((prev) => ({
+                                                                ...prev,
+                                                                description: e.target.value,
+                                                            }))
+                                                        }
+                                                        sx={settingsInputSx}
+                                                    />
+                                                </Box>
+                                            </Box>
+                                        ) : null}
+                            </Box>
+
+                            <Box sx={{ mt: 3 }}>
                                     <Box
                                         sx={{
                                             display: "flex",
@@ -2109,9 +2240,7 @@ export default function AdminPlatformSettings() {
                                         </Typography>
                                     )}
                                 </Box>
-                            )}
 
-                            {reportTab === 1 ? (
                                 <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
                                     {reportEditing ? (
                                         <>
@@ -2143,13 +2272,13 @@ export default function AdminPlatformSettings() {
                                         </Button>
                                     )}
                                 </Box>
-                            ) : null}
 
-                            {activeTabKey === "report" && status.message ? (
-                                <Alert severity={status.type || "success"} sx={{ mt: 2 }}>
-                                    {status.message}
-                                </Alert>
-                            ) : null}
+                                {activeTabKey === "report" && status.message ? (
+                                    <Alert severity={status.type || "success"} sx={{ mt: 2 }}>
+                                        {status.message}
+                                    </Alert>
+                                ) : null}
+                            </Box>
                         </Box>
                     </CardContent>
                 </Card>
