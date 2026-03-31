@@ -541,7 +541,6 @@ export default function AdminPlatformSettings() {
             </Typography>
             {(() => {
                 const businessDisabled = !businessEditing || saving;
-                const taxRateValue = businessForm.taxRatePct === "" ? "" : Number(businessForm.taxRatePct);
                 const serviceRateValue = businessForm.serviceRatePct === "" ? "" : Number(businessForm.serviceRatePct);
 
                 return (
@@ -567,46 +566,9 @@ export default function AdminPlatformSettings() {
                             }}
                         >
                             <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
-                                Thuế suất (%)
+                                Tỷ lệ phí dịch vụ (%)
                             </Typography>
-                            <Tooltip title="Tỷ lệ thuế áp dụng cho giao dịch (đơn vị: %).">
-                                <TextField
-                                    size="small"
-                                    fullWidth
-                                    disabled={businessDisabled}
-                                    value={taxRateValue}
-                                    onChange={(e) => {
-                                        const nextVal = e.target.value;
-                                        setBusinessForm((prev) => {
-                                            const next = { ...prev, taxRatePct: nextVal };
-                                            setBusinessErrors(validateBusiness(next));
-                                            return next;
-                                        });
-                                    }}
-                                    error={Boolean(businessErrors.taxRatePct)}
-                                    helperText={businessErrors.taxRatePct || ""}
-                                    type="number"
-                                    inputProps={{ min: 0, max: 100, step: 0.01 }}
-                                />
-                            </Tooltip>
-                        </Box>
-
-                        <Box
-                            sx={{
-                                flex: "1 1 220px",
-                                minWidth: 240,
-                                border: "1px solid #e2e8f0",
-                                borderRadius: 2,
-                                p: 1.25,
-                                bgcolor: "#f8fafc",
-                                height: "100%",
-                                boxSizing: "border-box",
-                            }}
-                        >
-                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
-                                Phí dịch vụ (%)
-                            </Typography>
-                            <Tooltip title="Phí dịch vụ tính trên giao dịch (đơn vị: %).">
+                            <Tooltip title="Nhập giá trị thập phân (ví dụ: 0.1 cho 0.1%). Phải lớn hơn 0.">
                                 <TextField
                                     size="small"
                                     fullWidth
@@ -621,7 +583,10 @@ export default function AdminPlatformSettings() {
                                         });
                                     }}
                                     error={Boolean(businessErrors.serviceRatePct)}
-                                    helperText={businessErrors.serviceRatePct || ""}
+                                    helperText={
+                                        businessErrors.serviceRatePct ||
+                                        "Nhập giá trị thập phân (ví dụ: 0.1 cho 0.1%). Phải lớn hơn 0."
+                                    }
                                     type="number"
                                     inputProps={{ min: 0, max: 100, step: 0.01 }}
                                 />
@@ -662,15 +627,9 @@ export default function AdminPlatformSettings() {
                                     helperText={businessErrors.minPay || ""}
                                     inputProps={{ inputMode: "numeric" }}
                                 />
-                                <FormControl size="small" sx={{ minWidth: 90 }}>
-                                    <Select value={currency} onChange={(e) => setCurrency(e.target.value)} disabled={businessDisabled}>
-                                        {currencyOptions.map((c) => (
-                                            <MenuItem key={c} value={c}>
-                                                {c}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </FormControl>
+                                <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#64748b", minWidth: 56, textAlign: "right" }}>
+                                    VND
+                                </Typography>
                             </Box>
                         </Box>
 
@@ -708,15 +667,9 @@ export default function AdminPlatformSettings() {
                                     helperText={businessErrors.maxPay || ""}
                                     inputProps={{ inputMode: "numeric" }}
                                 />
-                                <FormControl size="small" sx={{ minWidth: 90 }}>
-                                    <Select value={currency} onChange={(e) => setCurrency(e.target.value)} disabled={businessDisabled}>
-                                        {currencyOptions.map((c) => (
-                                            <MenuItem key={c} value={c}>
-                                                {c}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </FormControl>
+                                <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#64748b", minWidth: 56, textAlign: "right" }}>
+                                    VND
+                                </Typography>
                             </Box>
                         </Box>
                     </Box>
