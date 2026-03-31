@@ -66,8 +66,8 @@ export default function AdminPlatformSettings() {
         const business = cfg?.business || {};
         const minPay = business.minPay ?? "";
         const maxPay = business.maxPay ?? "";
-        const taxRatePct = Number(business.taxRate ?? 0);
-        const serviceRatePct = Number(business.serviceRate ?? 0);
+        const taxRatePct = Number(business.taxRate ?? 0) * 100;
+        const serviceRatePct = Number(business.serviceRate ?? 0) * 100;
         return {
             minPay: minPay === "" ? "" : String(minPay),
             maxPay: maxPay === "" ? "" : String(maxPay),
@@ -83,7 +83,7 @@ export default function AdminPlatformSettings() {
             trialDays: sub.trialDays ?? "",
             gracePeriod: sub.gracePeriod ?? "",
             minSubscriptionMonth: sub.minSubscriptionMonth ?? "",
-            taxRatePct: String(Math.round(Number(biz.taxRate ?? 0) * 100) / 100),
+            taxRatePct: String(Math.round(Number(biz.taxRate ?? 0) * 10000) / 100), // lưu thập phân, hiển thị %
         };
     };
 
@@ -398,7 +398,8 @@ export default function AdminPlatformSettings() {
     const toRateDecimal = (ratePctValue) => {
         const pct = parseFinite(ratePctValue);
         if (pct === null) return null;
-        return Math.round(pct * 10000) / 10000;
+        const decimal = pct / 100;
+        return Math.round(decimal * 10000) / 10000;
     };
 
     const closeFormatDialog = () => {
@@ -713,7 +714,7 @@ export default function AdminPlatformSettings() {
                             <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
                                 Tỷ lệ phí dịch vụ (%)
                             </Typography>
-                            <Tooltip title="Nhập giá trị thập phân (ví dụ: 0.1 cho 0.1%). Phải lớn hơn 0.">
+                            <Tooltip title="Nhập số nguyên phần trăm (ví dụ: 5 nghĩa là 5%).">
                                 <TextField
                                     size="small"
                                     fullWidth
@@ -730,10 +731,10 @@ export default function AdminPlatformSettings() {
                                     error={Boolean(businessErrors.serviceRatePct)}
                                     helperText={
                                         businessErrors.serviceRatePct ||
-                                        "Nhập giá trị thập phân (ví dụ: 0.1 cho 0.1%). Phải lớn hơn 0."
+                                        "Nhập số nguyên phần trăm, ví dụ: 5 nghĩa là 5%."
                                     }
                                     type="number"
-                                    inputProps={{ min: 0, max: 100, step: 0.01 }}
+                                    inputProps={{ min: 0, max: 100, step: 1 }}
                                 />
                             </Tooltip>
                         </Box>
@@ -884,7 +885,7 @@ export default function AdminPlatformSettings() {
 
                 <Box sx={{ flex: "1 1 220px", minWidth: 240, border: "1px solid #e2e8f0", borderRadius: 2, p: 1.25, bgcolor: "#f8fafc", boxSizing: "border-box" }}>
                     <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>Thuế suất (%)</Typography>
-                    <Tooltip title="Thuế suất áp dụng cho đăng ký (đơn vị: %).">
+                    <Tooltip title="Nhập số nguyên phần trăm (ví dụ: 5 nghĩa là 5%).">
                         <TextField
                             size="small"
                             fullWidth
@@ -899,7 +900,7 @@ export default function AdminPlatformSettings() {
                                     return next;
                                 });
                             }}
-                            inputProps={{ min: 0, max: 100 }}
+                            inputProps={{ min: 0, max: 100, step: 1 }}
                             error={Boolean(subscriptionErrors.taxRatePct)}
                             helperText={subscriptionErrors.taxRatePct || ""}
                             InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
