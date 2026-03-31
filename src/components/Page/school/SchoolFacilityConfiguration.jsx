@@ -28,8 +28,6 @@ import SearchIcon from "@mui/icons-material/Search";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditIcon from "@mui/icons-material/Edit";
-import DragHandleIcon from "@mui/icons-material/DragHandle";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import CloseIcon from "@mui/icons-material/Close";
@@ -70,6 +68,10 @@ function formatViDate(raw) {
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return String(raw);
   return d.toLocaleDateString("vi-VN");
+}
+
+function normalizeFacilityCode(raw) {
+  return String(raw || "").trim().toLowerCase();
 }
 
 function imageCardSx() {
@@ -113,7 +115,6 @@ export default function SchoolFacilityConfiguration() {
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
 
-  const dragFromIndexRef = useRef(null);
   const facilityRowRefs = useRef({});
   const pendingScrollFacilityIdRef = useRef(null);
 
@@ -289,9 +290,11 @@ export default function SchoolFacilityConfiguration() {
 
       const facilityRes = await getFacilityTemplate({ schoolId: sid });
       const body = facilityRes?.data?.body ?? facilityRes?.body ?? null;
-      const statusOk = facilityRes?.status === 200;
+      const status = facilityRes?.status;
+      const statusOk = status === 200;
+      const isNotFound = status === 404;
 
-      if (!statusOk && !body) {
+      if (!statusOk && !body && !isNotFound) {
         enqueueSnackbar(
           facilityRes?.data?.message || "Không tải được cấu hình cơ sở vật chất. Bạn vẫn có thể tạo mới.",
           { variant: "error" }
@@ -322,6 +325,7 @@ export default function SchoolFacilityConfiguration() {
               url: img.url ?? "",
               name: img.name ?? "",
               altName: img.altName ?? "",
+              facilityCode: img.facilityCode ?? "",
               uploadDate: toIsoLocalDateTime(img.uploadDate),
               isUsage: img.isUsage ?? true,
             }))
@@ -383,6 +387,7 @@ export default function SchoolFacilityConfiguration() {
           url: img.url,
           name: img.name ?? "",
           altName: img.altName ?? "",
+          facilityCode: img.facilityCode ?? "",
           uploadDate: img.uploadDate ? toIsoLocalDateTime(img.uploadDate) : formatIsoLocalDateTime(new Date()),
           isUsage: Boolean(img.isUsage),
         })),
@@ -433,14 +438,21 @@ export default function SchoolFacilityConfiguration() {
     enqueueSnackbar("Tải ảnh cover lên thành công", { variant: "success" });
   }, []);
 
-  const handleGalleryUploaded = useCallback((results) => {
+  const handleFacilityImagesUploaded = useCallback((facility) => (results) => {
+    const normalizedCode = normalizeFacilityCode(facility?.facilityCode);
+    if (!normalizedCode) {
+      enqueueSnackbar("Vui lòng nhập mã cơ sở vật chất trước khi tải ảnh", { variant: "warning" });
+      return;
+    }
+
     const nowIso = formatIsoLocalDateTime(new Date());
     const nextImages = (results || [])
       .filter((r) => r?.url)
       .map((r) => ({
         url: r.url,
-        name: "",
-        altName: "",
+        name: facility.name ?? "",
+        altName: facility.name ?? "",
+        facilityCode: facility.facilityCode ?? "",
         uploadDate: nowIso,
         isUsage: true,
       }));
@@ -449,25 +461,6 @@ export default function SchoolFacilityConfiguration() {
 
     setImageItems((prev) => [...prev, ...nextImages]);
     enqueueSnackbar(`Đã tải ${nextImages.length} ảnh lên thành công`, { variant: "success" });
-  }, []);
-
-  const handleDragStartImage = useCallback((index) => (e) => {
-    dragFromIndexRef.current = index;
-    e.dataTransfer.effectAllowed = "move";
-  }, []);
-
-  const handleDropImage = useCallback((toIndex) => (e) => {
-    e.preventDefault();
-    const fromIndex = dragFromIndexRef.current;
-    dragFromIndexRef.current = null;
-    if (fromIndex == null || fromIndex === toIndex) return;
-
-    setImageItems((prev) => {
-      const next = [...prev];
-      const [moved] = next.splice(fromIndex, 1);
-      next.splice(toIndex, 0, moved);
-      return next;
-    });
   }, []);
 
   const handleOpenImagePreview = useCallback((url) => {
@@ -497,6 +490,19 @@ export default function SchoolFacilityConfiguration() {
     });
     return grouped;
   }, [facilityItems]);
+
+  const usedImageItemsByFacilityCode = useMemo(() => {
+    const map = {};
+    imageItems
+      .filter((i) => i.isUsage && i.url)
+      .forEach((img) => {
+        const key = normalizeFacilityCode(img.facilityCode);
+        if (!key) return;
+        map[key] = map[key] || [];
+        map[key].push(img);
+      });
+    return map;
+  }, [imageItems]);
 
   const usedImageItemsByName = useMemo(() => {
     const map = {};
@@ -620,6 +626,114 @@ export default function SchoolFacilityConfiguration() {
               Thêm cơ sở vật chất
             </Button>
           </Box>
+
+          <Typography variant="subtitle2" sx={{fontWeight: 800, color: "#0f172a", mb: 1.25}}>
+            Ảnh bìa
+          </Typography>
+          {loading ? (
+            <Skeleton variant="rounded" height={180}/>
+          ) : (
+            <Box
+              sx={{
+                border: "1px dashed rgba(148,163,184,0.9)",
+                borderRadius: "12px",
+                p: 2.25,
+                bgcolor: "rgba(248,250,252,1)",
+                position: "relative",
+                overflow: "hidden",
+                mb: 2.5,
+              }}
+            >
+              <CloudinaryUpload
+                inputId="school-facility-cover-upload"
+                accept="image/*"
+                multiple={false}
+                onSuccess={handleCoverUploaded}
+                onError={(msg) => enqueueSnackbar(msg, { variant: "error" })}
+              >
+                {({inputId, loading: uploadLoading}) => (
+                  <Box
+                    component="label"
+                    htmlFor={inputId}
+                    sx={{
+                      display: "flex",
+                      flexDirection: {xs: "column", sm: "row"},
+                      alignItems: {xs: "stretch", sm: "center"},
+                      justifyContent: "space-between",
+                      gap: 2,
+                      cursor: uploadLoading ? "default" : "pointer",
+                    }}
+                  >
+                    <Box sx={{display: "flex", flexDirection: "column", gap: 0.75}}>
+                      <Typography sx={{fontWeight: 900, color: "#0f172a"}}>
+                        {coverUrl ? "Thay ảnh bìa" : "Kéo thả hoặc bấm để tải lên"}
+                      </Typography>
+                      {coverUrl && (
+                        <Box sx={{display: "flex", gap: 1.25, mt: 0.75, flexWrap: "wrap"}}>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            disabled={uploadLoading || saving}
+                            sx={{textTransform: "none", borderRadius: "12px"}}
+                          >
+                            {uploadLoading ? "Đang tải lên..." : "Thay ảnh"}
+                          </Button>
+                          <Button
+                            variant="text"
+                            color="error"
+                            size="small"
+                            disabled={saving || uploadLoading}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setCoverUrl("");
+                              enqueueSnackbar("Đã xoá cover image", { variant: "info" });
+                            }}
+                            sx={{textTransform: "none", fontWeight: 800}}
+                          >
+                            Xoá
+                          </Button>
+                        </Box>
+                      )}
+                    </Box>
+                    <Box sx={{flex: 1, minWidth: 180}}>
+                      {coverUrl ? (
+                        <Box
+                          component="img"
+                          src={coverUrl}
+                          alt="Cover preview"
+                          sx={{
+                            width: "100%",
+                            height: {xs: 180, sm: 150},
+                            objectFit: "cover",
+                            borderRadius: "12px",
+                            border: "1px solid rgba(226,232,240,1)",
+                          }}
+                        />
+                      ) : (
+                        <Box
+                          sx={{
+                            width: "100%",
+                            height: {xs: 180, sm: 150},
+                            borderRadius: "12px",
+                            border: "1px solid rgba(226,232,240,1)",
+                            bgcolor: "rgba(148,163,184,0.12)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "#94a3b8",
+                            fontWeight: 800,
+                          }}
+                        >
+                          Xem trước
+                        </Box>
+                      )}
+                    </Box>
+                  </Box>
+                )}
+              </CloudinaryUpload>
+            </Box>
+          )}
 
           {/* Search & Filter */}
           <Box sx={{display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center", mb: 2}}>
@@ -834,6 +948,81 @@ export default function SchoolFacilityConfiguration() {
                               Nhấn vào dòng để thu gọn
                             </Typography>
                           </Box>
+
+                          <Divider/>
+                          <Box>
+                            <Box sx={{display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.5, mb: 1}}>
+                              <Typography sx={{fontWeight: 800, color: "#0f172a", fontSize: 14}}>
+                                Ảnh minh họa cho mục này
+                              </Typography>
+                              <CloudinaryUpload
+                                inputId={`school-facility-images-${item.id}`}
+                                accept="image/*"
+                                multiple
+                                onSuccess={handleFacilityImagesUploaded(item)}
+                                onError={(msg) => enqueueSnackbar(msg, {variant: "error"})}
+                              >
+                                {({inputId, loading: uploadLoading}) => (
+                                  <Button
+                                    component="label"
+                                    htmlFor={inputId}
+                                    variant="outlined"
+                                    size="small"
+                                    startIcon={<CloudUploadIcon/>}
+                                    disabled={saving || uploadLoading || !normalizeFacilityCode(item.facilityCode)}
+                                    sx={{textTransform: "none", borderRadius: "12px", fontWeight: 700}}
+                                  >
+                                    {uploadLoading ? "Đang tải..." : "Tải ảnh"}
+                                  </Button>
+                                )}
+                              </CloudinaryUpload>
+                            </Box>
+
+                            {!normalizeFacilityCode(item.facilityCode) ? (
+                              <Typography variant="caption" sx={{color: "#f59e0b"}}>
+                                Cần nhập Mã cơ sở vật chất trước khi tải ảnh cho mục này.
+                              </Typography>
+                            ) : (() => {
+                              const normalizedCode = normalizeFacilityCode(item.facilityCode);
+                              const normalizedName = (item.name || "").trim().toLowerCase();
+                              const itemImages = imageItems.filter((img) => {
+                                const sameCode = normalizeFacilityCode(img.facilityCode) === normalizedCode;
+                                const fallbackByName = !normalizeFacilityCode(img.facilityCode) && normalizedName && (img.name || "").trim().toLowerCase() === normalizedName;
+                                return sameCode || fallbackByName;
+                              });
+
+                              if (itemImages.length === 0) {
+                                return (
+                                  <Typography variant="caption" sx={{color: "#94a3b8"}}>
+                                    Chưa có ảnh cho mục này.
+                                  </Typography>
+                                );
+                              }
+
+                              return (
+                                <Box sx={{display: "grid", gridTemplateColumns: {xs: "repeat(2, 1fr)", sm: "repeat(3, 1fr)"}, gap: 1}}>
+                                  {itemImages.map((img) => (
+                                    <Box key={`${item.id}-${img.url}`} sx={{...imageCardSx(), position: "relative"}}>
+                                      <IconButton
+                                        size="small"
+                                        onClick={() => openDeleteImageConfirm(img.url)}
+                                        sx={{position: "absolute", top: 4, right: 4, bgcolor: "rgba(255,255,255,0.9)", zIndex: 2}}
+                                      >
+                                        <DeleteOutlineIcon fontSize="small" color="error"/>
+                                      </IconButton>
+                                      <Box
+                                        component="img"
+                                        src={img.url}
+                                        alt={img.altName || img.name || "Ảnh cơ sở vật chất"}
+                                        onClick={() => handleOpenImagePreview(img.url)}
+                                        sx={{width: "100%", height: 100, objectFit: "cover", cursor: "pointer"}}
+                                      />
+                                    </Box>
+                                  ))}
+                                </Box>
+                              );
+                            })()}
+                          </Box>
                         </Stack>
                       </Box>
                     </Collapse>
@@ -842,403 +1031,41 @@ export default function SchoolFacilityConfiguration() {
               })}
             </Stack>
           )}
-        </CardContent>
-      </Card>
 
-      {/* Section 3: Image Management */}
-      <Card sx={{borderRadius: "12px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)", border: "1px solid rgba(226,232,240,1)"}}>
-        <CardContent sx={{p: 3}}>
-          <Typography sx={{fontWeight: 900, color: "#0f172a", fontSize: 18, mb: 2}}>
-            Hình ảnh cơ sở vật chất
-          </Typography>
-
-          {/* Cover */}
-          <Typography variant="subtitle2" sx={{fontWeight: 800, color: "#0f172a", mb: 1.25}}>
-            Ảnh bìa
-          </Typography>
-
-          {loading ? (
-            <Skeleton variant="rounded" height={180}/>
-          ) : (
-            <Box
-              sx={{
-                border: "1px dashed rgba(148,163,184,0.9)",
-                borderRadius: "12px",
-                p: 2.25,
-                bgcolor: "rgba(248,250,252,1)",
-                position: "relative",
-                overflow: "hidden",
-              }}
-            >
-              <CloudinaryUpload
-                inputId="school-facility-cover-upload"
-                accept="image/*"
-                multiple={false}
-                onSuccess={handleCoverUploaded}
-                onError={(msg) => enqueueSnackbar(msg, { variant: "error" })}
+          <Box
+            sx={{
+              mt: 3,
+              background: "rgba(255,255,255,0.92)",
+              py: 1.75,
+              px: 0,
+            }}
+          >
+            <Stack direction="row" justifyContent="flex-end" alignItems="center" gap={1.5}>
+              <Button
+                variant="outlined"
+                onClick={resetToInitial}
+                sx={{borderRadius: "12px", textTransform: "none", fontWeight: 800}}
               >
-                {({inputId, loading: uploadLoading}) => (
-                  <Box
-                    component="label"
-                    htmlFor={inputId}
-                    sx={{
-                      display: "flex",
-                      flexDirection: {xs: "column", sm: "row"},
-                      alignItems: {xs: "stretch", sm: "center"},
-                      justifyContent: "space-between",
-                      gap: 2,
-                      cursor: uploadLoading ? "default" : "pointer",
-                      "&:hover .__uploadHint": { color: "#2563eb" },
-                    }}
-                  >
-                    <Box sx={{display: "flex", flexDirection: "column", gap: 0.75}}>
-                      <Typography sx={{fontWeight: 900, color: "#0f172a"}}>
-                        {coverUrl ? "Thay ảnh bìa" : "Kéo thả hoặc bấm để tải lên"}
-                      </Typography>
-                      {/* Thông tin khuyến nghị đã được lược bỏ theo yêu cầu */}
-                      {coverUrl && (
-                        <Box sx={{display: "flex", gap: 1.25, mt: 0.75, flexWrap: "wrap"}}>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            disabled={uploadLoading || saving}
-                            sx={{textTransform: "none", borderRadius: "12px"}}
-                          >
-                            {uploadLoading ? "Đang tải lên..." : "Thay ảnh"}
-                          </Button>
-                          <Button
-                            variant="text"
-                            color="error"
-                            size="small"
-                            disabled={saving || uploadLoading}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setCoverUrl("");
-                              enqueueSnackbar("Đã xoá cover image", { variant: "info" });
-                            }}
-                            sx={{textTransform: "none", fontWeight: 800}}
-                          >
-                            Xoá
-                          </Button>
-                        </Box>
-                      )}
-                    </Box>
-                    <Box sx={{flex: 1, minWidth: 180}}>
-                      {coverUrl ? (
-                        <Box
-                          component="img"
-                          src={coverUrl}
-                          alt="Cover preview"
-                          sx={{
-                            width: "100%",
-                            height: {xs: 180, sm: 150},
-                            objectFit: "cover",
-                            borderRadius: "12px",
-                            border: "1px solid rgba(226,232,240,1)",
-                          }}
-                        />
-                      ) : (
-                        <Box
-                          sx={{
-                            width: "100%",
-                            height: {xs: 180, sm: 150},
-                            borderRadius: "12px",
-                            border: "1px solid rgba(226,232,240,1)",
-                            bgcolor: "rgba(148,163,184,0.12)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "#94a3b8",
-                            fontWeight: 800,
-                          }}
-                        >
-                          Xem trước
-                        </Box>
-                      )}
-                    </Box>
-                  </Box>
-                )}
-              </CloudinaryUpload>
-            </Box>
-          )}
-
-          {/* Gallery */}
-          <Box sx={{mt: 3}}>
-            <Box sx={{display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2, mb: 1.5}}>
-              <Box>
-                <Typography variant="subtitle2" sx={{fontWeight: 900, color: "#0f172a"}}>
-                  Danh sách ảnh
-                </Typography>
-                <Typography variant="body2" sx={{color: "#64748b"}}>
-                  Tải nhiều ảnh, kéo để sắp xếp lại, bấm vào ảnh để xem trước.
-                </Typography>
-              </Box>
-              <CloudinaryUpload
-                inputId="school-facility-gallery-upload"
-                accept="image/*"
-                multiple
-                onSuccess={handleGalleryUploaded}
-                onError={(msg) => enqueueSnackbar(msg, {variant: "error"})}
-              >
-                {({inputId, loading: uploadLoading}) => (
-                  <Button
-                    component="label"
-                    htmlFor={inputId}
-                    variant="outlined"
-                    startIcon={<CloudUploadIcon/>}
-                    disabled={uploadLoading || saving}
-                    sx={{textTransform: "none", borderRadius: "12px", fontWeight: 800}}
-                  >
-                    {uploadLoading ? "Đang tải lên..." : "Tải ảnh lên"}
-                  </Button>
-                )}
-              </CloudinaryUpload>
-            </Box>
-
-            {loading ? (
-              <GridPlaceholderSkeleton/>
-            ) : imageItems.length === 0 ? (
-              <Box sx={{py: 4, border: "1px dashed rgba(148,163,184,0.9)", borderRadius: "12px", textAlign: "center"}}>
-                <Typography sx={{fontWeight: 900, color: "#64748b"}}>Chưa có ảnh</Typography>
-                <Typography variant="body2" sx={{color: "#94a3b8", mt: 0.5}}>
-                  Tải ảnh lên để hiển thị trong phần xem trước.
-                </Typography>
-              </Box>
-            ) : (
-              <Box
+                Huỷ
+              </Button>
+              <Button
+                variant="contained"
+                onClick={handleSave}
                 sx={{
-                  display: "grid",
-                  gridTemplateColumns: {xs: "repeat(2, 1fr)", sm: "repeat(3, 1fr)"},
-                  gap: 1.5,
+                  borderRadius: "12px",
+                  textTransform: "none",
+                  fontWeight: 900,
+                  px: 3,
+                  boxShadow: "0 12px 26px rgba(37, 99, 235, 0.24)",
                 }}
               >
-                {imageItems.map((img, idx) => (
-                  <Box
-                    key={img.url}
-                    draggable
-                    onDragStart={handleDragStartImage(idx)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={handleDropImage(idx)}
-                    onClick={() => handleOpenImagePreview(img.url)}
-                    sx={{
-                      ...imageCardSx(),
-                      cursor: "pointer",
-                      transition: "transform 180ms ease, box-shadow 180ms ease",
-                      "&:hover": {transform: "translateY(-2px)", boxShadow: "0 14px 30px rgba(15, 23, 42, 0.10)"},
-                      position: "relative",
-                    }}
-                    title="Bấm để xem trước"
-                  >
-                    <IconButton
-                      size="small"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openDeleteImageConfirm(img.url);
-                      }}
-                      sx={{
-                        position: "absolute",
-                        top: 6,
-                        right: 6,
-                        bgcolor: "rgba(255,255,255,0.92)",
-                        "&:hover": {bgcolor: "rgba(255,255,255,1)"},
-                        zIndex: 2,
-                      }}
-                    >
-                      <DeleteOutlineIcon fontSize="small" color="error"/>
-                    </IconButton>
-
-                    <Box sx={{position: "absolute", left: 6, top: 6, zIndex: 2, opacity: 0.9}}>
-                      <DragHandleIcon fontSize="small" sx={{color: "#94a3b8"}}/>
-                    </Box>
-
-                    <Box
-                      component="img"
-                      src={img.url}
-                      alt={img.name || "Ảnh cơ sở vật chất"}
-                      sx={{
-                        width: "100%",
-                        height: 110,
-                        objectFit: "cover",
-                        borderBottom: "1px solid rgba(226,232,240,1)",
-                      }}
-                    />
-
-                    <Box sx={{p: 1.25}}>
-                      <TextField
-                        value={img.name}
-                        size="small"
-                        label="Tên"
-                        variant="outlined"
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setImageItems((prev) => prev.map((it) => (it.url === img.url ? {...it, name: v} : it)));
-                        }}
-                        fullWidth
-                      />
-                      <Box sx={{height: 8}}/>
-                      <TextField
-                        value={img.altName}
-                        size="small"
-                        label="Tên thay thế"
-                        variant="outlined"
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setImageItems((prev) => prev.map((it) => (it.url === img.url ? {...it, altName: v} : it)));
-                        }}
-                        fullWidth
-                      />
-
-                      <Box sx={{display: "flex", alignItems: "center", justifyContent: "space-between", mt: 1}}>
-                        <Typography variant="caption" sx={{color: "#94a3b8"}}>
-                          {formatViDate(img.uploadDate)}
-                        </Typography>
-                        <Stack direction="row" alignItems="center" spacing={1}>
-                          <Switch
-                            size="small"
-                            checked={Boolean(img.isUsage)}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setImageItems((prev) => prev.map((it) => (it.url === img.url ? {...it, isUsage: checked} : it)));
-                            }}
-                          />
-                        </Stack>
-                      </Box>
-                    </Box>
-                  </Box>
-                ))}
-              </Box>
-            )}
+                {saving ? <CircularProgress size={18} sx={{color: "white", mr: 1}}/> : null}
+                Lưu
+              </Button>
+            </Stack>
           </Box>
         </CardContent>
       </Card>
-
-      {/* Section 4: Preview */}
-      <Card sx={{borderRadius: "12px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)", border: "1px solid rgba(226,232,240,1)"}}>
-        <CardContent sx={{p: 3}}>
-          <Typography sx={{fontWeight: 900, color: "#0f172a", fontSize: 18, mb: 2}}>
-            Xem trước
-          </Typography>
-
-          <Box sx={{borderRadius: "12px", overflow: "hidden", border: "1px solid rgba(226,232,240,1)"}}>
-            {coverUrl ? (
-              <Box component="img" src={coverUrl} alt="Ảnh bìa cơ sở vật chất" sx={{width: "100%", height: 200, objectFit: "cover"}}/>
-            ) : (
-              <Box sx={{width: "100%", height: 180, bgcolor: "rgba(148,163,184,0.12)", display: "flex", alignItems: "center", justifyContent: "center"}}>
-                <Typography sx={{fontWeight: 900, color: "#94a3b8"}}>Xem trước ảnh bìa</Typography>
-              </Box>
-            )}
-
-            <Box sx={{p: 2.5, bgcolor: "white"}}>
-              <Typography variant="body1" sx={{fontWeight: 800, color: "#0f172a", mb: 1}}>
-                Tổng quan
-              </Typography>
-              <Typography variant="body2" sx={{color: "#334155", lineHeight: 1.6}}>
-                {overview?.trim() ? overview : "—"}
-              </Typography>
-
-              <Divider sx={{my: 2}}/>
-
-              <Typography variant="body1" sx={{fontWeight: 900, color: "#0f172a", mb: 1}}>
-                Cơ sở vật chất theo danh mục
-              </Typography>
-
-              {facilityItems.length === 0 ? (
-                <Typography variant="body2" sx={{color: "#94a3b8"}}>Chưa có cơ sở vật chất để xem trước.</Typography>
-              ) : (
-                <Stack spacing={1.5}>
-                  {Object.entries(previewFacilitiesByCategory).map(([cat, items]) => (
-                    <Box key={cat}>
-                      <Typography variant="subtitle2" sx={{fontWeight: 900, color: "#2563eb"}}>
-                        {cat}
-                      </Typography>
-                      <Box sx={{mt: 0.5}}>
-                        {items.map((it) => {
-                          const imageKey = (it.name || "").trim().toLowerCase();
-                          const matchedImages = usedImageItemsByName[imageKey] || [];
-
-                          return (
-                            <Box key={it.id || it.facilityCode || it.name} sx={{py: 0.75, borderBottom: "1px solid rgba(241,245,249,1)"}}>
-                              <Box sx={{display: "flex", justifyContent: "space-between", gap: 2}}>
-                                <Typography variant="body2" sx={{color: "#334155", fontWeight: 700}}>
-                                  {it.name || "—"}
-                                </Typography>
-                                <Typography variant="body2" sx={{color: "#64748b", fontWeight: 800}}>
-                                  {it.value || "0"} {it.unit || ""}
-                                </Typography>
-                              </Box>
-
-                              {matchedImages.length > 0 && (
-                                <Box sx={{mt: 1, display: "grid", gridTemplateColumns: {xs: "repeat(2, 1fr)", sm: "repeat(3, 1fr)"}, gap: 1.25}}>
-                                  {matchedImages.map((img) => (
-                                    <Box
-                                      key={`${it.id || it.facilityCode}-${img.url}`}
-                                      component="img"
-                                      src={img.url}
-                                      alt={img.altName || img.name || "Cơ sở vật chất"}
-                                      sx={{
-                                        width: "100%",
-                                        height: 130,
-                                        objectFit: "cover",
-                                        borderRadius: "10px",
-                                        border: "1px solid rgba(226,232,240,1)",
-                                      }}
-                                    />
-                                  ))}
-                                </Box>
-                              )}
-                            </Box>
-                          );
-                        })}
-                      </Box>
-                    </Box>
-                  ))}
-                </Stack>
-              )}
-            </Box>
-          </Box>
-        </CardContent>
-      </Card>
-
-      {/* Sticky Action Bar */}
-      <Box sx={{position: "sticky", bottom: 0, zIndex: 20}}>
-        <Box
-          sx={{
-            mt: 3,
-            background: "rgba(255,255,255,0.92)",
-            backdropFilter: "blur(10px)",
-            borderTop: "1px solid rgba(226,232,240,1)",
-            border: "1px solid rgba(226,232,240,1)",
-            py: 1.75,
-            px: 2.25,
-            borderRadius: "12px",
-          }}
-        >
-          <Stack direction="row" justifyContent="space-between" alignItems="center" gap={2}>
-            <Button
-              variant="outlined"
-              onClick={resetToInitial}
-              sx={{borderRadius: "12px", textTransform: "none", fontWeight: 800}}
-            >
-              Huỷ
-            </Button>
-            <Button
-              variant="contained"
-              onClick={handleSave}
-              sx={{
-                borderRadius: "12px",
-                textTransform: "none",
-                fontWeight: 900,
-                px: 3,
-                boxShadow: "0 12px 26px rgba(37, 99, 235, 0.24)",
-              }}
-            >
-              {saving ? <CircularProgress size={18} sx={{color: "white", mr: 1}}/> : null}
-              Lưu
-            </Button>
-          </Stack>
-        </Box>
-      </Box>
 
       {/* Confirm: delete facility */}
       <ConfirmDialog
@@ -1316,16 +1143,6 @@ export default function SchoolFacilityConfiguration() {
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
-  );
-}
-
-function GridPlaceholderSkeleton() {
-  return (
-    <Box sx={{display: "grid", gridTemplateColumns: {xs: "repeat(2, 1fr)", sm: "repeat(3, 1fr)"}, gap: 1.5}}>
-      {Array.from({length: 6}).map((_, idx) => (
-        <Skeleton key={idx} variant="rounded" height={230} />
-      ))}
     </Box>
   );
 }

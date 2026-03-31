@@ -5,10 +5,19 @@ import axiosClient from "../configs/APIConfig.jsx";
  * @param {{ schoolId: number | string }}
  */
 export const getFacilityTemplate = async ({ schoolId }) => {
-  const response = await axiosClient.get("/school/config/facility/template", {
-    params: { schoolId: Number(schoolId) || schoolId },
-  });
-  return response || null;
+  try {
+    const response = await axiosClient.get("/school/config/facility/template", {
+      params: { schoolId: Number(schoolId) || schoolId },
+    });
+    return response || null;
+  } catch (error) {
+    // Khi BE trả 404 (chưa có cấu hình), FE coi như "chưa có data"
+    // để không hiển thị lỗi cho người dùng.
+    if (error?.response?.status === 404) {
+      return { status: 404, data: { body: null } };
+    }
+    throw error;
+  }
 };
 
 /**

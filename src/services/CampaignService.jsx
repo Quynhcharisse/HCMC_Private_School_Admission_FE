@@ -6,8 +6,17 @@ import axiosClient from "../configs/APIConfig.jsx";
  * @returns {Promise<{ data?: any }>}
  */
 export const getCampaignTemplatesByYear = async (year) => {
-    const response = await axiosClient.get(`/school/${year}/campaign/template`);
-    return response || null;
+    try {
+        const response = await axiosClient.get(`/school/${year}/campaign/template`);
+        return response || null;
+    } catch (error) {
+        // Khi BE trả 404 (chưa có chiến dịch cho năm này), FE coi như "chưa có data"
+        // để không hiển thị lỗi.
+        if (error?.response?.status === 404) {
+            return { status: 404, data: { body: [] } };
+        }
+        throw error;
+    }
 };
 
 /**
