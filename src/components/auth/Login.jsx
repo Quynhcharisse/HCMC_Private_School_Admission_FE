@@ -6,31 +6,13 @@ import backgroundLogin from '../../assets/backgroundLogin.png';
 import {getAccess} from '../../services/AccountService';
 import {showSuccessSnackbar} from '../ui/AppSnackbar.jsx';
 import {BRAND_NAVY, BRAND_SKY, landingSectionShadow} from '../../constants/homeLandingTheme';
+import {getRoleDashboardRoute} from '../../utils/roleRouting';
 
 const LOGIN_MUTED = 'rgba(30, 58, 138, 0.82)';
 
 export default function Login() {
     const navigate = useNavigate();
     const hasNavigated = useRef(false);
-
-    const getRoleBasedRoute = (role) => {
-        const normalizedRole = role?.toUpperCase();
-        
-        switch (normalizedRole) {
-            case 'ADMIN':
-                return '/admin/dashboard';
-            case 'SCHOOL':
-                return '/school/dashboard';
-            case 'COUNSELLOR':
-                return '/counsellor/dashboard';
-            case 'STUDENT':
-                return '/student/dashboard';
-            case 'PARENT':
-                return '/';
-            default:
-                return '/';
-        }
-    };
 
     const handleLoginSuccess = async (data) => {
         if (hasNavigated.current) {
@@ -76,7 +58,7 @@ export default function Login() {
             localStorage.setItem('user', JSON.stringify(userData));
         }
 
-        const targetRoute = role ? getRoleBasedRoute(role.toUpperCase()) : '/';
+        const targetRoute = role ? getRoleDashboardRoute(role.toUpperCase()) : '/';
 
         showSuccessSnackbar('Đăng nhập thành công!');
 
