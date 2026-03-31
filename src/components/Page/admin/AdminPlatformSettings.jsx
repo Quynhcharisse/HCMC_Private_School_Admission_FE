@@ -107,8 +107,11 @@ export default function AdminPlatformSettings() {
 
     const [subscriptionEditing, setSubscriptionEditing] = useState(false);
     const [mediaEditing, setMediaEditing] = useState(false);
+    const [quotaEditing, setQuotaEditing] = useState(false);
 
     const [selectedQuotaYear, setSelectedQuotaYear] = useState("");
+    const [quotaForm, setQuotaForm] = useState({ sourceUrl: "" });
+    const [quotaErrors, setQuotaErrors] = useState({});
 
     const [mediaFormatsTab, setMediaFormatsTab] = useState(0);
     const [imgFormatsDraft, setImgFormatsDraft] = useState([]);
@@ -301,12 +304,14 @@ export default function AdminPlatformSettings() {
         setBusinessEditing(false);
         setSubscriptionEditing(false);
         setMediaEditing(false);
+        setQuotaEditing(false);
     }, [configBody]);
 
     useEffect(() => {
         if (activeTabKey !== "business") setBusinessEditing(false);
         if (activeTabKey !== "policies") setSubscriptionEditing(false);
         if (activeTabKey !== "media") setMediaEditing(false);
+        if (activeTabKey !== "limits") setQuotaEditing(false);
     }, [activeTabKey]);
 
     const cancelBusiness = () => {
@@ -513,6 +518,82 @@ export default function AdminPlatformSettings() {
         } finally {
             setSaving(false);
         }
+        return ok;
+    };
+
+    const getQuotaInitialForm = (year) => {
+        const quota = configBody?.quota || {};
+        const item = quota[year] || {};
+        return {
+            sourceUrl: item.sourceUrl || "",
+        };
+    };
+
+    const validateQuota = (form) => {
+        const errors = {};
+        if (form.sourceUrl && typeof form.sourceUrl === "string" && form.sourceUrl.length > 2048) {
+            errors.sourceUrl = "URL quá dài.";
+        }
+        return errors;
+    };
+
+    const cancelQuota = () => {
+        if (!configBody || !selectedQuotaYear) return;
+        const form = getQuotaInitialForm(selectedQuotaYear);
+        setQuotaForm(form);
+        setQuotaErrors(validateQuota(form));
+        setStatus({ type: "", message: "" });
+    };
+
+    const startQuotaEdit = () => {
+        if (!configBody || !selectedQuotaYear) return;
+        const form = getQuotaInitialForm(selectedQuotaYear);
+        setQuotaForm(form);
+        setQuotaErrors(validateQuota(form));
+        setQuotaEditing(true);
+    };
+
+    const cancelQuotaEdit = () => {
+        cancelQuota();
+        setQuotaEditing(false);
+    };
+
+    const saveQuotaEdit = async () => {
+        if (!configBody || !selectedQuotaYear) return;
+        const errors = validateQuota(quotaForm);
+        setQuotaErrors(errors);
+        if (Object.keys(errors).length > 0) return;
+
+        setSaving(true);
+        let ok = false;
+        setStatus({ type: "", message: "" });
+        try {
+            const currentQuota = configBody.quota || {};
+            const existing = currentQuota[selectedQuotaYear] || {};
+            const updatedQuota = {
+                ...currentQuota,
+                [selectedQuotaYear]: {
+                    ...existing,
+                    sourceUrl: quotaForm.sourceUrl || "",
+                },
+            };
+
+            const updatedBody = { quota: updatedQuota };
+
+            await axiosClient.put("/system/config", { body: updatedBody });
+            enqueueSnackbar("Cập nhật Cài đặt Hạn mức Tuyển sinh thành công.", { variant: "success" });
+            setStatus({ type: "success", message: "Cập nhật thành công." });
+            await fetchConfig();
+            ok = true;
+        } catch (e) {
+            console.error("saveQuotaEdit failed", e);
+            const msg = e?.response?.data?.message || "Cập nhật thất bại. Vui lòng thử lại.";
+            enqueueSnackbar(msg, { variant: "error" });
+            setStatus({ type: "error", message: msg });
+        } finally {
+            setSaving(false);
+        }
+        if (ok) setQuotaEditing(false);
         return ok;
     };
 
@@ -1369,6 +1450,7 @@ export default function AdminPlatformSettings() {
         const quota = configBody?.quota || {};
         const quotaYears = Object.keys(quota);
         const selectedYear = selectedQuotaYear || quotaYears[0] || "";
+        const isEditing = quotaEditing;
         const rows = quotaYears.map((year) => {
             const item = quota[year] || {};
             return {
@@ -1386,23 +1468,6 @@ export default function AdminPlatformSettings() {
 
                 <Card elevation={0} sx={{ borderRadius: 2, border: "1px solid #e2e8f0" }}>
                     <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
-                        <Box sx={{ mb: 2, maxWidth: 280 }}>
-                            <FormControl size="small" fullWidth>
-                                <Select
-                                    value={selectedYear}
-                                    onChange={(e) => setSelectedQuotaYear(e.target.value)}
-                                    displayEmpty
-                                    sx={{ borderRadius: 1 }}
-                                >
-                                    {quotaYears.map((y) => (
-                                        <MenuItem key={y} value={y}>
-                                            {y}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-                        </Box>
-
                         <TableContainer sx={{ border: "1px solid #e2e8f0", borderRadius: 1 }}>
                             <Table size="small">
                                 <TableHead>
@@ -1447,7 +1512,13 @@ export default function AdminPlatformSettings() {
                                                 <TableCell align="center">
                                                     <IconButton
                                                         size="small"
-                                                        onClick={() => setSelectedQuotaYear(row.year)}
+                                                        onClick={() => {
+                                                            setSelectedQuotaYear(row.year);
+                                                            const form = getQuotaInitialForm(row.year);
+                                                            setQuotaForm(form);
+                                                            setQuotaErrors(validateQuota(form));
+                                                            setQuotaEditing(true);
+                                                        }}
                                                         sx={{ color: "#2563eb" }}
                                                         aria-label={`Cập nhật ${row.year}`}
                                                     >
@@ -1468,6 +1539,58 @@ export default function AdminPlatformSettings() {
                                 </TableBody>
                             </Table>
                         </TableContainer>
+
+                        <Dialog
+                            open={isEditing}
+                            onClose={cancelQuotaEdit}
+                            fullWidth
+                            maxWidth="sm"
+                        >
+                            <DialogTitle sx={{ fontWeight: 700 }}>
+                                Cập nhật nguồn dữ liệu – Năm học {selectedYear}
+                            </DialogTitle>
+                            <DialogContent sx={{ pt: 1.5 }}>
+                                <TextField
+                                    fullWidth
+                                    size="small"
+                                    label="Nguồn dữ liệu (URL)"
+                                    margin="dense"
+                                    disabled={saving}
+                                    value={quotaForm.sourceUrl}
+                                    onChange={(e) => {
+                                        const next = { ...quotaForm, sourceUrl: e.target.value };
+                                        setQuotaForm(next);
+                                        setQuotaErrors(validateQuota(next));
+                                    }}
+                                    error={Boolean(quotaErrors.sourceUrl)}
+                                    helperText={quotaErrors.sourceUrl || "Có thể để trống nếu không có đường dẫn công khai."}
+                                />
+                            </DialogContent>
+                            <DialogActions sx={{ px: 3, pb: 2 }}>
+                                <Button
+                                    onClick={cancelQuotaEdit}
+                                    variant="outlined"
+                                    disabled={saving}
+                                    sx={cancelButtonSx}
+                                >
+                                    Hủy
+                                </Button>
+                                <Button
+                                    onClick={() => void saveQuotaEdit()}
+                                    variant="contained"
+                                    disabled={saving || Object.keys(quotaErrors).length > 0}
+                                    sx={saveButtonSx}
+                                >
+                                    Lưu
+                                </Button>
+                            </DialogActions>
+                        </Dialog>
+
+                        {activeTabKey === "limits" && status.message ? (
+                            <Alert severity={status.type || "success"} sx={{ mt: 2 }}>
+                                {status.message}
+                            </Alert>
+                        ) : null}
                     </CardContent>
                 </Card>
             </Box>
