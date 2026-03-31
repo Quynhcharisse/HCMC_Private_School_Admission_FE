@@ -114,6 +114,17 @@ export default function AdminPlatformSettings() {
     const [imgFormatsDraft, setImgFormatsDraft] = useState([]);
     const [videoFormatsDraft, setVideoFormatsDraft] = useState([]);
 
+    const [mediaLimitsForm, setMediaLimitsForm] = useState({
+        maxImgSize: "",
+        maxVideoSize: "",
+        maxReportVideos: "",
+        maxReferenceImages: "",
+        maxReportImages: "",
+        maxFeedbackImages: "",
+        maxFeedbackVideos: "",
+    });
+    const [mediaLimitsErrors, setMediaLimitsErrors] = useState({});
+
     const [formatDialogOpen, setFormatDialogOpen] = useState(false);
     const [formatDialogMode, setFormatDialogMode] = useState("add");
     const [formatDialogType, setFormatDialogType] = useState("image");
@@ -270,6 +281,17 @@ export default function AdminPlatformSettings() {
         const media = configBody?.media || {};
         setImgFormatsDraft((media.imgFormat || []).map((x) => x?.format).filter(Boolean));
         setVideoFormatsDraft((media.videoFormat || []).map((x) => x?.format).filter(Boolean));
+
+        setMediaLimitsForm({
+            maxImgSize: media.maxImgSize ?? "",
+            maxVideoSize: media.maxVideoSize ?? "",
+            maxReportVideos: media.maxReportVideo ?? "",
+            maxReferenceImages: media.maxDesignRefImg ?? "",
+            maxReportImages: media.maxReportImg ?? "",
+            maxFeedbackImages: media.maxFeedbackImg ?? "",
+            maxFeedbackVideos: media.maxFeedbackVideo ?? "",
+        });
+        setMediaLimitsErrors({});
         setFormatDialogOpen(false);
         setFormatDialogMode("add");
         setFormatDialogIndex(-1);
@@ -336,6 +358,16 @@ export default function AdminPlatformSettings() {
         const media = configBody?.media || {};
         setImgFormatsDraft((media.imgFormat || []).map((x) => x?.format).filter(Boolean));
         setVideoFormatsDraft((media.videoFormat || []).map((x) => x?.format).filter(Boolean));
+        setMediaLimitsForm({
+            maxImgSize: media.maxImgSize ?? "",
+            maxVideoSize: media.maxVideoSize ?? "",
+            maxReportVideos: media.maxReportVideo ?? "",
+            maxReferenceImages: media.maxDesignRefImg ?? "",
+            maxReportImages: media.maxReportImg ?? "",
+            maxFeedbackImages: media.maxFeedbackImg ?? "",
+            maxFeedbackVideos: media.maxFeedbackVideo ?? "",
+        });
+        setMediaLimitsErrors({});
         setFormatDialogOpen(false);
         setFormatDialogMode("add");
         setFormatDialogIndex(-1);
@@ -424,8 +456,33 @@ export default function AdminPlatformSettings() {
         closeFormatDialog();
     };
 
+    const validateMediaLimits = (form) => {
+        const errors = {};
+        const fields = [
+            "maxImgSize",
+            "maxVideoSize",
+            "maxReportVideos",
+            "maxReferenceImages",
+            "maxReportImages",
+            "maxFeedbackImages",
+            "maxFeedbackVideos",
+        ];
+        fields.forEach((key) => {
+            const v = parseFinite(form[key]);
+            if (v !== null && v < 0) {
+                errors[key] = "Giá trị không được âm.";
+            }
+        });
+        return errors;
+    };
+
     const saveMediaFormats = async () => {
         if (!configBody) return;
+
+        const limitErrors = validateMediaLimits(mediaLimitsForm);
+        setMediaLimitsErrors(limitErrors);
+        if (Object.keys(limitErrors).length > 0) return;
+
         setSaving(true);
         let ok = false;
         setStatus({ type: "", message: "" });
@@ -434,6 +491,13 @@ export default function AdminPlatformSettings() {
                 media: {
                     imgFormat: imgFormatsDraft.map((f) => ({ format: f })),
                     videoFormat: videoFormatsDraft.map((f) => ({ format: f })),
+                    maxImgSize: parseFinite(mediaLimitsForm.maxImgSize),
+                    maxVideoSize: parseFinite(mediaLimitsForm.maxVideoSize),
+                    maxReportVideo: parseFinite(mediaLimitsForm.maxReportVideos),
+                    maxDesignRefImg: parseFinite(mediaLimitsForm.maxReferenceImages),
+                    maxReportImg: parseFinite(mediaLimitsForm.maxReportImages),
+                    maxFeedbackImg: parseFinite(mediaLimitsForm.maxFeedbackImages),
+                    maxFeedbackVideo: parseFinite(mediaLimitsForm.maxFeedbackVideos),
                 },
             };
             await axiosClient.put("/system/config", { body: updatedBody });
@@ -541,7 +605,6 @@ export default function AdminPlatformSettings() {
             </Typography>
             {(() => {
                 const businessDisabled = !businessEditing || saving;
-                const taxRateValue = businessForm.taxRatePct === "" ? "" : Number(businessForm.taxRatePct);
                 const serviceRateValue = businessForm.serviceRatePct === "" ? "" : Number(businessForm.serviceRatePct);
 
                 return (
@@ -567,46 +630,9 @@ export default function AdminPlatformSettings() {
                             }}
                         >
                             <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
-                                Thuế suất (%)
+                                Tỷ lệ phí dịch vụ (%)
                             </Typography>
-                            <Tooltip title="Tỷ lệ thuế áp dụng cho giao dịch (đơn vị: %).">
-                                <TextField
-                                    size="small"
-                                    fullWidth
-                                    disabled={businessDisabled}
-                                    value={taxRateValue}
-                                    onChange={(e) => {
-                                        const nextVal = e.target.value;
-                                        setBusinessForm((prev) => {
-                                            const next = { ...prev, taxRatePct: nextVal };
-                                            setBusinessErrors(validateBusiness(next));
-                                            return next;
-                                        });
-                                    }}
-                                    error={Boolean(businessErrors.taxRatePct)}
-                                    helperText={businessErrors.taxRatePct || ""}
-                                    type="number"
-                                    inputProps={{ min: 0, max: 100, step: 0.01 }}
-                                />
-                            </Tooltip>
-                        </Box>
-
-                        <Box
-                            sx={{
-                                flex: "1 1 220px",
-                                minWidth: 240,
-                                border: "1px solid #e2e8f0",
-                                borderRadius: 2,
-                                p: 1.25,
-                                bgcolor: "#f8fafc",
-                                height: "100%",
-                                boxSizing: "border-box",
-                            }}
-                        >
-                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
-                                Phí dịch vụ (%)
-                            </Typography>
-                            <Tooltip title="Phí dịch vụ tính trên giao dịch (đơn vị: %).">
+                            <Tooltip title="Nhập giá trị thập phân (ví dụ: 0.1 cho 0.1%). Phải lớn hơn 0.">
                                 <TextField
                                     size="small"
                                     fullWidth
@@ -621,7 +647,10 @@ export default function AdminPlatformSettings() {
                                         });
                                     }}
                                     error={Boolean(businessErrors.serviceRatePct)}
-                                    helperText={businessErrors.serviceRatePct || ""}
+                                    helperText={
+                                        businessErrors.serviceRatePct ||
+                                        "Nhập giá trị thập phân (ví dụ: 0.1 cho 0.1%). Phải lớn hơn 0."
+                                    }
                                     type="number"
                                     inputProps={{ min: 0, max: 100, step: 0.01 }}
                                 />
@@ -662,15 +691,9 @@ export default function AdminPlatformSettings() {
                                     helperText={businessErrors.minPay || ""}
                                     inputProps={{ inputMode: "numeric" }}
                                 />
-                                <FormControl size="small" sx={{ minWidth: 90 }}>
-                                    <Select value={currency} onChange={(e) => setCurrency(e.target.value)} disabled={businessDisabled}>
-                                        {currencyOptions.map((c) => (
-                                            <MenuItem key={c} value={c}>
-                                                {c}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </FormControl>
+                                <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#64748b", minWidth: 56, textAlign: "right" }}>
+                                    VND
+                                </Typography>
                             </Box>
                         </Box>
 
@@ -708,15 +731,9 @@ export default function AdminPlatformSettings() {
                                     helperText={businessErrors.maxPay || ""}
                                     inputProps={{ inputMode: "numeric" }}
                                 />
-                                <FormControl size="small" sx={{ minWidth: 90 }}>
-                                    <Select value={currency} onChange={(e) => setCurrency(e.target.value)} disabled={businessDisabled}>
-                                        {currencyOptions.map((c) => (
-                                            <MenuItem key={c} value={c}>
-                                                {c}
-                                            </MenuItem>
-                                        ))}
-                                    </Select>
-                                </FormControl>
+                                <Typography sx={{ fontSize: 13, fontWeight: 600, color: "#64748b", minWidth: 56, textAlign: "right" }}>
+                                    VND
+                                </Typography>
                             </Box>
                         </Box>
                     </Box>
@@ -895,10 +912,10 @@ export default function AdminPlatformSettings() {
             setVideoFormatsDraft((prev) => prev.filter((_, i) => i !== index));
         };
 
-        const capacityValue = isImageTab ? media.maxImgSize : media.maxVideoSize;
-        const reportValue = isImageTab ? media.maxReportImg : media.maxReportVideo;
-        const refValue = isImageTab ? media.maxDesignRefImg : media.maxDesignRefVideo;
-        const feedbackValue = isImageTab ? media.maxFeedbackImg : media.maxFeedbackVideo;
+        const capacityValue = isImageTab ? mediaLimitsForm.maxImgSize : mediaLimitsForm.maxVideoSize;
+        const reportValue = isImageTab ? mediaLimitsForm.maxReportImages : mediaLimitsForm.maxReportVideos;
+        const refValue = isImageTab ? mediaLimitsForm.maxReferenceImages : mediaLimitsForm.maxReferenceImages;
+        const feedbackValue = isImageTab ? mediaLimitsForm.maxFeedbackImages : mediaLimitsForm.maxFeedbackVideos;
         const reportUnit = isImageTab ? "ảnh" : "video";
         const summaryItems = isImageTab
             ? [
@@ -918,6 +935,273 @@ export default function AdminPlatformSettings() {
                 <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#2563eb", mb: 1.5 }}>
                     Cấu hình phương tiện
                 </Typography>
+
+                <Box sx={{ mb: 2.5 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 13, color: "#0f172a", mb: 1 }}>
+                        Giới hạn kích thước tệp
+                    </Typography>
+                    <Box
+                        sx={{
+                            display: "flex",
+                            flexWrap: "wrap",
+                            gap: 1.5,
+                            width: "100%",
+                            alignItems: "stretch",
+                        }}
+                    >
+                        <Box
+                            sx={{
+                                flex: "1 1 25%",
+                                minWidth: 200,
+                                border: "1px solid #e2e8f0",
+                                borderRadius: 2,
+                                p: 1.25,
+                                bgcolor: "#f8fafc",
+                                boxSizing: "border-box",
+                            }}
+                        >
+                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                                Dung lượng ảnh tối đa
+                            </Typography>
+                            <TextField
+                                size="small"
+                                fullWidth
+                                type="number"
+                                disabled={mediaDisabled}
+                                value={mediaLimitsForm.maxImgSize}
+                                onChange={(e) => {
+                                    const nextVal = e.target.value;
+                                    setMediaLimitsForm((prev) => {
+                                        const next = { ...prev, maxImgSize: nextVal };
+                                        setMediaLimitsErrors(validateMediaLimits(next));
+                                        return next;
+                                    });
+                                }}
+                                error={Boolean(mediaLimitsErrors.maxImgSize)}
+                                helperText={mediaLimitsErrors.maxImgSize || ""}
+                                InputProps={{
+                                    endAdornment: <InputAdornment position="end">MB</InputAdornment>,
+                                }}
+                            />
+                        </Box>
+
+                        <Box
+                            sx={{
+                                flex: "1 1 25%",
+                                minWidth: 200,
+                                border: "1px solid #e2e8f0",
+                                borderRadius: 2,
+                                p: 1.25,
+                                bgcolor: "#f8fafc",
+                                boxSizing: "border-box",
+                            }}
+                        >
+                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                                Số ảnh tham chiếu tối đa
+                            </Typography>
+                            <TextField
+                                size="small"
+                                fullWidth
+                                type="number"
+                                disabled={mediaDisabled}
+                                value={mediaLimitsForm.maxReferenceImages}
+                                onChange={(e) => {
+                                    const nextVal = e.target.value;
+                                    setMediaLimitsForm((prev) => {
+                                        const next = { ...prev, maxReferenceImages: nextVal };
+                                        setMediaLimitsErrors(validateMediaLimits(next));
+                                        return next;
+                                    });
+                                }}
+                                error={Boolean(mediaLimitsErrors.maxReferenceImages)}
+                                helperText={mediaLimitsErrors.maxReferenceImages || ""}
+                                InputProps={{
+                                    endAdornment: <InputAdornment position="end">ảnh</InputAdornment>,
+                                }}
+                            />
+                        </Box>
+
+                        <Box
+                            sx={{
+                                flex: "1 1 25%",
+                                minWidth: 200,
+                                border: "1px solid #e2e8f0",
+                                borderRadius: 2,
+                                p: 1.25,
+                                bgcolor: "#f8fafc",
+                                boxSizing: "border-box",
+                            }}
+                        >
+                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                                Số ảnh báo cáo tối đa
+                            </Typography>
+                            <TextField
+                                size="small"
+                                fullWidth
+                                type="number"
+                                disabled={mediaDisabled}
+                                value={mediaLimitsForm.maxReportImages}
+                                onChange={(e) => {
+                                    const nextVal = e.target.value;
+                                    setMediaLimitsForm((prev) => {
+                                        const next = { ...prev, maxReportImages: nextVal };
+                                        setMediaLimitsErrors(validateMediaLimits(next));
+                                        return next;
+                                    });
+                                }}
+                                error={Boolean(mediaLimitsErrors.maxReportImages)}
+                                helperText={mediaLimitsErrors.maxReportImages || ""}
+                                InputProps={{
+                                    endAdornment: <InputAdornment position="end">ảnh</InputAdornment>,
+                                }}
+                            />
+                        </Box>
+
+                        <Box
+                            sx={{
+                                flex: "1 1 25%",
+                                minWidth: 200,
+                                border: "1px solid #e2e8f0",
+                                borderRadius: 2,
+                                p: 1.25,
+                                bgcolor: "#f8fafc",
+                                boxSizing: "border-box",
+                            }}
+                        >
+                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                                Số ảnh phản hồi tối đa
+                            </Typography>
+                            <TextField
+                                size="small"
+                                fullWidth
+                                type="number"
+                                disabled={mediaDisabled}
+                                value={mediaLimitsForm.maxFeedbackImages}
+                                onChange={(e) => {
+                                    const nextVal = e.target.value;
+                                    setMediaLimitsForm((prev) => {
+                                        const next = { ...prev, maxFeedbackImages: nextVal };
+                                        setMediaLimitsErrors(validateMediaLimits(next));
+                                        return next;
+                                    });
+                                }}
+                                error={Boolean(mediaLimitsErrors.maxFeedbackImages)}
+                                helperText={mediaLimitsErrors.maxFeedbackImages || ""}
+                                InputProps={{
+                                    endAdornment: <InputAdornment position="end">ảnh</InputAdornment>,
+                                }}
+                            />
+                        </Box>
+
+                        <Box
+                            sx={{
+                                flex: "1 1 200px",
+                                minWidth: 220,
+                                border: "1px solid #e2e8f0",
+                                borderRadius: 2,
+                                p: 1.25,
+                                bgcolor: "#f8fafc",
+                                boxSizing: "border-box",
+                            }}
+                        >
+                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                                Dung lượng video tối đa
+                            </Typography>
+                            <TextField
+                                size="small"
+                                fullWidth
+                                type="number"
+                                disabled={mediaDisabled}
+                                value={mediaLimitsForm.maxVideoSize}
+                                onChange={(e) => {
+                                    const nextVal = e.target.value;
+                                    setMediaLimitsForm((prev) => {
+                                        const next = { ...prev, maxVideoSize: nextVal };
+                                        setMediaLimitsErrors(validateMediaLimits(next));
+                                        return next;
+                                    });
+                                }}
+                                error={Boolean(mediaLimitsErrors.maxVideoSize)}
+                                helperText={mediaLimitsErrors.maxVideoSize || ""}
+                                InputProps={{
+                                    endAdornment: <InputAdornment position="end">MB</InputAdornment>,
+                                }}
+                            />
+                        </Box>
+
+                        <Box
+                            sx={{
+                                flex: "1 1 200px",
+                                minWidth: 220,
+                                border: "1px solid #e2e8f0",
+                                borderRadius: 2,
+                                p: 1.25,
+                                bgcolor: "#f8fafc",
+                                boxSizing: "border-box",
+                            }}
+                        >
+                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                                Số video báo cáo tối đa
+                            </Typography>
+                            <TextField
+                                size="small"
+                                fullWidth
+                                type="number"
+                                disabled={mediaDisabled}
+                                value={mediaLimitsForm.maxReportVideos}
+                                onChange={(e) => {
+                                    const nextVal = e.target.value;
+                                    setMediaLimitsForm((prev) => {
+                                        const next = { ...prev, maxReportVideos: nextVal };
+                                        setMediaLimitsErrors(validateMediaLimits(next));
+                                        return next;
+                                    });
+                                }}
+                                error={Boolean(mediaLimitsErrors.maxReportVideos)}
+                                helperText={mediaLimitsErrors.maxReportVideos || ""}
+                                InputProps={{
+                                    endAdornment: <InputAdornment position="end">video</InputAdornment>,
+                                }}
+                            />
+                        </Box>
+
+                        <Box
+                            sx={{
+                                flex: "1 1 200px",
+                                minWidth: 220,
+                                border: "1px solid #e2e8f0",
+                                borderRadius: 2,
+                                p: 1.25,
+                                bgcolor: "#f8fafc",
+                                boxSizing: "border-box",
+                            }}
+                        >
+                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b", mb: 0.5 }}>
+                                Số video phản hồi tối đa
+                            </Typography>
+                            <TextField
+                                size="small"
+                                fullWidth
+                                type="number"
+                                disabled={mediaDisabled}
+                                value={mediaLimitsForm.maxFeedbackVideos}
+                                onChange={(e) => {
+                                    const nextVal = e.target.value;
+                                    setMediaLimitsForm((prev) => {
+                                        const next = { ...prev, maxFeedbackVideos: nextVal };
+                                        setMediaLimitsErrors(validateMediaLimits(next));
+                                        return next;
+                                    });
+                                }}
+                                error={Boolean(mediaLimitsErrors.maxFeedbackVideos)}
+                                helperText={mediaLimitsErrors.maxFeedbackVideos || ""}
+                                InputProps={{
+                                    endAdornment: <InputAdornment position="end">video</InputAdornment>,
+                                }}
+                            />
+                        </Box>
+                    </Box>
+                </Box>
 
                 <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid #e2e8f0", bgcolor: "#ffffff", mb: 2 }}>
                     <CardContent sx={{ p: 0 }}>
@@ -1033,33 +1317,6 @@ export default function AdminPlatformSettings() {
                                 )}
                             </Box>
 
-                            <Box
-                                sx={{
-                                    mt: 2,
-                                    p: { xs: 1.25, md: 1.5 },
-                                    bgcolor: "#eff6ff",
-                                    border: "1px solid #bfdbfe",
-                                    borderRadius: "12px",
-                                }}
-                            >
-                                <Box
-                                    sx={{
-                                        width: "100%",
-                                        display: "flex",
-                                        alignItems: "baseline",
-                                        justifyContent: "space-between",
-                                        gap: 2,
-                                        flexWrap: "nowrap",
-                                    }}
-                                >
-                                    {summaryItems.map((item) => (
-                                        <Box key={item.label} sx={{ display: "flex", alignItems: "baseline", gap: 1, flex: "1 1 0" }}>
-                                            <Typography sx={{ fontSize: 14, color: "#64748b", fontWeight: 600 }}>{item.label}</Typography>
-                                            <Typography sx={{ fontSize: 14, fontWeight: 700, color: "#0f172a" }}>{item.value}</Typography>
-                                        </Box>
-                                    ))}
-                                </Box>
-                            </Box>
                         </Box>
                     </CardContent>
                 </Card>
