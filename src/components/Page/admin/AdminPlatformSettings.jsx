@@ -37,7 +37,7 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { BarChart } from "@mui/x-charts/BarChart";
-import axiosClient from "../../../configs/APIConfig.jsx";
+import { getSystemConfig, updateSystemConfig } from "../../../services/SystemConfigService.jsx";
 import { enqueueSnackbar } from "notistack";
 
 export default function AdminPlatformSettings() {
@@ -251,7 +251,7 @@ export default function AdminPlatformSettings() {
     const fetchConfig = async () => {
         setLoadingConfig(true);
         try {
-            const res = await axiosClient.get("/system/config");
+            const res = await getSystemConfig();
             const body = res?.data?.body ?? res?.data;
             setConfigBody(body);
             setStatus({ type: "", message: "" });
@@ -505,7 +505,7 @@ export default function AdminPlatformSettings() {
                     maxFeedbackVideo: parseFinite(mediaLimitsForm.maxFeedbackVideos),
                 },
             };
-            await axiosClient.put("/system/config", { body: updatedBody });
+            await updateSystemConfig(updatedBody);
             enqueueSnackbar("Cập nhật cấu hình phương tiện thành công.", { variant: "success" });
             setStatus({ type: "success", message: "Cập nhật thành công." });
             await fetchConfig();
@@ -580,7 +580,7 @@ export default function AdminPlatformSettings() {
 
             const updatedBody = { quota: updatedQuota };
 
-            await axiosClient.put("/system/config", { body: updatedBody });
+            await updateSystemConfig(updatedBody);
             enqueueSnackbar("Cập nhật Cài đặt Hạn mức Tuyển sinh thành công.", { variant: "success" });
             setStatus({ type: "success", message: "Cập nhật thành công." });
             await fetchConfig();
@@ -621,7 +621,7 @@ export default function AdminPlatformSettings() {
                 },
             };
 
-            await axiosClient.put("/system/config", { body: updatedBody });
+            await updateSystemConfig(updatedBody);
             enqueueSnackbar("Cập nhật Cài đặt Doanh nghiệp thành công.", { variant: "success" });
             setStatus({ type: "success", message: "Cập nhật thành công." });
             await fetchConfig();
@@ -663,7 +663,7 @@ export default function AdminPlatformSettings() {
                 },
             };
 
-            await axiosClient.put("/system/config", { body: updatedBody });
+            await updateSystemConfig(updatedBody);
             enqueueSnackbar("Cập nhật Chính sách Đăng ký thành công.", { variant: "success" });
             setStatus({ type: "success", message: "Cập nhật thành công." });
             await fetchConfig();
