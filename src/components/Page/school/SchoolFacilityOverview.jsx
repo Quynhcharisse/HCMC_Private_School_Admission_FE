@@ -1,10 +1,15 @@
-import React, {useEffect, useMemo, useState} from "react";
-import {Box, Button, Card, CardContent, Divider, Skeleton, Typography} from "@mui/material";
+import React, {useCallback, useEffect, useMemo, useState} from "react";
+import {Box, Button, Card, CardContent, Dialog, DialogContent, IconButton, Divider, Skeleton, Typography} from "@mui/material";
 import VisibilityIcon from "@mui/icons-material/Visibility";
+import CloseIcon from "@mui/icons-material/Close";
 import {useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {extractCampusListBody, listCampuses} from "../../../services/CampusService.jsx";
 import {getFacilityTemplate} from "../../../services/SchoolFacilityService.jsx";
+
+function normalizeFacilityCode(raw) {
+  return String(raw || "").trim().toLowerCase();
+}
 
 export default function SchoolFacilityOverview() {
   const navigate = useNavigate();
@@ -13,6 +18,8 @@ export default function SchoolFacilityOverview() {
   const [facilityItems, setFacilityItems] = useState([]);
   const [coverUrl, setCoverUrl] = useState("");
   const [imageItems, setImageItems] = useState([]);
+  const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
+  const [imagePreviewUrl, setImagePreviewUrl] = useState("");
 
   const previewFacilitiesByCategory = useMemo(() => {
     const grouped = {};
@@ -24,10 +31,23 @@ export default function SchoolFacilityOverview() {
     return grouped;
   }, [facilityItems]);
 
+  const usedImageItemsByFacilityCode = useMemo(() => {
+    const map = {};
+    imageItems
+      .filter((i) => i.url && i.isUsage !== false)
+      .forEach((img) => {
+        const key = normalizeFacilityCode(img.facilityCode);
+        if (!key) return;
+        map[key] = map[key] || [];
+        map[key].push(img);
+      });
+    return map;
+  }, [imageItems]);
+
   const usedImageItemsByName = useMemo(() => {
     const map = {};
     imageItems
-      .filter((i) => i.isUsage && i.url)
+      .filter((i) => i.url && i.isUsage !== false)
       .forEach((img) => {
         const key = (img.name || "").trim().toLowerCase();
         if (!key) return;
@@ -36,6 +56,46 @@ export default function SchoolFacilityOverview() {
       });
     return map;
   }, [imageItems]);
+
+  const usedImageItemsByAltName = useMemo(() => {
+    const map = {};
+    imageItems
+      .filter((i) => i.url && i.isUsage !== false)
+      .forEach((img) => {
+        const key = (img.altName || "").trim().toLowerCase();
+        if (!key) return;
+        map[key] = map[key] || [];
+        map[key].push(img);
+      });
+    return map;
+  }, [imageItems]);
+
+  const getMatchedImages = useCallback((facility) => {
+    const imageKey = normalizeFacilityCode(facility?.facilityCode);
+    const nameKey = (facility?.name || "").trim().toLowerCase();
+    return (
+      usedImageItemsByFacilityCode[imageKey] ||
+      usedImageItemsByName[nameKey] ||
+      usedImageItemsByAltName[nameKey] ||
+      []
+    );
+  }, [usedImageItemsByAltName, usedImageItemsByFacilityCode, usedImageItemsByName]);
+
+  const orphanImageItems = useMemo(() => {
+    const matchedUrls = new Set();
+    facilityItems.forEach((facility) => {
+      getMatchedImages(facility).forEach((img) => {
+        if (img?.url) matchedUrls.add(img.url);
+      });
+    });
+    return imageItems.filter((img) => img?.url && img.isUsage !== false && !matchedUrls.has(img.url));
+  }, [facilityItems, getMatchedImages, imageItems]);
+
+  const handleOpenImagePreview = useCallback((url) => {
+    if (!url) return;
+    setImagePreviewUrl(url);
+    setImagePreviewOpen(true);
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -56,7 +116,15 @@ export default function SchoolFacilityOverview() {
         setOverview(body?.overview ?? "");
         setFacilityItems(Array.isArray(body?.itemList) ? body.itemList : []);
         setCoverUrl(body?.imageJsonData?.coverUrl ?? "");
-        setImageItems(Array.isArray(body?.imageJsonData?.itemList) ? body.imageJsonData.itemList : []);
+        setImageItems(
+          Array.isArray(body?.imageJsonData?.itemList)
+            ? body.imageJsonData.itemList.map((img) => ({
+                ...img,
+                isUsage: img?.isUsage ?? true,
+                facilityCode: img?.facilityCode ?? "",
+              }))
+            : []
+        );
       } catch (e) {
         console.error(e);
         enqueueSnackbar("Không thể tải dữ liệu cơ sở vật chất", {variant: "error"});
@@ -128,7 +196,13 @@ export default function SchoolFacilityOverview() {
           ) : (
             <Box sx={{borderRadius: "12px", overflow: "hidden", border: "1px solid rgba(226,232,240,1)"}}>
               {coverUrl ? (
-                <Box component="img" src={coverUrl} alt="Ảnh bìa cơ sở vật chất" sx={{width: "100%", height: 200, objectFit: "cover"}}/>
+                <Box
+                  component="img"
+                  src={coverUrl}
+                  alt="Ảnh bìa cơ sở vật chất"
+                  onClick={() => handleOpenImagePreview(coverUrl)}
+                  sx={{width: "100%", height: 200, objectFit: "cover", cursor: "zoom-in"}}
+                />
               ) : (
                 <Box sx={{width: "100%", height: 180, bgcolor: "rgba(148,163,184,0.12)", display: "flex", alignItems: "center", justifyContent: "center"}}>
                   <Typography sx={{fontWeight: 900, color: "#94a3b8"}}>Chưa có ảnh bìa</Typography>
@@ -162,8 +236,7 @@ export default function SchoolFacilityOverview() {
                         </Typography>
                         <Box sx={{mt: 0.5}}>
                           {items.map((it, idx) => {
-                            const imageKey = (it.name || "").trim().toLowerCase();
-                            const matchedImages = usedImageItemsByName[imageKey] || [];
+                            const matchedImages = getMatchedImages(it);
 
                             return (
                               <Box key={`${it.facilityCode || it.name || "facility"}-${idx}`} sx={{py: 0.75, borderBottom: "1px solid rgba(241,245,249,1)"}}>
@@ -183,7 +256,8 @@ export default function SchoolFacilityOverview() {
                                         component="img"
                                         src={img.url}
                                         alt={img.altName || img.name || "Cơ sở vật chất"}
-                                        sx={{width: "100%", height: 130, objectFit: "cover", borderRadius: "10px", border: "1px solid rgba(226,232,240,1)"}}
+                                        onClick={() => handleOpenImagePreview(img.url)}
+                                        sx={{width: "100%", height: 130, objectFit: "cover", borderRadius: "10px", border: "1px solid rgba(226,232,240,1)", cursor: "zoom-in"}}
                                       />
                                     ))}
                                   </Box>
@@ -196,11 +270,54 @@ export default function SchoolFacilityOverview() {
                     ))}
                   </Box>
                 )}
+
+                {orphanImageItems.length > 0 && (
+                  <>
+                    <Divider sx={{my: 2}}/>
+                    <Typography variant="body1" sx={{fontWeight: 900, color: "#0f172a", mb: 1}}>
+                      Ảnh cơ sở vật chất (chưa gán mục)
+                    </Typography>
+                    <Box sx={{display: "grid", gridTemplateColumns: {xs: "repeat(2, 1fr)", sm: "repeat(3, 1fr)"}, gap: 1.25}}>
+                      {orphanImageItems.map((img) => (
+                        <Box
+                          key={`orphan-${img.url}`}
+                          component="img"
+                          src={img.url}
+                          alt={img.altName || img.name || "Cơ sở vật chất"}
+                          onClick={() => handleOpenImagePreview(img.url)}
+                          sx={{width: "100%", height: 130, objectFit: "cover", borderRadius: "10px", border: "1px solid rgba(226,232,240,1)", cursor: "zoom-in"}}
+                        />
+                      ))}
+                    </Box>
+                  </>
+                )}
               </Box>
             </Box>
           )}
         </CardContent>
       </Card>
+
+      <Dialog
+        open={imagePreviewOpen}
+        onClose={() => setImagePreviewOpen(false)}
+        maxWidth="lg"
+        fullWidth
+      >
+        <DialogContent sx={{p: 1.5, position: "relative", bgcolor: "#0f172a"}}>
+          <IconButton
+            onClick={() => setImagePreviewOpen(false)}
+            sx={{position: "absolute", top: 8, right: 8, color: "white", bgcolor: "rgba(0,0,0,0.4)", "&:hover": {bgcolor: "rgba(0,0,0,0.55)"}}}
+          >
+            <CloseIcon fontSize="small"/>
+          </IconButton>
+          <Box
+            component="img"
+            src={imagePreviewUrl}
+            alt="Zoom ảnh cơ sở vật chất"
+            sx={{width: "100%", maxHeight: "80vh", objectFit: "contain", borderRadius: "8px"}}
+          />
+        </DialogContent>
+      </Dialog>
     </Box>
   );
 }
