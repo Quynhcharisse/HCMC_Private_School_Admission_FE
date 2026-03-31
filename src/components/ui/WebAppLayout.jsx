@@ -1,10 +1,11 @@
-import React, {useEffect} from "react";
+import React, {useEffect, useRef} from "react";
 import {Box} from "@mui/material";
 import {Outlet, useLocation, useNavigate} from "react-router-dom";
 import Header, {ScrollTopButton} from "../partials/Header.jsx";
 import Footer from "../partials/Footer.jsx";
 import AuthHeader from "../partials/AuthHeader.jsx";
 import Chatbot from "./Chatbot.jsx";
+import {getRoleDashboardRoute, isRouteAllowedForRole} from "../../utils/roleRouting";
 
 export default function WebAppLayout() {
     const location = useLocation();
@@ -14,6 +15,23 @@ export default function WebAppLayout() {
     const isParentFirstLoginRoute = location.pathname === '/parent-first-login';
     const isParentProfileRoute = location.pathname === '/parent/profile';
     const toBoolean = (value) => value === true || value === 'true' || value === 1 || value === '1';
+    const hasHandledInitialRoute = useRef(false);
+
+    const isPublicRoute = (path) => {
+        return (
+            path === '/' ||
+            path === '/home' ||
+            path === '/search-schools' ||
+            path === '/about' ||
+            path === '/policy/privacy' ||
+            path === '/tos' ||
+            path === '/faq' ||
+            path === '/login' ||
+            path === '/register' ||
+            path === '/saved-schools' ||
+            path === '/compare-schools'
+        );
+    };
 
     useEffect(() => {
         if (isAuthPage) {
@@ -34,6 +52,90 @@ export default function WebAppLayout() {
             document.body.style.width = '';
         };
     }, [isAuthPage]);
+
+    useEffect(() => {
+        // Lưu lastRoute mỗi khi điều hướng (trừ trang auth)
+        const currentPath = location.pathname + location.search;
+        if (!isAuthPage) {
+            localStorage.setItem('lastRoute', currentPath);
+        }
+    }, [location.pathname, location.search, isAuthPage]);
+
+    useEffect(() => {
+        // Xử lý flow khởi động lại app với user + lastRoute
+        if (hasHandledInitialRoute.current) {
+            return;
+        }
+        hasHandledInitialRoute.current = true;
+
+        const storedUser = localStorage.getItem('user');
+
+        // Nếu chưa đăng nhập: cho phép các route public, còn lại đưa về login
+        if (!storedUser) {
+            const currentPath = location.pathname;
+            if (!isPublicRoute(currentPath) && currentPath !== '/parent-first-login') {
+                navigate('/login', {replace: true});
+            }
+            return;
+        }
+
+        let parsed = null;
+        try {
+            parsed = JSON.parse(storedUser);
+        } catch {
+            // Dữ liệu hỏng thì clear và đưa về login
+            localStorage.removeItem('user');
+            navigate('/login', {replace: true});
+            return;
+        }
+
+        const role = parsed?.role;
+        const lastRoute = localStorage.getItem('lastRoute');
+        const currentPath = location.pathname;
+
+        // Nếu có lastRoute và hợp lệ với role → vào lastRoute
+        if (lastRoute && isRouteAllowedForRole(lastRoute, role)) {
+            if (currentPath !== lastRoute) {
+                navigate(lastRoute, {replace: true});
+            }
+            return;
+        }
+
+        // Nếu lastRoute không hợp lệ hoặc không có → về dashboard theo role
+        const dashboardRoute = getRoleDashboardRoute(role);
+        if (currentPath !== dashboardRoute) {
+            navigate(dashboardRoute, {replace: true});
+        }
+    }, [location.pathname, navigate]);
+
+    useEffect(() => {
+        // Ngăn user đã đăng nhập truy cập các trang không thuộc role của mình
+        const storedUser = localStorage.getItem('user');
+        if (!storedUser) {
+            return;
+        }
+
+        let parsed = null;
+        try {
+            parsed = JSON.parse(storedUser);
+        } catch {
+            return;
+        }
+
+        const role = parsed?.role;
+        const currentPath = location.pathname;
+
+        if (!role || isAuthPage || currentPath === '/parent-first-login') {
+            return;
+        }
+
+        if (!isRouteAllowedForRole(currentPath, role)) {
+            const dashboardRoute = getRoleDashboardRoute(role);
+            if (currentPath !== dashboardRoute) {
+                navigate(dashboardRoute, {replace: true});
+            }
+        }
+    }, [location.pathname, isAuthPage, navigate]);
 
     useEffect(() => {
         const storedUser = localStorage.getItem('user');

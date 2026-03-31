@@ -2,6 +2,7 @@ import {useEffect, useState} from "react";
 import {refreshToken} from "../services/AuthService.jsx";
 import {getAccess, signout} from "../services/AccountService.jsx";
 import {useLoading} from "../contexts/LoadingContext.jsx";
+import {getRoleDashboardRoute} from "../utils/roleRouting";
 
 async function GetAccessData() {
     try {
@@ -89,7 +90,8 @@ export default function ProtectedRoute({children, allowRoles = []}) {
                         return;
                     } else {
                         console.warn(`User has role ${data.role} but route requires:`, allowRoles);
-                        window.location.href = "/home";
+                        const redirect = getRoleDashboardRoute(data.role);
+                        window.location.href = redirect;
                         return;
                     }
                 }
@@ -108,7 +110,8 @@ export default function ProtectedRoute({children, allowRoles = []}) {
                                 return;
                             } else {
                                 console.warn(`User has role ${retryData.role} but route requires:`, allowRoles);
-                                window.location.href = "/home";
+                                const redirect = getRoleDashboardRoute(retryData.role);
+                                window.location.href = redirect;
                                 return;
                             }
                         }
