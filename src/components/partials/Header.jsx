@@ -23,7 +23,6 @@ import {
     Menu,
     MenuItem,
     Paper,
-    Popover,
     Table,
     TableBody,
     TableCell,
@@ -46,6 +45,7 @@ import RemoveIcon from "@mui/icons-material/Remove";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import Fade from '@mui/material/Fade';
+import Zoom from '@mui/material/Zoom';
 import {enqueueSnackbar} from "notistack";
 import {signout, getProfile} from "../../services/AccountService.jsx";
 import {getParentConversations} from "../../services/ConversationService.jsx";
@@ -600,7 +600,7 @@ function MainHeader() {
     const [chatWindowOpen, setChatWindowOpen] = useState(false);
     const [chatWindowMinimized, setChatWindowMinimized] = useState(false);
     const [selectedConversationStudent, setSelectedConversationStudent] = useState(null);
-    const [studentInfoAnchorEl, setStudentInfoAnchorEl] = useState(null);
+    const [studentInfoOpen, setStudentInfoOpen] = useState(false);
     const [headerScrolled, setHeaderScrolled] = useState(false);
     const [studentSelectDialogOpen, setStudentSelectDialogOpen] = useState(false);
     const [studentSelectLoading, setStudentSelectLoading] = useState(false);
@@ -693,11 +693,24 @@ function MainHeader() {
         () => getConversationDisplayTitle(selectedConversation),
         [selectedConversation]
     );
+    const selectedCounsellorEmail = useMemo(
+        () =>
+            (
+                selectedConversation?.counsellorEmail ||
+                selectedConversation?.participantEmail ||
+                selectedConversation?.schoolEmail ||
+                selectedConversation?.otherUser ||
+                ""
+            )
+                .toString()
+                .trim(),
+        [selectedConversation]
+    );
     const peerChatInitial = useMemo(() => {
         const ch = (selectedConversationTitle || '').trim().charAt(0);
         return ch ? ch.toUpperCase() : 'T';
     }, [selectedConversationTitle]);
-    const isStudentInfoOpen = Boolean(studentInfoAnchorEl);
+    const isStudentInfoOpen = studentInfoOpen;
     const unreadMessagesCount = filteredConversationItems.reduce((sum, item) => {
         const unread = Number(item?.unreadCount ?? item?.unreadMessages ?? 0);
         return Number.isFinite(unread) ? sum + unread : sum;
@@ -1039,7 +1052,7 @@ function MainHeader() {
     };
 
     useEffect(() => {
-        setStudentInfoAnchorEl(null);
+        setStudentInfoOpen(false);
     }, [selectedConversation?.conversationId, selectedConversation?.id]);
 
     useEffect(() => {
@@ -1150,23 +1163,24 @@ function MainHeader() {
         setMessageItems([]);
         setMessageError('');
         setChatInput('');
-        setStudentInfoAnchorEl(null);
+        setStudentInfoOpen(false);
     };
 
     const handleMinimizeChatWindow = () => {
         setChatWindowMinimized(true);
+        setStudentInfoOpen(false);
     };
 
     const handleRestoreChatWindow = () => {
         setChatWindowMinimized(false);
     };
 
-    const handleOpenStudentInfo = (event) => {
-        setStudentInfoAnchorEl(event.currentTarget);
+    const handleToggleStudentInfo = () => {
+        setStudentInfoOpen((open) => !open);
     };
 
     const handleCloseStudentInfo = () => {
-        setStudentInfoAnchorEl(null);
+        setStudentInfoOpen(false);
     };
 
     const handleCloseStudentSelectDialog = () => {
@@ -1786,7 +1800,7 @@ function MainHeader() {
                                             height: 540,
                                             borderRadius: 3,
                                             overflow: 'hidden',
-                                            zIndex: 1500,
+                                            zIndex: isStudentInfoOpen ? 1550 : 1500,
                                             display: 'flex',
                                             flexDirection: 'column',
                                             bgcolor: '#f8fafc',
@@ -1797,7 +1811,7 @@ function MainHeader() {
                                         <Box
                                             sx={{
                                                 px: 1.5,
-                                                py: 1.15,
+                                                py: 0.85,
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'space-between',
@@ -1819,14 +1833,97 @@ function MainHeader() {
                                                 >
                                                     {peerChatInitial}
                                                 </Avatar>
-                                                <Box sx={{minWidth: 0}}>
-                                                    <Typography sx={{fontSize: 14, fontWeight: 800, color: '#fff', lineHeight: 1.25}} noWrap>
+                                                <Box
+                                                    sx={{
+                                                        minWidth: 0,
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        alignItems: 'flex-start',
+                                                        justifyContent: 'center',
+                                                        gap: 0.4
+                                                    }}
+                                                >
+                                                    <Typography
+                                                        sx={{fontSize: 14, fontWeight: 800, color: '#fff', lineHeight: 1.2, m: 0, display: 'block'}}
+                                                        noWrap
+                                                    >
                                                         {selectedConversationTitle}
                                                     </Typography>
-                                                    <Box sx={{display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.15}}>
-                                                        <Typography sx={{fontSize: 11, fontWeight: 500, color: 'rgba(255,255,255,0.78)'}}>
-                                                            {selectedStudentName}
+                                                    {!!selectedCounsellorEmail && (
+                                                        <Typography
+                                                            sx={{
+                                                                fontSize: 10.5,
+                                                                color: 'rgba(255,255,255,0.85)',
+                                                                maxWidth: 220,
+                                                                lineHeight: 1.2,
+                                                                m: 0,
+                                                                display: 'block'
+                                                            }}
+                                                            noWrap
+                                                        >
+                                                            Tư vấn viên: {selectedCounsellorEmail}
                                                         </Typography>
+                                                    )}
+                                                    <Box
+                                                        sx={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: 0.5,
+                                                            maxWidth: '100%',
+                                                            minHeight: 20
+                                                        }}
+                                                    >
+                                                        <Typography
+                                                            component="span"
+                                                            sx={{
+                                                                fontSize: 10.5,
+                                                                fontWeight: 600,
+                                                                color: 'rgba(255,255,255,0.9)',
+                                                                lineHeight: 1.2,
+                                                                display: 'inline-block',
+                                                                m: 0
+                                                            }}
+                                                            noWrap
+                                                        >
+                                                            Học sinh: {selectedStudentName}
+                                                        </Typography>
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleToggleStudentInfo();
+                                                            }}
+                                                            aria-label="Thông tin học sinh"
+                                                            aria-expanded={studentInfoOpen}
+                                                            aria-pressed={studentInfoOpen}
+                                                            sx={{
+                                                                flexShrink: 0,
+                                                                p: 0,
+                                                                width: 24,
+                                                                height: 24,
+                                                                minWidth: 24,
+                                                                minHeight: 24,
+                                                                display: 'inline-flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                color: 'rgba(255,255,255,0.95)',
+                                                                bgcolor: 'transparent',
+                                                                border: 'none',
+                                                                borderRadius: 0,
+                                                                transition: 'transform 0.22s ease, opacity 0.22s ease',
+                                                                opacity: studentInfoOpen ? 1 : 0.92,
+                                                                transform: studentInfoOpen ? 'scale(1.08)' : 'scale(1)',
+                                                                '&:hover': {bgcolor: 'rgba(255,255,255,0.12)'}
+                                                            }}
+                                                        >
+                                                            <InfoOutlinedIcon
+                                                                sx={{
+                                                                    fontSize: 14,
+                                                                    transition: 'transform 0.22s ease',
+                                                                    transform: studentInfoOpen ? 'rotate(12deg)' : 'none'
+                                                                }}
+                                                            />
+                                                        </IconButton>
                                                     </Box>
                                                 </Box>
                                             </Box>
@@ -1986,22 +2083,6 @@ function MainHeader() {
                                             }}
                                         >
                                             <Box sx={{display: 'flex', alignItems: 'center', gap: 1}}>
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={handleOpenStudentInfo}
-                                                    aria-label="Thông tin học sinh"
-                                                    sx={{
-                                                        width: 30,
-                                                        height: 30,
-                                                        color: selectedStudentTheme.accent,
-                                                        bgcolor: 'rgba(255,255,255,0.92)',
-                                                        border: `1px solid ${selectedStudentTheme.border}`,
-                                                        flexShrink: 0,
-                                                        '&:hover': {bgcolor: '#ffffff'}
-                                                    }}
-                                                >
-                                                    <InfoOutlinedIcon sx={{fontSize: 18}} />
-                                                </IconButton>
                                                 <Box
                                                     sx={{
                                                         display: 'flex',
@@ -2052,7 +2133,7 @@ function MainHeader() {
                                             position: 'fixed',
                                             right: {xs: 24, sm: 24},
                                             bottom: 98,
-                                            zIndex: 1500
+                                            zIndex: isStudentInfoOpen ? 1550 : 1500
                                         }}
                                     >
                                         <Box
@@ -2115,85 +2196,101 @@ function MainHeader() {
                                         </Box>
                                     </Box>
                                 )}
-                                <Popover
-                                    open={isStudentInfoOpen}
-                                    anchorEl={studentInfoAnchorEl}
-                                    onClose={handleCloseStudentInfo}
-                                    anchorOrigin={{vertical: 'bottom', horizontal: 'left'}}
-                                    transformOrigin={{vertical: 'top', horizontal: 'right'}}
-                                    marginThreshold={8}
-                                    slotProps={{
-                                        root: {sx: {zIndex: 1700}},
-                                        paper: {
-                                            sx: {
-                                                ml: '-20px',
-                                                maxWidth: {xs: 'min(92vw, 520px)', sm: 520},
-                                                width: {xs: 'min(92vw, 520px)', sm: 520},
-                                                height: 540,
-                                                maxHeight: 540,
-                                                display: 'flex',
-                                                flexDirection: 'column',
-                                                position: 'relative',
-                                                borderRadius: 2,
-                                                border: `1px solid ${selectedStudentTheme.border}`,
-                                                boxShadow: '0 22px 48px rgba(30,41,59,0.2)',
-                                                background: 'linear-gradient(180deg, #f8fbff 0%, #f8fafc 38%, #ffffff 100%)',
-                                                p: 1.2,
-                                                overflow: 'hidden'
-                                            }
-                                        }
-                                    }}
-                                >
+                                <Fade in={studentInfoOpen} timeout={220} unmountOnExit>
                                     <Box
-                                        component="svg"
-                                        viewBox="0 0 22 28"
+                                        role="presentation"
                                         aria-hidden
                                         sx={{
-                                            position: 'absolute',
-                                            left: '100%',
-                                            bottom: 6,
-                                            top: 'auto',
-                                            marginLeft: '-2px',
-                                            width: 22,
-                                            height: 28,
-                                            zIndex: 2,
-                                            pointerEvents: 'none',
-                                            overflow: 'visible',
-                                            display: 'block',
+                                            position: 'fixed',
+                                            inset: 0,
+                                            zIndex: 1490,
+                                            backgroundColor: 'rgba(15, 23, 42, 0.52)',
+                                            pointerEvents: 'auto'
                                         }}
-                                    >
-                                        <path
-                                            d="M 0 4 L 0 24 L 20 14 Z"
-                                            fill="#ffffff"
-                                        />
-                                    </Box>
+                                    />
+                                </Fade>
+                                <Zoom
+                                    in={studentInfoOpen}
+                                    timeout={260}
+                                    unmountOnExit
+                                    style={{transformOrigin: 'bottom right'}}
+                                >
                                     <Box
-                                        onWheel={(event) => {
-                                            event.stopPropagation();
-                                        }}
+                                        role="dialog"
+                                        aria-modal="true"
+                                        aria-labelledby="student-info-dialog-title"
+                                        onClick={(e) => e.stopPropagation()}
                                         sx={{
-                                            position: 'relative',
-                                            zIndex: 1,
-                                            flex: 1,
-                                            minHeight: 0,
+                                            pointerEvents: 'auto',
+                                            position: 'fixed',
+                                            right: {xs: 16, sm: 'calc(100px + 380px + 12px)'},
+                                            bottom: 16,
+                                            left: {xs: 16, sm: 'auto'},
+                                            width: {xs: 'min(92vw, 520px)', sm: 520},
+                                            maxWidth: '100%',
+                                            height: {xs: 'min(85vh, 540px)', sm: 540},
+                                            maxHeight: '85vh',
+                                            zIndex: 1600,
                                             display: 'flex',
                                             flexDirection: 'column',
-                                            overflowY: 'auto',
-                                            overflowX: 'hidden',
-                                            overscrollBehavior: 'contain',
-                                            WebkitOverflowScrolling: 'touch',
-                                            scrollbarGutter: 'stable',
-                                            maxHeight: 516,
+                                            outline: 'none',
+                                            borderRadius: 2,
+                                            border: `1px solid ${selectedStudentTheme.border}`,
+                                            boxShadow: '0 22px 48px rgba(30,41,59,0.28)',
+                                            background: 'linear-gradient(180deg, #f8fbff 0%, #f8fafc 38%, #ffffff 100%)',
+                                            overflow: 'hidden'
                                         }}
                                     >
-                                        <ParentStudentInfoPanel
-                                            studentName={selectedStudentName}
-                                            compactInfo={selectedStudentCompactInfo}
-                                            gradeTable={selectedStudentGradeTable}
-                                            personalityInsights={selectedStudentPersonalityInsights}
-                                        />
+                                        <Box
+                                            sx={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'space-between',
+                                                px: 1.5,
+                                                py: 1,
+                                                borderBottom: '1px solid rgba(148,163,184,0.35)',
+                                                bgcolor: 'rgba(255,255,255,0.92)',
+                                                flexShrink: 0
+                                            }}
+                                        >
+                                            <Typography id="student-info-dialog-title" sx={{fontWeight: 800, fontSize: 16, color: '#0f172a'}}>
+                                                Thông tin học sinh
+                                            </Typography>
+                                            <IconButton
+                                                size="small"
+                                                onClick={handleCloseStudentInfo}
+                                                aria-label="Đóng thông tin học sinh"
+                                                sx={{color: '#64748b'}}
+                                            >
+                                                <CloseIcon />
+                                            </IconButton>
+                                        </Box>
+                                        <Box
+                                            onWheel={(event) => {
+                                                event.stopPropagation();
+                                            }}
+                                            sx={{
+                                                flex: 1,
+                                                minHeight: 0,
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                overflowY: 'auto',
+                                                overflowX: 'hidden',
+                                                overscrollBehavior: 'contain',
+                                                WebkitOverflowScrolling: 'touch',
+                                                scrollbarGutter: 'stable',
+                                                p: 1.2
+                                            }}
+                                        >
+                                            <ParentStudentInfoPanel
+                                                studentName={selectedStudentName}
+                                                compactInfo={selectedStudentCompactInfo}
+                                                gradeTable={selectedStudentGradeTable}
+                                                personalityInsights={selectedStudentPersonalityInsights}
+                                            />
+                                        </Box>
                                     </Box>
-                                </Popover>
+                                </Zoom>
                                 <Box
                                     onClick={handleUserMenuClick}
                                     sx={{
