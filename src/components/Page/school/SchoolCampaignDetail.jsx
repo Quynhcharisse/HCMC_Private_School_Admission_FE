@@ -246,9 +246,13 @@ export default function SchoolCampaignDetail() {
         badgeColor: "#64748b",
     };
 
-    const formLocked = status !== "DRAFT" || !isPrimaryBranch;
+    const campaignYearNum = Number(campaign?.year);
+    const isPastYearCampaign =
+        Number.isFinite(campaignYearNum) && campaignYearNum > 0 && campaignYearNum < CURRENT_YEAR;
+
+    const formLocked = status !== "DRAFT" || !isPrimaryBranch || isPastYearCampaign;
     const readOnlyTerminal = status === "CLOSED" || status === "EXPIRED";
-    const canMutateOfferings = status === "OPEN" && !readOnlyTerminal;
+    const canMutateOfferings = status === "OPEN" && !readOnlyTerminal && !isPastYearCampaign;
     const isDraft = status === "DRAFT";
     const isCancelled = status === "CANCELLED";
     const today = startOfLocalToday();
@@ -355,7 +359,7 @@ export default function SchoolCampaignDetail() {
     const templateId = campaign?.admissionCampaignTemplateId ?? campaign?.id;
 
     const runPublish = async () => {
-        if (!templateId) return;
+        if (!templateId || isPastYearCampaign) return;
         setSubmitLoading(true);
         try {
             const res = await updateCampaignTemplateStatus(templateId);
@@ -393,7 +397,7 @@ export default function SchoolCampaignDetail() {
     };
 
     const runCancelCampaign = async () => {
-        if (!templateId) return;
+        if (!templateId || isPastYearCampaign) return;
         const reason = cancelReason.trim();
         if (!reason) {
             setCancelReasonError("Vui lòng nhập lý do hủy");
@@ -435,7 +439,7 @@ export default function SchoolCampaignDetail() {
     };
 
     const runCloneCampaign = async () => {
-        if (!templateId) return;
+        if (!templateId || isPastYearCampaign) return;
         setSubmitLoading(true);
         try {
             const res = await cloneCampaignTemplate(templateId);
@@ -470,7 +474,7 @@ export default function SchoolCampaignDetail() {
     };
 
     const runSaveTemplate = async () => {
-        if (!validateForm() || !templateId) return;
+        if (!validateForm() || !templateId || isPastYearCampaign) return;
         setSubmitLoading(true);
         try {
             const res = await updateCampaignTemplate({
@@ -699,7 +703,7 @@ export default function SchoolCampaignDetail() {
                     </Stack>
                     <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
                         <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-                            {isPrimaryBranch && isDraft && (
+                            {isPrimaryBranch && isDraft && !isPastYearCampaign && (
                                 <>
                                     <Button
                                         variant="contained"
@@ -743,7 +747,7 @@ export default function SchoolCampaignDetail() {
                                     </Tooltip>
                                 </>
                             )}
-                            {isPrimaryBranch && status === "OPEN" && (
+                            {isPrimaryBranch && status === "OPEN" && !isPastYearCampaign && (
                                 <Button
                                     variant="outlined"
                                     onClick={() => {
@@ -758,7 +762,7 @@ export default function SchoolCampaignDetail() {
                                     Hủy chiến dịch
                                 </Button>
                             )}
-                            {isPrimaryBranch && isCancelled && (
+                            {isPrimaryBranch && isCancelled && !isPastYearCampaign && (
                                 <Button
                                     variant="outlined"
                                     onClick={() => setConfirmCloneOpen(true)}
@@ -788,6 +792,11 @@ export default function SchoolCampaignDetail() {
                     {readOnlyTerminal && (
                         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2 }}>
                             Chiến dịch đã kết thúc — chỉ xem.
+                        </Typography>
+                    )}
+                    {isPastYearCampaign && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2 }}>
+                            Năm học này đã qua — chỉ xem, không chỉnh sửa chiến dịch hay chỉ tiêu.
                         </Typography>
                     )}
                     {isCancelled && (
