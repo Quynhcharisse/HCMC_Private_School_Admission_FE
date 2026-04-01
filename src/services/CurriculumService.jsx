@@ -14,8 +14,7 @@ export const getCurriculumList = async (page = 0, pageSize = 10) => {
 
 /**
  * POST /api/v1/school/curriculum
- * Create (curriculumId null) or Update/Evolve (send curriculumId).
- * BE: Create → draft or active by publishNow; Update draft → overwrite; Update active → new version, old archived.
+ * Create (curriculumId absent) or Update draft (send curriculumId).
  * @param {Object} payload
  * @param {number|null} [payload.curriculumId] - null = create, set = update/evolve
  * @param {string} payload.subTypeName
@@ -23,7 +22,6 @@ export const getCurriculumList = async (page = 0, pageSize = 10) => {
  * @param {string} payload.curriculumType
  * @param {string} payload.methodLearning
  * @param {number} payload.enrollmentYear
- * @param {boolean} payload.publishNow
  * @param {Array<{name:string, description:string, isMandatory:boolean}>} payload.subjectOptions
  */
 export const saveCurriculum = async ({
@@ -33,7 +31,6 @@ export const saveCurriculum = async ({
     curriculumType,
     methodLearning,
     enrollmentYear,
-    publishNow,
     subjectOptions,
 }) => {
     const body = {
@@ -42,7 +39,6 @@ export const saveCurriculum = async ({
         curriculumType,
         methodLearning,
         enrollmentYear,
-        publishNow: !!publishNow,
         subjectOptions: subjectOptions || [],
     };
     // BE: curriculumId = 0 (hoặc không truyền) => tạo mới DRAFT
@@ -60,12 +56,14 @@ export const saveCurriculum = async ({
 
 /**
  * PATCH /api/v1/school/{id}/activate/curriculum
- * Activate (publish) a curriculum by its curriculumId.
+ * Perform curriculum status action by curriculumId.
  *
  * @param {number|string} id
+ * @param {"PUBLISH"|"REVISE"} action
  */
-export const activateCurriculum = async (id) => {
+export const activateCurriculum = async (id, action) => {
     const response = await axiosClient.patch(`/school/${id}/activate/curriculum`, {}, {
+        params: { action },
         headers: {
             "X-Device-Type": "web",
         },
