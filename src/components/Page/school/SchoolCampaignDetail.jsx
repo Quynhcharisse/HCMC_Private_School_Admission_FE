@@ -10,6 +10,7 @@ import {
     LinearProgress,
     Stack,
     TextField,
+    Tooltip,
     Typography,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
@@ -19,6 +20,8 @@ import { enqueueSnackbar } from "notistack";
 import { useSchool } from "../../../contexts/SchoolContext.jsx";
 import {
     getCampaignTemplatesByYear,
+    cancelCampaignTemplate,
+    cloneCampaignTemplate,
     updateCampaignTemplate,
     updateCampaignTemplateStatus,
 } from "../../../services/CampaignService.jsx";
@@ -27,8 +30,10 @@ import CampaignOfferingsSection from "./CampaignOfferingsSection.jsx";
 const HEADER_ACCENT = "#0D64DE";
 
 const STATUS_UI = {
+    DRAFT: { label: "Bản nháp", badgeBg: "rgba(100, 116, 139, 0.14)", badgeColor: "#475569" },
     OPEN: { label: "Đang mở", badgeBg: "rgba(34, 197, 94, 0.12)", badgeColor: "#16a34a" },
     PAUSED: { label: "Tạm dừng", badgeBg: "rgba(250, 204, 21, 0.2)", badgeColor: "#a16207" },
+    CANCELLED: { label: "Đã hủy", badgeBg: "rgba(248, 113, 113, 0.16)", badgeColor: "#b91c1c" },
     CLOSED: { label: "Đã đóng", badgeBg: "rgba(148, 163, 184, 0.25)", badgeColor: "#64748b" },
     EXPIRED: { label: "Hết hạn", badgeBg: "rgba(248, 113, 113, 0.15)", badgeColor: "#b91c1c" },
 };
@@ -36,10 +41,19 @@ const STATUS_UI = {
 const CURRENT_YEAR = new Date().getFullYear();
 const SCAN_YEARS = [CURRENT_YEAR + 1, CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2, CURRENT_YEAR - 3];
 
+function normalizeCampaignStatus(rawStatus) {
+    const s = String(rawStatus || "").trim().toUpperCase();
+    if (!s) return "DRAFT";
+    if (s === "OPEN" || s === "OPEN_ADMISSION_CAMPAIGN") return "OPEN";
+    if (s === "CANCELLED" || s === "CANCELLED_ADMISSION_CAMPAIGN") return "CANCELLED";
+    if (s === "DRAFT" || s === "DRAFT_ADMISSION_CAMPAIGN") return "DRAFT";
+    return s;
+}
+
 function mapTemplate(row) {
     if (!row) return null;
     const id = row.admissionCampaignTemplateId ?? row.id;
-    const status = row.status ? String(row.status).toUpperCase() : "OPEN";
+    const status = normalizeCampaignStatus(row.status);
     return {
         ...row,
         id,
@@ -52,6 +66,29 @@ function formatDate(dateStr) {
     if (!dateStr) return "—";
     const d = new Date(dateStr);
     return d.toLocaleDateString("vi-VN");
+}
+
+function parseLocalDate(iso) {
+    const t = String(iso ?? "").trim();
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+    if (!m) return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const da = Number(m[3]);
+    const d = new Date(y, mo - 1, da);
+    if (d.getFullYear() !== y || d.getMonth() !== mo - 1 || d.getDate() !== da) return null;
+    return d;
+}
+
+function startOfLocalToday() {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+}
+
+function addLocalDays(date, delta) {
+    const d = new Date(date.getTime());
+    d.setDate(d.getDate() + delta);
+    return d;
 }
 
 function getTimelineProgress(startDate, endDate) {
@@ -67,16 +104,62 @@ function getTimelineProgress(startDate, endDate) {
 }
 
 const CAMPAIGN_ERROR_VI = {
+    "No school campus account found": "Không tìm thấy tài khoản cơ sở thuộc trường",
     "Request is required": "Yêu cầu không được để trống",
     "Name is required": "Tên chiến dịch là bắt buộc",
+    "Name is too long. Maximum length is 100 characters": "Tên chiến dịch quá dài. Tối đa 100 ký tự",
+    "Description is required": "Mô tả là bắt buộc",
+    "Year is required": "Năm học là bắt buộc",
+    "Cannot create a campaign for a past academic year": "Không thể tạo chiến dịch cho năm học đã qua",
+    "Start date are required": "Ngày bắt đầu là bắt buộc",
+    "End date are required": "Ngày kết thúc là bắt buộc",
     "Start date and end date are required": "Ngày bắt đầu và ngày kết thúc là bắt buộc",
-    "End date must be after start date": "Ngày kết thúc phải sau ngày bắt đầu",
+    "Start date cannot be in the past":
+        "Ngày bắt đầu không được ở quá khứ (cho phép lùi tối đa 1 ngày so với hôm nay)",
+    "End date must be in the future": "Ngày kết thúc phải từ hôm nay trở đi (không được ở quá khứ)",
+    "End date must be after start date":
+        "Ngày kết thúc phải sau ngày bắt đầu (chiến dịch phải kéo dài ít nhất hơn 1 ngày)",
+    Forbidden: "Bạn không có quyền thực hiện hành động này",
+    "Campaign not found": "Dữ liệu không tồn tại hoặc đã bị xóa",
+    "Campaign is not in DRAFT status": "Chiến dịch này đã được công bố hoặc đã đóng",
+    "Campaign has expired": "Chiến dịch đã hết hạn, vui lòng cập nhật ngày kết thúc trước khi công bố",
+    "Campaign already cancelled": "Chiến dịch này đã hủy trước đó",
 };
 
 function getCampaignErrorMessage(backendMessage, fallback) {
     if (!backendMessage) return fallback;
     const trimmed = String(backendMessage).trim();
-    return CAMPAIGN_ERROR_VI[trimmed] ?? trimmed ?? fallback;
+    if (CAMPAIGN_ERROR_VI[trimmed]) return CAMPAIGN_ERROR_VI[trimmed];
+
+    const earlyBird =
+        /^Start date is too early\. Early bird for (\d+) should start from October (\d+)$/.exec(trimmed);
+    if (earlyBird) {
+        const [, y, octYear] = earlyBird;
+        return `Ngày bắt đầu quá sớm. Chiến dịch năm ${y} chỉ được bắt đầu sớm nhất từ 01/10/${octYear}.`;
+    }
+
+    const endInvalid =
+        /^End date is invalid\. A campaign for (\d+) must at least last until the end of (\d+)$/.exec(trimmed);
+    if (endInvalid) {
+        const [, y, untilYear] = endInvalid;
+        return `Ngày kết thúc không hợp lệ. Chiến dịch năm ${y} phải kéo dài ít nhất đến hết ngày 31/12/${untilYear}.`;
+    }
+
+    const endWithin = /^End date must be within the academic year (\d+)$/.exec(trimmed);
+    if (endWithin) {
+        return `Ngày kết thúc phải nằm trọn trong năm dương lịch ${endWithin[1]} (theo năm học đã chọn).`;
+    }
+
+    const duplicate = /^A campaign template for the year (\d+) already exists$/.exec(trimmed);
+    if (duplicate) {
+        return `Đã tồn tại chiến dịch tuyển sinh cho năm ${duplicate[1]}.`;
+    }
+    const duplicateTypo = /^A campaign template for the (\d+)year already exists$/.exec(trimmed);
+    if (duplicateTypo) {
+        return `Đã tồn tại chiến dịch tuyển sinh cho năm ${duplicateTypo[1]}.`;
+    }
+
+    return trimmed || fallback;
 }
 
 export default function SchoolCampaignDetail() {
@@ -96,8 +179,11 @@ export default function SchoolCampaignDetail() {
     });
     const [formErrors, setFormErrors] = useState({});
     const [submitLoading, setSubmitLoading] = useState(false);
-    const [confirmPauseOpen, setConfirmPauseOpen] = useState(false);
-    const [confirmResumeOpen, setConfirmResumeOpen] = useState(false);
+    const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
+    const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+    const [confirmCloneOpen, setConfirmCloneOpen] = useState(false);
+    const [cancelReason, setCancelReason] = useState("");
+    const [cancelReasonError, setCancelReasonError] = useState("");
     /** Tăng sau khi lưu template để remount phần chỉ tiêu và gọi lại API */
     const [offeringsRemountKey, setOfferingsRemountKey] = useState(0);
 
@@ -118,12 +204,6 @@ export default function SchoolCampaignDetail() {
         }
         return null;
     }, [idNum]);
-
-    useEffect(() => {
-        if (!isPrimaryBranch) {
-            navigate("/school/campaigns", { replace: true });
-        }
-    }, [isPrimaryBranch, navigate]);
 
     useEffect(() => {
         if (initialCampaign) {
@@ -158,17 +238,21 @@ export default function SchoolCampaignDetail() {
         };
     }, [initialCampaign, resolveCampaignFromApi]);
 
-    const status = String(campaign?.status || "OPEN").toUpperCase();
+    const status = normalizeCampaignStatus(campaign?.status);
     const statusInfo = STATUS_UI[status] ?? {
         label: status,
         badgeBg: "rgba(7, 200, 81, 0.2)",
         badgeColor: "#64748b",
     };
 
-    const formLocked = status === "OPEN" || status === "CLOSED" || status === "EXPIRED";
+    const formLocked = status !== "DRAFT" || !isPrimaryBranch;
     const readOnlyTerminal = status === "CLOSED" || status === "EXPIRED";
-
-    const canMutateOfferings = isPrimaryBranch && !readOnlyTerminal;
+    const canMutateOfferings = status === "OPEN" && !readOnlyTerminal;
+    const isDraft = status === "DRAFT";
+    const isCancelled = status === "CANCELLED";
+    const today = startOfLocalToday();
+    const endDateObj = parseLocalDate(campaign?.endDate?.slice?.(0, 10) || campaign?.endDate);
+    const publishBlockedByPastEndDate = !!(endDateObj && endDateObj.getTime() < today.getTime());
 
     const progress = useMemo(
         () => getTimelineProgress(campaign?.startDate, campaign?.endDate),
@@ -182,15 +266,58 @@ export default function SchoolCampaignDetail() {
 
     const validateForm = () => {
         const errors = {};
-        if (!formValues.name?.trim()) errors.name = "Tên chiến dịch là bắt buộc";
-        if (!formValues.startDate?.trim()) errors.startDate = "Ngày bắt đầu là bắt buộc";
-        if (!formValues.endDate?.trim()) errors.endDate = "Ngày kết thúc là bắt buộc";
-        if (
-            formValues.startDate &&
-            formValues.endDate &&
-            new Date(formValues.endDate) < new Date(formValues.startDate)
-        ) {
-            errors.endDate = "Ngày kết thúc phải sau ngày bắt đầu";
+        const name = formValues.name?.trim() ?? "";
+        const description = formValues.description?.trim() ?? "";
+        const yearNum = Number(campaign?.year);
+        const startIso = formValues.startDate?.trim() ?? "";
+        const endIso = formValues.endDate?.trim() ?? "";
+
+        if (!name) errors.name = "Tên chiến dịch là bắt buộc";
+        else if (name.length > 100) errors.name = "Tên chiến dịch quá dài. Tối đa 100 ký tự";
+
+        if (!description) errors.description = "Mô tả là bắt buộc";
+
+        if (!Number.isFinite(yearNum) || yearNum <= 0) {
+            errors.year = "Năm học là bắt buộc";
+        } else if (yearNum < CURRENT_YEAR) {
+            errors.year = "Không thể tạo chiến dịch cho năm học đã qua";
+        }
+
+        if (!startIso) errors.startDate = "Ngày bắt đầu là bắt buộc";
+        if (!endIso) errors.endDate = "Ngày kết thúc là bắt buộc";
+
+        const start = parseLocalDate(startIso);
+        const end = parseLocalDate(endIso);
+        if (startIso && !start) errors.startDate = "Ngày bắt đầu không hợp lệ";
+        if (endIso && !end) errors.endDate = "Ngày kết thúc không hợp lệ";
+
+        const today = startOfLocalToday();
+        const earliestStartAllowed = addLocalDays(today, -1);
+
+        if (start && !errors.startDate && start.getTime() < earliestStartAllowed.getTime()) {
+            errors.startDate = "Ngày bắt đầu không được ở quá khứ (cho phép lùi tối đa 1 ngày so với hôm nay)";
+        }
+        if (end && !errors.endDate && end.getTime() < today.getTime()) {
+            errors.endDate = "Ngày kết thúc phải từ hôm nay trở đi (không được ở quá khứ)";
+        }
+        if (start && end && !errors.startDate && !errors.endDate && end.getTime() <= start.getTime()) {
+            errors.endDate = "Ngày kết thúc phải sau ngày bắt đầu (chiến dịch phải kéo dài ít nhất hơn 1 ngày)";
+        }
+
+        if (Number.isFinite(yearNum) && yearNum > 0 && start && !errors.startDate) {
+            const oct1Prev = new Date(yearNum - 1, 9, 1);
+            if (start.getTime() < oct1Prev.getTime()) {
+                errors.startDate = `Ngày bắt đầu quá sớm. Chiến dịch năm ${yearNum} chỉ được bắt đầu sớm nhất từ 01/10/${yearNum - 1}.`;
+            }
+        }
+
+        if (Number.isFinite(yearNum) && yearNum > 0 && end && !errors.endDate) {
+            const dec31Prev = new Date(yearNum - 1, 11, 31);
+            if (end.getTime() < dec31Prev.getTime()) {
+                errors.endDate = `Ngày kết thúc không hợp lệ. Chiến dịch năm ${yearNum} phải kéo dài ít nhất đến hết ngày 31/12/${yearNum - 1}.`;
+            } else if (end.getFullYear() !== yearNum) {
+                errors.endDate = `Ngày kết thúc phải nằm trọn trong năm dương lịch ${yearNum} (theo năm học đã chọn).`;
+            }
         }
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
@@ -213,17 +340,14 @@ export default function SchoolCampaignDetail() {
 
     const templateId = campaign?.admissionCampaignTemplateId ?? campaign?.id;
 
-    const runPause = async () => {
+    const runPublish = async () => {
         if (!templateId) return;
         setSubmitLoading(true);
         try {
-            const res = await updateCampaignTemplateStatus(templateId, "PAUSED");
+            const res = await updateCampaignTemplateStatus(templateId);
             if (res?.status === 200 || res?.data) {
-                enqueueSnackbar(
-                    "Chiến dịch đã tạm dừng. Bây giờ bạn có thể chỉnh sửa thông tin.",
-                    { variant: "success" }
-                );
-                setConfirmPauseOpen(false);
+                enqueueSnackbar("Đã công bố chiến dịch thành công.", { variant: "success" });
+                setConfirmPublishOpen(false);
                 const updated = await refreshCampaign();
                 setOfferingsRemountKey((k) => k + 1);
                 if (updated && campaignId) {
@@ -233,26 +357,42 @@ export default function SchoolCampaignDetail() {
                     });
                 }
             } else {
-                enqueueSnackbar(res?.data?.message || "Không thể tạm dừng chiến dịch", { variant: "error" });
+                enqueueSnackbar(getCampaignErrorMessage(res?.data?.message, "Không thể công bố chiến dịch"), {
+                    variant: "error",
+                });
             }
         } catch (err) {
-            enqueueSnackbar(
-                getCampaignErrorMessage(err?.response?.data?.message, "Không thể tạm dừng chiến dịch"),
-                { variant: "error" }
-            );
+            const statusCode = err?.response?.status;
+            if (statusCode === 403) {
+                enqueueSnackbar("Bạn không có quyền thực hiện hành động này", { variant: "error" });
+            } else if (statusCode === 404) {
+                enqueueSnackbar("Dữ liệu không tồn tại hoặc đã bị xóa", { variant: "error" });
+            } else {
+                enqueueSnackbar(
+                    getCampaignErrorMessage(err?.response?.data?.message, "Không thể công bố chiến dịch"),
+                    { variant: "error" }
+                );
+            }
         } finally {
             setSubmitLoading(false);
         }
     };
 
-    const runResume = async () => {
+    const runCancelCampaign = async () => {
         if (!templateId) return;
+        const reason = cancelReason.trim();
+        if (!reason) {
+            setCancelReasonError("Vui lòng nhập lý do hủy");
+            return;
+        }
         setSubmitLoading(true);
         try {
-            const res = await updateCampaignTemplateStatus(templateId, "OPEN");
-            if (res?.status === 200 || res?.data) {
-                enqueueSnackbar("Chiến dịch đã được mở lại.", { variant: "success" });
-                setConfirmResumeOpen(false);
+            const res = await cancelCampaignTemplate(templateId, reason);
+            if (res?.status >= 200 && res?.status < 300) {
+                enqueueSnackbar(res?.data?.message || "Đã hủy chiến dịch.", { variant: "success" });
+                setConfirmCancelOpen(false);
+                setCancelReason("");
+                setCancelReasonError("");
                 const updated = await refreshCampaign();
                 setOfferingsRemountKey((k) => k + 1);
                 if (updated && campaignId) {
@@ -262,13 +402,53 @@ export default function SchoolCampaignDetail() {
                     });
                 }
             } else {
-                enqueueSnackbar(res?.data?.message || "Không thể mở lại chiến dịch", { variant: "error" });
+                enqueueSnackbar(getCampaignErrorMessage(res?.data?.message, "Không thể hủy chiến dịch"), {
+                    variant: "error",
+                });
             }
         } catch (err) {
-            enqueueSnackbar(
-                getCampaignErrorMessage(err?.response?.data?.message, "Không thể mở lại chiến dịch"),
-                { variant: "error" }
-            );
+            const code = err?.response?.status;
+            if (code === 403) enqueueSnackbar("Bạn không có quyền thực hiện hành động này", { variant: "error" });
+            else if (code === 404) enqueueSnackbar("Dữ liệu không tồn tại hoặc đã bị xóa", { variant: "error" });
+            else
+                enqueueSnackbar(getCampaignErrorMessage(err?.response?.data?.message, "Không thể hủy chiến dịch"), {
+                    variant: "error",
+                });
+        } finally {
+            setSubmitLoading(false);
+        }
+    };
+
+    const runCloneCampaign = async () => {
+        if (!templateId) return;
+        setSubmitLoading(true);
+        try {
+            const res = await cloneCampaignTemplate(templateId);
+            if (res?.status >= 200 && res?.status < 300) {
+                const body = res?.data?.body ?? res?.data ?? {};
+                const newId = Number(
+                    body?.id ??
+                        body?.admissionCampaignTemplateId ??
+                        body?.data?.id ??
+                        body?.data?.admissionCampaignTemplateId
+                );
+                enqueueSnackbar(res?.data?.message || "Đã sao chép chiến dịch sang bản nháp mới.", {
+                    variant: "success",
+                });
+                if (Number.isFinite(newId) && newId > 0) {
+                    navigate(`/school/campaigns/detail/${newId}`);
+                } else {
+                    await refreshCampaign();
+                }
+            } else {
+                enqueueSnackbar(getCampaignErrorMessage(res?.data?.message, "Sao chép chiến dịch thất bại"), {
+                    variant: "error",
+                });
+            }
+        } catch (err) {
+            enqueueSnackbar(getCampaignErrorMessage(err?.response?.data?.message, "Sao chép chiến dịch thất bại"), {
+                variant: "error",
+            });
         } finally {
             setSubmitLoading(false);
         }
@@ -282,6 +462,7 @@ export default function SchoolCampaignDetail() {
                 admissionCampaignTemplateId: templateId,
                 name: formValues.name.trim(),
                 description: formValues.description?.trim() || "",
+                year: Number(campaign?.year),
                 startDate: formValues.startDate?.trim() || "",
                 endDate: formValues.endDate?.trim() || "",
             });
@@ -310,8 +491,6 @@ export default function SchoolCampaignDetail() {
             setSubmitLoading(false);
         }
     };
-
-    if (!isPrimaryBranch) return null;
 
     if (loadingCampaign) {
         return (
@@ -392,12 +571,12 @@ export default function SchoolCampaignDetail() {
                         sx={{
                             display: "flex",
                             flexDirection: { xs: "column", md: "row" },
-                            alignItems: { xs: "flex-start", md: "flex-start" },
+                            alignItems: { xs: "flex-start", md: "center" },
                             justifyContent: "space-between",
                             gap: 2,
                         }}
                     >
-                        <Box>
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
                             <Typography variant="h4" sx={{ fontWeight: 700, letterSpacing: "-0.02em" }}>
                                 {campaign.name}
                             </Typography>
@@ -406,7 +585,12 @@ export default function SchoolCampaignDetail() {
                                 {formatDate(campaign.endDate)}
                             </Typography>
                         </Box>
-                        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap">
+                        <Stack
+                            direction="column"
+                            spacing={1}
+                            alignItems="flex-end"
+                            sx={{ flexShrink: 0, ml: { md: 2 }, alignSelf: { xs: "stretch", md: "center" } }}
+                        >
                             <Box
                                 component="span"
                                 sx={{
@@ -422,37 +606,69 @@ export default function SchoolCampaignDetail() {
                             >
                                 {statusInfo.label}
                             </Box>
-                            {status === "OPEN" && (
-                                <Button
-                                    variant="contained"
-                                    onClick={() => setConfirmPauseOpen(true)}
-                                    disabled={submitLoading}
-                                    sx={{
-                                        bgcolor: "rgba(255,255,255,0.95)",
-                                        color: HEADER_ACCENT,
-                                        textTransform: "none",
-                                        fontWeight: 600,
-                                        borderRadius: "12px",
-                                        "&:hover": { bgcolor: "#fff" },
-                                    }}
+                            {isPrimaryBranch && isDraft && (
+                                <Tooltip
+                                    title={
+                                        publishBlockedByPastEndDate
+                                            ? "Chiến dịch đã hết hạn, vui lòng cập nhật ngày kết thúc trước khi công bố."
+                                            : ""
+                                    }
                                 >
-                                    Tạm dừng chiến dịch
-                                </Button>
+                                    <span>
+                                        <Button
+                                            variant="contained"
+                                            onClick={() => setConfirmPublishOpen(true)}
+                                            disabled={submitLoading || publishBlockedByPastEndDate}
+                                            sx={{
+                                                bgcolor: "rgba(255,255,255,0.95)",
+                                                color: HEADER_ACCENT,
+                                                textTransform: "none",
+                                                fontWeight: 600,
+                                                borderRadius: "12px",
+                                                "&:hover": { bgcolor: "#fff" },
+                                            }}
+                                        >
+                                            Công bố chiến dịch
+                                        </Button>
+                                    </span>
+                                </Tooltip>
                             )}
-                            {status === "PAUSED" && (
+                            {isPrimaryBranch && status === "OPEN" && (
                                 <Button
                                     variant="outlined"
-                                    onClick={() => setConfirmResumeOpen(true)}
+                                    onClick={() => {
+                                        setCancelReason("");
+                                        setCancelReasonError("");
+                                        setConfirmCancelOpen(true);
+                                    }}
                                     disabled={submitLoading}
                                     sx={{
-                                        borderColor: "rgba(255,255,255,0.8)",
+                                        borderColor: "rgba(255,255,255,0.85)",
                                         color: "#fff",
                                         textTransform: "none",
                                         fontWeight: 600,
                                         borderRadius: "12px",
+                                        "&:hover": { borderColor: "#fff", bgcolor: "rgba(255,255,255,0.08)" },
                                     }}
                                 >
-                                    Mở lại chiến dịch
+                                    Hủy chiến dịch
+                                </Button>
+                            )}
+                            {isPrimaryBranch && isCancelled && (
+                                <Button
+                                    variant="outlined"
+                                    onClick={() => setConfirmCloneOpen(true)}
+                                    disabled={submitLoading}
+                                    sx={{
+                                        borderColor: "rgba(255,255,255,0.85)",
+                                        color: "#fff",
+                                        textTransform: "none",
+                                        fontWeight: 600,
+                                        borderRadius: "12px",
+                                        "&:hover": { borderColor: "#fff", bgcolor: "rgba(255,255,255,0.08)" },
+                                    }}
+                                >
+                                    Clone chiến dịch
                                 </Button>
                             )}
                         </Stack>
@@ -499,6 +715,8 @@ export default function SchoolCampaignDetail() {
                         value={formValues.description}
                         onChange={handleFormChange}
                         disabled={formLocked}
+                        error={!!formErrors.description}
+                        helperText={formErrors.description}
                         sx={{ mb: 2, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                     />
                     <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
@@ -529,7 +747,7 @@ export default function SchoolCampaignDetail() {
                             sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                         />
                     </Stack>
-                    {status === "PAUSED" && (
+                    {isPrimaryBranch && status === "DRAFT" && (
                         <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
                             <Button
                                 variant="contained"
@@ -548,14 +766,32 @@ export default function SchoolCampaignDetail() {
                             </Button>
                         </Box>
                     )}
-                    {formLocked && status === "OPEN" && (
+                    {formErrors.year && (
+                        <Typography variant="caption" color="error" sx={{ display: "block", mt: 1 }}>
+                            {formErrors.year}
+                        </Typography>
+                    )}
+                    {formLocked && status !== "DRAFT" && !readOnlyTerminal && (
                         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2 }}>
-                            Chiến dịch đang mở: thông tin bị khóa. Chọn «Tạm dừng chiến dịch» để chỉnh sửa.
+                            Chỉ có thể cập nhật khi chiến dịch ở trạng thái «Bản nháp (DRAFT)».
+                        </Typography>
+                    )}
+                    {!isPrimaryBranch && (
+                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2 }}>
+                            Bạn đang đăng nhập bằng Campus. Chỉ Primary Campus mới có quyền chỉnh sửa/công bố chiến dịch.
                         </Typography>
                     )}
                     {readOnlyTerminal && (
                         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2 }}>
                             Chiến dịch đã kết thúc — chỉ xem.
+                        </Typography>
+                    )}
+                    {isCancelled && (
+                        <Typography variant="caption" sx={{ display: "block", mt: 2, color: "#b91c1c" }}>
+                            Chiến dịch đã hủy.
+                            {campaign?.reason || campaign?.cancelReason || campaign?.cancellationReason
+                                ? ` Lý do: ${campaign?.reason || campaign?.cancelReason || campaign?.cancellationReason}`
+                                : ""}
                         </Typography>
                     )}
                 </CardContent>
@@ -602,64 +838,132 @@ export default function SchoolCampaignDetail() {
                     <CampaignOfferingsSection
                         key={`offerings-${templateId}-${offeringsRemountKey}`}
                         campaignId={Number(templateId)}
-                        campaignPaused={status === "PAUSED"}
+                        campaignPaused={status !== "OPEN"}
                         canMutate={canMutateOfferings}
                     />
                 </CardContent>
             </Card>
 
             <Dialog
-                open={confirmPauseOpen}
-                onClose={() => !submitLoading && setConfirmPauseOpen(false)}
+                open={confirmPublishOpen}
+                onClose={() => !submitLoading && setConfirmPublishOpen(false)}
                 PaperProps={{ sx: { borderRadius: "16px" } }}
             >
                 <DialogContent>
                     <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                        Tạm dừng chiến dịch?
+                        Công bố chiến dịch?
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        Sau khi tạm dừng, bạn có thể chỉnh sửa thông tin chiến dịch và chỉ tiêu. Xác nhận thực hiện?
+                        Bạn có chắc chắn muốn công bố chiến dịch này? Sau khi công bố sẽ không thể chỉnh sửa thông tin
+                        cơ bản.
                     </Typography>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={() => setConfirmPauseOpen(false)} disabled={submitLoading} sx={{ textTransform: "none" }}>
+                    <Button
+                        onClick={() => setConfirmPublishOpen(false)}
+                        disabled={submitLoading}
+                        sx={{ textTransform: "none" }}
+                    >
                         Hủy
                     </Button>
                     <Button
                         variant="contained"
-                        onClick={runPause}
+                        onClick={runPublish}
                         disabled={submitLoading}
                         sx={{ textTransform: "none", fontWeight: 600, bgcolor: HEADER_ACCENT, borderRadius: "12px" }}
                     >
-                        Tạm dừng
+                        Công bố
                     </Button>
                 </DialogActions>
             </Dialog>
 
             <Dialog
-                open={confirmResumeOpen}
-                onClose={() => !submitLoading && setConfirmResumeOpen(false)}
+                open={confirmCancelOpen}
+                onClose={() => !submitLoading && setConfirmCancelOpen(false)}
+                fullWidth
+                maxWidth="sm"
                 PaperProps={{ sx: { borderRadius: "16px" } }}
             >
-                <DialogContent>
+                <DialogContent sx={{ pt: 2.5 }}>
                     <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                        Mở lại chiến dịch?
+                        Xác nhận hủy chiến dịch?
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25 }}>
+                        Bạn có chắc chắn muốn hủy chiến dịch này? Tất cả các ngành học đang mở thuộc chiến dịch cũng sẽ
+                        bị đóng lại. Hành động này không thể hoàn tác.
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        Chiến dịch sẽ chuyển sang trạng thái đang mở và khóa chỉnh sửa. Hãy đảm bảo bạn đã lưu mọi thay đổi.
+                        Nếu chiến dịch đã có hồ sơ đăng ký, hệ thống có thể cần xử lý hoàn trả/hủy hồ sơ cho thí sinh.
                     </Typography>
+                    <TextField
+                        label="Lý do hủy"
+                        multiline
+                        minRows={3}
+                        fullWidth
+                        required
+                        value={cancelReason}
+                        onChange={(e) => {
+                            setCancelReason(e.target.value);
+                            if (cancelReasonError) setCancelReasonError("");
+                        }}
+                        error={!!cancelReasonError}
+                        helperText={cancelReasonError}
+                        sx={{ mt: 2 }}
+                    />
                 </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2 }}>
-                    <Button onClick={() => setConfirmResumeOpen(false)} disabled={submitLoading} sx={{ textTransform: "none" }}>
-                        Hủy
+                <DialogActions sx={{ px: 3, pb: 2.5 }}>
+                    <Button
+                        onClick={() => setConfirmCancelOpen(false)}
+                        disabled={submitLoading}
+                        sx={{ textTransform: "none" }}
+                    >
+                        Đóng
                     </Button>
                     <Button
                         variant="contained"
-                        onClick={runResume}
+                        color="error"
+                        onClick={runCancelCampaign}
                         disabled={submitLoading}
-                        sx={{ textTransform: "none", fontWeight: 600, bgcolor: HEADER_ACCENT, borderRadius: "12px" }}
+                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px" }}
                     >
-                        Mở lại
+                        Xác nhận hủy
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={confirmCloneOpen}
+                onClose={() => !submitLoading && setConfirmCloneOpen(false)}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{ sx: { borderRadius: "16px" } }}
+            >
+                <DialogContent sx={{ pt: 2.5 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Xác nhận clone chiến dịch?
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25 }}>
+                        Bạn có chắc chắn muốn sao chép chiến dịch này để tạo một bản nháp mới không?
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2.5 }}>
+                    <Button
+                        onClick={() => setConfirmCloneOpen(false)}
+                        disabled={submitLoading}
+                        sx={{ textTransform: "none" }}
+                    >
+                        Đóng
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={async () => {
+                            await runCloneCampaign();
+                            setConfirmCloneOpen(false);
+                        }}
+                        disabled={submitLoading}
+                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px", bgcolor: HEADER_ACCENT }}
+                    >
+                        Xác nhận clone
                     </Button>
                 </DialogActions>
             </Dialog>

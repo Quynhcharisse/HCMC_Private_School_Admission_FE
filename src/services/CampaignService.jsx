@@ -36,13 +36,14 @@ export const createCampaignTemplate = async (body) => {
 
 /**
  * PUT update campaign template
- * @param {{ admissionCampaignTemplateId: number, name: string, description?: string, startDate: string, endDate: string }} body
+ * @param {{ admissionCampaignTemplateId: number, name: string, description?: string, year?: number, startDate: string, endDate: string }} body
  */
 export const updateCampaignTemplate = async (body) => {
     const response = await axiosClient.put("/school/campaign/template", {
         admissionCampaignTemplateId: Number(body.admissionCampaignTemplateId),
         name: body.name?.trim() ?? "",
         description: body.description?.trim() ?? "",
+        year: Number(body.year),
         startDate: body.startDate ?? "",
         endDate: body.endDate ?? "",
     });
@@ -50,18 +51,32 @@ export const updateCampaignTemplate = async (body) => {
 };
 
 /**
- * PUT change campaign template status
+ * PUT publish campaign template (DRAFT -> OPEN)
  * @param {number} id
- * @param {string} targetStatus
  */
-export const updateCampaignTemplateStatus = async (id, targetStatus) => {
-    const response = await axiosClient.put(
-        `/school/${id}/campaign/template/status`,
-        null,
-        {
-            params: {targetStatus},
-        }
-    );
+export const updateCampaignTemplateStatus = async (id) => {
+    const response = await axiosClient.put(`/school/${id}/campaign/template/status`, null);
+    return response || null;
+};
+
+/**
+ * PUT cancel campaign template
+ * @param {number} id
+ * @param {string} reason
+ */
+export const cancelCampaignTemplate = async (id, reason) => {
+    const response = await axiosClient.put(`/school/${id}/campaign/template/cancel`, null, {
+        params: { reason: reason?.trim() ?? "" },
+    });
+    return response || null;
+};
+
+/**
+ * POST clone campaign template
+ * @param {number} id
+ */
+export const cloneCampaignTemplate = async (id) => {
+    const response = await axiosClient.post(`/school/${id}/campaign/template/clone`, null);
     return response || null;
 };
 
