@@ -9,7 +9,7 @@ export const getRoleDashboardRoute = (role) => {
         case 'COUNSELLOR':
             return '/counsellor/dashboard';
         case 'PARENT':
-            return '/parent/profile';
+            return '/home';
         default:
             return '/home';
     }
@@ -33,7 +33,17 @@ export const isRouteAllowedForRole = (path, role) => {
     }
 
     if (normalizedRole === 'PARENT') {
-        return path.startsWith('/parent');
+        const parentAllowedPrefixes = [
+            '/home',
+            '/search-schools',
+            '/schools',
+            '/parent/profile',
+            '/children-info',
+            '/saved-schools',
+            '/compare-schools',
+            '/about',
+        ];
+        return parentAllowedPrefixes.some((allowedPrefix) => path.startsWith(allowedPrefix));
     }
 
     return false;

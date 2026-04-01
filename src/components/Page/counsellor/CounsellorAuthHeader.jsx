@@ -80,10 +80,10 @@ export default function CounsellorAuthHeader({ headerLeftOffset }) {
     profileBody?.name || profileBody?.email || userInfo?.name || userInfo?.email || "Người dùng";
   const displayEmail = profileBody?.email || userInfo?.email || "";
   const avatarUrl = profileBody?.picture || userInfo?.picture || null;
-  const isAdmin = userInfo?.role === "ADMIN";
+  const isCounsellor = userInfo?.role === "COUNSELLOR";
 
   const handleGoHome = () => {
-    if (isAdmin) return;
+    if (isCounsellor) return;
     window.location.href = "/home";
   };
 
@@ -123,7 +123,7 @@ export default function CounsellorAuthHeader({ headerLeftOffset }) {
                 display: "flex",
                 alignItems: "center",
                 gap: 1.5,
-                cursor: isAdmin ? "default" : "pointer",
+                cursor: isCounsellor ? "default" : "pointer",
               }}
               onClick={handleGoHome}
             >
