@@ -7,7 +7,6 @@ import {
     CardMedia,
     Container,
     Typography,
-    Avatar,
     Stack,
     TextField,
     Chip,
@@ -362,12 +361,6 @@ function BlogCard({title, description, image, date, tags, url, variant = 'featur
 
 function SchoolCard({school}) {
     const rating = Number(school.rating) || 0;
-    const shortName = (school.name || "")
-        .split(" ")
-        .filter(Boolean)
-        .slice(-2)
-        .map((w) => w[0])
-        .join("");
     return (
         <Card
             sx={{
@@ -391,9 +384,10 @@ function SchoolCard({school}) {
                 sx={{
                     position: 'relative',
                     height: 132,
-                    backgroundImage: `linear-gradient(180deg, rgba(51,65,85,0.18) 0%, rgba(51,65,85,0.6) 100%), url(${school.cover || DEFAULT_SCHOOL_IMAGE})`,
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center'
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    p: 0
                 }}
             >
                 {school.featured && (
@@ -411,24 +405,19 @@ function SchoolCard({school}) {
                         }}
                     />
                 )}
-                <Avatar
+                <Box
+                    component="img"
+                    src={school.cover || DEFAULT_SCHOOL_IMAGE}
+                    alt={school.name || "School logo"}
                     sx={{
-                        position: 'absolute',
-                        left: 14,
-                        bottom: -20,
-                        width: 40,
-                        height: 40,
-                        bgcolor: 'rgba(51,65,85,0.92)',
-                        border: '2px solid #fff',
-                        fontSize: '0.72rem',
-                        fontWeight: 800
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain'
                     }}
-                >
-                    {shortName || "EB"}
-                </Avatar>
+                />
             </Box>
 
-            <CardContent sx={{pt: 3.5, px: 2, pb: 2, display: 'flex', flexDirection: 'column', gap: 1.25, flex: 1}}>
+            <CardContent sx={{pt: 2.25, px: 2, pb: 2, display: 'flex', flexDirection: 'column', gap: 1.25, flex: 1}}>
                 <Typography sx={{fontSize: '1.02rem', fontWeight: 800, color: '#1e293b', lineHeight: 1.35}}>
                     {school.name}
                 </Typography>

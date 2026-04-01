@@ -9,11 +9,16 @@ import {
     Container,
     CircularProgress,
     Divider,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
     Fab,
     IconButton,
     InputBase,
     List,
     ListItem,
+    ListItemButton,
     ListItemText,
     Menu,
     MenuItem,
@@ -45,6 +50,7 @@ import {enqueueSnackbar} from "notistack";
 import {signout, getProfile} from "../../services/AccountService.jsx";
 import {getParentConversations} from "../../services/ConversationService.jsx";
 import {getParentMessagesHistory, markParentMessagesRead} from "../../services/MessageService.jsx";
+import {getParentStudent} from "../../services/ParentService.jsx";
 import {buildPrivateChatPayload, connectPrivateMessageSocket, disconnect, sendMessage} from "../../services/WebSocketService.jsx";
 import logo from "../../assets/logo.png";
 import {useLocation, useNavigate} from "react-router-dom";
@@ -55,7 +61,7 @@ import {
     BRAND_SKY_LIGHT,
     HEADER_HOME_BAR_BG
 } from "../../constants/homeLandingTheme";
-import {OPEN_PARENT_CHAT_EVENT} from "../../constants/parentChatEvents";
+import {OPEN_PARENT_CHAT_EVENT, PARENT_CHAT_WINDOW_STATE_EVENT} from "../../constants/parentChatEvents";
 import {GRADE_LEVELS} from "../Page/childrenInfo/childrenInfoHelpers.js";
 
 const PARENT_CHAT_POLL_INTERVAL_MS = 3500;
@@ -63,29 +69,6 @@ const SEND_MESSAGE_HISTORY_DELAY_MS = 400;
 const ENABLE_PARENT_CHAT_POLLING = false;
 
 const isSameConversationId = (a, b) => a != null && b != null && String(a) === String(b);
-
-const normalizeMatchKey = (value) => (value ?? "").toString().trim().toLowerCase();
-
-function findConversationForSchool(items, schoolName, schoolEmail) {
-    const email = normalizeMatchKey(schoolEmail);
-    if (email) {
-        const byEmail = items.find((c) => {
-            const ce = normalizeMatchKey(
-                c.counsellorEmail || c.otherUser || c.schoolEmail || c.participantEmail || ""
-            );
-            return ce && ce === email;
-        });
-        if (byEmail) return byEmail;
-    }
-    const name = normalizeMatchKey(schoolName);
-    if (!name) return null;
-    return (
-        items.find((c) => {
-            const t = normalizeMatchKey(c.title || c.name || c.schoolName || c.school || c.participantName || "");
-            return t && (t === name || t.includes(name) || name.includes(t));
-        }) || null
-    );
-}
 
 const formatSectionDateLabel = (value) => {
     if (!value) return "Hôm nay";
@@ -127,6 +110,33 @@ const STUDENT_CHAT_THEMES = [
 ];
 
 const lowerString = (value) => (value ?? '').toString().trim().toLowerCase();
+
+const parseParentStudentsResponse = (response) => {
+    const body = response?.data?.body?.body ?? response?.data?.body ?? response?.data ?? null;
+    if (Array.isArray(body)) return body;
+    if (Array.isArray(body?.students)) return body.students;
+    if (Array.isArray(body?.items)) return body.items;
+    if (body && typeof body === "object") return [body];
+    return [];
+};
+
+const normalizeParentStudent = (student, index) => {
+    const studentProfileId =
+        student?.studentProfileId ??
+        student?.studentId ??
+        student?.id ??
+        null;
+    const childName =
+        student?.childName ??
+        student?.studentName ??
+        student?.name ??
+        `Học sinh ${index + 1}`;
+    return {
+        studentProfileId: studentProfileId != null ? String(studentProfileId).trim() : "",
+        childName: String(childName || `Học sinh ${index + 1}`).trim() || `Học sinh ${index + 1}`,
+        raw: student || null
+    };
+};
 
 const getConversationDisplayTitle = (c) =>
     c?.title || c?.name || c?.schoolName || c?.school || 'Cuộc trò chuyện';
@@ -592,6 +602,10 @@ function MainHeader() {
     const [selectedConversationStudent, setSelectedConversationStudent] = useState(null);
     const [studentInfoAnchorEl, setStudentInfoAnchorEl] = useState(null);
     const [headerScrolled, setHeaderScrolled] = useState(false);
+    const [studentSelectDialogOpen, setStudentSelectDialogOpen] = useState(false);
+    const [studentSelectLoading, setStudentSelectLoading] = useState(false);
+    const [studentSelectOptions, setStudentSelectOptions] = useState([]);
+    const [pendingChatTarget, setPendingChatTarget] = useState(null);
 
     const chatListRef = React.useRef(null);
     const loadingMoreRef = React.useRef(false);
@@ -1155,11 +1169,60 @@ function MainHeader() {
         setStudentInfoAnchorEl(null);
     };
 
+    const handleCloseStudentSelectDialog = () => {
+        if (studentSelectLoading) return;
+        setStudentSelectDialogOpen(false);
+        setStudentSelectOptions([]);
+        setPendingChatTarget(null);
+    };
+
+    const openParentChatForStudent = React.useCallback(
+        async ({target, student}) => {
+            const parentEmail = (userInfo?.email || "").trim();
+            const counsellorEmail = (
+                target?.counsellorEmail ||
+                target?.schoolEmail ||
+                ""
+            ).trim();
+            const studentProfileId = String(student?.studentProfileId || "").trim();
+            const childName = String(student?.childName || "Học sinh").trim() || "Học sinh";
+            if (!parentEmail || !counsellorEmail || !studentProfileId) {
+                enqueueSnackbar("Thiếu thông tin để mở hội thoại tư vấn.", {variant: "warning"});
+                return;
+            }
+            const draftConversation = normalizeConversation({
+                title: target?.schoolName || counsellorEmail,
+                name: target?.schoolName || counsellorEmail,
+                schoolName: target?.schoolName || "",
+                schoolEmail: counsellorEmail,
+                participantEmail: counsellorEmail,
+                counsellorEmail,
+                parentEmail,
+                studentProfileId,
+                childName
+            });
+            setSelectedConversationStudent(null);
+            setSelectedConversation(draftConversation);
+            selectedConversationRef.current = draftConversation;
+            setMessageItems([]);
+            setMessageNextCursorId(null);
+            setMessageHasMore(false);
+            setMessageError("");
+            setMessageAnchorEl(null);
+            setChatWindowOpen(true);
+            setChatWindowMinimized(false);
+            hasMarkedReadRef.current = false;
+            await loadMessageHistory({conversation: draftConversation});
+        },
+        [loadMessageHistory, normalizeConversation, userInfo?.email]
+    );
+
     const openParentChatRef = React.useRef(null);
     React.useEffect(() => {
-        openParentChatRef.current = async ({schoolName: sn, schoolEmail: se} = {}) => {
+        openParentChatRef.current = async ({schoolName: sn, schoolEmail: se, counsellorEmail: ce} = {}) => {
             const schoolName = (sn || "").trim();
             const schoolEmail = (se || "").trim();
+            const counsellorEmail = (ce || se || "").trim();
             if (!isSignedIn) {
                 enqueueSnackbar("Vui lòng đăng nhập để nhắn tin với tư vấn viên trường.", {variant: "info"});
                 navigate("/login");
@@ -1169,40 +1232,38 @@ function MainHeader() {
                 enqueueSnackbar("Tính năng chat chỉ dành cho phụ huynh.", {variant: "warning"});
                 return;
             }
+            if (!counsellorEmail) {
+                enqueueSnackbar("Thiếu email tư vấn viên của trường.", {variant: "warning"});
+                return;
+            }
             try {
-                const response = await getParentConversations(null);
+                setStudentSelectLoading(true);
+                const response = await getParentStudent();
                 if (response?.status !== 200) {
-                    enqueueSnackbar("Không tải được danh sách tin nhắn.", {variant: "error"});
+                    enqueueSnackbar("Không tải được danh sách học sinh.", {variant: "error"});
                     return;
                 }
-                const parsed = parseConversationResponse(response);
-                const items = parsed.items.map(normalizeConversation);
-                setConversationItems(items);
-                setNextCursorId(parsed.nextCursorId);
-                setHasMoreConversations(parsed.hasMore);
-
-                let match = findConversationForSchool(items, schoolName, schoolEmail);
-                if (!match && schoolEmail) {
-                    match = normalizeConversation({
-                        title: schoolName,
-                        name: schoolName,
-                        schoolName: schoolName,
-                        schoolEmail: schoolEmail,
-                        otherUser: schoolEmail,
-                        counsellorEmail: schoolEmail,
-                    });
-                }
-                if (!match) {
-                    enqueueSnackbar(
-                        `Chưa có kênh chat cho ${selectedStudentName} ở trường này. Vui lòng xem email hoặc hotline trong phần chi tiết trường.`,
-                        {variant: "info"}
-                    );
+                const normalizedStudents = parseParentStudentsResponse(response)
+                    .map(normalizeParentStudent)
+                    .filter((s) => s.studentProfileId);
+                if (!normalizedStudents.length) {
+                    enqueueSnackbar("Bạn chưa có hồ sơ học sinh. Vui lòng thêm thông tin con trước.", {variant: "info"});
+                    navigate("/children-info");
                     return;
                 }
-                await handleSelectConversation(match);
+                const target = {schoolName, schoolEmail, counsellorEmail};
+                if (normalizedStudents.length === 1) {
+                    await openParentChatForStudent({target, student: normalizedStudents[0]});
+                    return;
+                }
+                setPendingChatTarget(target);
+                setStudentSelectOptions(normalizedStudents);
+                setStudentSelectDialogOpen(true);
             } catch (err) {
                 console.error("openParentChat:", err);
                 enqueueSnackbar("Không thể mở chat.", {variant: "error"});
+            } finally {
+                setStudentSelectLoading(false);
             }
         };
     });
@@ -1215,6 +1276,31 @@ function MainHeader() {
         window.addEventListener(OPEN_PARENT_CHAT_EVENT, onOpenParentChat);
         return () => window.removeEventListener(OPEN_PARENT_CHAT_EVENT, onOpenParentChat);
     }, []);
+
+    React.useEffect(() => {
+        if (typeof window === "undefined") return;
+        window.dispatchEvent(
+            new CustomEvent(PARENT_CHAT_WINDOW_STATE_EVENT, {
+                detail: {open: Boolean(chatWindowOpen)}
+            })
+        );
+    }, [chatWindowOpen]);
+
+    const handleSelectStudentForConsult = async (student) => {
+        if (!pendingChatTarget || studentSelectLoading) return;
+        setStudentSelectDialogOpen(false);
+        try {
+            setStudentSelectLoading(true);
+            await openParentChatForStudent({target: pendingChatTarget, student});
+        } catch (error) {
+            console.error("handleSelectStudentForConsult:", error);
+            enqueueSnackbar("Không thể mở hội thoại tư vấn.", {variant: "error"});
+        } finally {
+            setStudentSelectLoading(false);
+            setStudentSelectOptions([]);
+            setPendingChatTarget(null);
+        }
+    };
 
     const handleLogout = async () => {
         try {
@@ -1339,7 +1425,7 @@ function MainHeader() {
             position="fixed"
             elevation={0}
             sx={{
-                zIndex: 1000,
+                zIndex: chatWindowOpen ? 1700 : 1000,
                 top: 0,
                 left: 0,
                 right: 0,
@@ -2510,6 +2596,69 @@ function MainHeader() {
                     </Box>
                 </Collapse>
             </Container>
+            <Dialog
+                open={studentSelectDialogOpen}
+                onClose={handleCloseStudentSelectDialog}
+                fullWidth
+                maxWidth="xs"
+                PaperProps={{
+                    sx: {
+                        borderRadius: 3,
+                        overflow: "hidden",
+                        border: "1px solid rgba(59,130,246,0.18)",
+                        boxShadow: "0 20px 50px rgba(30,41,59,0.2)"
+                    }
+                }}
+            >
+                <DialogTitle
+                    sx={{
+                        fontWeight: 700,
+                        fontSize: 24,
+                        color: BRAND_NAVY,
+                        background: "linear-gradient(135deg, rgba(239,246,255,0.95) 0%, rgba(219,234,254,0.75) 100%)",
+                        borderBottom: "1px solid rgba(59,130,246,0.16)"
+                    }}
+                >
+                    Chọn học sinh cần tư vấn
+                </DialogTitle>
+                <DialogContent dividers sx={{py: 2.5, px: 2.5}}>
+                    <Typography sx={{fontSize: 15, color: "#64748b", mb: 2, lineHeight: 1.6}}>
+                        Vui lòng chọn hồ sơ học sinh để được tư vấn chi tiết hơn
+                    </Typography>
+                    <List disablePadding>
+                        {studentSelectOptions.map((student) => (
+                            <ListItem key={student.studentProfileId} disablePadding sx={{mb: 0.75}}>
+                                <ListItemButton
+                                    onClick={() => handleSelectStudentForConsult(student)}
+                                    disabled={studentSelectLoading}
+                                    sx={{
+                                        borderRadius: 2.5,
+                                        border: "1px solid rgba(51,65,85,0.12)",
+                                        bgcolor: "rgba(248,250,252,0.86)",
+                                        py: 1.35,
+                                        transition: "all 0.25s ease",
+                                        "&:hover": {
+                                            borderColor: "rgba(59,130,246,0.38)",
+                                            bgcolor: "rgba(239,246,255,0.95)",
+                                            transform: "translateY(-1px)"
+                                        }
+                                    }}
+                                >
+                                    <ListItemText
+                                        primary={student.childName}
+                                        primaryTypographyProps={{fontWeight: 600, color: "#0f172a", fontSize: 16}}
+                                    />
+                                </ListItemButton>
+                            </ListItem>
+                        ))}
+                    </List>
+                </DialogContent>
+                <DialogActions sx={{px: 2, py: 1.25, borderTop: "1px solid rgba(148,163,184,0.22)"}}>
+                    <Button onClick={handleCloseStudentSelectDialog} disabled={studentSelectLoading}>
+                        Hủy
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </AppBar>
     );
 }
