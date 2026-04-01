@@ -7,6 +7,8 @@ import {
     Dialog,
     DialogActions,
     DialogContent,
+    Divider,
+    Fade,
     FormControl,
     IconButton,
     InputAdornment,
@@ -15,12 +17,14 @@ import {
     Select,
     Skeleton,
     Stack,
+    Tab,
     Table,
     TableBody,
     TableCell,
     TableContainer,
     TableHead,
     TableRow,
+    Tabs,
     TextField,
     Typography,
 } from "@mui/material";
@@ -97,6 +101,33 @@ function formatDate(dateStr) {
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = [CURRENT_YEAR + 1, CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2];
+
+/** Các năm quá khứ gộp trong tab «Các năm trước» (gọi API theo từng năm rồi merge). */
+const PAST_YEARS_FETCH_COUNT = 8;
+const PAST_YEARS_FOR_TAB = Array.from({length: PAST_YEARS_FETCH_COUNT}, (_, i) => CURRENT_YEAR - 1 - i);
+
+const CAMPAIGN_TAB_CURRENT = "current";
+const CAMPAIGN_TAB_PAST = "past";
+
+/** Gộp nhiều response, trùng id chỉ giữ một bản. */
+function mergeCampaignListsById(rowsArrays) {
+    const byId = new Map();
+    for (const rows of rowsArrays) {
+        if (!Array.isArray(rows)) continue;
+        for (const row of rows) {
+            const m = mapTemplate(row);
+            if (!m) continue;
+            const id = m.id;
+            if (!byId.has(id)) byId.set(id, m);
+        }
+    }
+    return [...byId.values()].sort((a, b) => {
+        const ya = Number(a.year) || 0;
+        const yb = Number(b.year) || 0;
+        if (yb !== ya) return yb - ya;
+        return String(a.name || "").localeCompare(String(b.name || ""), "vi");
+    });
+}
 
 /** Parse YYYY-MM-DD as local calendar date (tránh lệch múi giờ so với LocalDate BE). */
 function parseLocalDate(iso) {
@@ -181,8 +212,9 @@ export default function SchoolCampaigns() {
     const [loading, setLoading] = useState(true);
     const [submitLoading, setSubmitLoading] = useState(false);
     const [search, setSearch] = useState("");
-    const [yearFilter, setYearFilter] = useState("0");
+    const [campaignTab, setCampaignTab] = useState(CAMPAIGN_TAB_CURRENT);
     const [statusFilter, setStatusFilter] = useState("all");
+    const [campaignCountByTab, setCampaignCountByTab] = useState({});
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [formValues, setFormValues] = useState(emptyForm);
     const [formErrors, setFormErrors] = useState({});
@@ -190,41 +222,67 @@ export default function SchoolCampaigns() {
     const rowsPerPage = 10;
     useEffect(() => {
         let cancelled = false;
-        const year = parseInt(yearFilter, 10);
-        const yearParam = Number.isFinite(year) ? year : CURRENT_YEAR;
         setLoading(true);
-        getCampaignTemplatesByYear(yearParam)
-            .then((res) => {
-                if (cancelled) return;
-                const raw = res?.data?.body ?? res?.data;
-                let list = [];
-                if (Array.isArray(raw)) {
-                    list = raw;
-                } else if (raw) {
-                    list = [raw];
-                }
-                const mapped = list.map(mapTemplate).filter(Boolean);
-                setCampaigns(mapped);
-            })
-            .catch((err) => {
-                if (cancelled) return;
-                console.error("Fetch campaign templates error:", err);
-                enqueueSnackbar(err?.response?.data?.message || "Không tải được danh sách chiến dịch", {
-                    variant: "error",
+
+        const parseBody = (res) => {
+            const raw = res?.data?.body ?? res?.data;
+            if (Array.isArray(raw)) return raw;
+            if (raw) return [raw];
+            return [];
+        };
+
+        if (campaignTab === CAMPAIGN_TAB_CURRENT) {
+            getCampaignTemplatesByYear(CURRENT_YEAR)
+                .then((res) => {
+                    if (cancelled) return;
+                    const list = parseBody(res);
+                    setCampaigns(list.map(mapTemplate).filter(Boolean));
+                })
+                .catch((err) => {
+                    if (cancelled) return;
+                    console.error("Fetch campaign templates error:", err);
+                    enqueueSnackbar(err?.response?.data?.message || "Không tải được danh sách chiến dịch", {
+                        variant: "error",
+                    });
+                    setCampaigns([]);
+                })
+                .finally(() => {
+                    if (!cancelled) setLoading(false);
                 });
-                setCampaigns([]);
-            })
-            .finally(() => {
-                if (!cancelled) setLoading(false);
-            });
+        } else {
+            Promise.all(PAST_YEARS_FOR_TAB.map((y) => getCampaignTemplatesByYear(y)))
+                .then((responses) => {
+                    if (cancelled) return;
+                    const lists = responses.map(parseBody);
+                    const merged = mergeCampaignListsById(lists);
+                    setCampaigns(merged.filter((c) => Number(c.year) < CURRENT_YEAR));
+                })
+                .catch((err) => {
+                    if (cancelled) return;
+                    console.error("Fetch campaign templates error:", err);
+                    enqueueSnackbar(err?.response?.data?.message || "Không tải được danh sách chiến dịch", {
+                        variant: "error",
+                    });
+                    setCampaigns([]);
+                })
+                .finally(() => {
+                    if (!cancelled) setLoading(false);
+                });
+        }
+
         return () => { cancelled = true; };
-    }, [yearFilter]);
+    }, [campaignTab]);
+
+    useEffect(() => {
+        if (loading) return;
+        setCampaignCountByTab((prev) => ({ ...prev, [campaignTab]: campaigns.length }));
+    }, [loading, campaigns, campaignTab]);
 
     useEffect(() => {
         setPage(0);
-    }, [yearFilter, search, statusFilter]);
+    }, [campaignTab, search, statusFilter]);
 
-    const years = useMemo(() => YEAR_OPTIONS, []);
+    const isPastYearView = campaignTab === CAMPAIGN_TAB_PAST;
 
     const handleChange = (e) => {
         const {name, value} = e.target;
@@ -341,6 +399,10 @@ export default function SchoolCampaigns() {
     };
 
     const handleOpenCreate = () => {
+        if (isPastYearView) {
+            enqueueSnackbar("Năm học đã qua — chỉ xem, không thể tạo chiến dịch mới.", { variant: "info" });
+            return;
+        }
         setFormValues({
             ...emptyForm,
             year: new Date().getFullYear(),
@@ -359,11 +421,11 @@ export default function SchoolCampaigns() {
                 enqueueSnackbar(res?.data?.message || "Tạo chiến dịch thành công", { variant: "success" });
                 setCreateModalOpen(false);
                 const createdYear = Number(payload.year);
-                if (Number.isFinite(createdYear) && createdYear !== parseInt(yearFilter, 10)) {
-                    setYearFilter(String(createdYear));
+                if (Number.isFinite(createdYear)) {
+                    setCampaignTab(CAMPAIGN_TAB_CURRENT);
                 }
                 const refetch = await getCampaignTemplatesByYear(
-                    Number.isFinite(createdYear) ? createdYear : parseInt(yearFilter, 10)
+                    Number.isFinite(createdYear) ? createdYear : CURRENT_YEAR
                 );
                 const raw = refetch?.data?.body ?? refetch?.data;
                 let list = [];
@@ -463,7 +525,7 @@ export default function SchoolCampaigns() {
                                 : "Xem kế hoạch tuyển sinh"}
                         </Typography>
                     </Box>
-                    {isPrimaryBranch && (
+                    {isPrimaryBranch && !isPastYearView && (
                         <Button
                             variant="contained"
                             startIcon={<AddIcon/>}
@@ -489,7 +551,8 @@ export default function SchoolCampaigns() {
                 </Box>
             </Box>
 
-            {/* Search & Filters */}
+            <Fade in timeout={220} key={campaignTab}>
+                <Box sx={{width: "100%"}}>
             <Card
                 elevation={0}
                 sx={{
@@ -497,9 +560,161 @@ export default function SchoolCampaigns() {
                     border: "1px solid #e2e8f0",
                     boxShadow: "0 4px 24px rgba(51,65,85,0.06)",
                     bgcolor: "#fff",
+                    overflow: "hidden",
                 }}
             >
-                <CardContent sx={{p: 2.5}}>
+                {/* Tiêu đề trong card — cùng kiểu màn Cài đặt */}
+                <Box
+                    sx={{
+                        px: 2.5,
+                        pt: 2.5,
+                        pb: 1.5,
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 1.5,
+                    }}
+                >
+                    <CampaignIcon sx={{color: "#0D64DE", fontSize: 28, mt: 0.25}}/>
+                    <Box>
+                        <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b", lineHeight: 1.3}}>
+                            Danh sách chiến dịch
+                        </Typography>
+                        <Typography variant="body2" sx={{color: "#64748b", mt: 0.5}}>
+                            {isPastYearView
+                                ? "Năm học đã qua — chỉ xem lại dữ liệu, không tạo hay chỉnh sửa."
+                                : "Xem và quản lý chiến dịch tuyển sinh cho năm học hiện tại."}
+                        </Typography>
+                    </Box>
+                </Box>
+
+                {/* Tabs năm học */}
+                <Box sx={{px: 2.5}}>
+                    <Tabs
+                        value={campaignTab}
+                        onChange={(_, v) => setCampaignTab(v)}
+                        sx={{
+                            minHeight: 48,
+                            "& .MuiTabs-flexContainer": {
+                                gap: 0.5,
+                            },
+                            "& .MuiTab-root": {
+                                minHeight: 48,
+                                px: 2,
+                                py: 1,
+                                textTransform: "none",
+                                fontSize: "0.9375rem",
+                                fontFamily: '"Inter", "SF Pro Display", system-ui, sans-serif',
+                                color: "#64748b",
+                                fontWeight: 500,
+                                borderRadius: "8px",
+                                transition: "all 0.2s ease",
+                                "&:hover": {
+                                    color: "#334155",
+                                    bgcolor: "rgba(148, 163, 184, 0.12)",
+                                },
+                                "&.Mui-selected": {
+                                    color: "#0D64DE",
+                                    fontWeight: 700,
+                                },
+                            },
+                            "& .MuiTabs-indicator": {
+                                height: 3,
+                                borderRadius: "3px 3px 0 0",
+                                bgcolor: "#0D64DE",
+                                transition: "all 0.2s ease",
+                            },
+                            "& .MuiTab-root:not(.Mui-selected) .campaign-year-tab-badge": {
+                                bgcolor: "rgba(100, 116, 139, 0.14)",
+                                color: "#64748b",
+                            },
+                        }}
+                        TabIndicatorProps={{
+                            sx: {
+                                height: 3,
+                                bgcolor: "#0D64DE",
+                            },
+                        }}
+                    >
+                        <Tab
+                            value={CAMPAIGN_TAB_CURRENT}
+                            label={
+                                <Stack
+                                    direction="row"
+                                    alignItems="center"
+                                    justifyContent="center"
+                                    spacing={0.75}
+                                    component="span"
+                                >
+                                    <Typography component="span" variant="body2" sx={{fontWeight: "inherit"}}>
+                                        {`Năm hiện tại (${CURRENT_YEAR})`}
+                                    </Typography>
+                                    {campaignCountByTab[CAMPAIGN_TAB_CURRENT] !== undefined && (
+                                        <Box
+                                            component="span"
+                                            className="campaign-year-tab-badge"
+                                            sx={{
+                                                minWidth: 22,
+                                                height: 22,
+                                                px: 0.75,
+                                                borderRadius: "999px",
+                                                fontSize: 11,
+                                                fontWeight: 600,
+                                                lineHeight: "22px",
+                                                textAlign: "center",
+                                                bgcolor: "rgba(13, 100, 222, 0.12)",
+                                                color: "#0D64DE",
+                                                transition: "all 0.2s ease",
+                                            }}
+                                        >
+                                            {campaignCountByTab[CAMPAIGN_TAB_CURRENT]}
+                                        </Box>
+                                    )}
+                                </Stack>
+                            }
+                        />
+                        <Tab
+                            value={CAMPAIGN_TAB_PAST}
+                            label={
+                                <Stack
+                                    direction="row"
+                                    alignItems="center"
+                                    justifyContent="center"
+                                    spacing={0.75}
+                                    component="span"
+                                >
+                                    <Typography component="span" variant="body2" sx={{fontWeight: "inherit"}}>
+                                        Các năm trước
+                                    </Typography>
+                                    {campaignCountByTab[CAMPAIGN_TAB_PAST] !== undefined && (
+                                        <Box
+                                            component="span"
+                                            className="campaign-year-tab-badge"
+                                            sx={{
+                                                minWidth: 22,
+                                                height: 22,
+                                                px: 0.75,
+                                                borderRadius: "999px",
+                                                fontSize: 11,
+                                                fontWeight: 600,
+                                                lineHeight: "22px",
+                                                textAlign: "center",
+                                                bgcolor: "rgba(13, 100, 222, 0.12)",
+                                                color: "#0D64DE",
+                                                transition: "all 0.2s ease",
+                                            }}
+                                        >
+                                            {campaignCountByTab[CAMPAIGN_TAB_PAST]}
+                                        </Box>
+                                    )}
+                                </Stack>
+                            }
+                        />
+                    </Tabs>
+                </Box>
+
+                <Divider sx={{borderColor: "#e2e8f0"}}/>
+
+                <CardContent sx={{p: 2.5, pb: 2}}>
                     <Stack
                         direction={{xs: "column", md: "row"}}
                         spacing={2}
@@ -526,22 +741,6 @@ export default function SchoolCampaigns() {
                             }}
                         />
                         <FormControl size="small" sx={{minWidth: 140}}>
-                            <InputLabel>Năm</InputLabel>
-                            <Select
-                                value={yearFilter}
-                                label="Năm"
-                                onChange={(e) => setYearFilter(e.target.value)}
-                                sx={{borderRadius: "12px", bgcolor: "#f8fafc"}}
-                            >
-                                <MenuItem value="0">Tất cả năm</MenuItem>
-                                {years.map((y) => (
-                                    <MenuItem key={y} value={String(y)}>
-                                        {y}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                        <FormControl size="small" sx={{minWidth: 140}}>
                             <InputLabel>Trạng thái</InputLabel>
                             <Select
                                 value={statusFilter}
@@ -559,20 +758,8 @@ export default function SchoolCampaigns() {
                         </FormControl>
                     </Stack>
                 </CardContent>
-            </Card>
 
-            {/* Table */}
-            <Card
-                elevation={0}
-                sx={{
-                    borderRadius: "16px",
-                    border: "1px solid #e2e8f0",
-                    boxShadow: "0 4px 24px rgba(51,65,85,0.06)",
-                    overflow: "hidden",
-                    bgcolor: "#fff",
-                }}
-            >
-                <TableContainer>
+                <TableContainer sx={{borderTop: "1px solid #e2e8f0"}}>
                     <Table>
                         <TableHead>
                             <TableRow sx={{bgcolor: "#f8fafc"}}>
@@ -630,11 +817,15 @@ export default function SchoolCampaigns() {
                                             <Typography variant="body2" sx={{color: "#94a3b8"}}>
                                                 {filteredCampaigns.length === 0 && campaigns.length > 0
                                                     ? "Không có kết quả phù hợp với tìm kiếm hoặc bộ lọc."
-                                                    : isPrimaryBranch
-                                                        ? "Chưa có chiến dịch cho năm đã chọn — nhấn «+ Tạo chiến dịch» để bắt đầu."
-                                                        : "Chưa có kế hoạch tuyển sinh."}
+                                                    : campaigns.length === 0 && isPastYearView
+                                                        ? "Không có chiến dịch nào trong các năm trước."
+                                                        : campaigns.length === 0 &&
+                                                            isPrimaryBranch &&
+                                                            !isPastYearView
+                                                          ? "Chưa có chiến dịch cho năm đã chọn — nhấn «+ Tạo chiến dịch» để bắt đầu."
+                                                          : "Chưa có kế hoạch tuyển sinh."}
                                             </Typography>
-                                            {campaigns.length === 0 && isPrimaryBranch && (
+                                            {campaigns.length === 0 && isPrimaryBranch && !isPastYearView && (
                                                 <Button
                                                     variant="contained"
                                                     startIcon={<AddIcon/>}
@@ -719,22 +910,24 @@ export default function SchoolCampaigns() {
                                                         >
                                                             <VisibilityIcon fontSize="small" />
                                                         </IconButton>
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={() => handleOpenEdit(row)}
-                                                            title="Chỉnh sửa"
-                                                            aria-label="Chỉnh sửa"
-                                                            disabled={String(row.status || "").toUpperCase() !== "DRAFT"}
-                                                            sx={{
-                                                                color: "#64748b",
-                                                                "&:hover": {
-                                                                    color: "#0D64DE",
-                                                                    bgcolor: "rgba(13, 100, 222, 0.08)",
-                                                                },
-                                                            }}
-                                                        >
-                                                            <EditIcon fontSize="small" />
-                                                        </IconButton>
+                                                        {!isPastYearView && (
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => handleOpenEdit(row)}
+                                                                title="Chỉnh sửa"
+                                                                aria-label="Chỉnh sửa"
+                                                                disabled={String(row.status || "").toUpperCase() !== "DRAFT"}
+                                                                sx={{
+                                                                    color: "#64748b",
+                                                                    "&:hover": {
+                                                                        color: "#0D64DE",
+                                                                        bgcolor: "rgba(13, 100, 222, 0.08)",
+                                                                    },
+                                                                }}
+                                                            >
+                                                                <EditIcon fontSize="small" />
+                                                            </IconButton>
+                                                        )}
                                                     </Stack>
                                                 </TableCell>
                                             )}
@@ -766,6 +959,8 @@ export default function SchoolCampaigns() {
                     </Box>
                 )}
             </Card>
+            </Box>
+            </Fade>
 
             {/* Create Campaign Modal */}
             <Dialog
