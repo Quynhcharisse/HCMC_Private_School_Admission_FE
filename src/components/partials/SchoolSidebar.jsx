@@ -33,7 +33,7 @@ import { signout } from "../../services/AccountService.jsx";
 const menuGroups = [
     {
         title: "TỔNG QUAN",
-        items: [{ text: "Bảng thống kê", icon: <DashboardIcon />, path: "/school/dashboard" }],
+        items: [{ text: "Bảng", icon: <DashboardIcon />, path: "/school/dashboard" }],
     },
     {
         title: "QUẢN LÝ HỆ THỐNG",
