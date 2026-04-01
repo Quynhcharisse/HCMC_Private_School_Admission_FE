@@ -3,6 +3,7 @@ import {
     Box,
     Breadcrumbs,
     Button,
+    ButtonBase,
     Card,
     CardMedia,
     Chip,
@@ -31,6 +32,8 @@ import {
     CheckCircle as CheckCircleIcon,
     ChatBubbleOutline as ChatBubbleOutlineIcon,
     Email as EmailIcon,
+    Favorite as FavoriteIcon,
+    FavoriteBorder as FavoriteBorderIcon,
     Language as LanguageIcon,
     LocationOn as LocationOnIcon,
     MapsHomeWork as MapsHomeWorkIcon,
@@ -67,12 +70,17 @@ import {
 } from "../../utils/savedSchoolsStorage";
 import {getPublicSchoolDetail, getPublicSchoolList} from "../../services/SchoolPublicService.jsx";
 
-/** API hiện chưa trả tỉnh/phường — dùng giá trị chung để bộ lọc vẫn hoạt động. */
 const LOCATION_FALLBACK_PROVINCE = "Tất cả";
 const LOCATION_FALLBACK_WARD = "Tất cả";
 
 function mapPublicSchoolToRow(api) {
     if (!api || typeof api !== "object") return null;
+    const campusList = Array.isArray(api.campusList)
+        ? api.campusList
+        : Array.isArray(api.campustList)
+            ? api.campustList
+            : [];
+    const firstCampus = campusList[0] ?? null;
     return {
         id: api.id,
         school: api.name ?? "",
@@ -82,7 +90,7 @@ function mapPublicSchoolToRow(api) {
         phone: api.hotline || "",
         email: api.email || api.schoolEmail || api.accountEmail || "",
         counsellorEmail: api.counsellorEmail || api.email || api.schoolEmail || api.accountEmail || "",
-        address: api.description ? String(api.description) : "Đang cập nhật",
+        address: firstCampus?.address || api.address || "",
         locationLabel: "TP.HCM",
         description: api.description,
         averageRating: typeof api.averageRating === "number" ? api.averageRating : 0,
@@ -815,8 +823,6 @@ export default function SchoolSearchPage() {
                 if (!intro || !loc || !consult) return;
                 const rootRect = root.getBoundingClientRect();
                 const anchor = rootRect.top + DETAIL_SCROLL_HEADROOM;
-                // Add a small tolerance so tab state does not bounce
-                // back to "Giới thiệu" because of minor scroll offsets.
                 const activationLine = anchor + 24;
                 const consultTop = consult.getBoundingClientRect().top;
                 const locTop = loc.getBoundingClientRect().top;
@@ -837,6 +843,19 @@ export default function SchoolSearchPage() {
     const detailKeyForActions = detailSchool ? getSchoolStorageKey(detailSchool) : "";
     const detailIsSaved = Boolean(detailSchool && savedSchoolKeys.has(detailKeyForActions));
     const detailInCompare = Boolean(detailSchool && compareSchoolKeys.has(detailKeyForActions));
+
+    const detailHeroActionBtnSx = {
+        textTransform: "none",
+        fontWeight: 700,
+        color: "#fff",
+        border: "1px solid rgba(255,255,255,0.55)",
+        borderRadius: 2,
+        minWidth: 0,
+        "&:hover": {
+            borderColor: "#fff",
+            bgcolor: "rgba(255,255,255,0.12)"
+        }
+    };
 
     const shareSchoolDetail = React.useCallback(() => {
         if (!detailSchool) return;
@@ -1181,10 +1200,7 @@ export default function SchoolSearchPage() {
                             />
                         </Box>
 
-                        <Box sx={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, gap: 2, flexWrap: 'wrap'}}>
-                            <Typography sx={{fontWeight: 800, color: '#1e293b', fontSize: '1rem'}}>
-                                {listLoading ? "Đang tải…" : totalCount === 0 ? "0 trường" : `${totalCount} trường`}
-                            </Typography>
+                        <Box sx={{display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 2, gap: 2, flexWrap: 'wrap'}}>
                             <Box sx={{display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap'}}>
                                 {compareCount > 0 && (
                                     <Button
@@ -1258,50 +1274,263 @@ export default function SchoolSearchPage() {
                                             backdropFilter: 'blur(8px)',
                                             boxShadow: landingSectionShadow(3),
                                             transition:
-                                                'transform 0.44s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.44s cubic-bezier(0.2, 0, 0, 1), border-color 0.38s cubic-bezier(0.2, 0, 0, 1)',
+                                                'transform 0.32s cubic-bezier(0.2, 0, 0.2, 1), box-shadow 0.32s cubic-bezier(0.2, 0, 0.2, 1), border-color 0.32s cubic-bezier(0.2, 0, 0.2, 1), background-color 0.32s ease',
                                             '&:hover': {
-                                                transform: 'translateY(-4px)',
-                                                boxShadow: landingSectionShadow(5),
-                                                borderColor: 'rgba(59,130,246,0.22)'
+                                                transform: 'translateY(-7px)',
+                                                bgcolor: 'rgba(255,255,255,0.98)',
+                                                boxShadow: `0 12px 40px rgba(59, 130, 246, 0.14), 0 24px 56px rgba(51, 65, 85, 0.12), ${landingSectionShadow(6)}`,
+                                                borderColor: 'rgba(59,130,246,0.45)'
                                             }
                                         }}
                                     >
-                                        <Box
+                                    <Box
+                                        sx={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            width: '100%',
+                                            alignSelf: 'center',
+                                            minHeight: {xs: 132, sm: 120},
+                                            py: {xs: 0.5, sm: 0.5}
+                                        }}
+                                    >
+                                        <CardMedia
+                                            component="img"
+                                            image={school.logoUrl || DEFAULT_SCHOOL_IMAGE}
+                                            alt={`${school.school} logo`}
                                             sx={{
-                                                position: "absolute",
-                                                top: 10,
-                                                right: 10,
-                                                zIndex: 2,
-                                                display: "flex",
-                                                gap: 0.5,
-                                                alignItems: "center"
+                                                height: {xs: 132, sm: 120},
+                                                width: '100%',
+                                                maxWidth: '100%',
+                                                borderRadius: 3,
+                                                objectFit: 'contain',
+                                                objectPosition: 'center',
+                                                display: 'block',
+                                                p: 0,
+                                                m: 0
+                                            }}
+                                        />
+                                    </Box>
+                                    <Box sx={{display: 'flex', flexDirection: 'column', minHeight: 132}}>
+                                        <Typography
+                                            sx={{
+                                                fontWeight: 700,
+                                                fontSize: {xs: '1.15rem', sm: '1.35rem'},
+                                                color: '#1e293b',
+                                                lineHeight: 1.25,
+                                                mb: 1.25
                                             }}
                                         >
-                                            <IconButton
-                                                size="small"
+                                            {school.school}
+                                        </Typography>
+                                        <Box sx={{display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.4}}>
+                                            {(Number(school.averageRating) || 0) > 0 ? (
+                                                <>
+                                                    <Typography
+                                                        component="span"
+                                                        sx={{
+                                                            fontSize: '0.75rem',
+                                                            fontWeight: 600,
+                                                            color: '#000',
+                                                            lineHeight: 1,
+                                                            display: 'inline-block',
+                                                            flexShrink: 0
+                                                        }}
+                                                    >{Number(school.averageRating).toFixed(1)}</Typography>
+                                                    <Rating
+                                                        value={Math.min(5, Math.max(0, Number(school.averageRating) || 0))}
+                                                        precision={0.1}
+                                                        readOnly
+                                                        size="small"
+                                                        sx={{
+                                                            color: '#ffc107',
+                                                            display: 'inline-flex',
+                                                            verticalAlign: 'middle',
+                                                            m: 0,
+                                                            p: 0,
+                                                            '& .MuiRating-iconFilled': {color: '#ffc107'},
+                                                            '& .MuiRating-iconEmpty': {color: 'rgba(0,0,0,0.22)'}
+                                                        }}
+                                                    />
+                                                </>
+                                            ) : (
+                                                <Typography
+                                                    component="span"
+                                                    sx={{
+                                                        fontSize: '0.75rem',
+                                                        fontWeight: 500,
+                                                        color: '#000',
+                                                        lineHeight: 1.2
+                                                    }}
+                                                >
+                                                    —
+                                                </Typography>
+                                            )}
+                                        </Box>
+                                        {school.description ? (
+                                            <Typography
+                                                sx={{
+                                                    mt: 1,
+                                                    color: '#64748b',
+                                                    fontSize: '0.875rem',
+                                                    fontWeight: 400,
+                                                    lineHeight: 1.45,
+                                                    display: '-webkit-box',
+                                                    WebkitLineClamp: 2,
+                                                    WebkitBoxOrient: 'vertical',
+                                                    overflow: 'hidden',
+                                                    wordBreak: 'break-word'
+                                                }}
+                                            >
+                                                {String(school.description)}
+                                            </Typography>
+                                        ) : null}
+                                        <Box
+                                            sx={{
+                                                mt: 1.25,
+                                                display: 'flex',
+                                                flexDirection: {xs: 'column', sm: 'row'},
+                                                flexWrap: {sm: 'wrap'},
+                                                alignItems: {sm: 'flex-start'},
+                                                justifyContent: 'flex-start',
+                                                width: '100%',
+                                                gap: {xs: 1.1, sm: 7},
+                                                alignSelf: 'stretch'
+                                            }}
+                                        >
+                                            <Box
+                                                sx={{
+                                                    display: 'flex',
+                                                    alignItems: 'flex-start',
+                                                    gap: 0.35,
+                                                    flexShrink: {sm: 1},
+                                                    minWidth: 0,
+                                                    maxWidth: {sm: 280},
+                                                    width: {xs: '100%', sm: 'auto'}
+                                                }}
+                                            >
+                                                <LocationOnIcon sx={{fontSize: 13, color: '#000', flexShrink: 0, mt: '2px'}}/>
+                                                <Typography
+                                                    sx={{
+                                                        fontSize: '0.6875rem',
+                                                        fontWeight: 400,
+                                                        lineHeight: 1.35,
+                                                        color: '#0f172a',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        display: '-webkit-box',
+                                                        WebkitLineClamp: 2,
+                                                        WebkitBoxOrient: 'vertical',
+                                                        wordBreak: 'break-word',
+                                                        minWidth: 0
+                                                    }}
+                                                >
+                                                    {school.address?.trim() ? school.address : 'Đang cập nhật'}
+                                                </Typography>
+                                            </Box>
+                                            <Box
+                                                sx={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 0.35,
+                                                    flexShrink: 0,
+                                                    minWidth: 0,
+                                                    maxWidth: {sm: 200},
+                                                    width: {xs: '100%', sm: 'auto'}
+                                                }}
+                                            >
+                                                <LanguageIcon sx={{fontSize: 13, color: '#000', flexShrink: 0}}/>
+                                                {school.website ? (
+                                                    <Link
+                                                        href={school.website.startsWith('http') ? school.website : `https://${school.website}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        sx={{
+                                                            fontSize: '0.6875rem',
+                                                            color: BRAND_NAVY,
+                                                            textDecoration: 'none',
+                                                            overflow: 'hidden',
+                                                            textOverflow: 'ellipsis',
+                                                            whiteSpace: 'nowrap',
+                                                            maxWidth: '100%',
+                                                            minWidth: 0,
+                                                            '&:hover': {
+                                                                color: APP_PRIMARY_DARK,
+                                                                textDecoration: 'underline'
+                                                            }
+                                                        }}
+                                                    >
+                                                        {school.website.replace(/^https?:\/\//i, '')}
+                                                    </Link>
+                                                ) : (
+                                                    <Typography sx={{fontSize: '0.6875rem', color: '#0f172a'}}>—</Typography>
+                                                )}
+                                            </Box>
+                                            <Box
+                                                sx={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: 0.35,
+                                                    flexShrink: 0,
+                                                    minWidth: 0,
+                                                    width: {xs: '100%', sm: 'auto'}
+                                                }}
+                                            >
+                                                <PhoneIcon sx={{fontSize: 13, color: '#000', flexShrink: 0}}/>
+                                                <Typography
+                                                    sx={{
+                                                        fontSize: '0.6875rem',
+                                                        color: '#0f172a',
+                                                        overflow: 'hidden',
+                                                        textOverflow: 'ellipsis',
+                                                        whiteSpace: 'nowrap',
+                                                        maxWidth: '100%',
+                                                        minWidth: 0
+                                                    }}
+                                                >
+                                                    {school.phone || '—'}
+                                                </Typography>
+                                            </Box>
+                                        </Box>
+                                        <Box
+                                            sx={{
+                                                display: 'flex',
+                                                flexWrap: 'wrap',
+                                                alignItems: 'center',
+                                                justifyContent: 'flex-end',
+                                                gap: 0.75,
+                                                mt: 'auto',
+                                                pt: 1.75
+                                            }}
+                                        >
+                                            <ButtonBase
                                                 onClick={() => toggleCompare(school)}
                                                 title={inCompare ? "Gỡ khỏi so sánh" : "Thêm vào so sánh"}
                                                 sx={{
-                                                    bgcolor: "rgba(255,255,255,0.92)",
-                                                    border: `1px solid ${
-                                                        inCompare ? "rgba(59,130,246,0.42)" : "rgba(59,130,246,0.2)"
-                                                    }`,
-                                                    "&:hover": {
-                                                        bgcolor: "#fff",
-                                                        borderColor: inCompare ? BRAND_NAVY : "rgba(59,130,246,0.32)"
-                                                    },
-                                                    opacity: 1,
-                                                    cursor: "pointer"
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 0.4,
+                                                    color: inCompare ? BRAND_NAVY : '#4a5568',
+                                                    fontSize: '0.6875rem',
+                                                    fontWeight: 700,
+                                                    borderRadius: 1.5,
+                                                    py: 0.35,
+                                                    px: 0.75,
+                                                    bgcolor: inCompare
+                                                        ? 'rgba(59,130,246,0.12)'
+                                                        : 'rgba(226,232,240,0.85)',
+                                                    '&:hover': {bgcolor: inCompare ? 'rgba(59,130,246,0.18)' : 'rgba(226,232,240,1)'}
                                                 }}
                                             >
                                                 {inCompare ? (
-                                                    <CheckCircleIcon fontSize="small" sx={{color: BRAND_NAVY}}/>
+                                                    <CheckCircleIcon sx={{fontSize: 14, color: BRAND_NAVY}}/>
                                                 ) : (
-                                                    <AddIcon fontSize="small" sx={{color: "#64748b"}}/>
+                                                    <AddIcon sx={{fontSize: 14, color: '#4a5568'}}/>
                                                 )}
-                                            </IconButton>
-                                            <IconButton
-                                                size="small"
+                                                So sánh
+                                            </ButtonBase>
+                                            <ButtonBase
                                                 disabled={!canSaveSchool}
                                                 onClick={() => toggleSave(school)}
                                                 title={
@@ -1312,40 +1541,27 @@ export default function SchoolSearchPage() {
                                                         : "Đăng nhập với vai trò Phụ huynh để lưu trường"
                                                 }
                                                 sx={{
-                                                    bgcolor: "rgba(255,255,255,0.92)",
-                                                    border: "1px solid rgba(59,130,246,0.2)",
-                                                    "&:hover": {bgcolor: "#fff", borderColor: "rgba(59,130,246,0.32)"},
-                                                    "&.Mui-disabled": {opacity: 0.55}
+                                                    display: 'inline-flex',
+                                                    alignItems: 'center',
+                                                    gap: 0.4,
+                                                    color: isSaved ? '#e11d48' : '#4a5568',
+                                                    fontSize: '0.6875rem',
+                                                    fontWeight: 700,
+                                                    borderRadius: 1.5,
+                                                    py: 0.35,
+                                                    px: 0.35,
+                                                    bgcolor: 'transparent',
+                                                    '&:hover': {bgcolor: 'rgba(59,130,246,0.06)'},
+                                                    '&.Mui-disabled': {opacity: 0.5}
                                                 }}
                                             >
                                                 {isSaved ? (
-                                                    <BookmarkIcon fontSize="small" sx={{color: "#ea580c"}}/>
+                                                    <FavoriteIcon sx={{fontSize: 14, color: '#e11d48'}}/>
                                                 ) : (
-                                                    <BookmarkBorderIcon fontSize="small" sx={{color: "#64748b"}}/>
+                                                    <FavoriteBorderIcon sx={{fontSize: 14, color: '#4a5568'}}/>
                                                 )}
-                                            </IconButton>
-                                        </Box>
-                                    <CardMedia
-                                        component="img"
-                                        image={school.logoUrl || DEFAULT_SCHOOL_IMAGE}
-                                        alt={`${school.school} logo`}
-                                        sx={{
-                                            height: {xs: 132, sm: 120},
-                                            width: '88%',
-                                            mx: 'auto',
-                                            borderRadius: 3,
-                                            objectFit: 'contain',
-                                            p: 0
-                                        }}
-                                    />
-                                    <Box sx={{display: 'flex', flexDirection: 'column', minHeight: 132}}>
-                                        <Typography sx={{fontWeight: 800, fontSize: {xs: '1.15rem', sm: '1.35rem'}, color: '#1e293b', lineHeight: 1.25, pr: {xs: 10, sm: 11}}}>
-                                            {school.school}
-                                        </Typography>
-                                        <Typography sx={{mt: 1.5, color: '#64748b', fontSize: '0.9rem', fontWeight: 600}}>
-                                            {`${school.ward || "Đang cập nhật"} - ${school.province || "Đang cập nhật"}`}
-                                        </Typography>
-                                        <Box sx={{display: 'flex', justifyContent: 'flex-end', mt: 2}}>
+                                                Yêu thích
+                                            </ButtonBase>
                                             <Button
                                                 size="small"
                                                 variant="outlined"
@@ -1355,9 +1571,12 @@ export default function SchoolSearchPage() {
                                                     fontWeight: 700,
                                                     borderRadius: 999,
                                                     px: 2,
+                                                    py: 0.5,
+                                                    fontSize: '0.8125rem',
                                                     borderColor: 'rgba(59,130,246,0.4)',
                                                     color: BRAND_NAVY,
                                                     bgcolor: 'rgba(255,255,255,0.6)',
+                                                    ml: {xs: 0, sm: 0.25},
                                                     '&:hover': {
                                                         borderColor: BRAND_NAVY,
                                                         bgcolor: 'rgba(255,255,255,0.95)'
@@ -1366,24 +1585,6 @@ export default function SchoolSearchPage() {
                                             >
                                                 Xem chi tiết
                                             </Button>
-                                        </Box>
-                                        <Box sx={{mt: 'auto', pt: 1.25, display: 'flex', alignItems: 'center', minHeight: 24}}>
-                                            {(Number(school.averageRating) || 0) > 0 ? (
-                                                <Rating
-                                                    value={Math.min(5, Math.max(0, Number(school.averageRating) || 0))}
-                                                    precision={0.5}
-                                                    readOnly
-                                                    size="small"
-                                                    sx={{
-                                                        transform: 'scale(1.2)',
-                                                        transformOrigin: 'left center'
-                                                    }}
-                                                />
-                                            ) : (
-                                                <Typography sx={{color: '#64748b', fontSize: '0.95rem'}}>
-                                                    Chưa có đánh giá
-                                                </Typography>
-                                            )}
                                         </Box>
                                     </Box>
                                     </Card>
@@ -1479,10 +1680,22 @@ export default function SchoolSearchPage() {
                                 left: 0,
                                 right: 0,
                                 bottom: 0,
-                                p: {xs: 2, sm: 3},
-                                pt: {xs: 5, sm: 6}
+                                pt: {xs: 5, sm: 6},
+                                pb: {xs: 2, sm: 3},
+                                px: {xs: 24, sm: 40}
                             }}
                         >
+                            <Box
+                                sx={{
+                                    display: "flex",
+                                    flexDirection: {xs: "column", sm: "row"},
+                                    alignItems: {xs: "stretch", sm: "center"},
+                                    justifyContent: "space-between",
+                                    gap: {xs: 0, sm: 2},
+                                    width: "100%"
+                                }}
+                            >
+                            <Box sx={{flex: "1 1 auto", minWidth: 0}}>
                             <Typography
                                 sx={{
                                     fontWeight: 800,
@@ -1496,52 +1709,75 @@ export default function SchoolSearchPage() {
                             <Stack
                                 direction="row"
                                 alignItems="center"
-                                spacing={1}
                                 flexWrap="wrap"
                                 useFlexGap
-                                sx={{mt: 1.25, gap: 1}}
+                                sx={{mt: 1.25, gap: {xs: 1, sm: 2.5}, rowGap: 1}}
                             >
-                                <Chip
-                                    label={
-                                        detailSchool.averageRating > 0
-                                            ? `${detailSchool.averageRating.toFixed(1)} / 5`
-                                            : "Chưa có đánh giá"
-                                    }
-                                    size="small"
-                                    sx={{
-                                        bgcolor:
-                                            detailSchool.averageRating > 0
-                                                ? "rgba(16,185,129,0.95)"
-                                                : "rgba(100,116,139,0.85)",
-                                        color: "#fff",
-                                        fontWeight: 800,
-                                        border: "none"
-                                    }}
-                                />
-                                <Stack direction="row" alignItems="center" spacing={0.5}>
+                                <Stack
+                                    direction="row"
+                                    alignItems="center"
+                                    spacing={0.5}
+                                    flexWrap="wrap"
+                                    useFlexGap
+                                    sx={{gap: 0.5, minHeight: 28}}
+                                >
                                     <Rating
                                         value={Math.min(5, Math.max(0, Number(detailSchool.averageRating) || 0))}
                                         precision={0.1}
                                         readOnly
                                         size="small"
-                                        sx={{color: "#fbbf24"}}
+                                        sx={{color: "#fbbf24", display: "flex", alignItems: "center"}}
                                     />
-                                    <Typography sx={{fontSize: "0.85rem", opacity: 0.95}}>
+                                    <Typography
+                                        sx={{
+                                            fontSize: "0.85rem",
+                                            opacity: 0.95,
+                                            lineHeight: 1.2,
+                                            display: "flex",
+                                            alignItems: "center"
+                                        }}
+                                    >
                                         {detailSchool.averageRating > 0
                                             ? detailSchool.averageRating.toFixed(1)
                                             : "—"}
                                     </Typography>
                                 </Stack>
-                                <Typography sx={{fontSize: "0.85rem", opacity: 0.9}}>
-                                    · {detailSchool.ward}, {detailSchool.province}
-                                </Typography>
+                                <Stack
+                                    direction="row"
+                                    alignItems="center"
+                                    spacing={0.5}
+                                    useFlexGap
+                                    sx={{gap: 0.5, minHeight: 28}}
+                                >
+                                    <LocationOnIcon sx={{fontSize: 18, opacity: 0.92, flexShrink: 0}}/>
+                                    <Typography
+                                        component="span"
+                                        sx={{
+                                            fontSize: "0.85rem",
+                                            opacity: 0.9,
+                                            lineHeight: 1.2,
+                                            display: "inline-flex",
+                                            alignItems: "center"
+                                        }}
+                                    >
+                                        {detailSchool.ward}, {detailSchool.province}
+                                    </Typography>
+                                </Stack>
                             </Stack>
+                            </Box>
 
                             <Stack
                                 direction="row"
                                 flexWrap="wrap"
                                 useFlexGap
-                                sx={{mt: 2, gap: 1}}
+                                justifyContent="flex-end"
+                                sx={{
+                                    mt: {xs: 2, sm: 0},
+                                    gap: 0.75,
+                                    flexShrink: 0,
+                                    width: {xs: "100%", sm: "auto"},
+                                    alignSelf: {xs: "stretch", sm: "center"}
+                                }}
                             >
                                 <Button
                                     size="small"
@@ -1554,13 +1790,7 @@ export default function SchoolSearchPage() {
                                     }
                                     target="_blank"
                                     rel="noreferrer"
-                                    sx={{
-                                        textTransform: "none",
-                                        fontWeight: 700,
-                                        color: "#fff",
-                                        borderColor: "rgba(255,255,255,0.55)",
-                                        "&:hover": {borderColor: "#fff", bgcolor: "rgba(255,255,255,0.12)"}
-                                    }}
+                                    sx={detailHeroActionBtnSx}
                                 >
                                     {(detailSchool.website || "").trim() ? "Website trường" : "Tìm trên web"}
                                 </Button>
@@ -1574,13 +1804,7 @@ export default function SchoolSearchPage() {
                                             ? "Mở chat với tư vấn viên trường (cần đăng nhập phụ huynh)"
                                             : "Đăng nhập với vai trò Phụ huynh để chat với tư vấn viên"
                                     }
-                                    sx={{
-                                        textTransform: "none",
-                                        fontWeight: 700,
-                                        color: "#fff",
-                                        borderColor: "rgba(255,255,255,0.55)",
-                                        "&:hover": {borderColor: "#fff", bgcolor: "rgba(255,255,255,0.12)"}
-                                    }}
+                                    sx={detailHeroActionBtnSx}
                                 >
                                     Nhắn tin
                                 </Button>
@@ -1595,13 +1819,7 @@ export default function SchoolSearchPage() {
                                         )
                                     }
                                     onClick={() => toggleCompare(detailSchool)}
-                                    sx={{
-                                        textTransform: "none",
-                                        fontWeight: 700,
-                                        color: "#fff",
-                                        borderColor: "rgba(255,255,255,0.55)",
-                                        "&:hover": {borderColor: "#fff", bgcolor: "rgba(255,255,255,0.12)"}
-                                    }}
+                                    sx={detailHeroActionBtnSx}
                                 >
                                     {detailInCompare ? "Đã chọn so sánh" : "So sánh"}
                                 </Button>
@@ -1625,14 +1843,11 @@ export default function SchoolSearchPage() {
                                     }
                                     onClick={() => toggleSave(detailSchool)}
                                     sx={{
-                                        textTransform: "none",
-                                        fontWeight: 700,
-                                        color: "#fff",
-                                        borderColor: "rgba(255,255,255,0.55)",
-                                        "&:hover": {borderColor: "#fff", bgcolor: "rgba(255,255,255,0.12)"},
+                                        ...detailHeroActionBtnSx,
                                         "&.Mui-disabled": {
                                             color: "rgba(255,255,255,0.45)",
-                                            borderColor: "rgba(255,255,255,0.28)"
+                                            border: "1px solid rgba(255,255,255,0.45)",
+                                            WebkitTextFillColor: "rgba(255,255,255,0.45)"
                                         }
                                     }}
                                 >
@@ -1643,17 +1858,12 @@ export default function SchoolSearchPage() {
                                     variant="outlined"
                                     startIcon={<ShareIcon sx={{fontSize: 18}}/>}
                                     onClick={shareSchoolDetail}
-                                    sx={{
-                                        textTransform: "none",
-                                        fontWeight: 700,
-                                        color: "#fff",
-                                        borderColor: "rgba(255,255,255,0.55)",
-                                        "&:hover": {borderColor: "#fff", bgcolor: "rgba(255,255,255,0.12)"}
-                                    }}
+                                    sx={detailHeroActionBtnSx}
                                 >
                                     Chia sẻ
                                 </Button>
                             </Stack>
+                            </Box>
                         </Box>
                     </Box>
 
