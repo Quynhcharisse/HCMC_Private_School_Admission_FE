@@ -91,6 +91,9 @@ const getCurriculumStatusMeta = (status) => {
 };
 
 const isActiveStatus = (status) => normalizeStatus(status) === "CUR_ACTIVE";
+const currentYear = new Date().getFullYear();
+const minEnrollmentYear = currentYear - 2;
+const maxEnrollmentYear = currentYear + 5;
 
 const toCurriculumTypeLabel = (value) => curriculumTypeI18N[value] ?? value ?? "—";
 
@@ -108,7 +111,6 @@ const emptyForm = () => ({
     curriculumType: "",
     methodLearning: "",
     enrollmentYear: "",
-    publishNow: false,
     subjectOptions: [subjectEmpty()],
 });
 
@@ -157,6 +159,8 @@ function mapCurriculumFromApi(item) {
         programCount: Number(item.programCount) || 0,
         linkedProgramNames: Array.isArray(item.linkedProgramNames) ? item.linkedProgramNames : [],
         canEditIdentity: item.canEditIdentity,
+        updatedAt: item.updatedAt ?? item.modifiedAt ?? item.lastModifiedAt ?? null,
+        createdAt: item.createdAt ?? null,
     };
 }
 
@@ -185,6 +189,46 @@ function mapSubjectOptionsForApi(subjectOptions) {
         description: String(s.description || "").trim(),
         isMandatory: !!s.isMandatory,
     }));
+}
+
+function toVietnameseValidationMessage(rawMessage) {
+    const msg = String(rawMessage || "").trim();
+    if (!msg) return "";
+
+    const immutableYear = msg.match(/^Cannot change enrollment year because (\d+) programs are using this curriculum\.$/);
+    if (immutableYear) return `Không thể thay đổi năm tuyển sinh vì đang có ${immutableYear[1]} chương trình sử dụng khung chương trình này.`;
+
+    const yearRange = msg.match(/^Enrollment year must be between (\d+) and (\d+)$/);
+    if (yearRange) return `Năm tuyển sinh phải nằm trong khoảng từ ${yearRange[1]} đến ${yearRange[2]}.`;
+
+    const subjectNameTooLong = msg.match(/^Subject name '(.+)' is too long \(max 100\)\.$/);
+    if (subjectNameTooLong) return `Tên môn học "${subjectNameTooLong[1]}" quá dài (tối đa 100 ký tự).`;
+
+    const duplicateSubject = msg.match(/^Duplicate subject name found: (.+)$/);
+    if (duplicateSubject) return `Tên môn học bị trùng: "${duplicateSubject[1]}".`;
+
+    const subjectDescRequired = msg.match(/^Description for subject '(.+)' is required\.$/);
+    if (subjectDescRequired) return `Mô tả cho môn "${subjectDescRequired[1]}" là bắt buộc.`;
+
+    const subjectDescTooLong = msg.match(/^Description for subject '(.+)' is too long \(max 1000\)\.$/);
+    if (subjectDescTooLong) return `Mô tả cho môn "${subjectDescTooLong[1]}" quá dài (tối đa 1000 ký tự).`;
+
+    const dictionary = {
+        "Curriculum not found.": "Không tìm thấy khung chương trình.",
+        "Cannot update an archived curriculum. Please create a new version or use an active one.": "Không thể cập nhật khung chương trình đã lưu trữ. Vui lòng tạo phiên bản mới hoặc dùng bản đang hoạt động.",
+        "Cannot change curriculum type for a curriculum already linked to programs.": "Không thể thay đổi loại chương trình vì đã có chương trình liên kết.",
+        "Cannot change sub-type name for a curriculum already linked to programs.": "Không thể thay đổi tên phân loại vì đã có chương trình liên kết.",
+        "A curriculum with the same type, year, and sub-type already exists (Draft or Active).": "Đã tồn tại khung chương trình trùng Loại + Năm + Phân loại (ở trạng thái Nháp hoặc Hoạt động).",
+        "New draft created. Please update your changes.": "Đã tạo bản nháp mới. Vui lòng cập nhật nội dung chỉnh sửa của bạn.",
+        "Sub-type name is required.": "Tên phân loại là bắt buộc.",
+        "Sub-type name is too long (max 50 chars).": "Tên phân loại quá dài (tối đa 50 ký tự).",
+        "Invalid Curriculum Type or Learning Method.": "Loại chương trình hoặc phương pháp học không hợp lệ.",
+        "The curriculum must contain at least one subject.": "Khung chương trình phải có ít nhất 1 môn học.",
+        "A curriculum cannot have more than 50 subjects.": "Khung chương trình không được vượt quá 50 môn học.",
+        "Subject name cannot be empty.": "Tên môn học không được để trống.",
+        "The curriculum must have at least one mandatory subject.": "Khung chương trình phải có ít nhất 1 môn bắt buộc.",
+    };
+    return dictionary[msg] || msg;
 }
 
 function ChipStatus({ status }) {
@@ -230,6 +274,7 @@ export default function SchoolCurriculums() {
     const [submitLoading, setSubmitLoading] = useState(false);
     const [evolveLoading, setEvolveLoading] = useState(false);
     const [publishLoading, setPublishLoading] = useState(false);
+    const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
     const [confirmEvolveOpen, setConfirmEvolveOpen] = useState(false);
     const [curriculumToEditAfterConfirm, setCurriculumToEditAfterConfirm] = useState(null);
     const [pendingScrollSubjectIndex, setPendingScrollSubjectIndex] = useState(null);
@@ -321,7 +366,32 @@ export default function SchoolCurriculums() {
             list = list.filter((c) => normalizeStatus(c.curriculumStatus) === publishStatusFilter);
         }
 
-        return list;
+        const toEpoch = (value) => {
+            if (!value) return null;
+            const t = new Date(value).getTime();
+            return Number.isNaN(t) ? null : t;
+        };
+
+        return [...list].sort((a, b) => {
+            const aUpdated = toEpoch(a.updatedAt);
+            const bUpdated = toEpoch(b.updatedAt);
+
+            if (aUpdated !== null && bUpdated !== null && aUpdated !== bUpdated) {
+                return bUpdated - aUpdated;
+            }
+            if (aUpdated !== null && bUpdated === null) return -1;
+            if (aUpdated === null && bUpdated !== null) return 1;
+
+            const aCreated = toEpoch(a.createdAt);
+            const bCreated = toEpoch(b.createdAt);
+            if (aCreated !== null && bCreated !== null && aCreated !== bCreated) {
+                return bCreated - aCreated;
+            }
+            if (aCreated !== null && bCreated === null) return -1;
+            if (aCreated === null && bCreated !== null) return 1;
+
+            return Number(b.id ?? 0) - Number(a.id ?? 0);
+        });
     }, [curriculums, search, curriculumTypeFilter, enrollmentYearFilter, publishStatusFilter]);
 
     const paginatedCurriculums = filteredCurriculums;
@@ -329,25 +399,55 @@ export default function SchoolCurriculums() {
     const validateForm = () => {
         const errors = {};
         const subjectErrors = (formValues.subjectOptions || []).map(() => ({}));
+        const normalizedSubType = String(formValues.subTypeName || "").trim();
+        const normalizedDescription = String(formValues.description || "").trim();
+        const normalizedCurriculumType = String(formValues.curriculumType || "").trim();
+        const normalizedMethodLearning = String(formValues.methodLearning || "").trim();
+        const yearNumber = Number(formValues.enrollmentYear);
 
-        if (!String(formValues.subTypeName || "").trim()) errors.subTypeName = "Tên chương trình là bắt buộc";
-        if (!String(formValues.description || "").trim()) errors.description = "Mô tả là bắt buộc";
-        if (!String(formValues.curriculumType || "").trim()) errors.curriculumType = "Loại chương trình là bắt buộc";
-        if (!String(formValues.methodLearning || "").trim()) errors.methodLearning = "Phương pháp học là bắt buộc";
-        if (formValues.enrollmentYear === "" || Number.isNaN(Number(formValues.enrollmentYear))) {
+        if (!normalizedSubType) errors.subTypeName = "Tên phân loại là bắt buộc";
+        else if (normalizedSubType.length > 50) errors.subTypeName = "Tên phân loại tối đa 50 ký tự";
+
+        if (!normalizedDescription) errors.description = "Mô tả là bắt buộc";
+        if (!normalizedCurriculumType) errors.curriculumType = "Loại chương trình là bắt buộc";
+        else if (!CURRICULUM_TYPE_OPTIONS.includes(normalizedCurriculumType)) errors.curriculumType = "Loại chương trình không hợp lệ";
+        if (!normalizedMethodLearning) errors.methodLearning = "Phương pháp học là bắt buộc";
+        else if (!METHOD_LEARNING_OPTIONS.includes(normalizedMethodLearning)) errors.methodLearning = "Phương pháp học không hợp lệ";
+        if (formValues.enrollmentYear === "" || Number.isNaN(yearNumber)) {
             errors.enrollmentYear = "Năm tuyển sinh là bắt buộc";
+        } else if (yearNumber < minEnrollmentYear || yearNumber > maxEnrollmentYear) {
+            errors.enrollmentYear = `Năm tuyển sinh phải trong khoảng ${minEnrollmentYear} - ${maxEnrollmentYear}`;
         }
 
         const subjects = formValues.subjectOptions || [];
         if (subjects.length === 0) {
             errors.subjectOptions = "Phải có ít nhất 1 môn học";
+        } else if (subjects.length > 50) {
+            errors.subjectOptions = "Không được vượt quá 50 môn học";
         } else {
+            const subjectNames = new Set();
+            let hasMandatory = false;
             subjects.forEach((s, idx) => {
-                if (!String(s.name || "").trim()) subjectErrors[idx].name = "Tên môn học là bắt buộc";
+                const sName = String(s.name || "").trim();
+                const sDesc = String(s.description || "").trim();
+
+                if (!sName) subjectErrors[idx].name = "Tên môn học là bắt buộc";
+                else if (sName.length > 100) subjectErrors[idx].name = "Tên môn học tối đa 100 ký tự";
+                else {
+                    const lower = sName.toLowerCase();
+                    if (subjectNames.has(lower)) subjectErrors[idx].name = "Tên môn học bị trùng (không phân biệt hoa thường)";
+                    subjectNames.add(lower);
+                }
+
+                if (!sDesc) subjectErrors[idx].description = "Mô tả môn học là bắt buộc";
+                else if (sDesc.length > 1000) subjectErrors[idx].description = "Mô tả môn học tối đa 1000 ký tự";
+
+                if (!!s.isMandatory) hasMandatory = true;
             });
 
             const hasSubjectErrors = subjectErrors.some((se) => Object.keys(se).length > 0);
             if (hasSubjectErrors) errors.subjectOptions = subjectErrors;
+            else if (!hasMandatory) errors.subjectOptions = "Phải có ít nhất 1 môn bắt buộc";
         }
 
         setFormErrors(errors);
@@ -360,7 +460,6 @@ export default function SchoolCurriculums() {
         curriculumType: formValues.curriculumType,
         methodLearning: formValues.methodLearning,
         enrollmentYear: Number(formValues.enrollmentYear),
-        publishNow: false,
         subjectOptions: mapSubjectOptionsForApi(formValues.subjectOptions),
     });
 
@@ -383,7 +482,6 @@ export default function SchoolCurriculums() {
             curriculumType: defaultCurriculumType,
             methodLearning: defaultMethodLearning,
             enrollmentYear: new Date().getFullYear(),
-            publishNow: false,
             subjectOptions: [subjectEmpty()],
         });
         setCreateModalOpen(true);
@@ -400,8 +498,6 @@ export default function SchoolCurriculums() {
             curriculumType: curriculum?.curriculumType || "",
             methodLearning: curriculum?.methodLearning || "",
             enrollmentYear: curriculum?.enrollmentYear ?? "",
-            // Luôn lưu/update theo chế độ "draft" ở client; publish do PATCH activate thực hiện.
-            publishNow: false,
             subjectOptions:
                 Array.isArray(curriculum?.subjects) && curriculum.subjects.length > 0
                     ? curriculum.subjects.map((s) => ({
@@ -441,33 +537,29 @@ export default function SchoolCurriculums() {
         setEvolveLoading(true);
         try {
             const base = curriculumToEditAfterConfirm;
-            const draftRes = await saveCurriculum({
-                curriculumId: base.id,
-                subTypeName: String(base.subTypeName || base.name || "").trim(),
-                description: String(base.description || "").trim(),
-                curriculumType: base.curriculumType,
-                methodLearning: base.methodLearning,
-                enrollmentYear: Number(base.enrollmentYear),
-                publishNow: false,
-                subjectOptions: mapSubjectOptionsForApi(base.subjects),
-            });
-
-            const newDraftId = extractCurriculumIdFromResponse(draftRes);
+            const reviseRes = await activateCurriculum(base.id, "REVISE");
+            const newDraftId = reviseRes?.data?.body ?? extractCurriculumIdFromResponse(reviseRes);
             if (!newDraftId) {
                 enqueueSnackbar(
-                    draftRes?.data?.message ||
-                        "Tạo bản nháp từ curriculum đang hoạt động thành công, nhưng không lấy được ID bản nháp. Bạn vẫn có thể chỉnh sửa và công bố từ màn hình hiện tại.",
+                    toVietnameseValidationMessage(reviseRes?.data?.message) ||
+                        "Đã tạo bản nháp mới nhưng không lấy được ID để mở chỉnh sửa.",
                     { variant: "warning" }
                 );
+                return;
             }
-            const draftCurriculum = newDraftId
-                ? { ...base, id: newDraftId, curriculumStatus: "CUR_DRAFT" }
-                : { ...base, id: base.id, curriculumStatus: "CUR_DRAFT" };
+            const draftCurriculum = { ...base, id: newDraftId, curriculumStatus: "CUR_DRAFT" };
             handleOpenEdit(draftCurriculum);
+            enqueueSnackbar(
+                toVietnameseValidationMessage(reviseRes?.data?.message) || "Đã tạo bản nháp mới. Bạn có thể chỉnh sửa ngay bây giờ.",
+                { variant: "success" }
+            );
             setCurriculumToEditAfterConfirm(null);
         } catch (err) {
             console.error("Evolve curriculum error:", err);
-            enqueueSnackbar(err?.response?.data?.message || "Lỗi khi tạo bản nháp từ curriculum đang hoạt động.", { variant: "error" });
+            enqueueSnackbar(
+                toVietnameseValidationMessage(err?.response?.data?.message) || "Lỗi khi tạo bản nháp từ curriculum đang hoạt động.",
+                { variant: "error" }
+            );
         } finally {
             setEvolveLoading(false);
             setConfirmEvolveOpen(false);
@@ -506,40 +598,28 @@ export default function SchoolCurriculums() {
 
         setPublishLoading(true);
         try {
-            const actRes = await activateCurriculum(viewCurriculum.id);
-            enqueueSnackbar(actRes?.data?.message || "Curriculum đã được công bố", { variant: "success" });
+            const actRes = await activateCurriculum(viewCurriculum.id, "PUBLISH");
+            enqueueSnackbar(toVietnameseValidationMessage(actRes?.data?.message) || "Công bố chương trình thành công", { variant: "success" });
             setViewModalOpen(false);
             setViewCurriculum(null);
+            setConfirmPublishOpen(false);
             await loadData(page, rowsPerPage);
         } catch (err) {
             console.error("Publish curriculum error:", err);
-            enqueueSnackbar(err?.response?.data?.message || "Lỗi khi công bố curriculum", { variant: "error" });
+            enqueueSnackbar(toVietnameseValidationMessage(err?.response?.data?.message) || "Lỗi khi công bố curriculum", { variant: "error" });
         } finally {
             setPublishLoading(false);
         }
     };
 
-    const handleCreateSubmit = async (shouldActivate) => {
+    const handleCreateSubmit = async () => {
         if (!isPrimaryBranch) return;
         if (!validateForm()) return;
         setSubmitLoading(true);
         try {
             const payload = getCreatePayload();
             const draftRes = await saveCurriculum(payload);
-            const newDraftId = extractCurriculumIdFromResponse(draftRes);
-
-            if (!shouldActivate) {
-                enqueueSnackbar(draftRes?.data?.message || "Tạo bản nháp curriculum thành công", { variant: "success" });
-            } else if (newDraftId) {
-                const actRes = await activateCurriculum(newDraftId);
-                enqueueSnackbar(actRes?.data?.message || "Curriculum đã được công bố", { variant: "success" });
-            } else {
-                enqueueSnackbar(
-                    draftRes?.data?.message ||
-                        "Đã tạo bản nháp thành công, nhưng không lấy được ID để công bố tự động. Vui lòng mở bản nháp và bấm 'Công bố' lại.",
-                    { variant: "warning" }
-                );
-            }
+            enqueueSnackbar(toVietnameseValidationMessage(draftRes?.data?.message) || "Tạo bản nháp curriculum thành công", { variant: "success" });
 
             setCreateModalOpen(false);
             setFormErrors({});
@@ -547,13 +627,13 @@ export default function SchoolCurriculums() {
             await loadData(0, rowsPerPage);
         } catch (err) {
             console.error("Create curriculum error:", err);
-            enqueueSnackbar(err?.response?.data?.message || "Lỗi khi tạo curriculum", { variant: "error" });
+            enqueueSnackbar(toVietnameseValidationMessage(err?.response?.data?.message) || "Lỗi khi tạo curriculum", { variant: "error" });
         } finally {
             setSubmitLoading(false);
         }
     };
 
-    const handleEditSubmit = async (shouldActivate) => {
+    const handleEditSubmit = async () => {
         if (!isPrimaryBranch) return;
         if (!selectedCurriculum) return;
         if (!validateForm()) return;
@@ -562,28 +642,7 @@ export default function SchoolCurriculums() {
             const payload = getUpdatePayload();
             const draftRes = await saveCurriculum(payload);
 
-            if (!shouldActivate) {
-                enqueueSnackbar(draftRes?.data?.message || "Cập nhật bản nháp thành công", { variant: "success" });
-                setEditModalOpen(false);
-                setFormErrors({});
-                setSelectedCurriculum(null);
-                await loadData(page, rowsPerPage);
-                return;
-            }
-
-            const isActive = isActiveStatus(selectedCurriculum?.curriculumStatus);
-            const newDraftId = extractCurriculumIdFromResponse(draftRes);
-            const activateId = isActive ? newDraftId || selectedCurriculum.id : selectedCurriculum.id;
-
-            if (activateId) {
-                const actRes = await activateCurriculum(activateId);
-                enqueueSnackbar(actRes?.data?.message || "Curriculum đã được công bố", { variant: "success" });
-            } else {
-                enqueueSnackbar(
-                    draftRes?.data?.message || "Đã lưu bản nháp nhưng không thể công bố tự động (thiếu ID).",
-                    { variant: "warning" }
-                );
-            }
+            enqueueSnackbar(toVietnameseValidationMessage(draftRes?.data?.message) || "Cập nhật bản nháp thành công", { variant: "success" });
 
             setEditModalOpen(false);
             setFormErrors({});
@@ -591,7 +650,7 @@ export default function SchoolCurriculums() {
             await loadData(page, rowsPerPage);
         } catch (err) {
             console.error("Update curriculum error:", err);
-            enqueueSnackbar(err?.response?.data?.message || "Lỗi khi cập nhật curriculum", { variant: "error" });
+            enqueueSnackbar(toVietnameseValidationMessage(err?.response?.data?.message) || "Lỗi khi cập nhật curriculum", { variant: "error" });
         } finally {
             setSubmitLoading(false);
         }
@@ -636,7 +695,7 @@ export default function SchoolCurriculums() {
         setFormErrors({});
     };
 
-    const isEditFieldsLocked = (selectedCurriculum?.programCount ?? 0) > 0;
+    const isEditFieldsLocked = selectedCurriculum?.canEditIdentity === false || (selectedCurriculum?.programCount ?? 0) > 0;
 
     const tableColSpan = isPrimaryBranch ? 7 : 6;
 
@@ -1030,7 +1089,7 @@ export default function SchoolCurriculums() {
                 <DialogTitle sx={{ fontWeight: 700 }}>Chỉnh sửa chương trình đã công bố</DialogTitle>
                 <DialogContent>
                     <Typography>
-                        Bạn đang chỉnh sửa chương trình đã công bố. Một phiên bản mới sẽ được tạo và phiên bản hiện tại sẽ được lưu trữ. Bạn có muốn tiếp tục?
+                        Bạn đang chỉnh sửa chương trình đang hoạt động. Hệ thống sẽ tạo một bản nháp mới để bạn chỉnh sửa và giữ nguyên bản đang hoạt động hiện tại. Bạn có muốn tiếp tục?
                     </Typography>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, py: 2 }}>
@@ -1059,7 +1118,11 @@ export default function SchoolCurriculums() {
             {/* View Curriculum Dialog */}
             <Dialog
                 open={viewModalOpen}
-                onClose={() => setViewModalOpen(false)}
+                onClose={() => {
+                    if (publishLoading) return;
+                    setViewModalOpen(false);
+                    setConfirmPublishOpen(false);
+                }}
                 maxWidth="md"
                 fullWidth
                 PaperProps={{ sx: { borderRadius: 3, overflow: "hidden" } }}
@@ -1078,7 +1141,11 @@ export default function SchoolCurriculums() {
                                 <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
                                     <IconButton
                                         size="small"
-                                        onClick={() => setViewModalOpen(false)}
+                                        onClick={() => {
+                                            if (publishLoading) return;
+                                            setViewModalOpen(false);
+                                            setConfirmPublishOpen(false);
+                                        }}
                                         sx={{
                                             bgcolor: "#f1f5f9",
                                             "&:hover": { bgcolor: "#e2e8f0", boxShadow: "0 8px 16px rgba(2, 6, 23, 0.06)" },
@@ -1160,10 +1227,6 @@ export default function SchoolCurriculums() {
                                                 </Box>
                                             </Box>
 
-                                            <Typography variant="caption" sx={{ color: "#64748b" }}>
-                                                {viewCurriculum.versionDisplay ? `${viewCurriculum.versionDisplay}` : "Phiên bản: —"}
-                                                {viewCurriculum.isLatest ? " • Mới nhất" : ""}
-                                            </Typography>
                                         </Box>
                                     </Box>
                                 </Box>
@@ -1353,7 +1416,7 @@ export default function SchoolCurriculums() {
                 >
                     {isPrimaryBranch && normalizeStatus(viewCurriculum?.curriculumStatus) === "CUR_DRAFT" && (
                         <Button
-                            onClick={handlePublishFromView}
+                            onClick={() => setConfirmPublishOpen(true)}
                             variant="contained"
                             disabled={publishLoading}
                             sx={{
@@ -1364,11 +1427,62 @@ export default function SchoolCurriculums() {
                                 background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                             }}
                         >
-                            {publishLoading ? "Đang công bố..." : "Công bố"}
+                            Công bố
                         </Button>
                     )}
-                    <Button onClick={() => setViewModalOpen(false)} sx={{ textTransform: "none", fontWeight: 700, color: "#475569" }}>
+                    <Button
+                        onClick={() => {
+                            if (publishLoading) return;
+                            setViewModalOpen(false);
+                            setConfirmPublishOpen(false);
+                        }}
+                        sx={{ textTransform: "none", fontWeight: 700, color: "#475569" }}
+                    >
                         Đóng
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Confirm Publish Dialog */}
+            <Dialog
+                open={confirmPublishOpen}
+                onClose={() => {
+                    if (publishLoading) return;
+                    setConfirmPublishOpen(false);
+                }}
+                maxWidth="xs"
+                fullWidth
+                PaperProps={{ sx: { borderRadius: 3 } }}
+            >
+                <DialogTitle sx={{ fontWeight: 700 }}>Xác nhận công bố</DialogTitle>
+                <DialogContent>
+                    <Typography>
+                        Bạn có chắc chắn muốn công bố chương trình này không?
+                    </Typography>
+                    <Typography variant="body2" sx={{ mt: 1, color: "#64748b" }}>
+                        Sau khi công bố, bản nháp sẽ chuyển sang trạng thái hoạt động.
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, py: 2 }}>
+                    <Button
+                        onClick={() => setConfirmPublishOpen(false)}
+                        disabled={publishLoading}
+                        sx={{ textTransform: "none" }}
+                    >
+                        Hủy
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={handlePublishFromView}
+                        disabled={publishLoading}
+                        sx={{
+                            textTransform: "none",
+                            fontWeight: 800,
+                            borderRadius: 2,
+                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
+                        }}
+                    >
+                        {publishLoading ? "Đang công bố..." : "Xác nhận công bố"}
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -1393,7 +1507,7 @@ export default function SchoolCurriculums() {
                         </Typography>
 
                         <TextField
-                            label="Tên chương trình"
+                            label="Tên phân loại"
                             name="subTypeName"
                             fullWidth
                             value={formValues.subTypeName}
@@ -1472,7 +1586,7 @@ export default function SchoolCurriculums() {
                             error={!!formErrors.enrollmentYear}
                             helperText={formErrors.enrollmentYear}
                             required
-                            inputProps={{ min: 2000, max: 2100, step: 1 }}
+                            inputProps={{ min: minEnrollmentYear, max: maxEnrollmentYear, step: 1 }}
                         />
 
                         {/* Subjects */}
@@ -1551,6 +1665,8 @@ export default function SchoolCurriculums() {
                                                         fullWidth
                                                         value={subject.description}
                                                         onChange={handleSubjectChange(idx, "description")}
+                                                        error={!!subjectErr?.description}
+                                                        helperText={subjectErr?.description}
                                                     />
                                                 </Stack>
 
@@ -1581,7 +1697,7 @@ export default function SchoolCurriculums() {
                         Hủy
                     </Button>
                     <Button
-                        onClick={() => handleCreateSubmit(false)}
+                        onClick={handleCreateSubmit}
                         variant="outlined"
                         disabled={submitLoading}
                         sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, px: 3 }}
@@ -1611,7 +1727,7 @@ export default function SchoolCurriculums() {
                         </Typography>
 
                         <TextField
-                            label="Tên chương trình"
+                            label="Tên phân loại"
                             name="subTypeName"
                             fullWidth
                             value={formValues.subTypeName}
@@ -1619,6 +1735,7 @@ export default function SchoolCurriculums() {
                             error={!!formErrors.subTypeName}
                             helperText={formErrors.subTypeName}
                             required
+                            disabled={isEditFieldsLocked}
                         />
 
                         <TextField
@@ -1695,7 +1812,7 @@ export default function SchoolCurriculums() {
                             helperText={formErrors.enrollmentYear}
                             required
                             disabled={isEditFieldsLocked}
-                            inputProps={{ min: 2000, max: 2100, step: 1 }}
+                            inputProps={{ min: minEnrollmentYear, max: maxEnrollmentYear, step: 1 }}
                         />
 
                         <Box sx={{ mt: 0.6 }}>
@@ -1773,6 +1890,8 @@ export default function SchoolCurriculums() {
                                                         fullWidth
                                                         value={subject.description}
                                                         onChange={handleSubjectChange(idx, "description")}
+                                                        error={!!subjectErr?.description}
+                                                        helperText={subjectErr?.description}
                                                     />
                                                 </Stack>
 
@@ -1803,7 +1922,7 @@ export default function SchoolCurriculums() {
                         Hủy
                     </Button>
                     <Button
-                        onClick={() => handleEditSubmit(false)}
+                        onClick={handleEditSubmit}
                         variant="outlined"
                         disabled={submitLoading}
                         sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, px: 3 }}
