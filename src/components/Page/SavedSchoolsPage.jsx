@@ -1,34 +1,57 @@
 import React from "react";
-import {Box, Button, Card, CardMedia, Divider, IconButton, Typography} from "@mui/material";
+import {
+    Box,
+    Button,
+    Card,
+    CardMedia,
+    CircularProgress,
+    Dialog,
+    DialogContent,
+    DialogTitle,
+    Divider,
+    IconButton,
+    Rating,
+    Typography
+} from "@mui/material";
+import {Close as CloseIcon} from "@mui/icons-material";
 import {Bookmark as BookmarkIcon} from "@mui/icons-material";
 import {useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
-
 import {showWarningSnackbar} from "../ui/AppSnackbar.jsx";
-import {
-    getSavedSchools,
-    setSavedSchools
-} from "../../utils/savedSchoolsStorage";
+import {getSavedSchools as loadSavedSchools, setSavedSchools as persistSavedSchools} from "../../utils/savedSchoolsStorage";
 import {
     APP_PRIMARY_DARK,
     BRAND_NAVY,
     HOME_PAGE_SURFACE_GRADIENT,
     landingSectionShadow
 } from "../../constants/homeLandingTheme";
+import {getPublicSchoolDetail} from "../../services/SchoolPublicService.jsx";
+
+const DEFAULT_SCHOOL_IMAGE =
+    "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=900&q=80";
+const LOCATION_FALLBACK_PROVINCE = "Đang cập nhật";
+const LOCATION_FALLBACK_WARD = "Đang cập nhật";
 
 export default function SavedSchoolsPage() {
     const navigate = useNavigate();
 
     const raw = typeof window !== "undefined" ? localStorage.getItem("user") : null;
-    let userInfo = null;
-    try {
-        userInfo = raw ? JSON.parse(raw) : null;
-    } catch {
-        userInfo = null;
-    }
+    const userInfo = React.useMemo(() => {
+        try {
+            return raw ? JSON.parse(raw) : null;
+        } catch {
+            return null;
+        }
+    }, [raw]);
 
     const isParent = userInfo?.role === "PARENT";
-    const savedSchools = React.useMemo(() => (isParent ? getSavedSchools(userInfo) : []), [isParent, userInfo]);
+    const [savedSchools, setSavedSchools] = React.useState([]);
+    const [loading, setLoading] = React.useState(true);
+    const [error, setError] = React.useState("");
+    const [detailOpen, setDetailOpen] = React.useState(false);
+    const [detailLoading, setDetailLoading] = React.useState(false);
+    const [detailError, setDetailError] = React.useState("");
+    const [detailSchool, setDetailSchool] = React.useState(null);
 
     React.useEffect(() => {
         if (!isParent) {
@@ -36,14 +59,124 @@ export default function SavedSchoolsPage() {
         }
     }, [isParent, navigate]);
 
+    React.useEffect(() => {
+        if (!isParent) return;
+        let cancelled = false;
+        (async () => {
+            setLoading(true);
+            setError("");
+            try {
+                const localSaved = loadSavedSchools(userInfo);
+                if (cancelled) return;
+                const rows = await Promise.all(
+                    (Array.isArray(localSaved) ? localSaved : []).map(async (item) => {
+                        const parsedId =
+                            item?.id ??
+                            (typeof item?.schoolKey === "string" && item.schoolKey.startsWith("id:")
+                                ? Number(item.schoolKey.slice(3))
+                                : null);
+                        const base = {
+                            id: parsedId,
+                            schoolKey: item?.schoolKey || (parsedId != null ? `id:${parsedId}` : `saved-${item?.schoolName || Math.random()}`),
+                            schoolName: item?.schoolName || "Trường đang cập nhật",
+                            province: item?.province || LOCATION_FALLBACK_PROVINCE,
+                            ward: item?.ward || LOCATION_FALLBACK_WARD,
+                            logoUrl: item?.logoUrl || null,
+                            averageRating: Number(item?.averageRating) || 0,
+                            isFavourite: true
+                        };
+                        if (!parsedId) return base;
+                        try {
+                            const detail = await getPublicSchoolDetail(parsedId);
+                            const campusList = Array.isArray(detail?.campusList)
+                                ? detail.campusList
+                                : Array.isArray(detail?.campustList)
+                                    ? detail.campustList
+                                    : [];
+                            const firstCampus = campusList[0] ?? null;
+                            return {
+                                ...base,
+                                schoolName: detail?.name || base.schoolName,
+                                logoUrl: detail?.logoUrl || base.logoUrl,
+                                averageRating: Number(detail?.averageRating) || base.averageRating,
+                                province: (firstCampus?.city || "").trim() || LOCATION_FALLBACK_PROVINCE,
+                                ward: (firstCampus?.district || "").trim() || LOCATION_FALLBACK_WARD
+                            };
+                        } catch {
+                            return base;
+                        }
+                    })
+                );
+                if (!cancelled) setSavedSchools(rows);
+            } catch (e) {
+                if (!cancelled) {
+                    setError(
+                        e?.response?.data?.message ||
+                        e?.message ||
+                        "Không tải được danh sách trường đã lưu từ bộ nhớ."
+                    );
+                    setSavedSchools([]);
+                }
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [isParent, userInfo]);
+
     const onRemove = (schoolRecord) => {
         if (!isParent) {
             showWarningSnackbar("Bạn phải đăng nhập với vai trò Phụ huynh để lưu trường.");
             return;
         }
-        const next = savedSchools.filter((x) => x?.schoolKey !== schoolRecord?.schoolKey);
-        setSavedSchools(userInfo, next);
-        enqueueSnackbar("Đã xóa khỏi trường đã lưu.", {autoHideDuration: 2000});
+        const current = loadSavedSchools(userInfo);
+        const next = (Array.isArray(current) ? current : []).filter((x) => x?.schoolKey !== schoolRecord?.schoolKey);
+        persistSavedSchools(userInfo, next);
+        setSavedSchools(next);
+        enqueueSnackbar("Đã xóa khỏi trường đã lưu.", {autoHideDuration: 1800});
+    };
+
+    const openSchoolDetail = async (schoolRecord) => {
+        setDetailOpen(true);
+        setDetailError("");
+        setDetailSchool({
+            schoolName: schoolRecord?.schoolName || "Trường",
+            logoUrl: schoolRecord?.logoUrl || null,
+            averageRating: Number(schoolRecord?.averageRating) || 0,
+            ward: schoolRecord?.ward || LOCATION_FALLBACK_WARD,
+            province: schoolRecord?.province || LOCATION_FALLBACK_PROVINCE,
+            hotline: "",
+            websiteUrl: "",
+            description: ""
+        });
+        const id = schoolRecord?.id ?? (String(schoolRecord?.schoolKey || "").startsWith("id:") ? Number(String(schoolRecord.schoolKey).slice(3)) : null);
+        if (!id) return;
+        try {
+            setDetailLoading(true);
+            const detail = await getPublicSchoolDetail(id);
+            const campusList = Array.isArray(detail?.campusList)
+                ? detail.campusList
+                : Array.isArray(detail?.campustList)
+                    ? detail.campustList
+                    : [];
+            const firstCampus = campusList[0] ?? null;
+            setDetailSchool({
+                schoolName: detail?.name || schoolRecord?.schoolName || "Trường",
+                logoUrl: detail?.logoUrl || schoolRecord?.logoUrl || null,
+                averageRating: Number(detail?.averageRating) || Number(schoolRecord?.averageRating) || 0,
+                ward: (firstCampus?.district || "").trim() || schoolRecord?.ward || LOCATION_FALLBACK_WARD,
+                province: (firstCampus?.city || "").trim() || schoolRecord?.province || LOCATION_FALLBACK_PROVINCE,
+                hotline: firstCampus?.phoneNumber || detail?.hotline || "",
+                websiteUrl: detail?.websiteUrl || "",
+                description: detail?.description ? String(detail.description) : ""
+            });
+        } catch (e) {
+            setDetailError(e?.response?.data?.message || e?.message || "Không tải được chi tiết trường.");
+        } finally {
+            setDetailLoading(false);
+        }
     };
 
     const cardSurface = {
@@ -91,7 +224,17 @@ export default function SavedSchoolsPage() {
                 ) : (
                     <>
                         <Divider sx={{mb: 2, borderColor: "rgba(51,65,85,0.08)"}}/>
-                        {savedSchools.length === 0 ? (
+                        {loading ? (
+                            <Box sx={{display: "flex", justifyContent: "center", py: 6}}>
+                                <CircularProgress sx={{color: BRAND_NAVY}}/>
+                            </Box>
+                        ) : error ? (
+                            <Card sx={{p: 3, ...cardSurface}}>
+                                <Typography sx={{color: "#b45309", fontWeight: 600}}>
+                                    {error}
+                                </Typography>
+                            </Card>
+                        ) : savedSchools.length === 0 ? (
                             <Card sx={{p: 3, ...cardSurface}}>
                                 <Typography sx={{color: "#64748b"}}>
                                     Chưa có trường nào được lưu.
@@ -105,9 +248,9 @@ export default function SavedSchoolsPage() {
                                         sx={{
                                             position: "relative",
                                             display: "grid",
-                                            gridTemplateColumns: {xs: "1fr", sm: "280px 1fr"},
-                                            gap: 2,
-                                            p: 2,
+                                            gridTemplateColumns: {xs: "1fr", sm: "220px 1fr"},
+                                            gap: 1.5,
+                                            p: 1.5,
                                             ...cardSurface,
                                             transition: "transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease",
                                             "&:hover": {
@@ -117,29 +260,86 @@ export default function SavedSchoolsPage() {
                                             }
                                         }}
                                     >
+                                        <Box
+                                            sx={{
+                                                position: "absolute",
+                                                top: 10,
+                                                right: 10,
+                                                zIndex: 2,
+                                                display: "flex",
+                                                gap: 0.5,
+                                                alignItems: "center"
+                                            }}
+                                        >
+                                            <IconButton
+                                                size="small"
+                                                onClick={() => onRemove(item)}
+                                                sx={{
+                                                    bgcolor: "rgba(255,255,255,0.92)",
+                                                    border: "1px solid rgba(59,130,246,0.2)",
+                                                    "&:hover": {bgcolor: "#fff", borderColor: "rgba(59,130,246,0.35)"}
+                                                }}
+                                                title="Bỏ lưu"
+                                            >
+                                                <BookmarkIcon fontSize="small" sx={{color: "#ea580c"}}/>
+                                            </IconButton>
+                                        </Box>
                                         <CardMedia
                                             component="img"
-                                            image={"https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=900&q=80"}
+                                            image={item?.logoUrl || DEFAULT_SCHOOL_IMAGE}
                                             alt={item?.schoolName}
-                                            sx={{height: {xs: 180, sm: 170}, borderRadius: 2}}
+                                            sx={{
+                                                height: {xs: 132, sm: 120},
+                                                width: "88%",
+                                                mx: "auto",
+                                                borderRadius: 3,
+                                                objectFit: "contain"
+                                            }}
                                         />
-                                        <Box>
-                                            <Typography sx={{fontWeight: 800, fontSize: 18, color: "#1e293b"}}>
+                                        <Box sx={{display: "flex", flexDirection: "column", minHeight: 132}}>
+                                            <Typography sx={{fontWeight: 800, fontSize: {xs: "1.15rem", sm: "1.35rem"}, color: "#1e293b", lineHeight: 1.25, pr: {xs: 6, sm: 7}}}>
                                                 {item?.schoolName}
                                             </Typography>
-                                            <Typography sx={{mt: 0.5, color: "#64748b", fontSize: "0.88rem"}}>
-                                                {item?.province} - {item?.ward}
+                                            <Typography sx={{mt: 1.5, color: "#64748b", fontSize: "0.9rem", fontWeight: 600}}>
+                                                {`${item?.ward || "Đang cập nhật"} - ${item?.province || "Đang cập nhật"}`}
                                             </Typography>
 
-                                            <Box sx={{display: "flex", justifyContent: "flex-end", mt: 1}}>
-                                                <IconButton
+                                            <Box sx={{display: "flex", justifyContent: "flex-end", mt: 2}}>
+                                                <Button
                                                     size="small"
-                                                    onClick={() => onRemove(item)}
-                                                    sx={{color: BRAND_NAVY, "&:hover": {bgcolor: "rgba(59,130,246,0.08)"}}}
-                                                    title="Bỏ lưu"
+                                                    variant="outlined"
+                                                    onClick={() => openSchoolDetail(item)}
+                                                    sx={{
+                                                        textTransform: "none",
+                                                        fontWeight: 700,
+                                                        borderRadius: 999,
+                                                        px: 2,
+                                                        borderColor: "rgba(59,130,246,0.4)",
+                                                        color: BRAND_NAVY,
+                                                        bgcolor: "rgba(255,255,255,0.6)",
+                                                        "&:hover": {
+                                                            borderColor: BRAND_NAVY,
+                                                            bgcolor: "rgba(255,255,255,0.95)"
+                                                        }
+                                                    }}
                                                 >
-                                                    <BookmarkIcon fontSize="small"/>
-                                                </IconButton>
+                                                    Xem chi tiết
+                                                </Button>
+                                            </Box>
+                                            <Box sx={{mt: "auto", pt: 1.25, display: "flex", alignItems: "center", minHeight: 24}}>
+                                                {(Number(item?.averageRating) || 0) > 0 ? (
+                                                    <Rating
+                                                        value={Math.min(5, Math.max(0, Number(item?.averageRating) || 0))}
+                                                        precision={0.5}
+                                                        readOnly
+                                                        size="small"
+                                                        sx={{transform: "scale(1.2)", transformOrigin: "left center"}}
+                                                    />
+                                                ) : (
+                                                    <Typography sx={{color: "#64748b", fontSize: "0.95rem"}}>
+                                                        Chưa có đánh giá
+                                                    </Typography>
+                                                )}
                                             </Box>
                                         </Box>
                                     </Card>
@@ -149,6 +349,68 @@ export default function SavedSchoolsPage() {
                     </>
                 )}
             </Box>
+            <Dialog
+                open={detailOpen}
+                onClose={() => setDetailOpen(false)}
+                fullWidth
+                maxWidth="md"
+                PaperProps={{sx: {borderRadius: 3}}}
+            >
+                <DialogTitle sx={{display: "flex", alignItems: "center", justifyContent: "space-between"}}>
+                    <Typography sx={{fontWeight: 800, color: "#1e293b"}}>Chi tiết trường</Typography>
+                    <IconButton onClick={() => setDetailOpen(false)}>
+                        <CloseIcon/>
+                    </IconButton>
+                </DialogTitle>
+                <DialogContent dividers>
+                    {detailSchool && (
+                        <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "240px 1fr"}, gap: 2}}>
+                            <CardMedia
+                                component="img"
+                                image={detailSchool.logoUrl || DEFAULT_SCHOOL_IMAGE}
+                                alt={detailSchool.schoolName}
+                                sx={{height: 180, width: "100%", borderRadius: 2, objectFit: "contain"}}
+                            />
+                            <Box>
+                                <Typography sx={{fontSize: 24, fontWeight: 800, color: "#0f172a"}}>
+                                    {detailSchool.schoolName}
+                                </Typography>
+                                <Typography sx={{mt: 1, color: "#64748b", fontWeight: 600}}>
+                                    {`${detailSchool.ward || LOCATION_FALLBACK_WARD} - ${detailSchool.province || LOCATION_FALLBACK_PROVINCE}`}
+                                </Typography>
+                                <Box sx={{mt: 1}}>
+                                    <Rating
+                                        value={Math.min(5, Math.max(0, Number(detailSchool.averageRating) || 0))}
+                                        precision={0.5}
+                                        readOnly
+                                    />
+                                </Box>
+                                {!!detailSchool.hotline && (
+                                    <Typography sx={{mt: 1.5, color: "#334155"}}>Hotline: {detailSchool.hotline}</Typography>
+                                )}
+                                {!!detailSchool.websiteUrl && (
+                                    <Typography sx={{mt: 0.75, color: "#334155"}}>Website: {detailSchool.websiteUrl}</Typography>
+                                )}
+                            </Box>
+                        </Box>
+                    )}
+                    {detailLoading && (
+                        <Box sx={{display: "flex", justifyContent: "center", py: 2}}>
+                            <CircularProgress size={24} sx={{color: BRAND_NAVY}}/>
+                        </Box>
+                    )}
+                    {!!detailError && (
+                        <Typography sx={{mt: 1.5, color: "#b45309", fontWeight: 600}}>
+                            {detailError}
+                        </Typography>
+                    )}
+                    {!!detailSchool?.description && (
+                        <Typography sx={{mt: 2, color: "#475569", lineHeight: 1.7}}>
+                            {detailSchool.description}
+                        </Typography>
+                    )}
+                </DialogContent>
+            </Dialog>
         </Box>
     );
 }

@@ -80,7 +80,8 @@ function mapPublicSchoolToRow(api) {
         ward: LOCATION_FALLBACK_WARD,
         website: api.websiteUrl || "",
         phone: api.hotline || "",
-        email: "",
+        email: api.email || api.schoolEmail || api.accountEmail || "",
+        counsellorEmail: api.counsellorEmail || api.email || api.schoolEmail || api.accountEmail || "",
         address: api.description ? String(api.description) : "Đang cập nhật",
         locationLabel: "TP.HCM",
         description: api.description,
@@ -99,8 +100,17 @@ function mapPublicSchoolToRow(api) {
 
 function mapPublicSchoolDetailToRow(api) {
     if (!api || typeof api !== "object") return null;
-    const campusList = Array.isArray(api.campustList) ? api.campustList : [];
+    const campusList = Array.isArray(api.campusList)
+        ? api.campusList
+        : Array.isArray(api.campustList)
+            ? api.campustList
+            : [];
     const firstCampus = campusList[0] ?? null;
+    const consultantEmails = campusList
+        .flatMap((campus) => (Array.isArray(campus?.consultantEmails) ? campus.consultantEmails : []))
+        .map((email) => String(email || "").trim())
+        .filter(Boolean);
+    const primaryConsultantEmail = consultantEmails[0] || "";
     const province = (firstCampus?.city || "").trim() || LOCATION_FALLBACK_PROVINCE;
     const ward = (firstCampus?.district || "").trim() || LOCATION_FALLBACK_WARD;
     return {
@@ -110,7 +120,17 @@ function mapPublicSchoolDetailToRow(api) {
         ward,
         website: api.websiteUrl || "",
         phone: firstCampus?.phoneNumber || api.hotline || "",
-        email: "",
+        email: primaryConsultantEmail || firstCampus?.email || api.email || api.schoolEmail || api.accountEmail || "",
+        counsellorEmail:
+            primaryConsultantEmail ||
+            firstCampus?.counsellorEmail ||
+            firstCampus?.email ||
+            api.counsellorEmail ||
+            api.email ||
+            api.schoolEmail ||
+            api.accountEmail ||
+            "",
+        consultantEmails,
         address: firstCampus?.address || (api.description ? String(api.description) : "Đang cập nhật"),
         locationLabel: province,
         description: api.description,
@@ -134,11 +154,37 @@ const FALLBACK_MAP_CENTER = {lat: 10.7769, lng: 106.7009};
 const MAP_CONTAINER_STYLE = {width: "100%", height: "260px"};
 
 const DETAIL_SCROLL_HEADROOM = 88;
-const DETAIL_SCROLL_DURATION_MS = 880;
-const DETAIL_SCROLL_LOCK_MS = DETAIL_SCROLL_DURATION_MS + 110;
+const DETAIL_WITH_HEADER_OFFSET = 78;
+const DETAIL_SCROLL_MIN_MS = 420;
+const DETAIL_SCROLL_MAX_MS = 980;
+const DETAIL_SCROLL_LOCK_BUFFER_MS = 140;
 
 function smootherstep(t) {
     return t * t * t * (t * (t * 6 - 15) + 10);
+}
+
+function getBoardingTypeTags(rawValue) {
+    const normalized = String(rawValue || "").trim().toLowerCase();
+    if (!normalized) return [];
+    if (normalized === "both") return ["Nội trú", "Bán trú"];
+    if (normalized.includes("both")) return ["Nội trú", "Bán trú"];
+    if (normalized.includes("nội trú") && normalized.includes("bán trú")) {
+        return ["Nội trú", "Bán trú"];
+    }
+    const tags = [];
+    if (normalized.includes("nội trú")) tags.push("Nội trú");
+    if (normalized.includes("bán trú")) tags.push("Bán trú");
+    return tags.length ? tags : [String(rawValue)];
+}
+
+function formatFoundingDate(value) {
+    if (!value) return "";
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return String(value);
+    const day = String(dt.getDate()).padStart(2, "0");
+    const month = String(dt.getMonth() + 1).padStart(2, "0");
+    const year = dt.getFullYear();
+    return `${day}/${month}/${year}`;
 }
 
 let detailScrollAnimGeneration = 0;
@@ -153,18 +199,23 @@ function smoothScrollContainerToElement(container, element) {
     const targetTop = Math.max(0, Math.min(relativeTop, maxScroll));
     const distance = targetTop - startTop;
     if (Math.abs(distance) < 0.5) return;
+    const duration = Math.max(
+        DETAIL_SCROLL_MIN_MS,
+        Math.min(DETAIL_SCROLL_MAX_MS, 360 + Math.abs(distance) * 0.55)
+    );
 
     const myGen = ++detailScrollAnimGeneration;
     const startTime = performance.now();
 
     const step = (now) => {
         if (myGen !== detailScrollAnimGeneration) return;
-        const rawT = Math.min(1, (now - startTime) / DETAIL_SCROLL_DURATION_MS);
+        const rawT = Math.min(1, (now - startTime) / duration);
         const t = smootherstep(rawT);
         container.scrollTop = startTop + distance * t;
         if (rawT < 1) requestAnimationFrame(step);
     };
     requestAnimationFrame(step);
+    return duration;
 }
 
 function buildSchoolContact(school) {
@@ -407,7 +458,24 @@ export default function SchoolSearchPage() {
                 const raw = await getPublicSchoolList();
                 if (cancelled) return;
                 const rows = raw.map(mapPublicSchoolToRow).filter(Boolean);
-                setSchools(rows);
+                const detailRows = await Promise.all(
+                    rows.map(async (row) => {
+                        if (!row?.id) return row;
+                        try {
+                            const detailBody = await getPublicSchoolDetail(row.id);
+                            const mappedDetail = mapPublicSchoolDetailToRow(detailBody);
+                            if (!mappedDetail) return row;
+                            return {
+                                ...row,
+                                ...mappedDetail
+                            };
+                        } catch {
+                            return row;
+                        }
+                    })
+                );
+                if (cancelled) return;
+                setSchools(detailRows);
             } catch (e) {
                 if (!cancelled) {
                     const msg =
@@ -587,7 +655,7 @@ export default function SchoolSearchPage() {
     }, [isParent, location.pathname, location.search, navigate]);
 
     React.useEffect(() => {
-        if (detailKeyRaw && !detailSchool) {
+        if (!listLoading && detailKeyRaw && !detailSchool) {
             const next = new URLSearchParams(location.search);
             next.delete("detail");
             next.delete("consult");
@@ -599,7 +667,7 @@ export default function SchoolSearchPage() {
             }
             navigate({pathname: location.pathname, search: qs ? `?${qs}` : ""}, {replace: true});
         }
-    }, [detailKeyRaw, detailSchool, isParent, location.pathname, location.search, navigate]);
+    }, [detailKeyRaw, detailSchool, isParent, listLoading, location.pathname, location.search, navigate]);
 
     React.useEffect(() => {
         if (detailSchool) {
@@ -626,9 +694,12 @@ export default function SchoolSearchPage() {
                 ...saved,
                 {
                     schoolKey,
+                    id: schoolRecord.id,
                     schoolName: schoolRecord.school,
                     province: schoolRecord.province,
-                    ward: schoolRecord.ward
+                    ward: schoolRecord.ward,
+                    logoUrl: schoolRecord.logoUrl || null,
+                    averageRating: Number(schoolRecord.averageRating) || 0
                 }
             ];
         setSavedSchools(userInfo, next);
@@ -679,10 +750,17 @@ export default function SchoolSearchPage() {
     const detailLocationRef = React.useRef(null);
     const detailConsultRef = React.useRef(null);
     const detailTabScrollLockRef = React.useRef(false);
+    const detailTabUnlockTimerRef = React.useRef(0);
 
     React.useEffect(() => {
         setDetailActiveSection("intro");
     }, [detailKeyRaw]);
+
+    React.useEffect(() => () => {
+        if (detailTabUnlockTimerRef.current) {
+            window.clearTimeout(detailTabUnlockTimerRef.current);
+        }
+    }, []);
 
     const scrollDetailToSection = React.useCallback((section) => {
         detailTabScrollLockRef.current = true;
@@ -695,12 +773,28 @@ export default function SchoolSearchPage() {
                   : "school-detail-consult";
         const container = detailScrollRef.current;
         const el = typeof document !== "undefined" ? document.getElementById(id) : null;
+        let lockMs = DETAIL_SCROLL_MIN_MS + DETAIL_SCROLL_LOCK_BUFFER_MS;
         if (container && el) {
-            requestAnimationFrame(() => smoothScrollContainerToElement(container, el));
+            requestAnimationFrame(() => {
+                const ms = smoothScrollContainerToElement(container, el);
+                lockMs = (Number(ms) || DETAIL_SCROLL_MIN_MS) + DETAIL_SCROLL_LOCK_BUFFER_MS;
+                if (detailTabUnlockTimerRef.current) {
+                    window.clearTimeout(detailTabUnlockTimerRef.current);
+                }
+                detailTabUnlockTimerRef.current = window.setTimeout(() => {
+                    detailTabScrollLockRef.current = false;
+                    detailTabUnlockTimerRef.current = 0;
+                }, lockMs);
+            });
+            return;
         }
-        window.setTimeout(() => {
+        if (detailTabUnlockTimerRef.current) {
+            window.clearTimeout(detailTabUnlockTimerRef.current);
+        }
+        detailTabUnlockTimerRef.current = window.setTimeout(() => {
             detailTabScrollLockRef.current = false;
-        }, DETAIL_SCROLL_LOCK_MS);
+            detailTabUnlockTimerRef.current = 0;
+        }, lockMs);
     }, []);
 
     const detailTabIndex =
@@ -721,10 +815,13 @@ export default function SchoolSearchPage() {
                 if (!intro || !loc || !consult) return;
                 const rootRect = root.getBoundingClientRect();
                 const anchor = rootRect.top + DETAIL_SCROLL_HEADROOM;
+                // Add a small tolerance so tab state does not bounce
+                // back to "Giới thiệu" because of minor scroll offsets.
+                const activationLine = anchor + 24;
                 const consultTop = consult.getBoundingClientRect().top;
                 const locTop = loc.getBoundingClientRect().top;
-                if (consultTop <= anchor) setDetailActiveSection("consult");
-                else if (locTop <= anchor) setDetailActiveSection("location");
+                if (consultTop <= activationLine) setDetailActiveSection("consult");
+                else if (locTop <= activationLine) setDetailActiveSection("location");
                 else setDetailActiveSection("intro");
             });
         };
@@ -766,6 +863,7 @@ export default function SchoolSearchPage() {
                 detail: {
                     schoolName: detailSchool.school,
                     schoolEmail: (detailSchool.email || "").trim(),
+                    counsellorEmail: (detailSchool.counsellorEmail || detailSchool.email || "").trim(),
                 },
             })
         );
@@ -1151,9 +1249,9 @@ export default function SchoolSearchPage() {
                                         sx={{
                                             position: "relative",
                                             display: 'grid',
-                                            gridTemplateColumns: {xs: '1fr', sm: '280px 1fr'},
-                                            gap: 2,
-                                            p: 2,
+                                            gridTemplateColumns: {xs: '1fr', sm: '220px 1fr'},
+                                            gap: 1.5,
+                                            p: 1.5,
                                             borderRadius: 4,
                                             border: '1px solid rgba(51,65,85,0.07)',
                                             bgcolor: 'rgba(255,255,255,0.85)',
@@ -1230,46 +1328,23 @@ export default function SchoolSearchPage() {
                                     <CardMedia
                                         component="img"
                                         image={school.logoUrl || DEFAULT_SCHOOL_IMAGE}
-                                        alt={school.school}
+                                        alt={`${school.school} logo`}
                                         sx={{
-                                            height: {xs: 180, sm: 170},
+                                            height: {xs: 132, sm: 120},
+                                            width: '88%',
+                                            mx: 'auto',
                                             borderRadius: 3,
-                                            objectFit: 'cover',
-                                            border: '1px solid rgba(51,65,85,0.06)'
+                                            objectFit: 'contain',
+                                            p: 0
                                         }}
                                     />
-                                    <Box>
+                                    <Box sx={{display: 'flex', flexDirection: 'column', minHeight: 132}}>
                                         <Typography sx={{fontWeight: 800, fontSize: {xs: '1.15rem', sm: '1.35rem'}, color: '#1e293b', lineHeight: 1.25, pr: {xs: 10, sm: 11}}}>
                                             {school.school}
                                         </Typography>
-                                        <Typography sx={{mt: 0.75, color: '#64748b', fontSize: '0.95rem'}}>
-                                            {school.province} - {school.ward}
+                                        <Typography sx={{mt: 1.5, color: '#64748b', fontSize: '0.9rem', fontWeight: 600}}>
+                                            {`${school.ward || "Đang cập nhật"} - ${school.province || "Đang cập nhật"}`}
                                         </Typography>
-                                        <Box sx={{display: 'flex', gap: 1, mt: 1.5, flexWrap: 'wrap'}}>
-                                            <Chip
-                                                label={school.ward}
-                                                size="small"
-                                                sx={{
-                                                    borderRadius: 999,
-                                                    fontWeight: 600,
-                                                    bgcolor: 'rgba(241,245,249,0.95)',
-                                                    border: '1px solid rgba(51,65,85,0.08)',
-                                                    color: '#64748b'
-                                                }}
-                                            />
-                                            <Chip
-                                                label={school.province}
-                                                size="small"
-                                                variant="outlined"
-                                                sx={{
-                                                    borderRadius: 999,
-                                                    fontWeight: 600,
-                                                    borderColor: 'rgba(85,179,217,0.5)',
-                                                    color: BRAND_NAVY,
-                                                    bgcolor: 'rgba(85,179,217,0.1)'
-                                                }}
-                                            />
-                                        </Box>
                                         <Box sx={{display: 'flex', justifyContent: 'flex-end', mt: 2}}>
                                             <Button
                                                 size="small"
@@ -1291,6 +1366,24 @@ export default function SchoolSearchPage() {
                                             >
                                                 Xem chi tiết
                                             </Button>
+                                        </Box>
+                                        <Box sx={{mt: 'auto', pt: 1.25, display: 'flex', alignItems: 'center', minHeight: 24}}>
+                                            {(Number(school.averageRating) || 0) > 0 ? (
+                                                <Rating
+                                                    value={Math.min(5, Math.max(0, Number(school.averageRating) || 0))}
+                                                    precision={0.5}
+                                                    readOnly
+                                                    size="small"
+                                                    sx={{
+                                                        transform: 'scale(1.2)',
+                                                        transformOrigin: 'left center'
+                                                    }}
+                                                />
+                                            ) : (
+                                                <Typography sx={{color: '#64748b', fontSize: '0.95rem'}}>
+                                                    Chưa có đánh giá
+                                                </Typography>
+                                            )}
                                         </Box>
                                     </Box>
                                     </Card>
@@ -1327,7 +1420,9 @@ export default function SchoolSearchPage() {
                     sx={{
                         position: "fixed",
                         inset: 0,
-                        zIndex: 1300,
+                        top: `${DETAIL_WITH_HEADER_OFFSET}px`,
+                        height: `calc(100vh - ${DETAIL_WITH_HEADER_OFFSET}px)`,
+                        zIndex: 900,
                         display: "flex",
                         flexDirection: "column",
                         bgcolor: "#f8fafc",
@@ -1339,14 +1434,15 @@ export default function SchoolSearchPage() {
                         onClick={closeSchoolDetail}
                         sx={{
                             position: "fixed",
-                            top: {xs: "calc(8px + env(safe-area-inset-top, 0px))", sm: 16},
+                            top: `calc(${DETAIL_WITH_HEADER_OFFSET}px + 8px + env(safe-area-inset-top, 0px))`,
                             left: 12,
                             zIndex: 1400,
                             color: "#fff",
-                            bgcolor: "rgba(51,65,85,0.45)",
-                            border: "1px solid rgba(255,255,255,0.35)",
-                            boxShadow: "0 4px 16px rgba(0,0,0,0.2)",
-                            "&:hover": {bgcolor: "rgba(51,65,85,0.62)"}
+                            bgcolor: "transparent",
+                            border: "none",
+                            boxShadow: "none",
+                            p: 0.5,
+                            "&:hover": {bgcolor: "transparent", opacity: 0.85}
                         }}
                     >
                         <ArrowBackIcon/>
@@ -1692,13 +1788,26 @@ export default function SchoolSearchPage() {
                                             </Typography>
                                         )}
                                         {!!detailSchool.boardingType && (
-                                            <Typography sx={{color: "#64748b", fontSize: "0.9rem", mb: 2}}>
-                                                Hình thức nội trú: {detailSchool.boardingType}
-                                            </Typography>
+                                            <Box sx={{display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mb: 2}}>
+                                                {getBoardingTypeTags(detailSchool.boardingType).map((tag) => (
+                                                    <Chip
+                                                        key={tag}
+                                                        label={tag}
+                                                        size="small"
+                                                        sx={{
+                                                            borderRadius: 999,
+                                                            fontWeight: 700,
+                                                            bgcolor: "rgba(59,130,246,0.1)",
+                                                            color: BRAND_NAVY,
+                                                            border: "1px solid rgba(59,130,246,0.25)"
+                                                        }}
+                                                    />
+                                                ))}
+                                            </Box>
                                         )}
                                         {!!detailSchool.foundingDate && (
                                             <Typography sx={{color: "#64748b", fontSize: "0.9rem", mb: 2}}>
-                                                Năm thành lập: {detailSchool.foundingDate}
+                                                Ngày thành lập: {formatFoundingDate(detailSchool.foundingDate)}
                                             </Typography>
                                         )}
                                         <Typography sx={{color: "#475569", lineHeight: 1.75, fontSize: "0.95rem", mb: 2}}>
@@ -1725,9 +1834,6 @@ export default function SchoolSearchPage() {
                                             alt=""
                                             sx={{mt: 1, borderRadius: 2, objectFit: "cover", border: "1px solid rgba(51,65,85,0.08)"}}
                                         />
-                                        <Typography sx={{color: "#475569", lineHeight: 1.75, fontSize: "0.95rem", mt: 2.5, mb: 1}}>
-                                            (Nội dung mở rộng phía dưới minh họa phần cuộn dài — có thể thay bằng HTML/API từ backend.)
-                                        </Typography>
                                         <Typography sx={{color: "#475569", lineHeight: 1.75, fontSize: "0.95rem", mb: 3}}>
                                             EduBridge HCM giúp bạn so sánh nhanh vị trí, lộ trình và phản hồi từ cộng đồng phụ huynh để chọn môi
                                             trường phù hợp cho con em.
