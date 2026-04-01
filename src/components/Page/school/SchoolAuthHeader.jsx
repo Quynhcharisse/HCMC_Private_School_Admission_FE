@@ -81,11 +81,11 @@ export default function SchoolAuthHeader({ headerLeftOffset }) {
     profileBody?.name || profileBody?.email || userInfo?.name || userInfo?.email || "Người dùng";
   const displayEmail = profileBody?.email || userInfo?.email || "";
   const avatarUrl = profileBody?.picture || userInfo?.picture || null;
-  const isAdmin = userInfo?.role === "ADMIN";
+  const isSchool = userInfo?.role === "SCHOOL";
 
   const handleGoHome = () => {
-    // Với role ADMIN không cho click về /home từ logo
-    if (isAdmin) return;
+    // Với role SCHOOL không cho click về /home từ logo
+    if (isSchool) return;
     window.location.href = "/home";
   };
 
@@ -125,7 +125,7 @@ export default function SchoolAuthHeader({ headerLeftOffset }) {
                 display: "flex",
                 alignItems: "center",
                 gap: 1.5,
-                cursor: isAdmin ? "default" : "pointer",
+                cursor: isSchool ? "default" : "pointer",
               }}
               onClick={handleGoHome}
             >

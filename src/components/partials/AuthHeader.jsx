@@ -97,10 +97,11 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar, 
         profileBody?.name || profileBody?.email || userInfo?.name || userInfo?.email || 'Người dùng';
     const displayEmail = profileBody?.email || userInfo?.email || '';
     const avatarUrl = profileBody?.picture || userInfo?.picture || null;
-    const isAdmin = userInfo?.role === 'ADMIN';
+    const isLogoHomeNavigationDisabled =
+        userInfo?.role === 'ADMIN' || userInfo?.role === 'COUNSELLOR' || userInfo?.role === 'SCHOOL';
 
     const handleGoHome = () => {
-        if (isAdmin) return;
+        if (isLogoHomeNavigationDisabled) return;
         window.location.href = '/home';
     };
 
@@ -158,7 +159,7 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar, 
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: 1.5,
-                                cursor: isAdmin ? 'default' : 'pointer',
+                                cursor: isLogoHomeNavigationDisabled ? 'default' : 'pointer',
                             }}
                             onClick={handleGoHome}
                         >
