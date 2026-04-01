@@ -1268,7 +1268,13 @@ function MainHeader() {
             return null;
         }
     }, [profileData]);
-    const displayName = profileBody?.name || profileBody?.email || userInfo?.name || userInfo?.email || 'Người dùng';
+    const displayName =
+        profileBody?.name ||
+        profileBody?.fullName ||
+        profileBody?.parent?.name ||
+        userInfo?.name ||
+        userInfo?.fullName ||
+        'Người dùng';
     const displayEmail = profileBody?.email || userInfo?.email || '';
     const avatarUrl = profileBody?.picture || userInfo?.picture || null;
     const isActivePath = (path) => location.pathname === path;

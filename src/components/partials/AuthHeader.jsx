@@ -94,7 +94,12 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar, 
             : profileData.body
         : null;
     const displayName =
-        profileBody?.name || profileBody?.email || userInfo?.name || userInfo?.email || 'Người dùng';
+        profileBody?.name ||
+        profileBody?.fullName ||
+        profileBody?.parent?.name ||
+        userInfo?.name ||
+        userInfo?.fullName ||
+        'Người dùng';
     const displayEmail = profileBody?.email || userInfo?.email || '';
     const avatarUrl = profileBody?.picture || userInfo?.picture || null;
     const isLogoHomeNavigationDisabled =
