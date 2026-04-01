@@ -52,15 +52,25 @@ const STATUS_OPTIONS = [
     {value: "DRAFT", label: "Bản nháp"},
     {value: "OPEN", label: "Đang mở"},
     {value: "PAUSED", label: "Tạm dừng"},
+    {value: "CANCELLED", label: "Đã hủy"},
     {value: "CLOSED", label: "Đã đóng"},
     {value: "EXPIRED", label: "Hết hạn"},
 ];
 
 /** Normalize template from API (id or admissionCampaignTemplateId) */
+function normalizeCampaignStatus(rawStatus) {
+    const s = String(rawStatus || "").trim().toUpperCase();
+    if (!s) return "DRAFT";
+    if (s === "OPEN" || s === "OPEN_ADMISSION_CAMPAIGN") return "OPEN";
+    if (s === "CANCELLED" || s === "CANCELLED_ADMISSION_CAMPAIGN") return "CANCELLED";
+    if (s === "DRAFT" || s === "DRAFT_ADMISSION_CAMPAIGN") return "DRAFT";
+    return s;
+}
+
 function mapTemplate(row) {
     if (!row) return null;
     const id = row.admissionCampaignTemplateId ?? row.id;
-    const status = row.status ? String(row.status).toUpperCase() : "DRAFT";
+    const status = normalizeCampaignStatus(row.status);
 
     return {
         ...row,
@@ -171,7 +181,7 @@ export default function SchoolCampaigns() {
     const [loading, setLoading] = useState(true);
     const [submitLoading, setSubmitLoading] = useState(false);
     const [search, setSearch] = useState("");
-    const [yearFilter, setYearFilter] = useState(String(CURRENT_YEAR));
+    const [yearFilter, setYearFilter] = useState("0");
     const [statusFilter, setStatusFilter] = useState("all");
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [formValues, setFormValues] = useState(emptyForm);
@@ -392,6 +402,7 @@ export default function SchoolCampaigns() {
         if (upper === "DRAFT") return {bg: "rgba(100, 116, 139, 0.14)", color: "#475569"};
         if (upper === "OPEN") return {bg: "rgba(34, 197, 94, 0.12)", color: "#16a34a"};
         if (upper === "PAUSED") return {bg: "rgba(250, 204, 21, 0.18)", color: "#a16207"};
+        if (upper === "CANCELLED") return {bg: "rgba(248, 113, 113, 0.16)", color: "#b91c1c"};
         if (upper === "EXPIRED") return {bg: "rgba(248, 113, 113, 0.15)", color: "#b91c1c"};
         if (upper === "CLOSED") return {bg: "rgba(148, 163, 184, 0.2)", color: "#64748b"};
         return {bg: "rgba(148, 163, 184, 0.18)", color: "#64748b"};
@@ -704,6 +715,7 @@ export default function SchoolCampaigns() {
                                                             onClick={() => handleOpenEdit(row)}
                                                             title="Chỉnh sửa"
                                                             aria-label="Chỉnh sửa"
+                                                            disabled={String(row.status || "").toUpperCase() !== "DRAFT"}
                                                             sx={{
                                                                 color: "#64748b",
                                                                 "&:hover": {

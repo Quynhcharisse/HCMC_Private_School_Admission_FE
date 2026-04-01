@@ -58,6 +58,7 @@ const APPLICATION_STATUS_OPTIONS = [
     { value: "CLOSED", label: "Đã đóng" },
     { value: "PAUSED", label: "Tạm dừng" },
     { value: "FULL", label: "Đầy chỗ" },
+    { value: "CANCELLED", label: "Đã hủy" },
 ];
 
 const APPLICATION_STATUS_BADGES = {
@@ -65,6 +66,7 @@ const APPLICATION_STATUS_BADGES = {
     PAUSED: { badgeBg: "rgba(250, 204, 21, 0.22)", badgeColor: "#a16207" }, // amber
     FULL: { badgeBg: "rgba(239, 68, 68, 0.14)", badgeColor: "#dc2626" }, // red
     CLOSED: { badgeBg: "rgba(148, 163, 184, 0.22)", badgeColor: "#475569" }, // slate
+    CANCELLED: { badgeBg: "rgba(248, 113, 113, 0.14)", badgeColor: "#b91c1c" }, // muted red
 };
 
 /** Trạng thái vòng đời chỉ tiêu (field `status` từ API) */
@@ -72,6 +74,7 @@ const OFFERING_STATUS_LABELS = {
     OPEN: "Đang mở",
     PAUSED: "Tạm dừng",
     CLOSED: "Đã đóng",
+    CANCELLED: "Đã hủy",
     FULL: "Đầy chỗ",
     EXPIRED: "Hết hạn",
 };
