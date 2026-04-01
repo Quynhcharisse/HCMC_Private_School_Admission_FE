@@ -49,6 +49,7 @@ const modalBackdropSx = {
 
 // Backend has many statuses; UI focuses on main campaign lifecycle ones
 const STATUS_OPTIONS = [
+    {value: "DRAFT", label: "Bản nháp"},
     {value: "OPEN", label: "Đang mở"},
     {value: "PAUSED", label: "Tạm dừng"},
     {value: "CLOSED", label: "Đã đóng"},
@@ -59,7 +60,7 @@ const STATUS_OPTIONS = [
 function mapTemplate(row) {
     if (!row) return null;
     const id = row.admissionCampaignTemplateId ?? row.id;
-    const status = row.status ? String(row.status).toUpperCase() : "OPEN";
+    const status = row.status ? String(row.status).toUpperCase() : "DRAFT";
 
     return {
         ...row,
@@ -87,25 +88,80 @@ function formatDate(dateStr) {
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = [CURRENT_YEAR + 1, CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2];
 
+/** Parse YYYY-MM-DD as local calendar date (tránh lệch múi giờ so với LocalDate BE). */
+function parseLocalDate(iso) {
+    const t = String(iso ?? "").trim();
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+    if (!m) return null;
+    const y = Number(m[1]);
+    const mo = Number(m[2]);
+    const da = Number(m[3]);
+    const d = new Date(y, mo - 1, da);
+    if (d.getFullYear() !== y || d.getMonth() !== mo - 1 || d.getDate() !== da) return null;
+    return d;
+}
+
+function startOfLocalToday() {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+}
+
+function addLocalDays(date, delta) {
+    const d = new Date(date.getTime());
+    d.setDate(d.getDate() + delta);
+    return d;
+}
+
 /** Map BE validation messages (EN) → hiển thị tiếng Việt (Create + Update) */
 const CAMPAIGN_ERROR_VI = {
     "Request is required": "Yêu cầu không được để trống",
     "Name is required": "Tên chiến dịch là bắt buộc",
     "Name is too long. Maximum length is 100 characters": "Tên chiến dịch quá dài. Tối đa 100 ký tự",
     "Description is required": "Mô tả là bắt buộc",
-    "Year is required": "Năm là bắt buộc",
-    "A campaign template for the year already exists": "Đã tồn tại chiến dịch cho năm này",
-    "Cannot create a campaign for a past year": "Không thể tạo chiến dịch cho năm đã qua",
+    "Year is required": "Năm học là bắt buộc",
+    "Cannot create a campaign for a past academic year": "Không thể tạo chiến dịch cho năm học đã qua",
     "Start date and end date are required": "Ngày bắt đầu và ngày kết thúc là bắt buộc",
-    "Start date cannot be in the past": "Ngày bắt đầu không được ở quá khứ",
-    "End date must be after start date": "Ngày kết thúc phải sau ngày bắt đầu",
-    "End date must be a future date": "Ngày kết thúc phải từ hôm nay trở đi",
+    "Start date cannot be in the past":
+        "Ngày bắt đầu không được ở quá khứ (cho phép lùi tối đa 1 ngày so với hôm nay)",
+    "End date must be in the future": "Ngày kết thúc phải từ hôm nay trở đi (không được ở quá khứ)",
+    "End date must be after start date":
+        "Ngày kết thúc phải sau ngày bắt đầu (chiến dịch phải kéo dài ít nhất hơn 1 ngày)",
 };
 
 function getCampaignErrorMessage(backendMessage, fallback) {
     if (!backendMessage) return fallback;
     const trimmed = String(backendMessage).trim();
-    return CAMPAIGN_ERROR_VI[trimmed] ?? trimmed ?? fallback;
+    if (CAMPAIGN_ERROR_VI[trimmed]) return CAMPAIGN_ERROR_VI[trimmed];
+
+    const earlyBird =
+        /^Start date is too early\. Early bird for (\d+) should start from October (\d+)$/.exec(trimmed);
+    if (earlyBird) {
+        const [, y, octYear] = earlyBird;
+        return `Ngày bắt đầu quá sớm. Chiến dịch năm ${y} chỉ được bắt đầu sớm nhất từ 01/10/${octYear}.`;
+    }
+
+    const endInvalid =
+        /^End date is invalid\. A campaign for (\d+) must at least last until the end of (\d+)$/.exec(trimmed);
+    if (endInvalid) {
+        const [, y, untilYear] = endInvalid;
+        return `Ngày kết thúc không hợp lệ. Chiến dịch năm ${y} phải kéo dài ít nhất đến hết ngày 31/12/${untilYear}.`;
+    }
+
+    const endWithin = /^End date must be within the academic year (\d+)$/.exec(trimmed);
+    if (endWithin) {
+        return `Ngày kết thúc phải nằm trọn trong năm dương lịch ${endWithin[1]} (theo năm học đã chọn).`;
+    }
+
+    const existsTypo = /^A campaign template for the (\d+)year already exists$/.exec(trimmed);
+    if (existsTypo) {
+        return `Đã tồn tại chiến dịch tuyển sinh cho năm ${existsTypo[1]}.`;
+    }
+    const existsSpaced = /^A campaign template for the (\d+) year already exists$/.exec(trimmed);
+    if (existsSpaced) {
+        return `Đã tồn tại chiến dịch tuyển sinh cho năm ${existsSpaced[1]}.`;
+    }
+
+    return trimmed || fallback;
 }
 
 export default function SchoolCampaigns() {
@@ -187,25 +243,83 @@ export default function SchoolCampaigns() {
 
     const validateForm = () => {
         const errors = {};
-        if (!formValues.name?.trim()) errors.name = "Tên chiến dịch là bắt buộc";
-        if (!formValues.startDate?.trim()) errors.startDate = "Ngày bắt đầu là bắt buộc";
-        if (!formValues.endDate?.trim()) errors.endDate = "Ngày kết thúc là bắt buộc";
-        const start = formValues.startDate?.trim();
-        const end = formValues.endDate?.trim();
-        if (start && end && new Date(end) < new Date(start)) {
-            errors.endDate = "Ngày kết thúc phải sau ngày bắt đầu";
+        const name = formValues.name?.trim() ?? "";
+        const description = formValues.description?.trim() ?? "";
+        const yearRaw = formValues.year;
+        const yearNum = typeof yearRaw === "number" ? yearRaw : parseInt(String(yearRaw), 10);
+
+        if (!name) errors.name = "Tên chiến dịch là bắt buộc";
+        else if (name.length > 100) errors.name = "Tên chiến dịch quá dài. Tối đa 100 ký tự";
+
+        if (!description) errors.description = "Mô tả là bắt buộc";
+
+        if (!Number.isFinite(yearNum) || yearNum <= 0) {
+            errors.year = "Năm học là bắt buộc";
+        } else if (yearNum < CURRENT_YEAR) {
+            errors.year = "Không thể tạo chiến dịch cho năm học đã qua";
         }
+
+        const startIso = formValues.startDate?.trim() ?? "";
+        const endIso = formValues.endDate?.trim() ?? "";
+        if (!startIso) errors.startDate = "Ngày bắt đầu là bắt buộc";
+        if (!endIso) errors.endDate = "Ngày kết thúc là bắt buộc";
+
+        const start = parseLocalDate(startIso);
+        const end = parseLocalDate(endIso);
+        if (startIso && !start) errors.startDate = "Ngày bắt đầu không hợp lệ";
+        if (endIso && !end) errors.endDate = "Ngày kết thúc không hợp lệ";
+
+        const today = startOfLocalToday();
+        const earliestStartAllowed = addLocalDays(today, -1);
+
+        if (start && !errors.startDate) {
+            if (start.getTime() < earliestStartAllowed.getTime()) {
+                errors.startDate =
+                    "Ngày bắt đầu không được ở quá khứ (cho phép lùi tối đa 1 ngày so với hôm nay)";
+            }
+        }
+        if (end && !errors.endDate) {
+            if (end.getTime() < today.getTime()) {
+                errors.endDate = "Ngày kết thúc phải từ hôm nay trở đi (không được ở quá khứ)";
+            }
+        }
+        if (start && end && !errors.startDate && !errors.endDate) {
+            if (end.getTime() <= start.getTime()) {
+                errors.endDate =
+                    "Ngày kết thúc phải sau ngày bắt đầu (chiến dịch phải kéo dài ít nhất hơn 1 ngày)";
+            }
+        }
+
+        if (Number.isFinite(yearNum) && yearNum > 0 && start && !errors.startDate) {
+            const oct1Prev = new Date(yearNum - 1, 9, 1);
+            if (start.getTime() < oct1Prev.getTime()) {
+                errors.startDate = `Ngày bắt đầu quá sớm. Chiến dịch năm ${yearNum} chỉ được bắt đầu sớm nhất từ 01/10/${yearNum - 1}.`;
+            }
+        }
+        if (Number.isFinite(yearNum) && yearNum > 0 && end && !errors.endDate) {
+            const dec31Prev = new Date(yearNum - 1, 11, 31);
+            if (end.getTime() < dec31Prev.getTime()) {
+                errors.endDate = `Ngày kết thúc không hợp lệ. Chiến dịch năm ${yearNum} phải kéo dài ít nhất đến hết ngày 31/12/${yearNum - 1}.`;
+            } else if (end.getFullYear() !== yearNum) {
+                errors.endDate = `Ngày kết thúc phải nằm trọn trong năm dương lịch ${yearNum} (theo năm học đã chọn).`;
+            }
+        }
+
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
     };
 
-    const getCreatePayload = () => ({
-        name: formValues.name.trim(),
-        description: formValues.description?.trim() || "",
-        year: formValues.year || new Date().getFullYear(),
-        startDate: formValues.startDate?.trim() || "",
-        endDate: formValues.endDate?.trim() || "",
-    });
+    const getCreatePayload = () => {
+        const y = formValues.year;
+        const yearNum = typeof y === "number" ? y : parseInt(String(y), 10);
+        return {
+            name: formValues.name.trim(),
+            description: formValues.description?.trim() || "",
+            year: Number.isFinite(yearNum) ? yearNum : 0,
+            startDate: formValues.startDate?.trim() || "",
+            endDate: formValues.endDate?.trim() || "",
+        };
+    };
 
     const handleOpenCreate = () => {
         setFormValues({
@@ -222,7 +336,7 @@ export default function SchoolCampaigns() {
         try {
             const payload = getCreatePayload();
             const res = await createCampaignTemplate(payload);
-            if (res?.status === 200 || res?.data?.message) {
+            if (res?.status >= 200 && res?.status < 300) {
                 enqueueSnackbar(res?.data?.message || "Tạo chiến dịch thành công", { variant: "success" });
                 setCreateModalOpen(false);
                 const createdYear = Number(payload.year);
@@ -275,6 +389,7 @@ export default function SchoolCampaigns() {
 
     const getStatusColor = (status) => {
         const upper = String(status || "").toUpperCase();
+        if (upper === "DRAFT") return {bg: "rgba(100, 116, 139, 0.14)", color: "#475569"};
         if (upper === "OPEN") return {bg: "rgba(34, 197, 94, 0.12)", color: "#16a34a"};
         if (upper === "PAUSED") return {bg: "rgba(250, 204, 21, 0.18)", color: "#a16207"};
         if (upper === "EXPIRED") return {bg: "rgba(248, 113, 113, 0.15)", color: "#b91c1c"};
@@ -682,13 +797,16 @@ export default function SchoolCampaigns() {
                                 sx={{"& .MuiOutlinedInput-root": {borderRadius: "12px"}}}
                             />
                             <TextField
-                                label="Năm"
+                                label="Năm học"
                                 name="year"
                                 type="number"
                                 fullWidth
                                 value={formValues.year}
                                 onChange={handleChange}
-                                inputProps={{min: 2020, max: 2035}}
+                                error={!!formErrors.year}
+                                helperText={formErrors.year}
+                                required
+                                inputProps={{min: CURRENT_YEAR, max: CURRENT_YEAR + 30}}
                                 sx={{
                                     maxWidth: {sm: 160},
                                     "& .MuiOutlinedInput-root": {borderRadius: "12px"},
@@ -703,6 +821,9 @@ export default function SchoolCampaigns() {
                             rows={3}
                             value={formValues.description}
                             onChange={handleChange}
+                            error={!!formErrors.description}
+                            helperText={formErrors.description}
+                            required
                             sx={{"& .MuiOutlinedInput-root": {borderRadius: "12px"}}}
                         />
                         <Stack direction={{xs: "column", sm: "row"}} spacing={2}>

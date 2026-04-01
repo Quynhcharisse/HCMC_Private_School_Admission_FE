@@ -27,7 +27,7 @@ export const createCampaignTemplate = async (body) => {
     const response = await axiosClient.post("/school/campaign/template", {
         name: body.name?.trim() ?? "",
         description: body.description?.trim() ?? "",
-        year: Number(body.year) || new Date().getFullYear(),
+        year: Number(body.year),
         startDate: body.startDate ?? "",
         endDate: body.endDate ?? "",
     });
