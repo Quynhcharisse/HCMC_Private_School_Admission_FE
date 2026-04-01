@@ -243,7 +243,16 @@ export default function SchoolCampaigns() {
         if (statusFilter !== "all") {
             list = list.filter((c) => String(c.status).toUpperCase() === statusFilter);
         }
-        return list;
+        // Ưu tiên campaign trạng thái DRAFT, sau đó OPEN
+        return [...list].sort((a, b) => {
+            const rank = (status) => {
+                const s = String(status || "").toUpperCase();
+                if (s === "DRAFT") return 0;
+                if (s === "OPEN") return 1;
+                return 2;
+            };
+            return rank(a?.status) - rank(b?.status);
+        });
     }, [campaigns, search, statusFilter]);
 
     const paginatedCampaigns = useMemo(() => {
