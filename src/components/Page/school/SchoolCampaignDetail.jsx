@@ -181,6 +181,7 @@ export default function SchoolCampaignDetail() {
     const [submitLoading, setSubmitLoading] = useState(false);
     const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
     const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+    const [cancelReasonOpen, setCancelReasonOpen] = useState(false);
     const [confirmCloneOpen, setConfirmCloneOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
     const [cancelReasonError, setCancelReasonError] = useState("");
@@ -253,6 +254,19 @@ export default function SchoolCampaignDetail() {
     const today = startOfLocalToday();
     const endDateObj = parseLocalDate(campaign?.endDate?.slice?.(0, 10) || campaign?.endDate);
     const publishBlockedByPastEndDate = !!(endDateObj && endDateObj.getTime() < today.getTime());
+    const isFormDirty = useMemo(() => {
+        const originalName = String(campaign?.name ?? "").trim();
+        const originalDescription = String(campaign?.description ?? "").trim();
+        const originalStartDate = String(campaign?.startDate ?? "").slice(0, 10);
+        const originalEndDate = String(campaign?.endDate ?? "").slice(0, 10);
+
+        return (
+            String(formValues.name ?? "").trim() !== originalName ||
+            String(formValues.description ?? "").trim() !== originalDescription ||
+            String(formValues.startDate ?? "").trim() !== originalStartDate ||
+            String(formValues.endDate ?? "").trim() !== originalEndDate
+        );
+    }, [campaign?.name, campaign?.description, campaign?.startDate, campaign?.endDate, formValues]);
 
     const progress = useMemo(
         () => getTimelineProgress(campaign?.startDate, campaign?.endDate),
@@ -391,6 +405,7 @@ export default function SchoolCampaignDetail() {
             if (res?.status >= 200 && res?.status < 300) {
                 enqueueSnackbar(res?.data?.message || "Đã hủy chiến dịch.", { variant: "success" });
                 setConfirmCancelOpen(false);
+                setCancelReasonOpen(false);
                 setCancelReason("");
                 setCancelReasonError("");
                 const updated = await refreshCampaign();
@@ -571,7 +586,7 @@ export default function SchoolCampaignDetail() {
                         sx={{
                             display: "flex",
                             flexDirection: { xs: "column", md: "row" },
-                            alignItems: { xs: "flex-start", md: "center" },
+                            alignItems: { xs: "flex-start", md: "flex-start" },
                             justifyContent: "space-between",
                             gap: 2,
                         }}
@@ -589,7 +604,7 @@ export default function SchoolCampaignDetail() {
                             direction="column"
                             spacing={1}
                             alignItems="flex-end"
-                            sx={{ flexShrink: 0, ml: { md: 2 }, alignSelf: { xs: "stretch", md: "center" } }}
+                            sx={{ flexShrink: 0, ml: { md: 2 }, alignSelf: { xs: "stretch", md: "flex-start" } }}
                         >
                             <Box
                                 component="span"
@@ -606,71 +621,6 @@ export default function SchoolCampaignDetail() {
                             >
                                 {statusInfo.label}
                             </Box>
-                            {isPrimaryBranch && isDraft && (
-                                <Tooltip
-                                    title={
-                                        publishBlockedByPastEndDate
-                                            ? "Chiến dịch đã hết hạn, vui lòng cập nhật ngày kết thúc trước khi công bố."
-                                            : ""
-                                    }
-                                >
-                                    <span>
-                                        <Button
-                                            variant="contained"
-                                            onClick={() => setConfirmPublishOpen(true)}
-                                            disabled={submitLoading || publishBlockedByPastEndDate}
-                                            sx={{
-                                                bgcolor: "rgba(255,255,255,0.95)",
-                                                color: HEADER_ACCENT,
-                                                textTransform: "none",
-                                                fontWeight: 600,
-                                                borderRadius: "12px",
-                                                "&:hover": { bgcolor: "#fff" },
-                                            }}
-                                        >
-                                            Công bố chiến dịch
-                                        </Button>
-                                    </span>
-                                </Tooltip>
-                            )}
-                            {isPrimaryBranch && status === "OPEN" && (
-                                <Button
-                                    variant="outlined"
-                                    onClick={() => {
-                                        setCancelReason("");
-                                        setCancelReasonError("");
-                                        setConfirmCancelOpen(true);
-                                    }}
-                                    disabled={submitLoading}
-                                    sx={{
-                                        borderColor: "rgba(255,255,255,0.85)",
-                                        color: "#fff",
-                                        textTransform: "none",
-                                        fontWeight: 600,
-                                        borderRadius: "12px",
-                                        "&:hover": { borderColor: "#fff", bgcolor: "rgba(255,255,255,0.08)" },
-                                    }}
-                                >
-                                    Hủy chiến dịch
-                                </Button>
-                            )}
-                            {isPrimaryBranch && isCancelled && (
-                                <Button
-                                    variant="outlined"
-                                    onClick={() => setConfirmCloneOpen(true)}
-                                    disabled={submitLoading}
-                                    sx={{
-                                        borderColor: "rgba(255,255,255,0.85)",
-                                        color: "#fff",
-                                        textTransform: "none",
-                                        fontWeight: 600,
-                                        borderRadius: "12px",
-                                        "&:hover": { borderColor: "#fff", bgcolor: "rgba(255,255,255,0.08)" },
-                                    }}
-                                >
-                                    Clone chiến dịch
-                                </Button>
-                            )}
                         </Stack>
                     </Box>
                 </Box>
@@ -685,7 +635,7 @@ export default function SchoolCampaignDetail() {
                 }}
             >
                 <CardContent sx={{ p: 3 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: "#1e293b" }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#1e293b", mb: 2 }}>
                         Thông tin chiến dịch
                     </Typography>
                     <Stack
@@ -747,25 +697,79 @@ export default function SchoolCampaignDetail() {
                             sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                         />
                     </Stack>
-                    {isPrimaryBranch && status === "DRAFT" && (
-                        <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
-                            <Button
-                                variant="contained"
-                                onClick={runSaveTemplate}
-                                disabled={submitLoading}
-                                sx={{
-                                    bgcolor: HEADER_ACCENT,
-                                    textTransform: "none",
-                                    fontWeight: 600,
-                                    borderRadius: "12px",
-                                    px: 3,
-                                    "&:hover": { bgcolor: "#0a52b8" },
-                                }}
-                            >
-                                Lưu thay đổi
-                            </Button>
-                        </Box>
-                    )}
+                    <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
+                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+                            {isPrimaryBranch && isDraft && (
+                                <>
+                                    <Button
+                                        variant="contained"
+                                        onClick={runSaveTemplate}
+                                        disabled={submitLoading || !isFormDirty}
+                                        sx={{
+                                            bgcolor: HEADER_ACCENT,
+                                            textTransform: "none",
+                                            fontWeight: 600,
+                                            borderRadius: "12px",
+                                            px: 3,
+                                            "&:hover": { bgcolor: "#0a52b8" },
+                                        }}
+                                    >
+                                        Lưu thay đổi
+                                    </Button>
+                                    <Tooltip
+                                        title={
+                                            isFormDirty
+                                                ? "Vui lòng lưu thay đổi trước khi công bố chiến dịch."
+                                                : publishBlockedByPastEndDate
+                                                ? "Chiến dịch đã hết hạn, vui lòng cập nhật ngày kết thúc trước khi công bố."
+                                                : ""
+                                        }
+                                    >
+                                        <span>
+                                            <Button
+                                                variant="contained"
+                                                onClick={() => setConfirmPublishOpen(true)}
+                                                disabled={submitLoading || publishBlockedByPastEndDate || isFormDirty}
+                                                sx={{
+                                                    textTransform: "none",
+                                                    fontWeight: 600,
+                                                    borderRadius: "12px",
+                                                    bgcolor: HEADER_ACCENT,
+                                                }}
+                                            >
+                                                Công bố chiến dịch
+                                            </Button>
+                                        </span>
+                                    </Tooltip>
+                                </>
+                            )}
+                            {isPrimaryBranch && status === "OPEN" && (
+                                <Button
+                                    variant="outlined"
+                                    onClick={() => {
+                                        setCancelReason("");
+                                        setCancelReasonError("");
+                                        setConfirmCancelOpen(true);
+                                    }}
+                                    disabled={submitLoading}
+                                    color="error"
+                                    sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px" }}
+                                >
+                                    Hủy chiến dịch
+                                </Button>
+                            )}
+                            {isPrimaryBranch && isCancelled && (
+                                <Button
+                                    variant="outlined"
+                                    onClick={() => setConfirmCloneOpen(true)}
+                                    disabled={submitLoading}
+                                    sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px" }}
+                                >
+                                    Clone chiến dịch
+                                </Button>
+                            )}
+                        </Stack>
+                    </Box>
                     {formErrors.year && (
                         <Typography variant="caption" color="error" sx={{ display: "block", mt: 1 }}>
                             {formErrors.year}
@@ -895,6 +899,40 @@ export default function SchoolCampaignDetail() {
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                         Nếu chiến dịch đã có hồ sơ đăng ký, hệ thống có thể cần xử lý hoàn trả/hủy hồ sơ cho thí sinh.
                     </Typography>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2.5 }}>
+                    <Button
+                        onClick={() => setConfirmCancelOpen(false)}
+                        disabled={submitLoading}
+                        sx={{ textTransform: "none" }}
+                    >
+                        Đóng
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={() => {
+                            setConfirmCancelOpen(false);
+                            setCancelReasonOpen(true);
+                        }}
+                        disabled={submitLoading}
+                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px", bgcolor: HEADER_ACCENT }}
+                    >
+                        Có, tiếp tục
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={cancelReasonOpen}
+                onClose={() => !submitLoading && setCancelReasonOpen(false)}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{ sx: { borderRadius: "16px" } }}
+            >
+                <DialogContent sx={{ pt: 2.5 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Nhập lý do hủy
+                    </Typography>
                     <TextField
                         label="Lý do hủy"
                         multiline
@@ -913,7 +951,7 @@ export default function SchoolCampaignDetail() {
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2.5 }}>
                     <Button
-                        onClick={() => setConfirmCancelOpen(false)}
+                        onClick={() => setCancelReasonOpen(false)}
                         disabled={submitLoading}
                         sx={{ textTransform: "none" }}
                     >
