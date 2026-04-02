@@ -4,6 +4,7 @@ import {
     Button,
     Card,
     CardContent,
+    CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
@@ -15,6 +16,7 @@ import {
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import CampaignIcon from "@mui/icons-material/Campaign";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
 import { useSchool } from "../../../contexts/SchoolContext.jsx";
@@ -28,6 +30,53 @@ import {
 import CampaignOfferingsSection from "./CampaignOfferingsSection.jsx";
 
 const HEADER_ACCENT = "#0D64DE";
+
+/** Đổi sang route quản lý hồ sơ đăng ký / tuyển sinh khi có trang riêng. */
+const SCHOOL_REGISTRATION_PROFILES_PATH = "/school/dashboard";
+
+/**
+ * Thời gian hiển thị bước “chuẩn bị” trước khi vào xác nhận.
+ * Không gọi API cancel ở bước này — BE thực hiện hủy ngay khi gọi PUT cancel;
+ * kiểm tra 412 (còn hồ sơ) chỉ xảy ra khi user gửi lý do ở runCancelCampaign.
+ *
+ * TODO (khi BE có API check riêng): gọi service mới trong handleOpenCancelFlow (trong lúc phase "checking"),
+ * xử lý 412 → blocked, lỗi → precheckFailed, OK → confirm; giữ MIN_PRECHECK_SPINNER_MS nếu cần chờ tối thiểu.
+ */
+const MIN_PRECHECK_SPINNER_MS = 850;
+
+const DEFAULT_CANCEL_BLOCKED_MESSAGE =
+    "Cannot cancel campaign. There are active registration profiles linked to this campaign. Please Reject or Process all profiles before cancelling to ensure student data integrity.";
+
+function extractApiMessage(data) {
+    if (data == null) return "";
+    if (typeof data === "string") return data.trim();
+    if (typeof data === "object") {
+        const m =
+            data.message ??
+            data.error ??
+            data.detail ??
+            (Array.isArray(data.errors) ? data.errors.filter(Boolean).join(" ") : "");
+        if (m) return String(m).trim();
+        if (data.body != null && data.body !== data) {
+            const inner = extractApiMessage(data.body);
+            if (inner) return inner;
+        }
+        return "";
+    }
+    return "";
+}
+
+function buildCancelBlockedMessage(data) {
+    const fromApi = extractApiMessage(data);
+    if (fromApi) return fromApi;
+    if (data && typeof data === "object") {
+        const n = Number(data.activeProfilesCount ?? data.activeRegistrationProfilesCount);
+        if (Number.isFinite(n) && n > 0) {
+            return `Cannot cancel campaign. There are ${n} active registration profiles linked to this campaign. Please Reject or Process all profiles before cancelling to ensure student data integrity.`;
+        }
+    }
+    return DEFAULT_CANCEL_BLOCKED_MESSAGE;
+}
 
 const STATUS_UI = {
     DRAFT: { label: "Bản nháp", badgeBg: "rgba(100, 116, 139, 0.14)", badgeColor: "#475569" },
@@ -124,6 +173,7 @@ const CAMPAIGN_ERROR_VI = {
     "Campaign is not in DRAFT status": "Chiến dịch này đã được công bố hoặc đã đóng",
     "Campaign has expired": "Chiến dịch đã hết hạn, vui lòng cập nhật ngày kết thúc trước khi công bố",
     "Campaign already cancelled": "Chiến dịch này đã hủy trước đó",
+    "Campaign already inactive": "Chiến dịch đã không còn hoạt động hoặc đã được hủy trước đó.",
 };
 
 function getCampaignErrorMessage(backendMessage, fallback) {
@@ -180,8 +230,10 @@ export default function SchoolCampaignDetail() {
     const [formErrors, setFormErrors] = useState({});
     const [submitLoading, setSubmitLoading] = useState(false);
     const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
-    const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
-    const [cancelReasonOpen, setCancelReasonOpen] = useState(false);
+    const [cancelFlowOpen, setCancelFlowOpen] = useState(false);
+    /** idle | checking | blocked | confirm | reason | precheckFailed */
+    const [cancelFlowPhase, setCancelFlowPhase] = useState("idle");
+    const [cancelBlockedMessage, setCancelBlockedMessage] = useState("");
     const [confirmCloneOpen, setConfirmCloneOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
     const [cancelReasonError, setCancelReasonError] = useState("");
@@ -358,6 +410,33 @@ export default function SchoolCampaignDetail() {
 
     const templateId = campaign?.admissionCampaignTemplateId ?? campaign?.id;
 
+    const resetCancelFlow = useCallback(() => {
+        setCancelFlowOpen(false);
+        setCancelFlowPhase("idle");
+        setCancelBlockedMessage("");
+        setCancelReason("");
+        setCancelReasonError("");
+        setSubmitLoading(false);
+    }, []);
+
+    const handleOpenCancelFlow = () => {
+        if (!templateId || isPastYearCampaign) return;
+        setCancelReason("");
+        setCancelReasonError("");
+        setCancelBlockedMessage("");
+        setCancelFlowOpen(true);
+        setCancelFlowPhase("checking");
+        setSubmitLoading(true);
+        /* Hiện chỉ delay UI; khi có API precheck → thay khối async bên dưới (xem TODO trên MIN_PRECHECK_SPINNER_MS). */
+        void (async () => {
+            const t0 = Date.now();
+            const wait = Math.max(0, MIN_PRECHECK_SPINNER_MS - (Date.now() - t0));
+            if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+            setCancelFlowPhase("confirm");
+            setSubmitLoading(false);
+        })();
+    };
+
     const runPublish = async () => {
         if (!templateId || isPastYearCampaign) return;
         setSubmitLoading(true);
@@ -407,11 +486,8 @@ export default function SchoolCampaignDetail() {
         try {
             const res = await cancelCampaignTemplate(templateId, reason);
             if (res?.status >= 200 && res?.status < 300) {
-                enqueueSnackbar(res?.data?.message || "Đã hủy chiến dịch.", { variant: "success" });
-                setConfirmCancelOpen(false);
-                setCancelReasonOpen(false);
-                setCancelReason("");
-                setCancelReasonError("");
+                enqueueSnackbar("Cancelled successfully", { variant: "success" });
+                resetCancelFlow();
                 const updated = await refreshCampaign();
                 setOfferingsRemountKey((k) => k + 1);
                 if (updated && campaignId) {
@@ -427,12 +503,22 @@ export default function SchoolCampaignDetail() {
             }
         } catch (err) {
             const code = err?.response?.status;
-            if (code === 403) enqueueSnackbar("Bạn không có quyền thực hiện hành động này", { variant: "error" });
-            else if (code === 404) enqueueSnackbar("Dữ liệu không tồn tại hoặc đã bị xóa", { variant: "error" });
-            else
-                enqueueSnackbar(getCampaignErrorMessage(err?.response?.data?.message, "Không thể hủy chiến dịch"), {
-                    variant: "error",
-                });
+            const data = err?.response?.data;
+            if (code === 412) {
+                setCancelBlockedMessage(buildCancelBlockedMessage(data));
+                setCancelFlowPhase("blocked");
+            } else if (code === 403) {
+                enqueueSnackbar("Bạn không có quyền thực hiện hành động này", { variant: "error" });
+                resetCancelFlow();
+            } else if (code === 404) {
+                enqueueSnackbar("Dữ liệu không tồn tại hoặc đã bị xóa", { variant: "error" });
+                resetCancelFlow();
+            } else {
+                enqueueSnackbar(
+                    getCampaignErrorMessage(err?.response?.data?.message, "Không thể hủy chiến dịch"),
+                    { variant: "error" }
+                );
+            }
         } finally {
             setSubmitLoading(false);
         }
@@ -750,11 +836,7 @@ export default function SchoolCampaignDetail() {
                             {isPrimaryBranch && status === "OPEN" && !isPastYearCampaign && (
                                 <Button
                                     variant="outlined"
-                                    onClick={() => {
-                                        setCancelReason("");
-                                        setCancelReasonError("");
-                                        setConfirmCancelOpen(true);
-                                    }}
+                                    onClick={handleOpenCancelFlow}
                                     disabled={submitLoading}
                                     color="error"
                                     sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px" }}
@@ -891,91 +973,227 @@ export default function SchoolCampaignDetail() {
             </Dialog>
 
             <Dialog
-                open={confirmCancelOpen}
-                onClose={() => !submitLoading && setConfirmCancelOpen(false)}
+                open={cancelFlowOpen}
+                disableEscapeKeyDown={cancelFlowPhase === "checking"}
+                onClose={() => {
+                    if (cancelFlowPhase === "checking") return;
+                    if (submitLoading) return;
+                    resetCancelFlow();
+                }}
                 fullWidth
                 maxWidth="sm"
                 PaperProps={{ sx: { borderRadius: "16px" } }}
             >
-                <DialogContent sx={{ pt: 2.5 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                        Xác nhận hủy chiến dịch?
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25 }}>
-                        Bạn có chắc chắn muốn hủy chiến dịch này? Tất cả các ngành học đang mở thuộc chiến dịch cũng sẽ
-                        bị đóng lại. Hành động này không thể hoàn tác.
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        Nếu chiến dịch đã có hồ sơ đăng ký, hệ thống có thể cần xử lý hoàn trả/hủy hồ sơ cho thí sinh.
-                    </Typography>
-                </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2.5 }}>
-                    <Button
-                        onClick={() => setConfirmCancelOpen(false)}
-                        disabled={submitLoading}
-                        sx={{ textTransform: "none" }}
-                    >
-                        Đóng
-                    </Button>
-                    <Button
-                        variant="contained"
-                        onClick={() => {
-                            setConfirmCancelOpen(false);
-                            setCancelReasonOpen(true);
-                        }}
-                        disabled={submitLoading}
-                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px", bgcolor: HEADER_ACCENT }}
-                    >
-                        Có, tiếp tục
-                    </Button>
-                </DialogActions>
-            </Dialog>
+                {cancelFlowPhase === "checking" && (
+                    <DialogContent sx={{ py: 4 }}>
+                        <Stack alignItems="center" spacing={2.5} sx={{ py: 2 }}>
+                            <CircularProgress size={48} sx={{ color: HEADER_ACCENT }} />
+                            <Typography variant="body1" color="text.secondary" textAlign="center" sx={{ maxWidth: 380 }}>
+                                Đang chuẩn bị các bước xác nhận hủy chiến dịch…
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" textAlign="center">
+                                Bạn sẽ xác nhận ý định hủy, sau đó nhập lý do; hệ thống chỉ thực hiện hủy khi bạn xác nhận
+                                cuối cùng.
+                            </Typography>
+                        </Stack>
+                    </DialogContent>
+                )}
 
-            <Dialog
-                open={cancelReasonOpen}
-                onClose={() => !submitLoading && setCancelReasonOpen(false)}
-                fullWidth
-                maxWidth="sm"
-                PaperProps={{ sx: { borderRadius: "16px" } }}
-            >
-                <DialogContent sx={{ pt: 2.5 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                        Nhập lý do hủy
-                    </Typography>
-                    <TextField
-                        label="Lý do hủy"
-                        multiline
-                        minRows={3}
-                        fullWidth
-                        required
-                        value={cancelReason}
-                        onChange={(e) => {
-                            setCancelReason(e.target.value);
-                            if (cancelReasonError) setCancelReasonError("");
-                        }}
-                        error={!!cancelReasonError}
-                        helperText={cancelReasonError}
-                        sx={{ mt: 2 }}
-                    />
-                </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2.5 }}>
-                    <Button
-                        onClick={() => setCancelReasonOpen(false)}
-                        disabled={submitLoading}
-                        sx={{ textTransform: "none" }}
-                    >
-                        Đóng
-                    </Button>
-                    <Button
-                        variant="contained"
-                        color="error"
-                        onClick={runCancelCampaign}
-                        disabled={submitLoading}
-                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px" }}
-                    >
-                        Xác nhận hủy
-                    </Button>
-                </DialogActions>
+                {cancelFlowPhase === "precheckFailed" && (
+                    <>
+                        <DialogContent sx={{ pt: 3 }}>
+                            <Stack spacing={2} alignItems="flex-start">
+                                <WarningAmberIcon sx={{ fontSize: 48, color: "#dc2626" }} />
+                                <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b" }}>
+                                    Không thể hoàn tất kiểm tra
+                                </Typography>
+                                <Typography
+                                    variant="body2"
+                                    color="text.secondary"
+                                    sx={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}
+                                >
+                                    {cancelBlockedMessage}
+                                </Typography>
+                            </Stack>
+                        </DialogContent>
+                        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+                            <Button
+                                onClick={resetCancelFlow}
+                                color="inherit"
+                                variant="outlined"
+                                sx={{ textTransform: "none", borderColor: "#cbd5e1", color: "#64748b" }}
+                            >
+                                Đóng
+                            </Button>
+                        </DialogActions>
+                    </>
+                )}
+
+                {cancelFlowPhase === "blocked" && (
+                    <>
+                        <DialogContent sx={{ pt: 3 }}>
+                            <Stack spacing={2} alignItems="flex-start">
+                                <WarningAmberIcon sx={{ fontSize: 52, color: "#d97706" }} />
+                                <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b" }}>
+                                    Không thể hủy chiến dịch tuyển sinh
+                                </Typography>
+                                <Typography
+                                    variant="body2"
+                                    color="text.secondary"
+                                    sx={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}
+                                >
+                                    {cancelBlockedMessage}
+                                </Typography>
+                            </Stack>
+                        </DialogContent>
+                        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1, flexWrap: "wrap" }}>
+                            <Button
+                                onClick={resetCancelFlow}
+                                disabled={submitLoading}
+                                color="inherit"
+                                variant="outlined"
+                                sx={{ textTransform: "none", borderColor: "#cbd5e1", color: "#64748b" }}
+                            >
+                                Đóng
+                            </Button>
+                            <Button
+                                variant="contained"
+                                onClick={() => {
+                                    navigate(SCHOOL_REGISTRATION_PROFILES_PATH);
+                                    resetCancelFlow();
+                                }}
+                                disabled={submitLoading}
+                                sx={{
+                                    textTransform: "none",
+                                    fontWeight: 600,
+                                    borderRadius: "12px",
+                                    bgcolor: HEADER_ACCENT,
+                                }}
+                            >
+                                Xem danh sách hồ sơ
+                            </Button>
+                        </DialogActions>
+                    </>
+                )}
+
+                {cancelFlowPhase === "confirm" && (
+                    <>
+                        <DialogContent sx={{ pt: 2.5 }}>
+                            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                                Xác nhận hủy chiến dịch?
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.6 }}>
+                                Bước tiếp theo bạn sẽ nhập lý do hủy. Chỉ khi bấm xác nhận cuối cùng, hệ thống mới gửi
+                                yêu cầu hủy và kiểm tra điều kiện (ví dụ còn hồ sơ đăng ký). Nếu hủy thành công, toàn bộ
+                                Suất tuyển sinh (Offerings) liên quan sẽ bị đóng và{" "}
+                                <Box component="span" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                                    không thể hoàn tác
+                                </Box>
+                                .
+                            </Typography>
+                        </DialogContent>
+                        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1, flexWrap: "wrap" }}>
+                            <Button
+                                onClick={resetCancelFlow}
+                                color="inherit"
+                                variant="outlined"
+                                sx={{
+                                    textTransform: "none",
+                                    borderRadius: "12px",
+                                    borderColor: "#cbd5e1",
+                                    color: "#64748b",
+                                }}
+                            >
+                                Đóng
+                            </Button>
+                            <Button
+                                variant="contained"
+                                onClick={() => {
+                                    setCancelReasonError("");
+                                    setCancelFlowPhase("reason");
+                                }}
+                                sx={{
+                                    textTransform: "none",
+                                    fontWeight: 600,
+                                    borderRadius: "12px",
+                                    bgcolor: HEADER_ACCENT,
+                                }}
+                            >
+                                Xác nhận hủy
+                            </Button>
+                        </DialogActions>
+                    </>
+                )}
+
+                {cancelFlowPhase === "reason" && (
+                    <>
+                        <DialogContent sx={{ pt: 2.5 }}>
+                            <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                                Nhập lý do hủy
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.6 }}>
+                                Vui lòng nhập lý do hủy chiến dịch. Thông tin này được gửi kèm yêu cầu hủy tới hệ thống.
+                            </Typography>
+                            <TextField
+                                label="Lý do hủy"
+                                placeholder="Nhập lý do hủy chiến dịch…"
+                                multiline
+                                minRows={4}
+                                fullWidth
+                                required
+                                value={cancelReason}
+                                onChange={(e) => {
+                                    setCancelReason(e.target.value);
+                                    if (cancelReasonError) setCancelReasonError("");
+                                }}
+                                error={!!cancelReasonError}
+                                helperText={cancelReasonError}
+                                sx={{ mt: 2.5, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
+                            />
+                        </DialogContent>
+                        <DialogActions sx={{ px: 3, pb: 2.5, gap: 1, flexWrap: "wrap" }}>
+                            <Button
+                                onClick={() => {
+                                    setCancelFlowPhase("confirm");
+                                    setCancelReasonError("");
+                                }}
+                                disabled={submitLoading}
+                                sx={{ textTransform: "none", color: "#64748b" }}
+                            >
+                                Quay lại
+                            </Button>
+                            <Button
+                                onClick={resetCancelFlow}
+                                disabled={submitLoading}
+                                color="inherit"
+                                variant="outlined"
+                                sx={{
+                                    textTransform: "none",
+                                    borderRadius: "12px",
+                                    borderColor: "#cbd5e1",
+                                    color: "#64748b",
+                                }}
+                            >
+                                Đóng
+                            </Button>
+                            <Button
+                                variant="contained"
+                                onClick={runCancelCampaign}
+                                disabled={submitLoading || !cancelReason.trim()}
+                                sx={{
+                                    textTransform: "none",
+                                    fontWeight: 600,
+                                    borderRadius: "12px",
+                                    bgcolor: "#991b1b",
+                                    "&:hover": { bgcolor: "#7f1d1d" },
+                                    "&.Mui-disabled": { bgcolor: "rgba(153, 27, 27, 0.35)" },
+                                }}
+                            >
+                                {submitLoading ? "Đang xử lý…" : "Tôi hiểu và xác nhận hủy"}
+                            </Button>
+                        </DialogActions>
+                    </>
+                )}
             </Dialog>
 
             <Dialog
