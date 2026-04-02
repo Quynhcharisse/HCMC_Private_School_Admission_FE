@@ -50,12 +50,11 @@ import {
 import TuitionFilter from "../ui/TuitionFilter";
 import {showSuccessSnackbar, showWarningSnackbar} from "../ui/AppSnackbar.jsx";
 import {
-    getSavedSchools,
     getSchoolStorageKey,
-    getUserIdentity,
-    setSavedSchools
+    getUserIdentity
 } from "../../utils/savedSchoolsStorage";
 import {getPublicSchoolDetail, getPublicSchoolList} from "../../services/SchoolPublicService.jsx";
+import {postParentFavouriteSchool} from "../../services/ParentService.jsx";
 import SchoolSearchDetailView, {DEFAULT_SCHOOL_IMAGE, mapPublicSchoolDetailToRow} from "./SchoolSearchDetailView.jsx";
 
 const LOCATION_FALLBACK_PROVINCE = "Tất cả";
@@ -192,12 +191,6 @@ export default function SchoolSearchPage() {
         window.scrollTo({top: 0, left: 0, behavior: 'auto'});
     }, []);
 
-    const [savedSchoolKeys, setSavedSchoolKeys] = React.useState(() => {
-        if (typeof window === "undefined" || !isParent || !userInfo) return new Set();
-        const saved = getSavedSchools(userInfo);
-        return new Set(saved.map((x) => x?.schoolKey).filter(Boolean));
-    });
-
     const [compareSchoolKeys, setCompareSchoolKeys] = React.useState(() => {
         if (typeof window === "undefined") return new Set();
         const list = getCompareSchools(userInfo);
@@ -233,15 +226,6 @@ export default function SchoolSearchPage() {
         const wards = selectedProvince ? (wardsByProvince[selectedProvince] ?? []) : allWards;
         setSelectedDistrict((prev) => (wards.includes(prev) ? prev : (wards[0] ?? "")));
     }, [selectedProvince, wardsByProvince, allWards]);
-
-    React.useEffect(() => {
-        if (!isParent || !userInfo) {
-            setSavedSchoolKeys(new Set());
-        } else {
-            const saved = getSavedSchools(userInfo);
-            setSavedSchoolKeys(new Set(saved.map((x) => x?.schoolKey).filter(Boolean)));
-        }
-    }, [isParent, userIdentity, userInfo]);
 
     React.useEffect(() => {
         const compare = getCompareSchools(userInfo);
@@ -369,35 +353,36 @@ export default function SchoolSearchPage() {
         return undefined;
     }, [detailSchool]);
 
-    const toggleSave = (schoolRecord) => {
+    const toggleSave = async (schoolRecord) => {
         if (!isParent || !userInfo) {
             showWarningSnackbar("Bạn phải đăng nhập với vai trò Phụ huynh mới lưu được trường.");
             return;
         }
-        const schoolKey = getSchoolStorageKey(schoolRecord);
-        const saved = getSavedSchools(userInfo);
-        const exists = saved.some((x) => x?.schoolKey === schoolKey);
-        const next = exists
-            ? saved.filter((x) => x?.schoolKey !== schoolKey)
-            : [
-                ...saved,
-                {
-                    schoolKey,
-                    id: schoolRecord.id,
-                    schoolName: schoolRecord.school,
-                    province: schoolRecord.province,
-                    ward: schoolRecord.ward,
-                    logoUrl: schoolRecord.logoUrl || null,
-                    averageRating: Number(schoolRecord.averageRating) || 0
-                }
-            ];
-        setSavedSchools(userInfo, next);
-        setSavedSchoolKeys((prev) => {
-            const n = new Set(prev);
-            if (exists) n.delete(schoolKey);
-            else n.add(schoolKey);
-            return n;
-        });
+        if (!schoolRecord?.id) {
+            showWarningSnackbar("Không xác định được trường để lưu.");
+            return;
+        }
+        const exists = Boolean(schoolRecord?.isFavourite);
+        try {
+            await postParentFavouriteSchool({schoolId: schoolRecord.id});
+        } catch (e) {
+            const msg =
+                e?.response?.data?.message ||
+                e?.message ||
+                "Không thể cập nhật trạng thái lưu trường lúc này. Vui lòng thử lại.";
+            showWarningSnackbar(msg);
+            return;
+        }
+        setSchools((prev) =>
+            prev.map((item) =>
+                item?.id === schoolRecord.id
+                    ? {
+                        ...item,
+                        isFavourite: !exists
+                    }
+                    : item
+            )
+        );
         showSuccessSnackbar(exists ? "Đã bỏ lưu trường." : "Đã lưu trường vào Trường đã lưu.");
     };
 
@@ -434,7 +419,7 @@ export default function SchoolSearchPage() {
     const compareCount = compareSchoolKeys.size;
 
     const detailKeyForActions = detailSchool ? getSchoolStorageKey(detailSchool) : "";
-    const detailIsSaved = Boolean(detailSchool && savedSchoolKeys.has(detailKeyForActions));
+    const detailIsSaved = Boolean(detailSchool?.isFavourite);
     const detailInCompare = Boolean(detailSchool && compareSchoolKeys.has(detailKeyForActions));
 
     return (
@@ -790,7 +775,7 @@ export default function SchoolSearchPage() {
                         <Stack spacing={2}>
                             {shownSchools.map((school) => {
                                 const schoolKey = getSchoolStorageKey(school);
-                                const isSaved = savedSchoolKeys.has(schoolKey);
+                                const isSaved = Boolean(school?.isFavourite);
                                 const inCompare = compareSchoolKeys.has(schoolKey);
 
                                 return (

@@ -24,3 +24,8 @@ export const getParentSubjects = async () => {
     const response = await axiosClient.get('/parent/subject');
     return response || null;
 };
+
+export const postParentFavouriteSchool = async (payload) => {
+    const response = await axiosClient.post('/parent/favourite/school', payload);
+    return response || null;
+};

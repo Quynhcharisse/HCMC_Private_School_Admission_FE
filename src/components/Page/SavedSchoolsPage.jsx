@@ -18,14 +18,14 @@ import {Bookmark as BookmarkIcon} from "@mui/icons-material";
 import {useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {showWarningSnackbar} from "../ui/AppSnackbar.jsx";
-import {getSavedSchools as loadSavedSchools, setSavedSchools as persistSavedSchools} from "../../utils/savedSchoolsStorage";
 import {
     APP_PRIMARY_DARK,
     BRAND_NAVY,
     HOME_PAGE_SURFACE_GRADIENT,
     landingSectionShadow
 } from "../../constants/homeLandingTheme";
-import {getPublicSchoolDetail} from "../../services/SchoolPublicService.jsx";
+import {getPublicSchoolDetail, getPublicSchoolList} from "../../services/SchoolPublicService.jsx";
+import {postParentFavouriteSchool} from "../../services/ParentService.jsx";
 
 const DEFAULT_SCHOOL_IMAGE =
     "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=900&q=80";
@@ -66,54 +66,36 @@ export default function SavedSchoolsPage() {
             setLoading(true);
             setError("");
             try {
-                const localSaved = loadSavedSchools(userInfo);
+                const schoolList = await getPublicSchoolList();
                 if (cancelled) return;
-                const rows = await Promise.all(
-                    (Array.isArray(localSaved) ? localSaved : []).map(async (item) => {
-                        const parsedId =
-                            item?.id ??
-                            (typeof item?.schoolKey === "string" && item.schoolKey.startsWith("id:")
-                                ? Number(item.schoolKey.slice(3))
-                                : null);
-                        const base = {
-                            id: parsedId,
-                            schoolKey: item?.schoolKey || (parsedId != null ? `id:${parsedId}` : `saved-${item?.schoolName || Math.random()}`),
-                            schoolName: item?.schoolName || "Trường đang cập nhật",
-                            province: item?.province || LOCATION_FALLBACK_PROVINCE,
-                            ward: item?.ward || LOCATION_FALLBACK_WARD,
+                const rows = (Array.isArray(schoolList) ? schoolList : [])
+                    .filter((item) => Boolean(item?.isFavourite))
+                    .map((item) => {
+                        const campusList = Array.isArray(item?.campusList)
+                            ? item.campusList
+                            : Array.isArray(item?.campustList)
+                                ? item.campustList
+                                : [];
+                        const firstCampus = campusList[0] ?? null;
+                        const id = item?.id ?? null;
+                        return {
+                            id,
+                            schoolKey: id != null ? `id:${id}` : `saved-${item?.name || Math.random()}`,
+                            schoolName: item?.name || "Trường đang cập nhật",
+                            province: (firstCampus?.city || "").trim() || LOCATION_FALLBACK_PROVINCE,
+                            ward: (firstCampus?.district || "").trim() || LOCATION_FALLBACK_WARD,
                             logoUrl: item?.logoUrl || null,
                             averageRating: Number(item?.averageRating) || 0,
                             isFavourite: true
                         };
-                        if (!parsedId) return base;
-                        try {
-                            const detail = await getPublicSchoolDetail(parsedId);
-                            const campusList = Array.isArray(detail?.campusList)
-                                ? detail.campusList
-                                : Array.isArray(detail?.campustList)
-                                    ? detail.campustList
-                                    : [];
-                            const firstCampus = campusList[0] ?? null;
-                            return {
-                                ...base,
-                                schoolName: detail?.name || base.schoolName,
-                                logoUrl: detail?.logoUrl || base.logoUrl,
-                                averageRating: Number(detail?.averageRating) || base.averageRating,
-                                province: (firstCampus?.city || "").trim() || LOCATION_FALLBACK_PROVINCE,
-                                ward: (firstCampus?.district || "").trim() || LOCATION_FALLBACK_WARD
-                            };
-                        } catch {
-                            return base;
-                        }
-                    })
-                );
+                    });
                 if (!cancelled) setSavedSchools(rows);
             } catch (e) {
                 if (!cancelled) {
                     setError(
                         e?.response?.data?.message ||
                         e?.message ||
-                        "Không tải được danh sách trường đã lưu từ bộ nhớ."
+                        "Không tải được danh sách trường đã lưu."
                     );
                     setSavedSchools([]);
                 }
@@ -126,15 +108,26 @@ export default function SavedSchoolsPage() {
         };
     }, [isParent, userInfo]);
 
-    const onRemove = (schoolRecord) => {
+    const onRemove = async (schoolRecord) => {
         if (!isParent) {
             showWarningSnackbar("Bạn phải đăng nhập với vai trò Phụ huynh để lưu trường.");
             return;
         }
-        const current = loadSavedSchools(userInfo);
-        const next = (Array.isArray(current) ? current : []).filter((x) => x?.schoolKey !== schoolRecord?.schoolKey);
-        persistSavedSchools(userInfo, next);
-        setSavedSchools(next);
+        if (!schoolRecord?.id) {
+            showWarningSnackbar("Không xác định được trường để bỏ lưu.");
+            return;
+        }
+        try {
+            await postParentFavouriteSchool({schoolId: schoolRecord.id});
+        } catch (e) {
+            showWarningSnackbar(
+                e?.response?.data?.message ||
+                e?.message ||
+                "Không thể cập nhật trạng thái lưu trường."
+            );
+            return;
+        }
+        setSavedSchools((prev) => prev.filter((x) => x?.id !== schoolRecord.id));
         enqueueSnackbar("Đã xóa khỏi trường đã lưu.", {autoHideDuration: 1800});
     };
 
