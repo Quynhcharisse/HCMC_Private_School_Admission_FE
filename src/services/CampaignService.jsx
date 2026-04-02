@@ -63,11 +63,18 @@ export const updateCampaignTemplateStatus = async (id) => {
  * PUT cancel campaign template
  * @param {number} id
  * @param {string} reason
+ * @param {{ resolveAllStatuses?: boolean }} [options] — true: không throw, trả response mọi status (precheck 412/400/…)
  */
-export const cancelCampaignTemplate = async (id, reason) => {
-    const response = await axiosClient.put(`/school/${id}/campaign/template/cancel`, null, {
+export const cancelCampaignTemplate = async (id, reason, options = {}) => {
+    const { resolveAllStatuses = false } = options;
+    const config = {
         params: { reason: reason?.trim() ?? "" },
-    });
+    };
+    if (resolveAllStatuses) {
+        // Luôn resolve (không throw) để đọc 412/400/403 trong precheck — dùng hàm rõ ràng cho mọi phiên bản axios
+        config.validateStatus = () => true;
+    }
+    const response = await axiosClient.put(`/school/${id}/campaign/template/cancel`, null, config);
     return response || null;
 };
 
