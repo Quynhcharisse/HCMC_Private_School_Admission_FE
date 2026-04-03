@@ -13,25 +13,30 @@ export const getProgramList = async (page = 0, pageSize = 10) => {
 };
 
 /**
- * POST /api/v1/school/program
- * Create: omit programId (or programId <= 0). Update: include programId > 0.
+ * POST /api/v1/school/program (Upsert)
+ * - Create: omit `programId`
+ * - Update: include `programId`
  */
 export const saveProgram = async ({
     programId,
     curriculumId,
     name,
+    languageOfInstruction,
+    programCategory,
     graduationStandard,
     targetStudentDescription,
     baseTuitionFee,
-    isActive,
+    feeUnit,
 }) => {
     const body = {
         curriculumId,
         name: name != null ? String(name).trim() : "",
+        languageOfInstruction: languageOfInstruction ?? null,
+        programCategory: programCategory ?? null,
         graduationStandard,
         targetStudentDescription,
         baseTuitionFee: Number(baseTuitionFee),
-        isActive: !!isActive,
+        feeUnit: feeUnit ?? null,
     };
 
     const id = programId != null ? Number(programId) : 0;
@@ -43,6 +48,35 @@ export const saveProgram = async ({
         headers: {
             "X-Device-Type": "web",
         },
+    });
+    return response || null;
+};
+
+/**
+ * PATCH /api/v1/school/{id}/activate/program?action=ACTIVATE|DEACTIVATE
+ */
+export const handleProgramAction = async (id, action) => {
+    const programId = Number(id);
+    const safeAction = String(action || "").toUpperCase();
+    const response = await axiosClient.patch(
+        `/school/${programId}/activate/program`,
+        {},
+        {
+            params: { action: safeAction },
+            headers: { "X-Device-Type": "web" },
+        }
+    );
+    return response || null;
+};
+
+/**
+ * POST /api/v1/school/{id}/program/clone
+ * `id` là program gốc cần nhân bản (không phải campaign template).
+ */
+export const cloneProgram = async (id) => {
+    const programId = Number(id);
+    const response = await axiosClient.post(`/school/${programId}/program/clone`, null, {
+        headers: { "X-Device-Type": "web" },
     });
     return response || null;
 };
