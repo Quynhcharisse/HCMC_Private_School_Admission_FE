@@ -1186,7 +1186,7 @@ function MainHeader() {
                                 Tìm trường
                             </Button>
                             <Button color="inherit" sx={navButtonSx('/saved-schools')} onClick={() => goTo('/saved-schools')}>
-                                Trường đã lưu
+                                Trường yêu thích
                             </Button>
                             <Button color="inherit" sx={navButtonSx('/compare-schools')} onClick={() => goTo('/compare-schools')}>
                                 So sánh trường
@@ -1213,7 +1213,7 @@ function MainHeader() {
                                 Tìm trường
                             </Button>
                             <Button color="inherit" sx={navButtonSx('/saved-schools')} onClick={() => goTo('/saved-schools')}>
-                                Trường đã lưu
+                                Trường yêu thích
                             </Button>
                             <Button color="inherit" sx={navButtonSx('/compare-schools')} onClick={() => goTo('/compare-schools')}>
                                 So sánh trường
@@ -2223,7 +2223,7 @@ function MainHeader() {
                                         <ListItemText primary="Tìm trường" sx={navMobileTextSx('/search-schools')}/>
                                     </ListItem>
                                     <ListItem onClick={() => goTo('/saved-schools')}>
-                                        <ListItemText primary="Trường đã lưu" sx={{color: '#333', fontWeight: 600}}/>
+                                        <ListItemText primary="Trường yêu thích" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
                                     <ListItem onClick={() => goTo('/compare-schools')}>
                                         <ListItemText primary="So sánh trường" sx={{color: '#333', fontWeight: 600}}/>
@@ -2241,7 +2241,7 @@ function MainHeader() {
                                         <ListItemText primary="Tìm trường" sx={navMobileTextSx('/search-schools')}/>
                                     </ListItem>
                                     <ListItem onClick={() => goTo('/saved-schools')}>
-                                        <ListItemText primary="Trường đã lưu" sx={{color: '#333', fontWeight: 600}}/>
+                                        <ListItemText primary="Trường yêu thích" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
                                     <ListItem onClick={() => goTo('/compare-schools')}>
                                         <ListItemText primary="So sánh trường" sx={{color: '#333', fontWeight: 600}}/>

@@ -95,7 +95,7 @@ export default function SavedSchoolsPage() {
                     setError(
                         e?.response?.data?.message ||
                         e?.message ||
-                        "Không tải được danh sách trường đã lưu."
+                        "Không tải được danh sách trường yêu thích."
                     );
                     setSavedSchools([]);
                 }
@@ -128,7 +128,7 @@ export default function SavedSchoolsPage() {
             return;
         }
         setSavedSchools((prev) => prev.filter((x) => x?.id !== schoolRecord.id));
-        enqueueSnackbar("Đã xóa khỏi trường đã lưu.", {autoHideDuration: 1800});
+        enqueueSnackbar("Đã gỡ trường khỏi Trường yêu thích.", {autoHideDuration: 1800});
     };
 
     const openSchoolDetail = async (schoolRecord) => {
@@ -190,7 +190,7 @@ export default function SavedSchoolsPage() {
             <Box sx={{maxWidth: 1200, mx: "auto", px: {xs: 2, md: 3}, pb: 5}}>
                 <Box sx={{display: "flex", justifyContent: "space-between", alignItems: "center", mb: 2}}>
                     <Typography sx={{fontWeight: 800, fontSize: 20, color: "#1e293b"}}>
-                        Trường đã lưu
+                        Trường yêu thích
                     </Typography>
                     {!isParent && (
                         <Button
@@ -211,7 +211,7 @@ export default function SavedSchoolsPage() {
                 {!isParent ? (
                     <Card sx={{p: 3, ...cardSurface}}>
                         <Typography sx={{color: "#64748b", fontWeight: 600}}>
-                            Bạn cần đăng nhập với vai trò Phụ huynh để xem và lưu danh sách trường.
+                            Bạn cần đăng nhập với vai trò Phụ huynh để xem Trường yêu thích.
                         </Typography>
                     </Card>
                 ) : (
@@ -230,7 +230,7 @@ export default function SavedSchoolsPage() {
                         ) : savedSchools.length === 0 ? (
                             <Card sx={{p: 3, ...cardSurface}}>
                                 <Typography sx={{color: "#64748b"}}>
-                                    Chưa có trường nào được lưu.
+                                    Chưa có trường yêu thích nào.
                                 </Typography>
                             </Card>
                         ) : (
@@ -272,7 +272,7 @@ export default function SavedSchoolsPage() {
                                                     border: "1px solid rgba(59,130,246,0.2)",
                                                     "&:hover": {bgcolor: "#fff", borderColor: "rgba(59,130,246,0.35)"}
                                                 }}
-                                                title="Bỏ lưu"
+                                                title="Gỡ khỏi Trường yêu thích"
                                             >
                                                 <BookmarkIcon fontSize="small" sx={{color: "#ea580c"}}/>
                                             </IconButton>
