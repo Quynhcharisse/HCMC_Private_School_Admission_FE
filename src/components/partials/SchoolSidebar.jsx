@@ -40,7 +40,7 @@ const menuGroups = [
         items: [
             { text: "Cơ sở", icon: <ApartmentIcon />, path: "/school/campus" },
             { text: "Tư vấn viên", icon: <SupportAgentIcon />, path: "/school/counselors" },
-            { text: "Cơ sở vật chất", icon: <SettingsOutlinedIcon />, path: "/school/facility-config" },
+            { text: "Cấu hình nền tảng", icon: <SettingsOutlinedIcon />, path: "/school/facility-config" },
         ],
     },
     {
