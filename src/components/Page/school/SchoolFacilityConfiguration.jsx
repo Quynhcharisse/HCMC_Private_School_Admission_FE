@@ -466,10 +466,10 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
           ) : (
             <Box
               sx={{
-                border: "1px dashed rgba(148,163,184,0.9)",
+                border: "1px dashed rgba(203, 213, 225, 1)",
                 borderRadius: "12px",
-                p: 2.25,
-                bgcolor: "rgba(248,250,252,1)",
+                p: 0,
+                bgcolor: "#f1f5f9",
                 position: "relative",
                 overflow: "hidden",
                 mb: 2.5,
@@ -483,26 +483,77 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                   onSuccess={handleCoverUploaded}
                   onError={(msg) => enqueueSnackbar(msg, {variant: "error"})}
                 >
-                  {({inputId, loading: uploadLoading}) => (
-                    <Box
-                      component="label"
-                      htmlFor={inputId}
-                      sx={{
-                        display: "flex",
-                        flexDirection: {xs: "column", sm: "row"},
-                        alignItems: {xs: "stretch", sm: "center"},
-                        justifyContent: "space-between",
-                        gap: 2,
-                        cursor: uploadLoading ? "default" : "pointer",
-                      }}
-                    >
-                      <Box sx={{display: "flex", flexDirection: "column", gap: 0.75}}>
-                        <Typography sx={{fontWeight: 900, color: "#0f172a"}}>
-                          {coverUrl ? "Thay ảnh bìa" : "Kéo thả hoặc bấm để tải lên"}
+                  {({inputId, loading: uploadLoading}) =>
+                    !coverUrl ? (
+                      <Box
+                        component="label"
+                        htmlFor={inputId}
+                        sx={{
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          textAlign: "center",
+                          py: {xs: 3.5, sm: 4},
+                          px: 2.5,
+                          gap: 1.5,
+                          cursor: uploadLoading ? "default" : "pointer",
+                          minHeight: {xs: 220, sm: 200},
+                          width: "100%",
+                          boxSizing: "border-box",
+                        }}
+                      >
+                        <Typography sx={{fontWeight: 600, color: "#0f172a", fontSize: 15, lineHeight: 1.4, maxWidth: 360}}>
+                          Chọn file hoặc kéo thả vào đây
                         </Typography>
-                        {coverUrl && (
-                          <Box sx={{display: "flex", gap: 0.75, mt: 0.75, flexWrap: "wrap", alignItems: "center"}}>
+                        <Typography variant="body2" sx={{color: "#64748b", fontSize: 13, maxWidth: 400, lineHeight: 1.45}}>
+                          Định dạng JPEG, PNG, WebP — dung lượng tối đa 50MB
+                        </Typography>
+                        {uploadLoading ? (
+                          <CircularProgress size={32} thickness={4} sx={{color: "#2563eb", mt: 0.5}}/>
+                        ) : (
+                          <Box
+                            sx={{
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: 40,
+                              height: 40,
+                              mt: 0.5,
+                              borderRadius: "10px",
+                              border: "1px solid rgba(37, 99, 235, 0.5)",
+                              bgcolor: "rgba(37, 99, 235, 0.06)",
+                            }}
+                          >
+                            <CloudUploadIcon sx={{fontSize: 22, color: "#2563eb"}}/>
+                          </Box>
+                        )}
+                      </Box>
+                    ) : (
+                      <Stack
+                        alignItems="center"
+                        spacing={2}
+                        sx={{py: 2.5, px: 2.5}}
+                      >
+                        <Box
+                          component="img"
+                          src={coverUrl}
+                          alt="Ảnh bìa"
+                          sx={{
+                            width: "100%",
+                            maxWidth: 560,
+                            maxHeight: 220,
+                            height: "auto",
+                            objectFit: "cover",
+                            borderRadius: "12px",
+                            border: "1px solid rgba(226,232,240,1)",
+                            display: "block",
+                          }}
+                        />
+                        <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="center" alignItems="center">
+                          <Box component="label" htmlFor={inputId} sx={{cursor: uploadLoading ? "default" : "pointer", display: "inline-flex"}}>
                             <IconButton
+                              component="span"
                               size="small"
                               disabled={uploadLoading}
                               aria-label={uploadLoading ? "Đang tải lên" : "Thay ảnh bìa"}
@@ -516,66 +567,30 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                               {uploadLoading ? (
                                 <CircularProgress color="inherit" size={18}/>
                               ) : (
-                                <CloudUploadIcon fontSize="small"/>
+                                <CloudUploadIcon sx={{fontSize: 20}}/>
                               )}
                             </IconButton>
-                            <IconButton
-                              size="small"
-                              disabled={uploadLoading}
-                              aria-label="Xoá ảnh bìa"
-                              onClick={(e) => {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setCoverUrl("");
-                                enqueueSnackbar("Đã xoá ảnh bìa", {variant: "info"});
-                              }}
-                              sx={{
-                                border: "1px solid rgba(203,213,225,1)",
-                                borderRadius: "10px",
-                                color: "#dc2626",
-                                "&:hover": {bgcolor: "rgba(220,38,38,0.08)"},
-                              }}
-                            >
-                              <DeleteOutlineIcon fontSize="small"/>
-                            </IconButton>
                           </Box>
-                        )}
-                      </Box>
-                      <Box sx={{flex: 1, minWidth: 180}}>
-                        {coverUrl ? (
-                          <Box
-                            component="img"
-                            src={coverUrl}
-                            alt="Cover preview"
-                            sx={{
-                              width: "100%",
-                              height: {xs: 180, sm: 150},
-                              objectFit: "cover",
-                              borderRadius: "12px",
-                              border: "1px solid rgba(226,232,240,1)",
+                          <IconButton
+                            size="small"
+                            disabled={uploadLoading}
+                            aria-label="Xoá ảnh bìa"
+                            onClick={() => {
+                              setCoverUrl("");
+                              enqueueSnackbar("Đã xoá ảnh bìa", {variant: "info"});
                             }}
-                          />
-                        ) : (
-                          <Box
                             sx={{
-                              width: "100%",
-                              height: {xs: 180, sm: 150},
-                              borderRadius: "12px",
-                              border: "1px solid rgba(226,232,240,1)",
-                              bgcolor: "rgba(148,163,184,0.12)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              color: "#94a3b8",
-                              fontWeight: 800,
+                              border: "1px solid rgba(203,213,225,1)",
+                              borderRadius: "10px",
+                              color: "#dc2626",
+                              "&:hover": {bgcolor: "rgba(220,38,38,0.08)"},
                             }}
                           >
-                            Xem trước
-                          </Box>
-                        )}
-                      </Box>
-                    </Box>
-                  )}
+                            <DeleteOutlineIcon fontSize="small"/>
+                          </IconButton>
+                        </Stack>
+                      </Stack>
+                    )}
                 </CloudinaryUpload>
             </Box>
           )}
