@@ -51,12 +51,16 @@ const modalBackdropSx = {
     backgroundColor: "rgba(15, 23, 42, 0.45)",
 };
 
-// Backend has many statuses; UI focuses on main campaign lifecycle ones
+// Bảng vẫn có thể hiển thị thêm trạng thái khác từ API; filter chỉ theo 3 trạng thái admission campaign
+const STATUS_FILTER_OPTIONS = [
+    {value: "OPEN", label: "Đang mở"}, // OPEN_ADMISSION_CAMPAIGN / publish
+    {value: "CANCELLED", label: "Đã hủy"}, // CANCELLED_ADMISSION_CAMPAIGN
+    {value: "DRAFT", label: "Bản nháp"}, // DRAFT_ADMISSION_CAMPAIGN
+];
+
 const STATUS_OPTIONS = [
-    {value: "DRAFT", label: "Bản nháp"},
-    {value: "OPEN", label: "Đang mở"},
+    ...STATUS_FILTER_OPTIONS,
     {value: "PAUSED", label: "Tạm dừng"},
-    {value: "CANCELLED", label: "Đã hủy"},
     {value: "CLOSED", label: "Đã đóng"},
     {value: "EXPIRED", label: "Hết hạn"},
 ];
@@ -749,7 +753,7 @@ export default function SchoolCampaigns() {
                                 sx={{borderRadius: "12px", bgcolor: "#f8fafc"}}
                             >
                                 <MenuItem value="all">Tất cả trạng thái</MenuItem>
-                                {STATUS_OPTIONS.map((opt) => (
+                                {STATUS_FILTER_OPTIONS.map((opt) => (
                                     <MenuItem key={opt.value} value={opt.value}>
                                         {opt.label}
                                     </MenuItem>
