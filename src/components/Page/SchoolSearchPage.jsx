@@ -355,11 +355,11 @@ export default function SchoolSearchPage() {
 
     const toggleSave = async (schoolRecord) => {
         if (!isParent || !userInfo) {
-            showWarningSnackbar("Bạn phải đăng nhập với vai trò Phụ huynh mới lưu được trường.");
+            showWarningSnackbar("Bạn phải đăng nhập với vai trò Phụ huynh để yêu thích trường.");
             return;
         }
         if (!schoolRecord?.id) {
-            showWarningSnackbar("Không xác định được trường để lưu.");
+            showWarningSnackbar("Không xác định được trường để cập nhật yêu thích.");
             return;
         }
         const exists = Boolean(schoolRecord?.isFavourite);
@@ -369,7 +369,7 @@ export default function SchoolSearchPage() {
             const msg =
                 e?.response?.data?.message ||
                 e?.message ||
-                "Không thể cập nhật trạng thái lưu trường lúc này. Vui lòng thử lại.";
+                "Không thể cập nhật trạng thái yêu thích trường lúc này. Vui lòng thử lại.";
             showWarningSnackbar(msg);
             return;
         }
@@ -1055,9 +1055,9 @@ export default function SchoolSearchPage() {
                                                 title={
                                                     canSaveSchool
                                                         ? isSaved
-                                                            ? "Bỏ lưu"
-                                                            : "Lưu trường"
-                                                        : "Đăng nhập với vai trò Phụ huynh để lưu trường"
+                                                            ? "Bỏ yêu thích"
+                                                            : "Thêm vào yêu thích"
+                                                        : "Đăng nhập với vai trò Phụ huynh để yêu thích trường"
                                                 }
                                                 sx={{
                                                     display: 'inline-flex',
@@ -1079,7 +1079,7 @@ export default function SchoolSearchPage() {
                                                 ) : (
                                                     <FavoriteBorderIcon sx={{fontSize: 14, color: '#4a5568'}}/>
                                                 )}
-                                                Yêu thích
+                                                {isSaved ? "Đã yêu thích" : "Yêu thích"}
                                             </ButtonBase>
                                             <Button
                                                 size="small"

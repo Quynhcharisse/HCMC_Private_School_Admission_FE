@@ -260,6 +260,7 @@ function MainHeader() {
     const loadingMoreRef = React.useRef(false);
     const hasMarkedReadRef = React.useRef(false);
     const selectedConversationRef = React.useRef(null);
+    const loadMessageHistoryRef = React.useRef(null);
     const forbiddenHistoryConversationIdsRef = React.useRef(new Set());
 
     const location = useLocation();
@@ -379,9 +380,12 @@ function MainHeader() {
     };
 
     const normalizeConversation = (conversation) => {
+        const rawCampusId = conversation?.campusId ?? conversation?.campusID ?? null;
+        const campusIdParsed = rawCampusId != null ? Number(rawCampusId) : NaN;
         return {
             ...conversation,
             conversationId: conversation?.conversationId ?? conversation?.id ?? conversation?.conversation?.id ?? null,
+            campusId: Number.isFinite(campusIdParsed) ? campusIdParsed : null,
             participantEmail: conversation?.otherUser ?? conversation?.participantEmail ?? conversation?.counsellorEmail ?? conversation?.schoolEmail ?? '',
             counsellorEmail: conversation?.otherUser ?? conversation?.counsellorEmail ?? conversation?.participantEmail ?? conversation?.schoolEmail ?? '',
             schoolEmail: conversation?.schoolEmail ?? conversation?.otherUser ?? conversation?.participantEmail ?? '',
@@ -546,16 +550,24 @@ function MainHeader() {
         return {parentEmail, counsellorEmail};
     };
 
+    const resolveHistoryCampusId = (conversation) => {
+        const raw = conversation?.campusId ?? conversation?.campusID ?? null;
+        if (raw == null || String(raw).trim() === '') return null;
+        const n = Number(raw);
+        return Number.isFinite(n) ? n : null;
+    };
+
     const loadMessageHistory = async ({conversation, cursorId = null, silent = false}) => {
         if (!conversation) return;
         const conversationKey = String(conversation?.conversationId ?? conversation?.id ?? '');
         if (silent && conversationKey && forbiddenHistoryConversationIdsRef.current.has(conversationKey)) {
             return;
         }
-        const {parentEmail, counsellorEmail} = resolveConversationEmails(conversation);
+        const {parentEmail} = resolveConversationEmails(conversation);
+        const campusId = resolveHistoryCampusId(conversation);
 
-        if (!parentEmail || !counsellorEmail) {
-            if (!silent) setMessageError('Thiếu thông tin email để tải lịch sử tin nhắn.');
+        if (!parentEmail || campusId == null) {
+            if (!silent) setMessageError('Thiếu thông tin cơ sở hoặc tài khoản để tải lịch sử tin nhắn.');
             return;
         }
         const studentProfileId =
@@ -575,7 +587,7 @@ function MainHeader() {
         try {
             const response = await getParentMessagesHistory({
                 parentEmail,
-                counsellorEmail,
+                campusId,
                 studentProfileId,
                 cursorId
             });
@@ -613,15 +625,20 @@ function MainHeader() {
         }
     };
 
+    loadMessageHistoryRef.current = loadMessageHistory;
+
     useEffect(() => {
         if (!ENABLE_PARENT_CHAT_POLLING) return;
         if (!isSignedIn || !isParent || !chatWindowOpen || !selectedConversation) return;
         const intervalId = setInterval(() => {
             if (document.visibilityState !== 'visible') return;
-            loadMessageHistory({conversation: selectedConversationRef.current, cursorId: null, silent: true});
+            loadMessageHistoryRef.current?.({
+                conversation: selectedConversationRef.current,
+                cursorId: null,
+                silent: true
+            });
         }, PARENT_CHAT_POLL_INTERVAL_MS);
         return () => clearInterval(intervalId);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isSignedIn, isParent, chatWindowOpen, selectedConversation?.conversationId]);
 
     const handleSelectConversation = async (conversation) => {
@@ -852,9 +869,11 @@ function MainHeader() {
                 target?.schoolEmail ||
                 ""
             ).trim();
+            const campusIdRaw = target?.campusId;
+            const campusId = campusIdRaw != null ? Number(campusIdRaw) : NaN;
             const studentProfileId = String(student?.studentProfileId || "").trim();
             const childName = String(student?.childName || "Học sinh").trim() || "Học sinh";
-            if (!parentEmail || !counsellorEmail || !studentProfileId) {
+            if (!parentEmail || !Number.isFinite(campusId) || !counsellorEmail || !studentProfileId) {
                 enqueueSnackbar("Thiếu thông tin để mở hội thoại tư vấn.", {variant: "warning"});
                 return;
             }
@@ -866,6 +885,7 @@ function MainHeader() {
                 schoolEmail: counsellorEmail,
                 participantEmail: counsellorEmail,
                 counsellorEmail,
+                campusId,
                 parentEmail,
                 studentProfileId,
                 childName
@@ -892,12 +912,14 @@ function MainHeader() {
             schoolName: sn,
             schoolEmail: se,
             counsellorEmail: ce,
+            campusId: cid,
             schoolLogoUrl: slu
         } = {}) => {
             const schoolName = (sn || "").trim();
             const schoolEmail = (se || "").trim();
             const counsellorEmail = (ce || se || "").trim();
             const schoolLogoUrl = (slu ?? "").toString().trim();
+            const campusIdNum = cid != null ? Number(cid) : NaN;
             if (!isSignedIn) {
                 enqueueSnackbar("Vui lòng đăng nhập để nhắn tin với tư vấn viên trường.", {variant: "info"});
                 navigate("/login");
@@ -905,6 +927,10 @@ function MainHeader() {
             }
             if (!isParent) {
                 enqueueSnackbar("Tính năng chat chỉ dành cho phụ huynh.", {variant: "warning"});
+                return;
+            }
+            if (!Number.isFinite(campusIdNum)) {
+                enqueueSnackbar("Thiếu thông tin cơ sở (campus) để mở chat.", {variant: "warning"});
                 return;
             }
             if (!counsellorEmail) {
@@ -926,7 +952,7 @@ function MainHeader() {
                     navigate("/children-info");
                     return;
                 }
-                const target = {schoolName, schoolEmail, counsellorEmail, schoolLogoUrl};
+                const target = {schoolName, schoolEmail, counsellorEmail, campusId: campusIdNum, schoolLogoUrl};
                 if (normalizedStudents.length === 1) {
                     await openParentChatForStudent({target, student: normalizedStudents[0]});
                     return;
@@ -1009,8 +1035,6 @@ function MainHeader() {
     };
 
     const goTo = (path) => {
-        // Workaround: on School Search, some parent sessions keep stale outlet UI
-        // even though URL changes. Force a full navigation from that page.
         if (location.pathname === '/search-schools') {
             window.location.assign(path);
             return;
@@ -1169,7 +1193,6 @@ function MainHeader() {
                         </Typography>
                     </Box>
                     {isSignedIn && isParent ? (
-                        // Navigation cho PARENT đã đăng nhập
                         <Box sx={{display: {xs: 'none', md: 'flex'}, gap: 1}}>
                             <Button
                                 color="inherit"
@@ -1196,7 +1219,6 @@ function MainHeader() {
                             </Button>
                         </Box>
                     ) : !isSignedIn ? (
-                        // Navigation cho guest (chưa đăng nhập) giống role PARENT
                         <Box sx={{display: {xs: 'none', md: 'flex'}, gap: 1}}>
                             <Button
                                 color="inherit"
@@ -1223,7 +1245,6 @@ function MainHeader() {
                             </Button>
                         </Box>
                     ) : !isHomePage && (
-                        // Navigation mặc định cho các trang khác
                         <Box sx={{display: {xs: 'none', md: 'flex'}, gap: 1}}>
                             <Button
                                 color="inherit"

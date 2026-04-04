@@ -3,6 +3,7 @@ import {
     Box,
     Breadcrumbs,
     Button,
+    ButtonBase,
     Card,
     CardMedia,
     Chip,
@@ -32,8 +33,8 @@ import {
     Phone as PhoneIcon,
     School as SchoolIcon,
     Share as ShareIcon,
-    Bookmark as BookmarkIcon,
-    BookmarkBorder as BookmarkBorderIcon
+    Favorite as FavoriteIcon,
+    FavoriteBorder as FavoriteBorderIcon
 } from "@mui/icons-material";
 import {GoogleMap, MarkerF, useJsApiLoader} from "@react-google-maps/api";
 import {APP_PRIMARY_DARK, BRAND_NAVY, landingSectionShadow} from "../../constants/homeLandingTheme";
@@ -88,6 +89,7 @@ export function mapPublicSchoolDetailToRow(api) {
         campusList,
         curriculumList: Array.isArray(api.curriculumList) ? api.curriculumList : [],
         boardingType: firstCampus?.boardingType || "",
+        primaryCampusId: firstCampus?.id != null ? Number(firstCampus.id) : null,
         hasDetailLoaded: true
     };
 }
@@ -304,7 +306,7 @@ function SchoolGeneralInfoCard({school}) {
     );
 }
 
-function SchoolCampusInfoCard({school}) {
+function SchoolCampusInfoCard({school, isParent, onMessageCampus}) {
     const list = Array.isArray(school?.campusList) ? school.campusList : [];
 
     const sectionBoxSx = {
@@ -514,6 +516,33 @@ function SchoolCampusInfoCard({school}) {
                                         {policy}
                                     </Typography>
                                 </Box>
+                            ) : null}
+
+                            {isParent && campus?.id != null && typeof onMessageCampus === "function" ? (
+                                <>
+                                    <Divider sx={contactDividerSx}/>
+                                    <Box sx={{pt: 1.5}}>
+                                        <Button
+                                            variant="outlined"
+                                            size="small"
+                                            startIcon={<ChatBubbleOutlineIcon sx={{fontSize: 18}}/>}
+                                            onClick={() => onMessageCampus(campus)}
+                                            title="Mở chat với tư vấn viên cơ sở này (cần đăng nhập phụ huynh)"
+                                            sx={{
+                                                textTransform: "none",
+                                                fontWeight: 700,
+                                                borderColor: BRAND_NAVY,
+                                                color: BRAND_NAVY,
+                                                "&:hover": {
+                                                    borderColor: APP_PRIMARY_DARK,
+                                                    bgcolor: "rgba(30,58,138,0.06)"
+                                                }
+                                            }}
+                                        >
+                                            Nhắn tin
+                                        </Button>
+                                    </Box>
+                                </>
                             ) : null}
                         </Box>
                     );
@@ -828,19 +857,32 @@ export default function SchoolSearchDetailView({
         }
     }, [school]);
 
-    const messageSchoolDetail = React.useCallback(() => {
-        if (!school || typeof window === "undefined") return;
-        window.dispatchEvent(
-            new CustomEvent(OPEN_PARENT_CHAT_EVENT, {
-                detail: {
-                    schoolName: school.school,
-                    schoolEmail: (school.email || "").trim(),
-                    counsellorEmail: (school.counsellorEmail || school.email || "").trim(),
-                    schoolLogoUrl: (school.logoUrl || "").toString().trim()
-                }
-            })
-        );
-    }, [school]);
+    const messageCampus = React.useCallback(
+        (campus) => {
+            if (!school || typeof window === "undefined" || !campus) return;
+            const rawId = campus?.id;
+            if (rawId == null) return;
+            const campusId = Number(rawId);
+            if (!Number.isFinite(campusId)) return;
+            const emails = Array.isArray(campus?.consultantEmails)
+                ? campus.consultantEmails.map((e) => String(e || "").trim()).filter(Boolean)
+                : [];
+            const counsellorEmail =
+                emails[0] || String(school.counsellorEmail || school.email || "").trim();
+            window.dispatchEvent(
+                new CustomEvent(OPEN_PARENT_CHAT_EVENT, {
+                    detail: {
+                        schoolName: school.school,
+                        schoolEmail: (school.email || "").trim(),
+                        counsellorEmail,
+                        campusId,
+                        schoolLogoUrl: (school.logoUrl || "").toString().trim()
+                    }
+                })
+            );
+        },
+        [school]
+    );
 
     const openConsultMailto = React.useCallback(() => {
         if (!school) return;
@@ -1038,20 +1080,6 @@ export default function SchoolSearchDetailView({
                                 <Button
                                     size="small"
                                     variant="outlined"
-                                    startIcon={<ChatBubbleOutlineIcon sx={{fontSize: 18}}/>}
-                                    onClick={messageSchoolDetail}
-                                    title={
-                                        isParent
-                                            ? "Mở chat với tư vấn viên trường (cần đăng nhập phụ huynh)"
-                                            : "Đăng nhập với vai trò Phụ huynh để chat với tư vấn viên"
-                                    }
-                                    sx={detailHeroActionBtnSx}
-                                >
-                                    Nhắn tin
-                                </Button>
-                                <Button
-                                    size="small"
-                                    variant="outlined"
                                     startIcon={
                                         detailInCompare ? (
                                             <CheckCircleIcon sx={{fontSize: 18}}/>
@@ -1064,36 +1092,44 @@ export default function SchoolSearchDetailView({
                                 >
                                     {detailInCompare ? "Đã chọn so sánh" : "So sánh"}
                                 </Button>
-                                <Button
-                                    size="small"
-                                    variant="outlined"
+                                <ButtonBase
                                     disabled={!canSaveSchool}
+                                    onClick={() => toggleSave(school)}
                                     title={
                                         canSaveSchool
                                             ? detailIsSaved
-                                                ? "Bỏ lưu trường này"
-                                                : "Lưu trường vào danh sách"
-                                            : "Đăng nhập với vai trò Phụ huynh để lưu trường"
+                                                ? "Bỏ yêu thích trường này"
+                                                : "Thêm trường vào danh sách yêu thích"
+                                            : "Đăng nhập với vai trò Phụ huynh để yêu thích trường"
                                     }
-                                    startIcon={
-                                        detailIsSaved ? (
-                                            <BookmarkIcon sx={{fontSize: 18, color: "#fb923c"}}/>
-                                        ) : (
-                                            <BookmarkBorderIcon sx={{fontSize: 18}}/>
-                                        )
-                                    }
-                                    onClick={() => toggleSave(school)}
                                     sx={{
-                                        ...detailHeroActionBtnSx,
-                                        "&.Mui-disabled": {
-                                            color: "rgba(255,255,255,0.45)",
-                                            border: "1px solid rgba(255,255,255,0.45)",
-                                            WebkitTextFillColor: "rgba(255,255,255,0.45)"
-                                        }
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 0.4,
+                                        py: 0.35,
+                                        px: 0.35,
+                                        borderRadius: 1.5,
+                                        fontSize: "0.6875rem",
+                                        fontWeight: 700,
+                                        textTransform: "none",
+                                        color: detailIsSaved ? "#e11d48" : "rgba(255,255,255,0.92)",
+                                        bgcolor: "transparent",
+                                        transition: "background-color 0.15s ease",
+                                        "&:hover": {
+                                            bgcolor: detailIsSaved
+                                                ? "rgba(225,29,72,0.12)"
+                                                : "rgba(255,255,255,0.1)"
+                                        },
+                                        "&.Mui-disabled": {opacity: 0.5}
                                     }}
                                 >
-                                    {detailIsSaved ? "Đã lưu" : "Lưu trường"}
-                                </Button>
+                                    {detailIsSaved ? (
+                                        <FavoriteIcon sx={{fontSize: 14, color: "#e11d48"}}/>
+                                    ) : (
+                                        <FavoriteBorderIcon sx={{fontSize: 14, color: "rgba(255,255,255,0.88)"}}/>
+                                    )}
+                                    {detailIsSaved ? "Đã yêu thích" : "Yêu thích"}
+                                </ButtonBase>
                                 <Button
                                     size="small"
                                     variant="outlined"
@@ -1301,7 +1337,11 @@ export default function SchoolSearchDetailView({
                                 id="school-detail-campus"
                                 sx={{scrollMarginTop: {xs: 56, sm: 52}, mb: 3}}
                             >
-                                <SchoolCampusInfoCard school={school}/>
+                                <SchoolCampusInfoCard
+                                    school={school}
+                                    isParent={isParent}
+                                    onMessageCampus={messageCampus}
+                                />
                             </Box>
 
                             <Box
