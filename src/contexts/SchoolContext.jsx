@@ -7,6 +7,8 @@ import { extractCampusListBody, listCampuses } from "../services/CampusService.j
  */
 const SchoolContext = createContext({
   isPrimaryBranch: true,
+  /** Campus đang đăng nhập (campus phụ: 1 campus trong list) — dùng cho API /campus/{id}/… */
+  currentCampusId: null,
   loading: true,
   error: null,
 });
@@ -21,6 +23,7 @@ export function useSchool() {
 
 export function SchoolProvider({ children }) {
   const [isPrimaryBranch, setIsPrimaryBranch] = useState(true);
+  const [currentCampusId, setCurrentCampusId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -38,14 +41,23 @@ export function SchoolProvider({ children }) {
           const primary =
             singleCampus && singleCampus.isPrimaryBranch === false ? false : true;
           setIsPrimaryBranch(primary);
+          if (!primary && singleCampus) {
+            const rawId = singleCampus.id ?? singleCampus.campusId ?? singleCampus.campusID;
+            const n = Number(rawId);
+            setCurrentCampusId(Number.isFinite(n) ? n : rawId != null ? rawId : null);
+          } else {
+            setCurrentCampusId(null);
+          }
         } else {
           setIsPrimaryBranch(true);
+          setCurrentCampusId(null);
         }
       })
       .catch((err) => {
         if (!cancelled) {
           setError(err);
           setIsPrimaryBranch(true);
+          setCurrentCampusId(null);
         }
       })
       .finally(() => {
@@ -57,8 +69,8 @@ export function SchoolProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ isPrimaryBranch, loading, error }),
-    [isPrimaryBranch, loading, error]
+    () => ({ isPrimaryBranch, currentCampusId, loading, error }),
+    [isPrimaryBranch, currentCampusId, loading, error]
   );
 
   return (
