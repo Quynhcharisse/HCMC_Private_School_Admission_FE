@@ -40,6 +40,9 @@ const SchoolFacilityOverview = lazy(() =>
 const SchoolFacilityConfiguration = lazy(() =>
     import("./components/Page/school/SchoolFacilityConfiguration.jsx")
 );
+const SchoolCampusConfigOverview = lazy(() =>
+    import("./components/Page/school/SchoolCampusConfigOverview.jsx")
+);
 const CounsellorLayout = lazy(() => import("./components/layouts/CounsellorLayout.jsx"));
 const CounsellorDashboard = lazy(() => import("./components/Page/counsellor/CounsellorDashboard.jsx"));
 const CounsellorParentConsultation = lazy(() =>
@@ -286,6 +289,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <SchoolCampus/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'campus-config',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolCampusConfigOverview/>
                     </Suspense>
                 )
             },

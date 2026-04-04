@@ -25,6 +25,7 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import CorporateFareOutlinedIcon from "@mui/icons-material/CorporateFareOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
@@ -40,7 +41,6 @@ const menuGroups = [
         items: [
             { text: "Cơ sở", icon: <ApartmentIcon />, path: "/school/campus" },
             { text: "Tư vấn viên", icon: <SupportAgentIcon />, path: "/school/counselors" },
-            { text: "Cấu hình nền tảng", icon: <SettingsOutlinedIcon />, path: "/school/facility-config" },
         ],
     },
     {
@@ -52,6 +52,17 @@ const menuGroups = [
         items: [
             { text: "Chương trình học", icon: <MenuBookIcon />, path: "/school/curriculums" },
             { text: "Quản lý Program", icon: <ViewAgendaIcon />, path: "/school/programs" },
+        ],
+    },
+    {
+        title: "CẤU HÌNH",
+        items: [
+            { text: "Cấu hình nền tảng", icon: <SettingsOutlinedIcon />, path: "/school/facility-config" },
+            {
+                text: "Cấu hình theo cơ sở",
+                icon: <CorporateFareOutlinedIcon />,
+                path: "/school/campus-config",
+            },
         ],
     },
 ];
