@@ -23,6 +23,12 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import {useLocation, useNavigate, useParams, useSearchParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {getCampusCounsellors} from "../../../services/AdminService.jsx";
+import {
+    adminTableBodyRowSx,
+    adminTableContainerSx,
+    adminTableHeadCellSx,
+    adminTableHeadRowSx,
+} from "../../../constants/adminTableStyles.js";
 
 export default function AdminCampusConsultants() {
     const navigate = useNavigate();
@@ -142,45 +148,34 @@ export default function AdminCampusConsultants() {
                             </Typography>
                         </Box>
                     ) : (
-                        <TableContainer component={Paper} elevation={0}>
+                        <TableContainer component={Paper} elevation={0} sx={adminTableContainerSx}>
                             <Table size="small">
                                 <TableHead>
-                                    <TableRow sx={{bgcolor: "#f8fafc"}}>
-                                        <TableCell
-                                            align="center"
-                                            sx={{fontWeight: 700, color: "#1e293b", width: 60}}
-                                        >
+                                    <TableRow sx={adminTableHeadRowSx}>
+                                        <TableCell align="center" sx={{...adminTableHeadCellSx, width: 60}}>
                                             STT
                                         </TableCell>
-                                        <TableCell
-                                            align="center"
-                                            sx={{fontWeight: 700, color: "#1e293b", minWidth: 180}}
-                                        >
+                                        <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 180}}>
                                             Tên
                                         </TableCell>
-                                        <TableCell
-                                            align="center"
-                                            sx={{fontWeight: 700, color: "#1e293b", minWidth: 220}}
-                                        >
+                                        <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 220}}>
                                             Email
                                         </TableCell>
-                                        <TableCell
-                                            align="center"
-                                            sx={{fontWeight: 700, color: "#1e293b", minWidth: 180}}
-                                        >
+                                        <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 180}}>
                                             Mã nhân viên
                                         </TableCell>
-                                        <TableCell
-                                            align="center"
-                                            sx={{fontWeight: 700, color: "#1e293b", width: 140}}
-                                        >
+                                        <TableCell align="center" sx={{...adminTableHeadCellSx, width: 140}}>
                                             Trạng thái
                                         </TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {consultants.map((item, index) => (
-                                        <TableRow key={item.counsellorId || item.accountId || index} hover>
+                                        <TableRow
+                                            key={item.counsellorId || item.accountId || index}
+                                            hover
+                                            sx={adminTableBodyRowSx}
+                                        >
                                             <TableCell align="center">
                                                 {pagination.page * pagination.pageSize + index + 1}
                                             </TableCell>

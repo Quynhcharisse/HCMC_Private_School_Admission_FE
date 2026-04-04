@@ -25,6 +25,12 @@ import {useNavigate, useParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {getSchoolCampuses} from "../../../services/AdminService.jsx";
 import {APP_PRIMARY_MAIN} from "../../../constants/homeLandingTheme";
+import {
+    adminTableBodyRowSx,
+    adminTableContainerSx,
+    adminTableHeadCellSx,
+    adminTableHeadRowSx,
+} from "../../../constants/adminTableStyles.js";
 
 export default function AdminSchoolCampuses() {
     const navigate = useNavigate();
@@ -189,53 +195,49 @@ export default function AdminSchoolCampuses() {
                             </Typography>
                         </Box>
                     ) : (
-                        <TableContainer
-                            component={Paper}
-                            elevation={0}
-                            sx={{bgcolor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 3}}
-                        >
+                        <TableContainer component={Paper} elevation={0} sx={adminTableContainerSx}>
                             <Table size="small">
                                 <TableHead>
-                                    <TableRow sx={{bgcolor: "#f8fafc"}}>
+                                    <TableRow sx={adminTableHeadRowSx}>
                                         <TableCell
                                             align="center"
-                                            sx={{fontWeight: 700, color: "#334155", width: 60}}
+                                            sx={{...adminTableHeadCellSx, width: 60}}
                                         >
                                             STT
                                         </TableCell>
                                         <TableCell
                                             align="center"
-                                            sx={{fontWeight: 700, color: "#334155", minWidth: 200}}
+                                            sx={{...adminTableHeadCellSx, minWidth: 200}}
                                         >
                                             Tên campus
                                         </TableCell>
                                         <TableCell
                                             align="center"
-                                            sx={{fontWeight: 700, color: "#334155", minWidth: 220}}
+                                            sx={{...adminTableHeadCellSx, minWidth: 220}}
                                         >
                                             Địa chỉ
                                         </TableCell>
                                         <TableCell
                                             align="center"
-                                            sx={{fontWeight: 700, color: "#334155", minWidth: 220}}
+                                            sx={{...adminTableHeadCellSx, minWidth: 220}}
                                         >
                                             Email
                                         </TableCell>
                                         <TableCell
                                             align="center"
-                                            sx={{fontWeight: 700, color: "#334155", width: 160}}
+                                            sx={{...adminTableHeadCellSx, width: 160}}
                                         >
                                             Số điện thoại
                                         </TableCell>
                                         <TableCell
                                             align="center"
-                                            sx={{fontWeight: 700, color: "#334155", width: 140}}
+                                            sx={{...adminTableHeadCellSx, width: 140}}
                                         >
                                             Tư vấn viên
                                         </TableCell>
                                         <TableCell
                                             align="center"
-                                            sx={{fontWeight: 700, color: "#334155", width: 140}}
+                                            sx={{...adminTableHeadCellSx, width: 140}}
                                         >
                                             Trạng thái
                                         </TableCell>
@@ -246,10 +248,7 @@ export default function AdminSchoolCampuses() {
                                             <TableRow
                                                 key={campus.campusId || index}
                                                 hover
-                                                sx={{
-                                                    "& td": {borderBottomColor: "#e2e8f0", color: "#334155"},
-                                                    "&:hover": {bgcolor: "#f8fafc"},
-                                                }}
+                                                sx={adminTableBodyRowSx}
                                             >
                                                 <TableCell align="center">
                                                     <Chip
