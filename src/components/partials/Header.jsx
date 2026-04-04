@@ -138,6 +138,30 @@ const normalizeParentStudent = (student, index) => {
 const getConversationDisplayTitle = (c) =>
     c?.title || c?.name || c?.schoolName || c?.school || 'Cuộc trò chuyện';
 
+const pickConversationSchoolLogoUrl = (c) => {
+    if (!c || typeof c !== "object") return "";
+    const r = c.raw;
+    const candidates = [
+        c.schoolLogoUrl,
+        c.schoolLogo,
+        c.school_logo_url,
+        c.logoUrl,
+        c.school?.schoolLogoUrl,
+        c.school?.schoolLogo,
+        c.school?.logoUrl,
+        c.school?.logo,
+        r?.schoolLogoUrl,
+        r?.schoolLogo,
+        r?.school?.logoUrl,
+        r?.school?.schoolLogoUrl
+    ];
+    for (const v of candidates) {
+        const s = (v ?? "").toString().trim();
+        if (s) return s;
+    }
+    return "";
+};
+
 const doesConversationMatchStudent = (conversation, student) => {
     if (!student) return true;
 
@@ -335,6 +359,10 @@ function MainHeader() {
         const ch = (selectedConversationTitle || '').trim().charAt(0);
         return ch ? ch.toUpperCase() : 'T';
     }, [selectedConversationTitle]);
+    const peerSchoolLogoUrl = useMemo(() => {
+        const u = pickConversationSchoolLogoUrl(selectedConversation);
+        return u || null;
+    }, [selectedConversation]);
     const isStudentInfoOpen = studentInfoOpen;
     const unreadMessagesCount = filteredConversationItems.reduce((sum, item) => {
         const unread = Number(item?.unreadCount ?? item?.unreadMessages ?? 0);
@@ -358,6 +386,7 @@ function MainHeader() {
             counsellorEmail: conversation?.otherUser ?? conversation?.counsellorEmail ?? conversation?.participantEmail ?? conversation?.schoolEmail ?? '',
             schoolEmail: conversation?.schoolEmail ?? conversation?.otherUser ?? conversation?.participantEmail ?? '',
             schoolName: conversation?.schoolName ?? conversation?.school ?? '',
+            schoolLogoUrl: pickConversationSchoolLogoUrl(conversation),
             name:
                 conversation?.name ??
                 conversation?.participantName ??
@@ -833,6 +862,7 @@ function MainHeader() {
                 title: target?.schoolName || counsellorEmail,
                 name: target?.schoolName || counsellorEmail,
                 schoolName: target?.schoolName || "",
+                schoolLogoUrl: (target?.schoolLogoUrl ?? target?.logoUrl ?? "").toString().trim(),
                 schoolEmail: counsellorEmail,
                 participantEmail: counsellorEmail,
                 counsellorEmail,
@@ -858,10 +888,16 @@ function MainHeader() {
 
     const openParentChatRef = React.useRef(null);
     React.useEffect(() => {
-        openParentChatRef.current = async ({schoolName: sn, schoolEmail: se, counsellorEmail: ce} = {}) => {
+        openParentChatRef.current = async ({
+            schoolName: sn,
+            schoolEmail: se,
+            counsellorEmail: ce,
+            schoolLogoUrl: slu
+        } = {}) => {
             const schoolName = (sn || "").trim();
             const schoolEmail = (se || "").trim();
             const counsellorEmail = (ce || se || "").trim();
+            const schoolLogoUrl = (slu ?? "").toString().trim();
             if (!isSignedIn) {
                 enqueueSnackbar("Vui lòng đăng nhập để nhắn tin với tư vấn viên trường.", {variant: "info"});
                 navigate("/login");
@@ -890,7 +926,7 @@ function MainHeader() {
                     navigate("/children-info");
                     return;
                 }
-                const target = {schoolName, schoolEmail, counsellorEmail};
+                const target = {schoolName, schoolEmail, counsellorEmail, schoolLogoUrl};
                 if (normalizedStudents.length === 1) {
                     await openParentChatForStudent({target, student: normalizedStudents[0]});
                     return;
@@ -1344,6 +1380,7 @@ function MainHeader() {
                                                     const conversationName = conversation?.title || conversation?.name || conversation?.schoolName || conversation?.participantName || 'Cuộc trò chuyện';
                                                     const latestMessage = conversation?.lastMessage?.content || conversation?.lastMessage || conversation?.latestMessage || 'Chưa có nội dung';
                                                     const unreadCount = Number(conversation?.unreadCount ?? conversation?.unreadMessages ?? 0) || 0;
+                                                    const listLogoUrl = pickConversationSchoolLogoUrl(conversation) || null;
 
                                                     return (
                                                         <Box
@@ -1363,7 +1400,10 @@ function MainHeader() {
                                                                 }
                                                             }}
                                                         >
-                                                            <Avatar sx={{width: 40, height: 40, bgcolor: BRAND_NAVY, fontSize: 15, fontWeight: 700, boxShadow: '0 4px 12px rgba(59,130,246,0.35)'}}>
+                                                            <Avatar
+                                                                src={listLogoUrl || undefined}
+                                                                sx={{width: 40, height: 40, bgcolor: BRAND_NAVY, fontSize: 15, fontWeight: 700, boxShadow: '0 4px 12px rgba(59,130,246,0.35)'}}
+                                                            >
                                                                 {conversationName.charAt(0).toUpperCase()}
                                                             </Avatar>
                                                             <Box sx={{minWidth: 0, flex: 1}}>
@@ -1447,6 +1487,7 @@ function MainHeader() {
                                         >
                                             <Box sx={{display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0}}>
                                                 <Avatar
+                                                    src={peerSchoolLogoUrl || undefined}
                                                     sx={{
                                                         width: 36,
                                                         height: 36,
@@ -1636,6 +1677,7 @@ function MainHeader() {
                                                                         <Box sx={{width: 32, flexShrink: 0, display: 'flex', justifyContent: 'center', pb: 0.25}}>
                                                                             {showPeerAvatar ? (
                                                                                 <Avatar
+                                                                                    src={peerSchoolLogoUrl || undefined}
                                                                                     sx={{
                                                                                         width: 32,
                                                                                         height: 32,
@@ -1779,6 +1821,7 @@ function MainHeader() {
                                             onClick={handleRestoreChatWindow}
                                         >
                                             <Avatar
+                                                src={peerSchoolLogoUrl || undefined}
                                                 sx={{
                                                     width: 56,
                                                     height: 56,

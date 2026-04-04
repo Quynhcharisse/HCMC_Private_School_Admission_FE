@@ -835,7 +835,8 @@ export default function SchoolSearchDetailView({
                 detail: {
                     schoolName: school.school,
                     schoolEmail: (school.email || "").trim(),
-                    counsellorEmail: (school.counsellorEmail || school.email || "").trim()
+                    counsellorEmail: (school.counsellorEmail || school.email || "").trim(),
+                    schoolLogoUrl: (school.logoUrl || "").toString().trim()
                 }
             })
         );
