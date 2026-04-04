@@ -383,7 +383,7 @@ export default function SchoolSearchPage() {
                     : item
             )
         );
-        showSuccessSnackbar(exists ? "Đã bỏ lưu trường." : "Đã lưu trường vào Trường đã lưu.");
+        showSuccessSnackbar(exists ? "Đã bỏ trường khỏi Trường yêu thích." : "Đã thêm trường vào Trường yêu thích.");
     };
 
     const toggleCompare = (schoolRecord) => {
