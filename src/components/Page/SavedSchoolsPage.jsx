@@ -110,11 +110,11 @@ export default function SavedSchoolsPage() {
 
     const onRemove = async (schoolRecord) => {
         if (!isParent) {
-            showWarningSnackbar("Bạn phải đăng nhập với vai trò Phụ huynh để lưu trường.");
+            showWarningSnackbar("Bạn phải đăng nhập với vai trò Phụ huynh để quản lý trường yêu thích.");
             return;
         }
         if (!schoolRecord?.id) {
-            showWarningSnackbar("Không xác định được trường để bỏ lưu.");
+            showWarningSnackbar("Không xác định được trường để bỏ yêu thích.");
             return;
         }
         try {
@@ -123,7 +123,7 @@ export default function SavedSchoolsPage() {
             showWarningSnackbar(
                 e?.response?.data?.message ||
                 e?.message ||
-                "Không thể cập nhật trạng thái lưu trường."
+                "Không thể cập nhật trạng thái yêu thích trường."
             );
             return;
         }
