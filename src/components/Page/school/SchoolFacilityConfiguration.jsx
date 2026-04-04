@@ -109,6 +109,8 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
   ref
 ) {
   const formLocked = loading || saving || readOnly;
+  /** Giữ giao diện không xám khi chỉ xem — chặn tương tác bằng pointer-events thay vì disabled. */
+  const blockPointerSx = formLocked ? { pointerEvents: "none", cursor: "default" } : undefined;
   const facilityData = useMemo(() => normalizeFacilityData(value), [value]);
 
   const setFacilityData = useCallback(
@@ -420,10 +422,9 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                 value={overview}
                 placeholder="Mô tả cơ sở vật chất của trường..."
                 onChange={(e) => setOverview(e.target.value.slice(0, MAX_OVERVIEW_CHARS))}
-                inputProps={{maxLength: MAX_OVERVIEW_CHARS}}
+                inputProps={{maxLength: MAX_OVERVIEW_CHARS, readOnly: formLocked}}
                 fullWidth
                 variant="outlined"
-                disabled={formLocked}
               />
               <Box sx={{display: "flex", justifyContent: "space-between", mt: 1}}>
                 <Typography variant="caption" sx={{color: overview.length >= MAX_OVERVIEW_CHARS ? "#ef4444" : "#94a3b8"}}>
@@ -444,13 +445,13 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
               variant="contained"
               startIcon={<AddIcon/>}
               onClick={handleAddFacility}
-              disabled={formLocked}
               sx={{
                 borderRadius: "12px",
                 textTransform: "none",
                 fontWeight: 700,
                 px: 2.5,
                 boxShadow: "0 10px 24px rgba(37, 99, 235, 0.18)",
+                ...blockPointerSx,
               }}
             >
               Thêm cơ sở vật chất
@@ -472,13 +473,13 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                 position: "relative",
                 overflow: "hidden",
                 mb: 2.5,
+                ...(formLocked ? blockPointerSx : {}),
               }}
             >
               <CloudinaryUpload
                   inputId="school-facility-cover-upload"
                   accept="image/*"
                   multiple={false}
-                  disabled={formLocked}
                   onSuccess={handleCoverUploaded}
                   onError={(msg) => enqueueSnackbar(msg, {variant: "error"})}
                 >
@@ -492,7 +493,7 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                         alignItems: {xs: "stretch", sm: "center"},
                         justifyContent: "space-between",
                         gap: 2,
-                        cursor: uploadLoading || formLocked ? "default" : "pointer",
+                        cursor: uploadLoading ? "default" : "pointer",
                       }}
                     >
                       <Box sx={{display: "flex", flexDirection: "column", gap: 0.75}}>
@@ -503,7 +504,7 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                           <Box sx={{display: "flex", gap: 0.75, mt: 0.75, flexWrap: "wrap", alignItems: "center"}}>
                             <IconButton
                               size="small"
-                              disabled={uploadLoading || formLocked}
+                              disabled={uploadLoading}
                               aria-label={uploadLoading ? "Đang tải lên" : "Thay ảnh bìa"}
                               sx={{
                                 border: "1px solid rgba(203,213,225,1)",
@@ -520,7 +521,7 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                             </IconButton>
                             <IconButton
                               size="small"
-                              disabled={formLocked || uploadLoading}
+                              disabled={uploadLoading}
                               aria-label="Xoá ảnh bìa"
                               onClick={(e) => {
                                 e.preventDefault();
@@ -585,8 +586,8 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
               placeholder="Tìm kiếm cơ sở vật chất..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              disabled={formLocked}
               sx={{flex: 1, minWidth: 220}}
+              inputProps={{readOnly: formLocked}}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -595,11 +596,10 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                 ),
               }}
             />
-            <FormControl size="small" sx={{minWidth: 200}}>
+            <FormControl size="small" sx={{minWidth: 200, ...(formLocked ? blockPointerSx : {})}}>
               <Select
                 value={categoriesFilter}
                 onChange={(e) => setCategoriesFilter(e.target.value)}
-                disabled={formLocked}
                 displayEmpty
                 sx={{borderRadius: "12px"}}
               >
@@ -694,8 +694,7 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                             e.stopPropagation();
                             openDeleteFacilityConfirm(item.id);
                           }}
-                          disabled={formLocked}
-                          sx={{color: "#64748b", "&:hover": {color: "#dc2626"}}}
+                          sx={{color: "#64748b", "&:hover": {color: "#dc2626"}, ...(formLocked ? blockPointerSx : {})}}
                           title="Xoá"
                         >
                           <DeleteOutlineIcon fontSize="small"/>
@@ -714,7 +713,7 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                             required
                             fullWidth
                             size="small"
-                            disabled={formLocked}
+                            inputProps={{readOnly: formLocked}}
                           />
                           <TextField
                             label="Tên"
@@ -725,13 +724,13 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                             required
                             fullWidth
                             size="small"
-                            disabled={formLocked}
+                            inputProps={{readOnly: formLocked}}
                           />
                           <Autocomplete
                             freeSolo
                             options={facilityCategories}
                             value={item.category || ""}
-                            disabled={formLocked}
+                            readOnly={formLocked}
                             onChange={(e, newValue) => handleUpdateFacilityField(item.id, "category", newValue || "")}
                             onInputChange={(e, newInputValue, reason) => {
                               if (reason === "input" || reason === "clear") {
@@ -753,7 +752,7 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                               type="number"
                               size="small"
                               fullWidth
-                              disabled={formLocked}
+                              inputProps={{readOnly: formLocked}}
                             />
                             <TextField
                               label="Đơn vị"
@@ -764,7 +763,7 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                               required
                               size="small"
                               fullWidth
-                              disabled={formLocked}
+                              inputProps={{readOnly: formLocked}}
                             />
                           </Stack>
                           <Divider/>
@@ -778,13 +777,21 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                           </Box>
                           <Divider/>
                           <Box>
-                            <Box sx={{display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.5, mb: 1}}>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                                gap: 1.5,
+                                mb: 1,
+                                ...(formLocked ? blockPointerSx : {}),
+                              }}
+                            >
                               <Typography sx={{fontWeight: 800, color: "#0f172a", fontSize: 14}}>Ảnh minh họa cho mục này</Typography>
                               <CloudinaryUpload
                                 inputId={`school-facility-images-${item.id}`}
                                 accept="image/*"
                                 multiple
-                                disabled={formLocked}
                                 onSuccess={handleFacilityImagesUploaded(item)}
                                 onError={(msg) => enqueueSnackbar(msg, {variant: "error"})}
                               >
@@ -795,7 +802,7 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                                     variant="outlined"
                                     size="small"
                                     startIcon={<CloudUploadIcon/>}
-                                    disabled={formLocked || uploadLoading || !normalizeFacilityCode(item.facilityCode)}
+                                    disabled={uploadLoading || !normalizeFacilityCode(item.facilityCode)}
                                     sx={{textTransform: "none", borderRadius: "12px", fontWeight: 700}}
                                   >
                                     {uploadLoading ? "Đang tải..." : "Tải ảnh"}
@@ -831,9 +838,15 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                                     <Box key={`${item.id}-${img.url}`} sx={{...imageCardSx(), position: "relative"}}>
                                       <IconButton
                                         size="small"
-                                        disabled={formLocked}
                                         onClick={() => openDeleteImageConfirm(img.url)}
-                                        sx={{position: "absolute", top: 4, right: 4, bgcolor: "rgba(255,255,255,0.9)", zIndex: 2}}
+                                        sx={{
+                                          position: "absolute",
+                                          top: 4,
+                                          right: 4,
+                                          bgcolor: "rgba(255,255,255,0.9)",
+                                          zIndex: 2,
+                                          ...(formLocked ? blockPointerSx : {}),
+                                        }}
                                       >
                                         <DeleteOutlineIcon fontSize="small" color="error"/>
                                       </IconButton>
@@ -910,7 +923,7 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                 onChange={(e) => updatePreviewField("name", e.target.value)}
                 fullWidth
                 size="small"
-                disabled={formLocked}
+                inputProps={{readOnly: formLocked}}
               />
               <TextField
                 label="Tên thay thế (EN)"
@@ -918,7 +931,7 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                 onChange={(e) => updatePreviewField("altName", e.target.value)}
                 fullWidth
                 size="small"
-                disabled={formLocked}
+                inputProps={{readOnly: formLocked}}
               />
               <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
                 <Typography variant="body2" sx={{fontWeight: 800, color: "#0f172a"}}>
@@ -926,8 +939,11 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                 </Typography>
                 <Switch
                   checked={Boolean(imagePreviewItem.isUsage)}
-                  disabled={formLocked}
-                  onChange={(e) => updatePreviewField("isUsage", e.target.checked)}
+                  onChange={(e) => {
+                    if (formLocked) return;
+                    updatePreviewField("isUsage", e.target.checked);
+                  }}
+                  sx={formLocked ? blockPointerSx : undefined}
                 />
               </Stack>
               <Typography variant="caption" sx={{color: "#94a3b8"}}>

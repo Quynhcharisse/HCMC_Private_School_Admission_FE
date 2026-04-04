@@ -16,7 +16,6 @@ import {
   IconButton,
   LinearProgress,
   Paper,
-  Slider,
   Stack,
   Switch,
   Tab,
@@ -542,8 +541,9 @@ export default function SchoolFacilityOverview() {
     return snapshot !== JSON.stringify(init);
   }, [snapshot]);
 
-  /** Khi không ở chế độ chỉnh sửa: khoá toàn bộ field (chỉ xem). */
+  /** Khi không chỉnh sửa hoặc đang lưu: khoá nhập nhưng giữ màu bình thường (readOnly / chặn pointer, không dùng disabled). */
   const fieldDisabled = saving || !editing;
+  const blockPointerSx = fieldDisabled ? { pointerEvents: "none", cursor: "default" } : undefined;
 
   const load = useCallback(async (opts = {}) => {
     const silent = opts.silent === true;
@@ -904,9 +904,8 @@ export default function SchoolFacilityOverview() {
                     variant="outlined"
                     size="small"
                     startIcon={<AddIcon/>}
-                    disabled={fieldDisabled}
                     onClick={addAdmissionMethod}
-                    sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
+                    sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
                   >
                     Thêm
                   </Button>
@@ -934,24 +933,35 @@ export default function SchoolFacilityOverview() {
                         }}
                       >
                         <Stack direction="row" alignItems="flex-start" spacing={0.5}>
-                          <FormControlLabel
-                            sx={{flex: 1, alignItems: "flex-start", m: 0, mr: 0}}
-                            control={
-                              <Checkbox
-                                checked={checked}
-                                disabled={fieldDisabled}
-                                onChange={(e) => toggleAdmissionMethod(m.code, e.target.checked)}
-                                sx={{pt: 0.35}}
-                              />
-                            }
-                            label={<Typography sx={{fontWeight: 800}}>{m.displayName || m.code}</Typography>}
-                          />
+                          <Box
+                            sx={{
+                              flex: 1,
+                              minWidth: 0,
+                              alignSelf: "stretch",
+                              ...(fieldDisabled ? blockPointerSx : {}),
+                            }}
+                          >
+                            <FormControlLabel
+                              sx={{alignItems: "flex-start", m: 0, mr: 0}}
+                              control={
+                                <Checkbox
+                                  checked={checked}
+                                  onChange={(e) => {
+                                    if (fieldDisabled) return;
+                                    toggleAdmissionMethod(m.code, e.target.checked);
+                                  }}
+                                  sx={{pt: 0.35}}
+                                />
+                              }
+                              label={<Typography sx={{fontWeight: 800}}>{m.displayName || m.code}</Typography>}
+                            />
+                          </Box>
                           <IconButton
                             size="small"
                             onClick={() => toggleAdmissionMethodExpand(expandKey)}
                             aria-expanded={expanded}
                             aria-label={expanded ? "Thu gọn chi tiết phương thức" : "Mở rộng xem đầy đủ thông tin"}
-                            sx={{mt: -0.25, color: "#64748b"}}
+                            sx={{flexShrink: 0, mt: -0.25, color: "#64748b", pointerEvents: "auto"}}
                           >
                             <ExpandMoreIcon
                               sx={{
@@ -1071,13 +1081,13 @@ export default function SchoolFacilityOverview() {
                         <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={1} sx={{mb: 1.5}}>
                           <Typography sx={{fontWeight: 800, color: "#0f172a"}}>Phương thức tùy chỉnh</Typography>
                           <Stack direction="row" alignItems="center" spacing={0}>
-                            {fieldDisabled && (
+                            {fieldDisabled ? (
                               <IconButton
                                 size="small"
                                 onClick={() => toggleAdmissionMethodExpand(draftExpandKey)}
                                 aria-expanded={draftExpanded}
                                 aria-label={draftExpanded ? "Thu gọn chi tiết phương thức" : "Mở rộng xem đầy đủ thông tin"}
-                                sx={{color: "#64748b"}}
+                                sx={{color: "#64748b", pointerEvents: "auto"}}
                               >
                                 <ExpandMoreIcon
                                   sx={{
@@ -1086,13 +1096,13 @@ export default function SchoolFacilityOverview() {
                                   }}
                                 />
                               </IconButton>
-                            )}
+                            ) : null}
                             <IconButton
                               size="small"
                               color="error"
-                              disabled={fieldDisabled}
                               onClick={() => removeAdmissionAllowedAt(idx)}
                               aria-label="Xoá phương thức"
+                              sx={blockPointerSx}
                             >
                               <DeleteOutlineIcon fontSize="small"/>
                             </IconButton>
@@ -1223,53 +1233,63 @@ export default function SchoolFacilityOverview() {
                     control={
                       <Switch
                         checked={Boolean(config.admissionSettingsData.autoCloseOnFull)}
-                        disabled={fieldDisabled}
-                        onChange={(e) =>
+                        onChange={(e) => {
+                          if (fieldDisabled) return;
                           setConfig((c) => ({
                             ...c,
                             admissionSettingsData: {...c.admissionSettingsData, autoCloseOnFull: e.target.checked},
-                          }))
-                        }
+                          }));
+                        }}
+                        sx={blockPointerSx}
                       />
                     }
                     label={<Typography sx={{fontWeight: 700}}>Tự động đóng khi đủ chỉ tiêu</Typography>}
                   />
 
-                  <Box>
-                    <Typography sx={{fontWeight: 700, mb: 1}}>Ngưỡng cảnh báo chỉ tiêu (%)</Typography>
-                    <Stack direction="row" spacing={2} alignItems="center">
-                      <Slider
-                        value={Number(config.admissionSettingsData.quotaAlertThresholdPercent ?? 0)}
-                        min={0}
-                        max={100}
-                        disabled={fieldDisabled}
-                        onChange={(_, v) =>
-                          setConfig((c) => ({
-                            ...c,
-                            admissionSettingsData: {...c.admissionSettingsData, quotaAlertThresholdPercent: v},
-                          }))
-                        }
-                        sx={{flex: 1}}
-                      />
-                      <TextField
-                        size="small"
-                        type="number"
-                        value={config.admissionSettingsData.quotaAlertThresholdPercent ?? 0}
-                        disabled={fieldDisabled}
-                        onChange={(e) =>
-                          setConfig((c) => ({
-                            ...c,
-                            admissionSettingsData: {
-                              ...c.admissionSettingsData,
-                              quotaAlertThresholdPercent: Math.min(100, Math.max(0, Number(e.target.value) || 0)),
-                            },
-                          }))
-                        }
-                        sx={{width: 100}}
-                        inputProps={{min: 0, max: 100}}
-                      />
-                    </Stack>
-                  </Box>
+                  <TextField
+                    label="Ngưỡng cảnh báo chỉ tiêu (%)"
+                    size="small"
+                    type="text"
+                    value={
+                      config.admissionSettingsData.quotaAlertThresholdPercent == null
+                        ? ""
+                        : String(config.admissionSettingsData.quotaAlertThresholdPercent)
+                    }
+                    onChange={(e) => {
+                      if (fieldDisabled) return;
+                      const raw = e.target.value.trim();
+                      if (raw === "") {
+                        setConfig((c) => ({
+                          ...c,
+                          admissionSettingsData: {...c.admissionSettingsData, quotaAlertThresholdPercent: 0},
+                        }));
+                        return;
+                      }
+                      if (!/^\d{1,3}$/.test(raw)) return;
+                      const n = Number(raw);
+                      setConfig((c) => ({
+                        ...c,
+                        admissionSettingsData: {
+                          ...c.admissionSettingsData,
+                          quotaAlertThresholdPercent: Math.min(100, Math.max(0, n)),
+                        },
+                      }));
+                    }}
+                    onBlur={() => {
+                      if (fieldDisabled) return;
+                      const n = Number(config.admissionSettingsData.quotaAlertThresholdPercent ?? 0);
+                      const clamped = Math.min(100, Math.max(0, Number.isFinite(n) ? n : 0));
+                      if (clamped !== n) {
+                        setConfig((c) => ({
+                          ...c,
+                          admissionSettingsData: {...c.admissionSettingsData, quotaAlertThresholdPercent: clamped},
+                        }));
+                      }
+                    }}
+                    fullWidth
+                    placeholder="0–100"
+                    inputProps={{readOnly: fieldDisabled, inputMode: "numeric"}}
+                  />
                 </Stack>
               </CardContent>
             </Card>
@@ -1283,7 +1303,6 @@ export default function SchoolFacilityOverview() {
                     label="Năm học"
                     value={config.quotaConfigData.academicYear}
                     InputProps={{readOnly: true}}
-                    disabled={fieldDisabled}
                     fullWidth
                     size="small"
                   />
@@ -1291,7 +1310,6 @@ export default function SchoolFacilityOverview() {
                     label="Tổng chỉ tiêu toàn hệ thống"
                     type="number"
                     value={config.quotaConfigData.totalSystemQuota ?? 0}
-                    disabled={fieldDisabled}
                     onChange={(e) =>
                       setConfig((c) => ({
                         ...c,
@@ -1300,6 +1318,7 @@ export default function SchoolFacilityOverview() {
                     }
                     fullWidth
                     size="small"
+                    inputProps={{readOnly: fieldDisabled}}
                   />
 
                   <Box>
@@ -1341,7 +1360,6 @@ export default function SchoolFacilityOverview() {
                               type="number"
                               size="small"
                               value={row.allocatedQuota ?? 0}
-                              disabled={fieldDisabled}
                               onChange={(e) => {
                                 const v = Number(e.target.value) || 0;
                                 setConfig((c) => {
@@ -1351,6 +1369,7 @@ export default function SchoolFacilityOverview() {
                                 });
                               }}
                               sx={{width: 140}}
+                              inputProps={{readOnly: fieldDisabled}}
                             />
                           </TableCell>
                         </TableRow>
@@ -1371,7 +1390,6 @@ export default function SchoolFacilityOverview() {
                     multiline
                     minRows={4}
                     value={config.financePolicyData.paymentNotes ?? ""}
-                    disabled={fieldDisabled}
                     onChange={(e) =>
                       setConfig((c) => ({
                         ...c,
@@ -1379,16 +1397,17 @@ export default function SchoolFacilityOverview() {
                       }))
                     }
                     fullWidth
+                    inputProps={{readOnly: fieldDisabled}}
                   />
                   <TextField
                     label="Phí giữ chỗ (VNĐ)"
                     type="number"
                     value={config.financePolicyData.reservationFee?.amount ?? 0}
-                    disabled={fieldDisabled}
                     onChange={(e) => patchFinanceDisplay(e.target.value)}
                     onBlur={() => patchFinanceDisplay(config.financePolicyData.reservationFee?.amount)}
                     fullWidth
                     size="small"
+                    inputProps={{readOnly: fieldDisabled}}
                   />
                   <Typography variant="caption" sx={{color: "#64748b"}}>
                     Hiển thị: {config.financePolicyData.reservationFee?.display || formatVndDisplay(config.financePolicyData.reservationFee?.amount)}
@@ -1398,7 +1417,6 @@ export default function SchoolFacilityOverview() {
                       label="% điều chỉnh tối thiểu"
                       type="number"
                       value={config.financePolicyData.priceAdjustment?.minPercent ?? 0}
-                      disabled={fieldDisabled}
                       onChange={(e) =>
                         setConfig((c) => ({
                           ...c,
@@ -1410,12 +1428,12 @@ export default function SchoolFacilityOverview() {
                       }
                       fullWidth
                       size="small"
+                      inputProps={{readOnly: fieldDisabled}}
                     />
                     <TextField
                       label="% điều chỉnh tối đa"
                       type="number"
                       value={config.financePolicyData.priceAdjustment?.maxPercent ?? 0}
-                      disabled={fieldDisabled}
                       onChange={(e) =>
                         setConfig((c) => ({
                           ...c,
@@ -1427,6 +1445,7 @@ export default function SchoolFacilityOverview() {
                       }
                       fullWidth
                       size="small"
+                      inputProps={{readOnly: fieldDisabled}}
                     />
                   </Stack>
                 </Stack>
@@ -1443,9 +1462,8 @@ export default function SchoolFacilityOverview() {
                     variant="outlined"
                     size="small"
                     startIcon={<AddIcon/>}
-                    disabled={fieldDisabled}
                     onClick={addMandatoryDocument}
-                    sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
+                    sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
                   >
                     Thêm
                   </Button>
@@ -1503,8 +1521,8 @@ export default function SchoolFacilityOverview() {
                         <Typography variant="caption">Bắt buộc</Typography>
                         <Switch
                           checked={Boolean(doc.required)}
-                          disabled={fieldDisabled}
                           onChange={(e) => {
+                            if (fieldDisabled) return;
                             const v = e.target.checked;
                             setConfig((c) => {
                               const list = [...(c.documentRequirementsData.mandatoryAll || [])];
@@ -1512,6 +1530,7 @@ export default function SchoolFacilityOverview() {
                               return {...c, documentRequirementsData: {...c.documentRequirementsData, mandatoryAll: list}};
                             });
                           }}
+                          sx={blockPointerSx}
                         />
                       </Stack>
                     </Box>
@@ -1526,9 +1545,8 @@ export default function SchoolFacilityOverview() {
                     variant="outlined"
                     size="small"
                     startIcon={<AddIcon/>}
-                    disabled={fieldDisabled}
                     onClick={addByMethodGroup}
-                    sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
+                    sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
                   >
                     Thêm nhóm phương thức
                   </Button>
@@ -1559,7 +1577,6 @@ export default function SchoolFacilityOverview() {
                           size="small"
                           label="Mã phương thức"
                           value={group.methodCode ?? ""}
-                          disabled={fieldDisabled}
                           fullWidth
                           onChange={(e) => {
                             const v = e.target.value;
@@ -1569,15 +1586,15 @@ export default function SchoolFacilityOverview() {
                               return {...c, documentRequirementsData: {...c.documentRequirementsData, byMethod: by}};
                             });
                           }}
+                          inputProps={{readOnly: fieldDisabled}}
                         />
                         <Box sx={{display: "flex", justifyContent: "flex-end"}}>
                           <Button
                             variant="outlined"
                             size="small"
                             startIcon={<AddIcon/>}
-                            disabled={fieldDisabled}
                             onClick={() => addDocumentToMethod(gIdx)}
-                            sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
+                            sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
                           >
                             Thêm hồ sơ
                           </Button>
@@ -1638,8 +1655,8 @@ export default function SchoolFacilityOverview() {
                               <Typography variant="caption">Bắt buộc</Typography>
                               <Switch
                                 checked={Boolean(doc.required)}
-                                disabled={fieldDisabled}
                                 onChange={(e) => {
+                                  if (fieldDisabled) return;
                                   const v = e.target.checked;
                                   setConfig((c) => {
                                     const by = [...(c.documentRequirementsData.byMethod || [])];
@@ -1649,6 +1666,7 @@ export default function SchoolFacilityOverview() {
                                     return {...c, documentRequirementsData: {...c.documentRequirementsData, byMethod: by}};
                                   });
                                 }}
+                                sx={blockPointerSx}
                               />
                             </Stack>
                               </Box>
@@ -1670,7 +1688,6 @@ export default function SchoolFacilityOverview() {
                     <TextField
                       label="Hotline"
                       value={config.operationSettingsData.hotline ?? ""}
-                      disabled={fieldDisabled}
                       onChange={(e) =>
                         setConfig((c) => ({
                           ...c,
@@ -1679,11 +1696,11 @@ export default function SchoolFacilityOverview() {
                       }
                       fullWidth
                       size="small"
+                      inputProps={{readOnly: fieldDisabled}}
                     />
                     <TextField
                       label="Email hỗ trợ"
                       value={config.operationSettingsData.emailSupport ?? ""}
-                      disabled={fieldDisabled}
                       onChange={(e) =>
                         setConfig((c) => ({
                           ...c,
@@ -1692,6 +1709,7 @@ export default function SchoolFacilityOverview() {
                       }
                       fullWidth
                       size="small"
+                      inputProps={{readOnly: fieldDisabled}}
                     />
                   </Stack>
                 </CardContent>
@@ -1711,10 +1729,9 @@ export default function SchoolFacilityOverview() {
                   >
                     <ToggleButtonGroup
                       exclusive={false}
-                      disabled={fieldDisabled}
                       value={config.operationSettingsData.workingConfig.regularDays || []}
                       onChange={(e, v) => {
-                        if (!v) return;
+                        if (fieldDisabled || !v) return;
                         setConfig((c) => ({
                           ...c,
                           operationSettingsData: {
@@ -1726,6 +1743,7 @@ export default function SchoolFacilityOverview() {
                       sx={{
                         flexWrap: "wrap",
                         gap: 1.25,
+                        ...blockPointerSx,
                         "& .MuiToggleButton-root": {
                           textTransform: "none",
                           border: "1px solid #e2e8f0 !important",
@@ -1752,10 +1770,9 @@ export default function SchoolFacilityOverview() {
                     </ToggleButtonGroup>
                     <ToggleButtonGroup
                       exclusive={false}
-                      disabled={fieldDisabled}
                       value={config.operationSettingsData.workingConfig.weekendDays || []}
                       onChange={(e, v) => {
-                        if (!v) return;
+                        if (fieldDisabled || !v) return;
                         setConfig((c) => ({
                           ...c,
                           operationSettingsData: {
@@ -1767,6 +1784,7 @@ export default function SchoolFacilityOverview() {
                       sx={{
                         flexWrap: "wrap",
                         gap: 1.25,
+                        ...blockPointerSx,
                         "& .MuiToggleButton-root": {
                           textTransform: "none",
                           border: "1px solid #e2e8f0 !important",
@@ -1793,16 +1811,17 @@ export default function SchoolFacilityOverview() {
                       control={
                         <Switch
                           checked={Boolean(config.operationSettingsData.workingConfig.isOpenSunday)}
-                          disabled={fieldDisabled}
-                          onChange={(e) =>
+                          onChange={(e) => {
+                            if (fieldDisabled) return;
                             setConfig((c) => ({
                               ...c,
                               operationSettingsData: {
                                 ...c.operationSettingsData,
                                 workingConfig: {...c.operationSettingsData.workingConfig, isOpenSunday: e.target.checked},
                               },
-                            }))
-                          }
+                            }));
+                          }}
+                          sx={blockPointerSx}
                         />
                       }
                       label="Mở Chủ nhật"
@@ -1814,7 +1833,6 @@ export default function SchoolFacilityOverview() {
                     multiline
                     minRows={2}
                     value={config.operationSettingsData.workingConfig.note ?? ""}
-                    disabled={fieldDisabled}
                     onChange={(e) =>
                       setConfig((c) => ({
                         ...c,
@@ -1826,6 +1844,7 @@ export default function SchoolFacilityOverview() {
                     }
                     fullWidth
                     sx={{mt: 2}}
+                    inputProps={{readOnly: fieldDisabled}}
                   />
 
                   <Typography sx={{fontWeight: 800, mt: 3, mb: 1}}>Ca làm việc</Typography>
@@ -1836,7 +1855,6 @@ export default function SchoolFacilityOverview() {
                           label="Tên ca"
                           size="small"
                           value={sh.name ?? ""}
-                          disabled={fieldDisabled}
                           onChange={(e) => {
                             const v = e.target.value;
                             setConfig((c) => {
@@ -1851,6 +1869,7 @@ export default function SchoolFacilityOverview() {
                               };
                             });
                           }}
+                          inputProps={{readOnly: fieldDisabled}}
                         />
                         <TextField
                           label="Bắt đầu"
@@ -1858,7 +1877,6 @@ export default function SchoolFacilityOverview() {
                           size="small"
                           InputLabelProps={{shrink: true}}
                           value={sh.startTime ?? ""}
-                          disabled={fieldDisabled}
                           onChange={(e) => {
                             const v = e.target.value;
                             setConfig((c) => {
@@ -1873,6 +1891,7 @@ export default function SchoolFacilityOverview() {
                               };
                             });
                           }}
+                          inputProps={{readOnly: fieldDisabled}}
                         />
                         <TextField
                           label="Kết thúc"
@@ -1880,7 +1899,6 @@ export default function SchoolFacilityOverview() {
                           size="small"
                           InputLabelProps={{shrink: true}}
                           value={sh.endTime ?? ""}
-                          disabled={fieldDisabled}
                           onChange={(e) => {
                             const v = e.target.value;
                             setConfig((c) => {
@@ -1895,12 +1913,12 @@ export default function SchoolFacilityOverview() {
                               };
                             });
                           }}
+                          inputProps={{readOnly: fieldDisabled}}
                         />
                       </Stack>
                     ))}
                     <Button
                       startIcon={<AddIcon/>}
-                      disabled={fieldDisabled}
                       onClick={() =>
                         setConfig((c) => {
                           const ws = [...(c.operationSettingsData.workingConfig.workShifts || []), {name: "", startTime: "08:00", endTime: "17:00"}];
@@ -1913,7 +1931,7 @@ export default function SchoolFacilityOverview() {
                           };
                         })
                       }
-                      sx={{textTransform: "none", alignSelf: "flex-start"}}
+                      sx={{textTransform: "none", alignSelf: "flex-start", ...blockPointerSx}}
                     >
                       Thêm ca
                     </Button>
@@ -1925,7 +1943,7 @@ export default function SchoolFacilityOverview() {
                 <CardContent sx={{p: 3}}>
                   <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
                     <Typography sx={{fontWeight: 800}}>Quy trình tuyển sinh</Typography>
-                    <Button startIcon={<AddIcon/>} disabled={fieldDisabled} onClick={addAdmissionStep} sx={{textTransform: "none"}}>
+                    <Button startIcon={<AddIcon/>} onClick={addAdmissionStep} sx={{textTransform: "none", ...blockPointerSx}}>
                       Thêm bước
                     </Button>
                   </Stack>
@@ -1943,8 +1961,8 @@ export default function SchoolFacilityOverview() {
                                     size="small"
         fullWidth
                                     value={step.stepName ?? ""}
-                                    disabled={fieldDisabled}
                                     onChange={(e) => updateStep(idx, "stepName", e.target.value)}
+                                    inputProps={{readOnly: fieldDisabled}}
                                   />
                                   <TextField
                                     label="Mô tả"
@@ -1953,8 +1971,8 @@ export default function SchoolFacilityOverview() {
                                     multiline
                                     minRows={2}
                                     value={step.description ?? ""}
-                                    disabled={fieldDisabled}
                                     onChange={(e) => updateStep(idx, "description", e.target.value)}
+                                    inputProps={{readOnly: fieldDisabled}}
                                   />
                                 </Stack>
                               </Stack>
@@ -1962,10 +1980,9 @@ export default function SchoolFacilityOverview() {
           <IconButton
                               size="small"
                               color="error"
-                              disabled={fieldDisabled}
                               onClick={() => removeStep(idx)}
                               aria-label="Xoá bước"
-                              sx={{alignSelf: "flex-start", mt: 0.25}}
+                              sx={{alignSelf: "flex-start", mt: 0.25, ...blockPointerSx}}
                             >
                               <DeleteOutlineIcon fontSize="small"/>
           </IconButton>
