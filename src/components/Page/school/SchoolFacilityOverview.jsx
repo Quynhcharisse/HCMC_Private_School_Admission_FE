@@ -113,8 +113,79 @@ function defaultConfig() {
     facilityData: {
       itemList: [],
       overview: "",
-      imageData: {coverUrl: "", imageList: []},
+      imageData: {coverUrl: "", thumbnailUrl: "", imageList: []},
     },
+  };
+}
+
+/** Parse `gallery` JSON string (hoặc array) từ BE → imageList UI */
+function galleryStringToImageList(gallery) {
+  if (gallery == null || gallery === "") return [];
+  if (Array.isArray(gallery)) {
+    return gallery.map((x) => ({
+      url: x?.url != null ? String(x.url) : "",
+      name: x?.name != null ? String(x.name) : "",
+      altName: x?.altName != null ? String(x.altName ?? "") : "",
+      isUsage: Boolean(x?.isUsage ?? true),
+    }));
+  }
+  if (typeof gallery !== "string") return [];
+  try {
+    const p = JSON.parse(gallery);
+    if (!Array.isArray(p)) return [];
+    return p.map((x) => ({
+      url: x?.url != null ? String(x.url) : "",
+      name: x?.name != null ? String(x.name) : "",
+      altName: x?.altName != null ? String(x.altName ?? "") : "",
+      isUsage: true,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function imageListToGalleryJsonString(list) {
+  if (!Array.isArray(list) || list.length === 0) return "[]";
+  return JSON.stringify(
+    list.map((im) => ({
+      name: im.name != null ? String(im.name) : "",
+      url: im.url != null ? String(im.url) : "",
+    }))
+  );
+}
+
+function imageListFromFacilityImageBlock(img) {
+  if (!img || typeof img !== "object") return [];
+  if (Array.isArray(img.imageList) && img.imageList.length > 0) return img.imageList;
+  return galleryStringToImageList(img.gallery);
+}
+
+function sanitizeCampusPutItemList(itemList) {
+  if (!Array.isArray(itemList)) return [];
+  return itemList.map((it) => ({
+    facilityCode: it.facilityCode != null ? String(it.facilityCode).trim() : "",
+    name: it.name != null ? String(it.name) : "",
+    value: it.value != null ? Number(it.value) || 0 : 0,
+    unit: it.unit != null ? String(it.unit) : "",
+    category: it.category != null ? String(it.category) : "",
+  }));
+}
+
+/** PUT /campus/{id}/config — `imageJsonData` theo contract mới */
+function buildImageJsonDataForCampusPut(imageData) {
+  const img = imageData && typeof imageData === "object" ? imageData : {};
+  const coverUrl =
+    img.coverUrl != null && String(img.coverUrl).trim() !== ""
+      ? String(img.coverUrl).trim()
+      : img.cover != null && String(img.cover).trim() !== ""
+        ? String(img.cover).trim()
+        : "";
+  const thumbnailUrl = img.thumbnailUrl != null ? String(img.thumbnailUrl).trim() : "";
+  const list = Array.isArray(img.imageList) ? img.imageList : [];
+  return {
+    coverUrl,
+    thumbnailUrl,
+    gallery: imageListToGalleryJsonString(list),
   };
 }
 
@@ -142,14 +213,22 @@ function mergeFacilityFromBody(body) {
     (body.facilityData && typeof body.facilityData === "object" ? body.facilityData : null) ||
     (body.facility_data && typeof body.facility_data === "object" ? body.facility_data : null);
 
+  function coverUrlFromImageData(imgObj) {
+    if (!imgObj || typeof imgObj !== "object") return "";
+    if (imgObj.coverUrl != null && String(imgObj.coverUrl).trim() !== "") return String(imgObj.coverUrl).trim();
+    if (imgObj.cover != null && String(imgObj.cover).trim() !== "") return String(imgObj.cover).trim();
+    return "";
+  }
+
   if (rawDat) {
     const img = rawDat.imageData && typeof rawDat.imageData === "object" ? rawDat.imageData : {};
     return {
       itemList: Array.isArray(rawDat.itemList) ? rawDat.itemList : [],
       overview: rawDat.overview != null ? String(rawDat.overview) : "",
       imageData: {
-        coverUrl: img.coverUrl != null && String(img.coverUrl).trim() !== "" ? img.coverUrl : "",
-        imageList: Array.isArray(img.imageList) ? img.imageList : [],
+        coverUrl: coverUrlFromImageData(img),
+        thumbnailUrl: img.thumbnailUrl != null ? String(img.thumbnailUrl) : "",
+        imageList: imageListFromFacilityImageBlock(img),
       },
     };
   }
@@ -159,8 +238,9 @@ function mergeFacilityFromBody(body) {
     itemList: Array.isArray(tpl.itemList) ? tpl.itemList : [],
     overview: tpl.overview != null ? String(tpl.overview) : "",
     imageData: {
-      coverUrl: imgTpl.coverUrl != null && String(imgTpl.coverUrl).trim() !== "" ? imgTpl.coverUrl : "",
-      imageList: Array.isArray(imgTpl.imageList) ? imgTpl.imageList : [],
+      coverUrl: coverUrlFromImageData(imgTpl),
+      thumbnailUrl: imgTpl.thumbnailUrl != null ? String(imgTpl.thumbnailUrl) : "",
+      imageList: imageListFromFacilityImageBlock(imgTpl),
     },
   };
 }
@@ -324,34 +404,46 @@ function sanitizeOperationSettingsForApi(op) {
 function sanitizeFacilityDataForApi(f) {
   if (!f || typeof f !== "object") return f;
   const itemList = Array.isArray(f.itemList)
-    ? f.itemList.map((it) => ({
-        facilityCode: it.facilityCode != null ? String(it.facilityCode).trim() : "",
-        name: it.name != null ? String(it.name) : "",
-        value: it.value != null ? Number(it.value) || 0 : 0,
-        unit: it.unit != null ? String(it.unit) : "",
-        category: it.category != null ? String(it.category) : "",
-      }))
-    : [];
-  const img = f.imageData && typeof f.imageData === "object" ? f.imageData : {};
-  const imageList = Array.isArray(img.imageList)
-    ? img.imageList.map((im) => {
-        const o = {
-          url: im.url != null ? String(im.url) : "",
-          name: im.name != null ? String(im.name) : "",
-          altName: im.altName != null ? String(im.altName) : "",
-          isUsage: Boolean(im.isUsage ?? im.usage ?? true),
+    ? f.itemList.map((it) => {
+        const row = {
+          facilityCode: it.facilityCode != null ? String(it.facilityCode).trim() : "",
+          name: it.name != null ? String(it.name) : "",
+          value: it.value != null ? Number(it.value) || 0 : 0,
+          unit: it.unit != null ? String(it.unit) : "",
+          category: it.category != null ? String(it.category) : "",
         };
-        if (Object.prototype.hasOwnProperty.call(im, "uploadDate")) {
-          o.uploadDate = im.uploadDate;
-        }
-        return o;
+        if (it.isUsage != null) row.isUsage = Boolean(it.isUsage);
+        if (it.isCustom != null) row.isCustom = Boolean(it.isCustom);
+        return row;
       })
     : [];
+  const img = f.imageData && typeof f.imageData === "object" ? f.imageData : {};
+  const coverUrl =
+    img.coverUrl != null && String(img.coverUrl).trim() !== ""
+      ? String(img.coverUrl).trim()
+      : img.cover != null && String(img.cover).trim() !== ""
+        ? String(img.cover).trim()
+        : "";
+  const thumbnailUrl = img.thumbnailUrl != null ? String(img.thumbnailUrl).trim() : "";
+  const baseList = imageListFromFacilityImageBlock(img);
+  const imageList = baseList.map((im) => {
+    const o = {
+      url: im.url != null ? String(im.url) : "",
+      name: im.name != null ? String(im.name) : "",
+      altName: im.altName != null ? String(im.altName) : "",
+      isUsage: Boolean(im.isUsage ?? im.usage ?? true),
+    };
+    if (Object.prototype.hasOwnProperty.call(im, "uploadDate")) {
+      o.uploadDate = im.uploadDate;
+    }
+    return o;
+  });
   return {
     itemList,
     overview: f.overview != null ? String(f.overview) : "",
     imageData: {
-      coverUrl: img.coverUrl != null ? String(img.coverUrl) : "",
+      coverUrl,
+      thumbnailUrl,
       imageList,
     },
   };
@@ -431,6 +523,7 @@ function normalizeFromApi(body) {
       overview: fac.overview ?? "",
       imageData: {
         coverUrl: imageData.coverUrl ?? "",
+        thumbnailUrl: imageData.thumbnailUrl ?? "",
         imageList: Array.isArray(imageData.imageList) ? imageData.imageList : [],
       },
     },
@@ -505,6 +598,17 @@ function pickSchoolIdFromCampuses(campuses) {
   return null;
 }
 
+/** Cơ sở chính — dùng PUT /campus/{id}/config thay cho PUT /school/config/{schoolId} */
+function pickPrimaryCampusIdFromCampuses(campuses) {
+  if (!Array.isArray(campuses) || campuses.length === 0) return null;
+  const primary = campuses.find((c) => c.isPrimaryBranch === true);
+  const row = primary ?? campuses[0];
+  const id = campusKey(row);
+  if (id == null || id === "") return null;
+  const n = Number(id);
+  return Number.isFinite(n) ? n : id;
+}
+
 function parseBranchFacilityJson(raw) {
   if (raw == null) return null;
   if (typeof raw === "object") return raw;
@@ -528,9 +632,8 @@ function policyFromCampusCurrent(cur) {
 }
 
 /**
- * Campus phụ: CSVC + ảnh bìa lấy từ `campusCurrent.facilityJson` (campusCurrent).
- * `hqDefault` là mặc định trụ sở — chỉ dùng khi chưa có `facilityJson`.
- * Ảnh bìa campus: BE trả `facilityJson.imageData.cover` (khác HQ dùng `coverUrl`).
+ * GET /api/v1/campus/{campusId}/config — cả trụ sở và campus phụ.
+ * CSVC + vận hành từ `campusCurrent.facilityJson` + merge HQ `hqDefault`.
  */
 function normalizeFromCampusConfigApi(body) {
   const d = defaultConfig();
@@ -556,12 +659,27 @@ function normalizeFromCampusConfigApi(body) {
   let mergedFacility;
   if (fj && typeof fj === "object") {
     const fjImg = fj.imageData && typeof fj.imageData === "object" ? fj.imageData : {};
+    const ij = fj.imageJsonData && typeof fj.imageJsonData === "object" ? fj.imageJsonData : {};
+    const coverUrl =
+      (ij.coverUrl != null && String(ij.coverUrl).trim() !== "" && String(ij.coverUrl).trim()) ||
+      (ij.cover != null && String(ij.cover).trim() !== "" && String(ij.cover).trim()) ||
+      coverUrlFromFacilityJson(fj) ||
+      (fjImg.coverUrl != null && String(fjImg.coverUrl).trim() !== "" ? String(fjImg.coverUrl).trim() : "") ||
+      (fjImg.cover != null && String(fjImg.cover).trim() !== "" ? String(fjImg.cover).trim() : "") ||
+      "";
+    const thumbnailUrl =
+      ij.thumbnailUrl != null ? String(ij.thumbnailUrl) : fjImg.thumbnailUrl != null ? String(fjImg.thumbnailUrl) : "";
+    const imageList =
+      Array.isArray(fjImg.imageList) && fjImg.imageList.length > 0
+        ? fjImg.imageList
+        : galleryStringToImageList(ij.gallery ?? fjImg.gallery);
     mergedFacility = {
       itemList: Array.isArray(fj.itemList) ? fj.itemList : [],
       overview: fj.overview != null ? String(fj.overview) : "",
       imageData: {
-        coverUrl: coverUrlFromFacilityJson(fj),
-        imageList: Array.isArray(fjImg.imageList) ? fjImg.imageList : [],
+        coverUrl,
+        thumbnailUrl,
+        imageList,
       },
     };
   } else {
@@ -570,7 +688,8 @@ function normalizeFromCampusConfigApi(body) {
       overview: hqFac.overview != null ? String(hqFac.overview) : "",
       imageData: {
         coverUrl: hqImg.coverUrl != null ? String(hqImg.coverUrl) : "",
-        imageList: Array.isArray(hqImg.imageList) ? hqImg.imageList : [],
+        thumbnailUrl: hqImg.thumbnailUrl != null ? String(hqImg.thumbnailUrl) : "",
+        imageList: imageListFromFacilityImageBlock(hqImg),
       },
     };
   }
@@ -629,23 +748,18 @@ function normalizeFromCampusConfigApi(body) {
   };
 }
 
-function buildBranchCampusConfigPutPayload(config, initial, hqOperation, initialPolicy, policy) {
+/**
+ * PUT /api/v1/campus/{campusId}/config — body phẳng (overview, itemList, imageJsonData, …)
+ * @param hqOperation — baseline để tính workingOverride / admissionStepsOverride (campus phụ: hqDefault; trụ sở: snapshot load)
+ */
+function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, policy) {
   const payload = {};
   const fac = config.facilityData;
   const iFac = initial.facilityData;
   if (JSON.stringify(fac) !== JSON.stringify(iFac)) {
-    payload.overview = fac.overview ?? "";
-    payload.itemList = Array.isArray(fac.itemList)
-      ? fac.itemList.map((it) => ({
-          facilityCode: it.facilityCode != null ? String(it.facilityCode).trim() : "",
-          name: it.name != null ? String(it.name) : "",
-          value: it.value != null ? Number(it.value) || 0 : 0,
-          unit: it.unit != null ? String(it.unit) : "",
-          category: it.category != null ? String(it.category) : "",
-        }))
-      : [];
-    const cover = fac.imageData?.coverUrl ?? "";
-    payload.imageJsonData = {cover: cover || ""};
+    payload.overview = fac.overview != null ? String(fac.overview) : "";
+    payload.itemList = sanitizeCampusPutItemList(fac.itemList);
+    payload.imageJsonData = buildImageJsonDataForCampusPut(fac.imageData);
   }
 
   const op = config.operationSettingsData;
@@ -718,6 +832,7 @@ export default function SchoolFacilityOverview() {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [schoolId, setSchoolId] = useState(null);
+  const [primaryCampusId, setPrimaryCampusId] = useState(null);
   const [branchPolicyDetail, setBranchPolicyDetail] = useState("");
   const branchHqOperationRef = useRef(null);
   const initialPolicyRef = useRef("");
@@ -737,13 +852,10 @@ export default function SchoolFacilityOverview() {
   const isDirty = useMemo(() => {
     const init = initialRef.current;
     if (!init) return false;
-    if (isBranchCampusConfig) {
-      const cfgDirty = snapshot !== JSON.stringify(init);
-      const polDirty = branchPolicyDetail !== (initialPolicyRef.current ?? "");
-      return cfgDirty || polDirty;
-    }
-    return snapshot !== JSON.stringify(init);
-  }, [snapshot, isBranchCampusConfig, branchPolicyDetail]);
+    const cfgDirty = snapshot !== JSON.stringify(init);
+    const polDirty = branchPolicyDetail !== (initialPolicyRef.current ?? "");
+    return cfgDirty || polDirty;
+  }, [snapshot, branchPolicyDetail]);
 
   /** Khi không chỉnh sửa hoặc đang lưu: khoá nhập nhưng giữ màu bình thường (readOnly / chặn pointer, không dùng disabled). */
   const fieldDisabled = saving || !editing;
@@ -767,6 +879,7 @@ export default function SchoolFacilityOverview() {
         initialPolicyRef.current = pol;
         const next = normalizeFromCampusConfigApi(envelope);
         setSchoolId(pickSchoolIdFromCampuses(campuses));
+        setPrimaryCampusId(null);
         setConfig(next);
         initialRef.current = JSON.parse(JSON.stringify(next));
         setLastLoadedAt(new Date());
@@ -776,16 +889,46 @@ export default function SchoolFacilityOverview() {
       const sid = pickSchoolIdFromCampuses(campuses);
       if (sid == null) {
         enqueueSnackbar("Không lấy được schoolId", {variant: "error"});
+        setPrimaryCampusId(null);
         return;
       }
       setSchoolId(sid);
-      branchHqOperationRef.current = null;
-      setBranchPolicyDetail("");
-      initialPolicyRef.current = "";
+      const pid = pickPrimaryCampusIdFromCampuses(campuses);
+      setPrimaryCampusId(pid);
+      if (pid == null) {
+        enqueueSnackbar("Không xác định được cơ sở chính (campusId)", {variant: "error"});
+        return;
+      }
 
-      const cfgRes = await getSchoolConfig(sid);
-      const body = parseSchoolConfigResponseBody(cfgRes);
-      let next = normalizeFromApi(body);
+      const cfgRes = await getCampusConfig(pid);
+      const envelope = parseSchoolConfigResponseBody(cfgRes);
+      branchHqOperationRef.current = envelope?.hqDefault?.operation
+        ? JSON.parse(JSON.stringify(envelope.hqDefault.operation))
+        : {};
+      const pol = policyFromCampusCurrent(envelope?.campusCurrent);
+      setBranchPolicyDetail(pol);
+      initialPolicyRef.current = pol;
+
+      let next = normalizeFromCampusConfigApi(envelope);
+
+      try {
+        const schoolRes = await getSchoolConfig(sid);
+        const schoolBody = parseSchoolConfigResponseBody(schoolRes);
+        const schoolPart = normalizeFromApi(schoolBody);
+        next = {
+          ...next,
+          admissionSettingsData: schoolPart.admissionSettingsData,
+          quotaConfigData: schoolPart.quotaConfigData,
+          financePolicyData: schoolPart.financePolicyData,
+          documentRequirementsData: schoolPart.documentRequirementsData,
+        };
+      } catch (e) {
+        console.error(e);
+        enqueueSnackbar(
+          "Đã tải cấu hình cơ sở; không tải được cấu hình trường (tuyển sinh, chỉ tiêu, …).",
+          {variant: "warning"}
+        );
+      }
 
       const qa = next.quotaConfigData?.campusAssignments;
       const mergedQuota = mergeQuotaRows(campuses, qa);
@@ -830,12 +973,10 @@ export default function SchoolFacilityOverview() {
     const init = initialRef.current;
     if (!init) return;
     setConfig(JSON.parse(JSON.stringify(init)));
-    if (isBranchCampusConfig) {
-      setBranchPolicyDetail(initialPolicyRef.current ?? "");
-    }
+    setBranchPolicyDetail(initialPolicyRef.current ?? "");
     setEditing(false);
     enqueueSnackbar("Đã huỷ thay đổi", {variant: "info"});
-  }, [isBranchCampusConfig]);
+  }, []);
 
   const patchFinanceDisplay = useCallback((amount) => {
     setConfig((c) => ({
@@ -854,13 +995,19 @@ export default function SchoolFacilityOverview() {
 
   const handleSave = useCallback(async () => {
     if (!editing) return;
-    if (!isBranchCampusConfig && !schoolId) return;
+    if (!isBranchCampusConfig) {
+      if (schoolId == null) return;
+      if (primaryCampusId == null) {
+        enqueueSnackbar("Không xác định được cơ sở chính để lưu. Vui lòng tải lại trang.", {variant: "error"});
+        return;
+      }
+    }
     if (isBranchCampusConfig && currentCampusId == null) return;
     const initial = initialRef.current;
     if (!initial) return;
 
     if (isBranchCampusConfig && currentCampusId != null) {
-      const payload = buildBranchCampusConfigPutPayload(
+      const payload = buildCampusFlatPutPayload(
         config,
         initial,
         branchHqOperationRef.current,
@@ -898,13 +1045,24 @@ export default function SchoolFacilityOverview() {
       return;
     }
 
-    const payload = buildPartialPayload(config, initial);
-    if (Object.keys(payload).length === 0) {
-      enqueueSnackbar("Không có thay đổi để lưu", {variant: "info"});
-          return;
-        }
+    const campusPayload = buildCampusFlatPutPayload(
+      config,
+      initial,
+      branchHqOperationRef.current,
+      initialPolicyRef.current ?? "",
+      branchPolicyDetail
+    );
 
-    if (payload.facilityData) {
+    const schoolPayload = buildPartialPayload(config, initial);
+    delete schoolPayload.facilityData;
+    delete schoolPayload.operationSettingsData;
+
+    if (Object.keys(campusPayload).length === 0 && Object.keys(schoolPayload).length === 0) {
+      enqueueSnackbar("Không có thay đổi để lưu", {variant: "info"});
+      return;
+    }
+
+    if (campusPayload.overview != null || campusPayload.itemList != null || campusPayload.imageJsonData != null) {
       const ok = facilityFormRef.current?.validate?.() ?? true;
       if (!ok) {
         enqueueSnackbar("Vui lòng kiểm tra lại tab Cơ sở vật chất", {variant: "error"});
@@ -915,14 +1073,14 @@ export default function SchoolFacilityOverview() {
 
     const minP = Number(config.financePolicyData?.priceAdjustment?.minPercent ?? 0);
     const maxP = Number(config.financePolicyData?.priceAdjustment?.maxPercent ?? 0);
-    if (payload.financePolicyData && minP >= maxP) {
+    if (schoolPayload.financePolicyData && minP >= maxP) {
       enqueueSnackbar("% tối thiểu phải nhỏ hơn % tối đa", {variant: "error"});
       setTabIndex(2);
       return;
     }
 
     const pct = Number(config.admissionSettingsData?.quotaAlertThresholdPercent ?? 0);
-    if (payload.admissionSettingsData && (pct < 0 || pct > 100)) {
+    if (schoolPayload.admissionSettingsData && (pct < 0 || pct > 100)) {
       enqueueSnackbar("Ngưỡng cảnh báo phải từ 0 đến 100", {variant: "error"});
       setTabIndex(0);
       return;
@@ -930,23 +1088,34 @@ export default function SchoolFacilityOverview() {
 
     setSaving(true);
     try {
-      const res = await updateSchoolConfig(schoolId, payload);
-      if (res?.status >= 200 && res?.status < 300) {
-        enqueueSnackbar(res?.data?.message || "Lưu thành công", {variant: "success"});
-        setEditing(false);
-        await load({silent: true});
-      } else {
-        enqueueSnackbar(res?.data?.message || "Có lỗi khi lưu", {variant: "error"});
+      if (Object.keys(campusPayload).length > 0) {
+        const resCampus = await updateCampusConfig(primaryCampusId, campusPayload);
+        if (resCampus?.status < 200 || resCampus?.status >= 300) {
+          enqueueSnackbar(resCampus?.data?.message || "Có lỗi khi lưu cấu hình cơ sở", {variant: "error"});
+          return;
+        }
       }
-      } catch (e) {
-        console.error(e);
+      if (Object.keys(schoolPayload).length > 0) {
+        const resSchool = await updateSchoolConfig(schoolId, schoolPayload);
+        if (resSchool?.status < 200 || resSchool?.status >= 300) {
+          enqueueSnackbar(resSchool?.data?.message || "Có lỗi khi lưu cấu hình trường", {variant: "error"});
+          await load({silent: true});
+          return;
+        }
+      }
+      enqueueSnackbar("Lưu thành công", {variant: "success"});
+      setEditing(false);
+      await load({silent: true});
+    } catch (e) {
+      console.error(e);
       enqueueSnackbar("Không thể lưu cấu hình", {variant: "error"});
-      } finally {
+    } finally {
       setSaving(false);
     }
   }, [
     config,
     schoolId,
+    primaryCampusId,
     currentCampusId,
     isBranchCampusConfig,
     branchPolicyDetail,
@@ -2285,28 +2454,26 @@ export default function SchoolFacilityOverview() {
                 </CardContent>
               </Card>
 
-              {isBranchCampusConfig && (
-                <Card
-                  sx={{
-                    borderRadius: "12px",
-                    border: "1px solid rgba(226,232,240,1)",
-                    boxShadow: "0 8px 24px rgba(15,23,42,0.06)",
-                  }}
-                >
-                  <CardContent sx={{p: 3}}>
-                    <Typography sx={{fontWeight: 800, mb: 2}}>Quy định tại cơ sở</Typography>
-                    <TextField
-                      label="Chi tiết quy định"
-                      multiline
-                      minRows={3}
-                      fullWidth
-                      value={branchPolicyDetail}
-                      onChange={(e) => setBranchPolicyDetail(e.target.value)}
-                      inputProps={{readOnly: fieldDisabled}}
-                    />
-                  </CardContent>
-                </Card>
-              )}
+              <Card
+                sx={{
+                  borderRadius: "12px",
+                  border: "1px solid rgba(226,232,240,1)",
+                  boxShadow: "0 8px 24px rgba(15,23,42,0.06)",
+                }}
+              >
+                <CardContent sx={{p: 3}}>
+                  <Typography sx={{fontWeight: 800, mb: 2}}>Quy định tại cơ sở</Typography>
+                  <TextField
+                    label="Chi tiết quy định"
+                    multiline
+                    minRows={3}
+                    fullWidth
+                    value={branchPolicyDetail}
+                    onChange={(e) => setBranchPolicyDetail(e.target.value)}
+                    inputProps={{readOnly: fieldDisabled}}
+                  />
+                </CardContent>
+              </Card>
             </Stack>
           )}
 

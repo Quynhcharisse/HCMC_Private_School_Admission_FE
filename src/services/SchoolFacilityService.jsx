@@ -58,32 +58,57 @@ export const getSchoolConfigByKey = async (k) => {
 };
 
 /**
- * PUT update school configuration (partial or full body)
+ * PUT /api/v1/school/config/{schoolId} — tuyển sinh / chỉ tiêu / tài chính / hồ sơ (không gồm CSVC + vận hành campus)
  * @param {number | string} schoolId
- * @param {Record<string, unknown>} payload — e.g. { admissionSettingsData: {...}, facilityData: {...} }
+ * @param {Record<string, unknown>} payload
  */
 export const updateSchoolConfig = async (schoolId, payload) => {
   const response = await axiosClient.put(`/school/config/${Number(schoolId) || schoolId}`, payload);
   return response;
 };
 
+/** Chuẩn hóa campusId cho segment URL path (path parameter, không query). */
+function campusConfigPathId(campusId) {
+  if (campusId == null || campusId === "") return null;
+  const n = Number(campusId);
+  if (Number.isFinite(n)) return n;
+  const s = String(campusId).trim();
+  return s || null;
+}
+
 /**
- * GET /api/v1/campus/{campusId}/config — campus phụ (body: campusCurrent + hqDefault)
- * @param {number | string} campusId
+ * GET /api/v1/campus/{campusId}/config
+ * @param {number | string} campusId — path parameter (id cơ sở trong URL)
  */
 export const getCampusConfig = async (campusId) => {
-  const id = Number(campusId) || campusId;
+  const id = campusConfigPathId(campusId);
+  if (id == null) return Promise.reject(new Error("campusId is required"));
   const response = await axiosClient.get(`/campus/${id}/config`);
   return response;
 };
 
 /**
- * PUT /api/v1/campus/{campusId}/config
+ * PUT /api/v1/campus/{campusId}/config — path: `campusId`
+ * Body phẳng (partial): overview, itemList, imageJsonData { coverUrl, thumbnailUrl, gallery },
+ * hotline, emailSupport, workingOverride, admissionStepsOverride, policyDetail.
  * @param {number | string} campusId
- * @param {Record<string, unknown>} payload — overview, itemList, imageJsonData, hotline, …
+ * @param {Record<string, unknown>} payload
  */
 export const updateCampusConfig = async (campusId, payload) => {
-  const id = Number(campusId) || campusId;
+  const id = campusConfigPathId(campusId);
+  if (id == null) return Promise.reject(new Error("campusId is required"));
   const response = await axiosClient.put(`/campus/${id}/config`, payload);
   return response;
 };
+
+/** GET /api/v1/school/config/campus/list — read-only list of campus configs (facilities + policy per campus) */
+export const getSchoolCampusConfigList = async () => {
+  const response = await axiosClient.get("/school/config/campus/list");
+  return response;
+};
+
+/** Normalize list body to an array of campus config rows */
+export function parseSchoolCampusConfigListBody(res) {
+  const body = res?.data?.body ?? res?.data?.data?.body;
+  return Array.isArray(body) ? body : [];
+}
