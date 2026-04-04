@@ -20,6 +20,7 @@ const AdminSchoolVerification = lazy(() => import("./components/Page/admin/Admin
 const AdminSchoolCampuses = lazy(() => import("./components/Page/admin/AdminSchoolCampuses.jsx"));
 const AdminCampusConsultants = lazy(() => import("./components/Page/admin/AdminCampusConsultants.jsx"));
 const AdminPlatformSettings = lazy(() => import("./components/Page/admin/AdminPlatformSettings.jsx"));
+const AdminPersonalityTypes = lazy(() => import("./components/Page/admin/AdminPersonalityTypes.jsx"));
 const SchoolLayout = lazy(() => import("./components/layouts/SchoolLayout.jsx"));
 const SchoolDashboard = lazy(() => import("./components/Page/school/SchoolDashboard.jsx"));
 const SchoolCampus = lazy(() => import("./components/Page/school/SchoolCampus.jsx"));
@@ -399,6 +400,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <AdminUsersManagement/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'personality-types',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminPersonalityTypes/>
                     </Suspense>
                 )
             },

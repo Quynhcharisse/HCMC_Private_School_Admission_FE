@@ -22,6 +22,7 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import PsychologyOutlinedIcon from "@mui/icons-material/PsychologyOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
@@ -34,7 +35,14 @@ const menuGroups = [
     },
     {
         title: "QUẢN LÝ",
-        items: [{ text: "Quản lý người dùng", icon: <PeopleIcon />, path: "/admin/users" }],
+        items: [
+            { text: "Quản lý người dùng", icon: <PeopleIcon />, path: "/admin/users" },
+            {
+                text: "Quản lý loại tính cách",
+                icon: <PsychologyOutlinedIcon />,
+                path: "/admin/personality-types",
+            },
+        ],
     },
     {
         title: "XÁC THỰC",
@@ -269,6 +277,7 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
                                             py: 1.25,
                                             px: collapsed ? 1.5 : 2,
                                             justifyContent: collapsed ? "center" : "flex-start",
+                                            alignItems: collapsed ? "center" : "flex-start",
                                             overflow: "hidden",
                                             bgcolor: isActive ? "rgba(29, 78, 216, 0.1)" : "transparent",
                                             color: isActive ? "#2563eb" : "#64748b",
@@ -287,34 +296,29 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
                                         <ListItemIcon
                                             sx={{
                                                 color: isActive ? "#2563eb" : "#64748b",
-                                                minWidth: 40,
-                                                width: 40,
+                                                minWidth: 36,
+                                                width: 36,
                                                 flexShrink: 0,
                                                 justifyContent: "center",
-                                                mr: collapsed ? 0 : 1.5,
+                                                mr: collapsed ? 0 : 0.75,
+                                                alignSelf: collapsed ? "center" : "flex-start",
+                                                mt: collapsed ? 0 : 0.125,
                                             }}
                                         >
                                             {item.icon}
                                         </ListItemIcon>
                                         <Box sx={labelWrapperStyle}>
-                                            <Box
-                                                sx={{
-                                                    whiteSpace: "nowrap",
-                                                    overflow: "hidden",
-                                                    textOverflow: "ellipsis",
+                                            <ListItemText
+                                                primary={item.text}
+                                                sx={{ my: 0 }}
+                                                primaryTypographyProps={{
+                                                    fontSize: 14,
+                                                    fontWeight: isActive ? 600 : 500,
+                                                    whiteSpace: "normal",
+                                                    lineHeight: 1.35,
+                                                    wordBreak: "break-word",
                                                 }}
-                                            >
-                                                <ListItemText
-                                                    primary={item.text}
-                                                    primaryTypographyProps={{
-                                                        fontSize: 14,
-                                                        fontWeight: isActive ? 600 : 500,
-                                                        whiteSpace: "nowrap",
-                                                        overflow: "hidden",
-                                                        textOverflow: "ellipsis",
-                                                    }}
-                                                />
-                                            </Box>
+                                            />
                                         </Box>
                                     </ListItemButton>
                                 </ListItem>
@@ -366,7 +370,7 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
                         >
                             {!avatarUrl && displayName.charAt(0).toUpperCase()}
                         </Avatar>
-                        <Box sx={{ ...labelWrapperStyle, ml: collapsed ? 0 : 1.5 }}>
+                        <Box sx={{ ...labelWrapperStyle, ml: collapsed ? 0 : 0.875 }}>
                             <Box sx={{ minWidth: 0, overflow: "hidden" }}>
                                 <Typography
                                     variant="body2"

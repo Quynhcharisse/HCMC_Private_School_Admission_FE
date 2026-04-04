@@ -44,6 +44,12 @@ import {showSuccessSnackbar} from "../../ui/AppSnackbar.jsx";
 import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
 import {getPendingSchoolRegistrations, verifySchoolRegistration} from "../../../services/AdminService.jsx";
 import {APP_PRIMARY_MAIN} from "../../../constants/homeLandingTheme";
+import {
+    adminTableBodyRowSx,
+    adminTableContainerSx,
+    adminTableHeadCellSx,
+    adminTableHeadRowSx,
+} from "../../../constants/adminTableStyles.js";
 
 export default function AdminSchoolVerification() {
     const navigate = useNavigate();
@@ -473,37 +479,33 @@ export default function AdminSchoolVerification() {
                         </Stack>
                     </Box>
 
-                    <TableContainer
-                        component={Paper}
-                        elevation={0}
-                        sx={{bgcolor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 3}}
-                    >
+                    <TableContainer component={Paper} elevation={0} sx={adminTableContainerSx}>
                         <Table size="small">
                             <TableHead>
-                                <TableRow sx={{bgcolor: "#f8fafc"}}>
-                                    <TableCell align="center" sx={{fontWeight: 700, color: "#334155", width: 60}}>
+                                <TableRow sx={adminTableHeadRowSx}>
+                                    <TableCell align="center" sx={{...adminTableHeadCellSx, width: 60}}>
                                         STT
                                     </TableCell>
-                                    <TableCell align="left" sx={{fontWeight: 700, color: "#334155", width: 56, pl: 1.5, pr: 0.5}} />
-                                    <TableCell align="left" sx={{fontWeight: 700, color: "#334155", minWidth: 200}}>
+                                    <TableCell sx={{...adminTableHeadCellSx, width: 56, pl: 1.5, pr: 0.5}} />
+                                    <TableCell sx={{...adminTableHeadCellSx, minWidth: 200}}>
                                         Tên trường
                                     </TableCell>
-                                    <TableCell align="center" sx={{fontWeight: 700, color: "#334155", minWidth: 140}}>
+                                    <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 140}}>
                                         Đại diện
                                     </TableCell>
-                                    <TableCell align="center" sx={{fontWeight: 700, color: "#334155", width: 130}}>
+                                    <TableCell align="center" sx={{...adminTableHeadCellSx, width: 130}}>
                                         Mã số thuế
                                     </TableCell>
-                                    <TableCell align="center" sx={{fontWeight: 700, color: "#334155", width: 120}}>
+                                    <TableCell align="center" sx={{...adminTableHeadCellSx, width: 120}}>
                                         Hotline
                                     </TableCell>
-                                    <TableCell align="center" sx={{fontWeight: 700, color: "#334155", minWidth: 130}}>
+                                    <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 130}}>
                                         Trạng thái
                                     </TableCell>
-                                    <TableCell align="center" sx={{fontWeight: 700, color: "#334155", width: 72, px: 0.5}}>
+                                    <TableCell align="center" sx={{...adminTableHeadCellSx, width: 72, px: 0.5}}>
                                         Chi tiết
                                     </TableCell>
-                                    <TableCell align="center" sx={{fontWeight: 700, color: "#334155", width: 100, px: 0.5}}>
+                                    <TableCell align="center" sx={{...adminTableHeadCellSx, width: 100, px: 0.5}}>
                                         Thao tác
                                     </TableCell>
                                 </TableRow>
@@ -530,10 +532,7 @@ export default function AdminSchoolVerification() {
                                         <TableRow
                                             key={item.id ?? index}
                                             hover
-                                            sx={{
-                                                "& td": {borderBottomColor: "#e2e8f0", color: "#334155"},
-                                                "&:hover": {bgcolor: "#f8fafc"},
-                                            }}
+                                            sx={adminTableBodyRowSx}
                                         >
                                             <TableCell align="center">
                                                 <Chip

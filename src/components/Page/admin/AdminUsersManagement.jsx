@@ -49,6 +49,12 @@ import {getUsersByRole, setAccountRestricted} from "../../../services/AdminServi
 import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
 import * as XLSX from "xlsx";
 import {APP_PRIMARY_MAIN} from "../../../constants/homeLandingTheme";
+import {
+    adminTableBodyRowSx,
+    adminTableContainerSx,
+    adminTableHeadCellSx,
+    adminTableHeadRowSx,
+} from "../../../constants/adminTableStyles.js";
 
 /** BE trả accId; thêm các alias thường gặp để tương thích */
 const resolveAccountId = (u) => {
@@ -829,66 +835,62 @@ export default function AdminUsersManagement() {
                         </Box>
                     </Box>
 
-                    <TableContainer
-                        component={Paper}
-                        elevation={0}
-                        sx={{bgcolor: "#ffffff", border: "1px solid #e2e8f0", borderRadius: 3}}
-                    >
+                    <TableContainer component={Paper} elevation={0} sx={adminTableContainerSx}>
                         <Table size="small">
                             <TableHead>
-                                <TableRow sx={{bgcolor: '#f8fafc'}}>
-                                    <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 60}}>
+                                <TableRow sx={adminTableHeadRowSx}>
+                                    <TableCell align="center" sx={{...adminTableHeadCellSx, width: 60}}>
                                         STT
                                     </TableCell>
                                     {roleTab === "SCHOOL" && (
                                         <>
-                                            <TableCell align="left" sx={{fontWeight: 700, color: '#334155', width: 56, pl: 1.5, pr: 0.5}}>
+                                            <TableCell sx={{...adminTableHeadCellSx, width: 56, pl: 1.5, pr: 0.5}}>
                                                 
                                             </TableCell>
-                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 240}}>
+                                            <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 240}}>
                                                 Tên trường
                                             </TableCell>
-                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 160}}>
+                                            <TableCell align="center" sx={{...adminTableHeadCellSx, width: 160}}>
                                                 Mã số thuế
                                             </TableCell>
-                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 180}}>
+                                            <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 180}}>
                                                 Website
                                             </TableCell>
-                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 150}}>
+                                            <TableCell align="center" sx={{...adminTableHeadCellSx, width: 150}}>
                                                 Hotline
                                             </TableCell>
-                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 140}}>
+                                            <TableCell align="center" sx={{...adminTableHeadCellSx, width: 140}}>
                                                 Trạng thái
                                             </TableCell>
-                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 120}}>
+                                            <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 120}}>
                                                 Hạn chế
                                             </TableCell>
                                         </>
                                     )}
                                     {roleTab === "PARENT" && (
                                         <>
-                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 220}}>
+                                            <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 220}}>
                                                 Họ tên
                                             </TableCell>
-                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 240}}>
+                                            <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 240}}>
                                                 Email
                                             </TableCell>
-                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 140}}>
+                                            <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 140}}>
                                                 Số điện thoại
                                             </TableCell>
-                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 150}}>
+                                            <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 150}}>
                                                 Trạng thái
                                             </TableCell>
-                                            <TableCell align="center" sx={{fontWeight: 700, color: '#334155', minWidth: 140}}>
+                                            <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 140}}>
                                                 Hạn chế
                                             </TableCell>
                                         </>
                                     )}
-                                    <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: roleTab === "PARENT" ? 92 : 78, px: 0.5}}>
+                                    <TableCell align="center" sx={{...adminTableHeadCellSx, width: roleTab === "PARENT" ? 92 : 78, px: 0.5}}>
                                         Chi Tiết
                                     </TableCell>
                                     {roleTab === "SCHOOL" && (
-                                        <TableCell align="center" sx={{fontWeight: 700, color: '#334155', width: 72, px: 0.5}}>
+                                        <TableCell align="center" sx={{...adminTableHeadCellSx, width: 72, px: 0.5}}>
                                             Campus
                                         </TableCell>
                                     )}
@@ -916,10 +918,7 @@ export default function AdminUsersManagement() {
                                         <TableRow
                                             key={resolveAccountId(user) || user.schoolId || index}
                                             hover
-                                            sx={{
-                                                "& td": {borderBottomColor: "#e2e8f0", color: "#334155"},
-                                                "&:hover": {bgcolor: "#f8fafc"},
-                                            }}
+                                            sx={adminTableBodyRowSx}
                                         >
                                             <TableCell align="center">
                                                 <Chip

@@ -52,3 +52,13 @@ export const getCampusCounsellors = async ({ campusId, page = 0, pageSize = 10 }
     return response || null;
 };
 
+export const getAdminPersonalityTypes = async () => {
+    const response = await axiosClient.get("/admin/personality/type");
+    return response || null;
+};
+
+export const patchAdminPersonalityTypeStatus = async (id, status) => {
+    const response = await axiosClient.patch(`/admin/personality/type/${id}/status`, { status });
+    return response || null;
+};
+

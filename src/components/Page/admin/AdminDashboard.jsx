@@ -32,6 +32,13 @@ import {
     APP_PRIMARY_MAIN,
     APP_PRIMARY_SOFT_BG,
 } from "../../../constants/homeLandingTheme";
+import {
+    adminDataCardBorderSx,
+    adminTableBodyRowSx,
+    adminTableContainerSx,
+    adminTableHeadCellSx,
+    adminTableHeadRowSx,
+} from "../../../constants/adminTableStyles.js";
 
 const statCards = [
     {
@@ -482,7 +489,7 @@ export default function AdminDashboard() {
                         elevation={0}
                         sx={{
                             borderRadius: 3,
-                            border: "1px solid #e2e8f0",
+                            ...adminDataCardBorderSx,
                             bgcolor: "#ffffff",
                         }}
                     >
@@ -505,40 +512,22 @@ export default function AdminDashboard() {
                             <Typography variant="body2" sx={{mb: 2, color: "#94a3b8"}}>
                                 Danh sách minh họa – sẽ được thay thế bằng dữ liệu thật khi API sẵn sàng.
                             </Typography>
-                            <TableContainer>
+                            <TableContainer sx={adminTableContainerSx}>
                                 <Table size="small">
                                     <TableHead>
-                                        <TableRow sx={{bgcolor: "#f8fafc"}}>
-                                            <TableCell sx={{fontWeight: 600, color: "#1e293b"}}>
-                                                Người thực hiện
-                                            </TableCell>
-                                            <TableCell sx={{fontWeight: 600, color: "#1e293b"}}>
-                                                Hành động
-                                            </TableCell>
-                                            <TableCell sx={{fontWeight: 600, color: "#1e293b"}}>
-                                                Nhóm
-                                            </TableCell>
-                                            <TableCell sx={{fontWeight: 600, color: "#1e293b"}}>
-                                                Trạng thái
-                                            </TableCell>
-                                            <TableCell sx={{fontWeight: 600, color: "#1e293b"}}>
-                                                Thời gian
-                                            </TableCell>
+                                        <TableRow sx={adminTableHeadRowSx}>
+                                            <TableCell sx={adminTableHeadCellSx}>Người thực hiện</TableCell>
+                                            <TableCell sx={adminTableHeadCellSx}>Hành động</TableCell>
+                                            <TableCell sx={adminTableHeadCellSx}>Nhóm</TableCell>
+                                            <TableCell sx={adminTableHeadCellSx}>Trạng thái</TableCell>
+                                            <TableCell sx={adminTableHeadCellSx}>Thời gian</TableCell>
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
                                         {mockSystemActivities.map((row) => {
                                             const statusStyle = statusColorMap[row.status] || statusColorMap.Success;
                                             return (
-                                                <TableRow
-                                                    key={`${row.actor}-${row.time}`}
-                                                    hover
-                                                    sx={{
-                                                        "&:hover": {
-                                                            bgcolor: "#f8fafc",
-                                                        },
-                                                    }}
-                                                >
+                                                <TableRow key={`${row.actor}-${row.time}`} hover sx={adminTableBodyRowSx}>
                                                     <TableCell>
                                                         <Stack direction="row" spacing={1.5} alignItems="center">
                                                             <Avatar

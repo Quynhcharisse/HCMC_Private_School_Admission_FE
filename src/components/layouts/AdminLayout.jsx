@@ -5,7 +5,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import AuthHeader from "../partials/AuthHeader.jsx";
 import AdminSidebar from "../partials/AdminSidebar.jsx";
 
-const SIDEBAR_WIDTH_EXPANDED = 240;
+const SIDEBAR_WIDTH_EXPANDED = 264;
 const SIDEBAR_WIDTH_COLLAPSED = 72;
 const SIDEBAR_WIDTH_TRANSITION = "280ms cubic-bezier(0.4, 0, 0.2, 1)";
 const ADMIN_FONT = '"Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif';
