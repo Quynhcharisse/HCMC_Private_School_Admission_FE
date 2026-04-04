@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState} from "react";
 import {
   Autocomplete,
   Box,
@@ -7,6 +7,7 @@ import {
   CardContent,
   Chip,
   CircularProgress,
+  Collapse,
   Dialog,
   DialogActions,
   DialogContent,
@@ -22,7 +23,6 @@ import {
   Switch,
   TextField,
   Typography,
-  Collapse,
 } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
 import AddIcon from "@mui/icons-material/Add";
@@ -32,14 +32,11 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import CloseIcon from "@mui/icons-material/Close";
 import PhotoPreviewIcon from "@mui/icons-material/Photo";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import {useNavigate} from "react-router-dom";
 
 import {enqueueSnackbar} from "notistack";
-import {extractCampusListBody, listCampuses} from "../../../services/CampusService.jsx";
 import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
 import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
-import {getFacilityTemplate, upsertFacilityTemplate} from "../../../services/SchoolFacilityService.jsx";
 
 const MAX_OVERVIEW_CHARS = 500;
 
@@ -49,7 +46,6 @@ function formatIsoLocalDateTime(date) {
 }
 
 function toIsoLocalDateTime(raw) {
-  // Chuẩn hoá về ISO_LOCAL_DATE_TIME: yyyy-MM-dd'T'HH:mm:ss
   if (raw == null || raw === "") return formatIsoLocalDateTime(new Date());
   if (typeof raw === "string") {
     const d = new Date(raw);
@@ -84,34 +80,129 @@ function imageCardSx() {
   };
 }
 
-export default function SchoolFacilityConfiguration() {
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+function normalizeFacilityData(raw) {
+  const fd = raw && typeof raw === "object" ? raw : {};
+  const imageData = fd.imageData && typeof fd.imageData === "object" ? fd.imageData : {};
+  const list = Array.isArray(imageData.imageList) ? imageData.imageList : [];
+  return {
+    itemList: Array.isArray(fd.itemList) ? fd.itemList : [],
+    overview: fd.overview ?? "",
+    imageData: {
+      coverUrl: imageData.coverUrl ?? "",
+      imageList: list.map((img) => ({
+        url: img.url ?? "",
+        name: img.name ?? "",
+        altName: img.altName ?? "",
+        facilityCode: img.facilityCode ?? "",
+        uploadDate: img.uploadDate ? toIsoLocalDateTime(img.uploadDate) : formatIsoLocalDateTime(new Date()),
+        isUsage: img.isUsage ?? true,
+      })),
+    },
+  };
+}
 
-  const [facilityTemplateId, setFacilityTemplateId] = useState(null);
-  const [schoolId, setSchoolId] = useState(null);
+/**
+ * Tab "Cài đặt Cơ sở vật chất" — controlled by `facilityData` (API shape facilityData).
+ */
+export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFacilityForm(
+  {value, onChange, loading = false, saving = false, readOnly = false},
+  ref
+) {
+  const formLocked = loading || saving || readOnly;
+  const facilityData = useMemo(() => normalizeFacilityData(value), [value]);
 
-  const [overview, setOverview] = useState("");
-  const [facilityItems, setFacilityItems] = useState([]);
+  const setFacilityData = useCallback(
+    (updater) => {
+      const current = normalizeFacilityData(value);
+      const next = typeof updater === "function" ? updater(current) : updater;
+      onChange?.(next);
+    },
+    [value, onChange]
+  );
+
+  const overview = facilityData.overview ?? "";
+  const coverUrl = facilityData.imageData?.coverUrl ?? "";
+  const imageItems = facilityData.imageData?.imageList ?? [];
+
+  const setOverview = useCallback(
+    (v) => {
+      setFacilityData((prev) => ({...prev, overview: v}));
+    },
+    [setFacilityData]
+  );
+
+  const setCoverUrl = useCallback(
+    (v) => {
+      setFacilityData((prev) => ({
+        ...prev,
+        imageData: {...prev.imageData, coverUrl: v},
+      }));
+    },
+    [setFacilityData]
+  );
+
+  const setImageItems = useCallback(
+    (nextListOrFn) => {
+      setFacilityData((prev) => {
+        const cur = normalizeFacilityData(prev).imageData?.imageList ?? [];
+        const nextList = typeof nextListOrFn === "function" ? nextListOrFn(cur) : nextListOrFn;
+        const im = prev.imageData && typeof prev.imageData === "object" ? prev.imageData : {};
+        return {
+          ...prev,
+          imageData: {...im, imageList: nextList},
+        };
+      });
+    },
+    [setFacilityData]
+  );
+
+  const [facilityItems, setFacilityItemsState] = useState([]);
+
+  useEffect(() => {
+    const raw = Array.isArray(facilityData.itemList) ? facilityData.itemList : [];
+    setFacilityItemsState((prev) =>
+      raw.map((i, idx) => {
+        const prevRow = prev[idx];
+        // Không nhúng facilityCode vào id: mỗi lần gõ mã, itemList đổi → id cũ làm mất expandedFacilityId.
+        const id =
+          prevRow != null && prev.length === raw.length
+            ? prevRow.id
+            : `api-row-${idx}`;
+        return {
+          id,
+          facilityCode: i.facilityCode ?? "",
+          name: i.name ?? "",
+          value: i.value ?? "",
+          unit: i.unit ?? "",
+          category: i.category ?? "",
+        };
+      })
+    );
+  }, [facilityData.itemList]);
+
+  const syncItemListUp = useCallback(
+    (rows) => {
+      const itemList = rows.map((it) => ({
+        facilityCode: it.facilityCode,
+        name: it.name,
+        value: typeof it.value === "number" ? it.value : Number(it.value) || 0,
+        unit: it.unit,
+        category: it.category,
+      }));
+      setFacilityData((prev) => ({...prev, itemList}));
+    },
+    [setFacilityData]
+  );
+
   const [categoriesFilter, setCategoriesFilter] = useState("ALL");
-
   const [search, setSearch] = useState("");
-
-  const [coverUrl, setCoverUrl] = useState("");
-  const [imageItems, setImageItems] = useState([]); // gallery images
-
   const [expandedFacilityId, setExpandedFacilityId] = useState(null);
   const [facilityErrorsById, setFacilityErrorsById] = useState({});
 
-  const initialStateRef = useRef(null);
-
   const [confirmDeleteFacilityOpen, setConfirmDeleteFacilityOpen] = useState(false);
   const [facilityIdToDelete, setFacilityIdToDelete] = useState(null);
-
   const [confirmDeleteImageOpen, setConfirmDeleteImageOpen] = useState(false);
   const [imageUrlToDelete, setImageUrlToDelete] = useState(null);
-
   const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
 
@@ -135,35 +226,6 @@ export default function SchoolFacilityConfiguration() {
       );
     });
   }, [facilityItems, categoriesFilter, search]);
-
-  const snapshot = useMemo(() => {
-    return JSON.stringify({
-      overview,
-      facilityItems,
-      coverUrl,
-      imageItems,
-    });
-  }, [overview, facilityItems, coverUrl, imageItems]);
-
-  const isDirty = useMemo(() => {
-    const init = initialStateRef.current;
-    if (!init) return false;
-    return snapshot !== init.snapshot;
-  }, [snapshot]);
-
-  const resetToInitial = useCallback(() => {
-    const init = initialStateRef.current;
-    if (!init) return;
-    setFacilityTemplateId(init.facilityTemplateId);
-    setSchoolId(init.schoolId);
-    setOverview(init.overview);
-    setFacilityItems(init.facilityItems);
-    setCoverUrl(init.coverUrl);
-    setImageItems(init.imageItems);
-    setExpandedFacilityId(null);
-    setFacilityErrorsById({});
-    enqueueSnackbar("Đã huỷ thay đổi", { variant: "info" });
-  }, []);
 
   const validateFacilities = useCallback(() => {
     const errorsById = {};
@@ -193,15 +255,30 @@ export default function SchoolFacilityConfiguration() {
     return Object.keys(errorsById).length === 0;
   }, [facilityItems]);
 
-  const handleUpdateFacilityField = useCallback((facilityId, field, value) => {
-    setFacilityItems((prev) => prev.map((it) => (it.id === facilityId ? {...it, [field]: value} : it)));
-    setFacilityErrorsById((prev) => {
-      if (!prev[facilityId]) return prev;
-      const next = {...prev};
-      delete next[facilityId];
-      return next;
-    });
-  }, []);
+  useImperativeHandle(
+    ref,
+    () => ({
+      validate: () => validateFacilities(),
+    }),
+    [validateFacilities]
+  );
+
+  const handleUpdateFacilityField = useCallback(
+    (facilityId, field, val) => {
+      setFacilityItemsState((prev) => {
+        const next = prev.map((it) => (it.id === facilityId ? {...it, [field]: val} : it));
+        syncItemListUp(next);
+        return next;
+      });
+      setFacilityErrorsById((prev) => {
+        if (!prev[facilityId]) return prev;
+        const next = {...prev};
+        delete next[facilityId];
+        return next;
+      });
+    },
+    [syncItemListUp]
+  );
 
   const openDeleteFacilityConfirm = useCallback((facilityId) => {
     setFacilityIdToDelete(facilityId);
@@ -210,7 +287,11 @@ export default function SchoolFacilityConfiguration() {
 
   const handleDeleteFacility = useCallback(() => {
     if (!facilityIdToDelete) return;
-    setFacilityItems((prev) => prev.filter((it) => it.id !== facilityIdToDelete));
+    setFacilityItemsState((prev) => {
+      const next = prev.filter((it) => it.id !== facilityIdToDelete);
+      syncItemListUp(next);
+      return next;
+    });
     setFacilityErrorsById((prev) => {
       if (!prev[facilityIdToDelete]) return prev;
       const next = {...prev};
@@ -220,8 +301,8 @@ export default function SchoolFacilityConfiguration() {
     if (expandedFacilityId === facilityIdToDelete) setExpandedFacilityId(null);
     setConfirmDeleteFacilityOpen(false);
     setFacilityIdToDelete(null);
-    enqueueSnackbar("Xoá cơ sở vật chất thành công", { variant: "success" });
-  }, [expandedFacilityId, facilityIdToDelete]);
+    enqueueSnackbar("Xoá cơ sở vật chất thành công", {variant: "success"});
+  }, [expandedFacilityId, facilityIdToDelete, syncItemListUp]);
 
   const handleAddFacility = useCallback(() => {
     const id = `tmp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -233,28 +314,25 @@ export default function SchoolFacilityConfiguration() {
       unit: "",
       category: "",
     };
-    setFacilityItems((prev) => [...prev, newItem]);
+    setFacilityItemsState((prev) => {
+      const next = [...prev, newItem];
+      syncItemListUp(next);
+      return next;
+    });
     setExpandedFacilityId(id);
     pendingScrollFacilityIdRef.current = id;
-  }, []);
+  }, [syncItemListUp]);
 
   useEffect(() => {
     const targetId = pendingScrollFacilityIdRef.current;
     if (!targetId) return;
-
     const node = facilityRowRefs.current[targetId];
     if (!node) return;
-
     requestAnimationFrame(() => {
       node.scrollIntoView({behavior: "smooth", block: "center"});
       pendingScrollFacilityIdRef.current = null;
     });
   }, [facilityItems]);
-
-  const handleCancelDeleteFacility = () => {
-    setConfirmDeleteFacilityOpen(false);
-    setFacilityIdToDelete(null);
-  };
 
   const openDeleteImageConfirm = useCallback((url) => {
     setImageUrlToDelete(url);
@@ -263,205 +341,46 @@ export default function SchoolFacilityConfiguration() {
 
   const handleDeleteImage = useCallback(() => {
     if (!imageUrlToDelete) return;
-    setImageItems((prev) => prev.filter((img) => img.url !== imageUrlToDelete));
+    setImageItems((list) => list.filter((img) => img.url !== imageUrlToDelete));
     setConfirmDeleteImageOpen(false);
     setImageUrlToDelete(null);
-    enqueueSnackbar("Xoá ảnh thành công", { variant: "success" });
-  }, [imageUrlToDelete]);
+    enqueueSnackbar("Xoá ảnh thành công", {variant: "success"});
+  }, [imageUrlToDelete, setImageItems]);
 
-  const handleCancelDeleteImage = () => {
-    setConfirmDeleteImageOpen(false);
-    setImageUrlToDelete(null);
-  };
+  const handleCoverUploaded = useCallback(
+    (results) => {
+      const first = results?.[0];
+      if (!first?.url) return;
+      setCoverUrl(first.url);
+      enqueueSnackbar("Tải ảnh cover lên thành công", {variant: "success"});
+    },
+    [setCoverUrl]
+  );
 
-  const handleFetch = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      const res = await listCampuses();
-      const items = extractCampusListBody(res);
-      const sid = items?.[0]?.schoolId ?? null;
-      if (sid == null) {
-        enqueueSnackbar("Không lấy được `schoolId` từ danh sách cơ sở", { variant: "error" });
-        setLoading(false);
+  const handleFacilityImagesUploaded = useCallback(
+    (facility) => (results) => {
+      const normalizedCode = normalizeFacilityCode(facility?.facilityCode);
+      if (!normalizedCode) {
+        enqueueSnackbar("Vui lòng nhập mã cơ sở vật chất trước khi tải ảnh", {variant: "warning"});
         return;
       }
-      setSchoolId(sid);
-
-      const facilityRes = await getFacilityTemplate({ schoolId: sid });
-      const body = facilityRes?.data?.body ?? facilityRes?.body ?? null;
-      const status = facilityRes?.status;
-      const statusOk = status === 200;
-      const isNotFound = status === 404;
-
-      if (!statusOk && !body && !isNotFound) {
-        enqueueSnackbar(
-          facilityRes?.data?.message || "Không tải được cấu hình cơ sở vật chất. Bạn vẫn có thể tạo mới.",
-          { variant: "error" }
-        );
-      }
-
-      // Luôn build một "nextForm" theo defaults để đảm bảo `initialStateRef` luôn tồn tại,
-      // tránh trường hợp `isDirty` luôn false => nút Huỷ/Lưu bị disable vĩnh viễn.
-      const templateId = body?.templateId ?? body?.id ?? null;
-      const nextFacilityItemsRaw = Array.isArray(body?.itemList) ? body.itemList : [];
-      const nextImages = body?.imageJsonData?.itemList ?? [];
-
-      const nextForm = {
-        facilityTemplateId: templateId,
-        schoolId: sid,
-        overview: body?.overview ?? "",
-        facilityItems: nextFacilityItemsRaw.map((i, idx) => ({
-          id: `api-${idx}`,
-          facilityCode: i.facilityCode ?? "",
-          name: i.name ?? "",
-          value: i.value ?? "",
-          unit: i.unit ?? "",
-          category: i.category ?? "",
-        })),
-        coverUrl: body?.imageJsonData?.coverUrl ?? "",
-        imageItems: Array.isArray(nextImages)
-          ? nextImages.map((img) => ({
-              url: img.url ?? "",
-              name: img.name ?? "",
-              altName: img.altName ?? "",
-              facilityCode: img.facilityCode ?? "",
-              uploadDate: toIsoLocalDateTime(img.uploadDate),
-              isUsage: img.isUsage ?? true,
-            }))
-          : [],
-      };
-
-      setFacilityTemplateId(nextForm.facilityTemplateId);
-      setOverview(nextForm.overview);
-      setFacilityItems(nextForm.facilityItems);
-      setCoverUrl(nextForm.coverUrl);
-      setImageItems(nextForm.imageItems);
-
-      initialStateRef.current = {
-        facilityTemplateId: nextForm.facilityTemplateId,
-        schoolId: nextForm.schoolId,
-        overview: nextForm.overview,
-        facilityItems: nextForm.facilityItems,
-        coverUrl: nextForm.coverUrl,
-        imageItems: nextForm.imageItems,
-        snapshot: JSON.stringify({
-          overview: nextForm.overview,
-          facilityItems: nextForm.facilityItems,
-          coverUrl: nextForm.coverUrl,
-          imageItems: nextForm.imageItems,
-        }),
-      };
-    } catch (e) {
-      console.error(e);
-      enqueueSnackbar("Không thể tải cấu hình cơ sở vật chất", { variant: "error" });
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    handleFetch();
-  }, [handleFetch]);
-
-  const handleSave = useCallback(async () => {
-    if (!schoolId) return;
-    if (!validateFacilities()) {
-      enqueueSnackbar("Vui lòng kiểm tra lại dữ liệu cơ sở vật chất", { variant: "error" });
-      return;
-    }
-
-    setSaving(true);
-    try {
-      const payloadItemList = facilityItems.map((it) => ({
-        facilityCode: it.facilityCode,
-        name: it.name,
-        value: String(it.value ?? ""),
-        unit: it.unit,
-        category: it.category,
-      }));
-
-      const payloadImageJsonData = {
-        coverUrl: coverUrl ?? "",
-        itemList: imageItems.map((img) => ({
-          url: img.url,
-          name: img.name ?? "",
-          altName: img.altName ?? "",
-          facilityCode: img.facilityCode ?? "",
-          uploadDate: img.uploadDate ? toIsoLocalDateTime(img.uploadDate) : formatIsoLocalDateTime(new Date()),
-          isUsage: Boolean(img.isUsage),
-        })),
-      };
-
-      const res = await upsertFacilityTemplate({
-        schoolId,
-        id: facilityTemplateId,
-        overview: overview.trim(),
-        itemList: payloadItemList,
-        imageJsonData: payloadImageJsonData,
-      });
-
-      if (res?.status === 200) {
-        enqueueSnackbar("Lưu thành công", { variant: "success" });
-        // Refresh initial snapshot after save
-        const newInitSnapshot = JSON.stringify({
-          overview,
-          facilityItems,
-          coverUrl,
-          imageItems,
-        });
-        initialStateRef.current = {
-          facilityTemplateId,
-          schoolId,
-          overview,
-          facilityItems,
-          coverUrl,
-          imageItems,
-          snapshot: newInitSnapshot,
-        };
-        navigate("/school/facility-config");
-      } else {
-        enqueueSnackbar(res?.data?.message || "Đã có lỗi xảy ra", { variant: "error" });
-      }
-    } catch (e) {
-      console.error(e);
-      enqueueSnackbar("Đã có lỗi xảy ra", { variant: "error" });
-    } finally {
-      setSaving(false);
-    }
-  }, [coverUrl, facilityItems, facilityTemplateId, imageItems, navigate, overview, schoolId, validateFacilities]);
-
-  const handleCoverUploaded = useCallback((results) => {
-    const first = results?.[0];
-    if (!first?.url) return;
-    setCoverUrl(first.url);
-    enqueueSnackbar("Tải ảnh cover lên thành công", { variant: "success" });
-  }, []);
-
-  const handleFacilityImagesUploaded = useCallback((facility) => (results) => {
-    const normalizedCode = normalizeFacilityCode(facility?.facilityCode);
-    if (!normalizedCode) {
-      enqueueSnackbar("Vui lòng nhập mã cơ sở vật chất trước khi tải ảnh", { variant: "warning" });
-      return;
-    }
-
-    const nowIso = formatIsoLocalDateTime(new Date());
-    const nextImages = (results || [])
-      .filter((r) => r?.url)
-      .map((r) => ({
-        url: r.url,
-        name: facility.name ?? "",
-        altName: facility.name ?? "",
-        facilityCode: facility.facilityCode ?? "",
-        uploadDate: nowIso,
-        isUsage: true,
-      }));
-
-    if (nextImages.length === 0) return;
-
-    setImageItems((prev) => [...prev, ...nextImages]);
-    enqueueSnackbar(`Đã tải ${nextImages.length} ảnh lên thành công`, { variant: "success" });
-  }, []);
+      const nowIso = formatIsoLocalDateTime(new Date());
+      const nextImages = (results || [])
+        .filter((r) => r?.url)
+        .map((r) => ({
+          url: r.url,
+          name: facility.name ?? "",
+          altName: facility.name ?? "",
+          facilityCode: facility.facilityCode ?? "",
+          uploadDate: nowIso,
+          isUsage: true,
+        }));
+      if (nextImages.length === 0) return;
+      setImageItems((list) => [...list, ...nextImages]);
+      enqueueSnackbar(`Đã tải ${nextImages.length} ảnh lên thành công`, {variant: "success"});
+    },
+    [setImageItems]
+  );
 
   const handleOpenImagePreview = useCallback((url) => {
     setImagePreviewUrl(url);
@@ -473,111 +392,24 @@ export default function SchoolFacilityConfiguration() {
     return imageItems.find((i) => i.url === imagePreviewUrl) || null;
   }, [imageItems, imagePreviewUrl]);
 
-  const updatePreviewField = useCallback((field, value) => {
-    if (!imagePreviewItem) return;
-    const codeUrl = imagePreviewItem.url;
-    setImageItems((prev) =>
-      prev.map((img) => (img.url === codeUrl ? {...img, [field]: value} : img))
-    );
-  }, [imagePreviewItem]);
-
-  const previewFacilitiesByCategory = useMemo(() => {
-    const grouped = {};
-    facilityItems.forEach((item) => {
-      const key = item.category || "Chưa phân loại";
-      grouped[key] = grouped[key] || [];
-      grouped[key].push(item);
-    });
-    return grouped;
-  }, [facilityItems]);
-
-  const usedImageItemsByFacilityCode = useMemo(() => {
-    const map = {};
-    imageItems
-      .filter((i) => i.isUsage && i.url)
-      .forEach((img) => {
-        const key = normalizeFacilityCode(img.facilityCode);
-        if (!key) return;
-        map[key] = map[key] || [];
-        map[key].push(img);
-      });
-    return map;
-  }, [imageItems]);
-
-  const usedImageItemsByName = useMemo(() => {
-    const map = {};
-    imageItems
-      .filter((i) => i.isUsage && i.url)
-      .forEach((img) => {
-        const key = (img.name || "").trim().toLowerCase();
-        if (!key) return;
-        map[key] = map[key] || [];
-        map[key].push(img);
-      });
-    return map;
-  }, [imageItems]);
+  const updatePreviewField = useCallback(
+    (field, val) => {
+      if (!imagePreviewItem) return;
+      const codeUrl = imagePreviewItem.url;
+      setImageItems((list) => list.map((img) => (img.url === codeUrl ? {...img, [field]: val} : img)));
+    },
+    [imagePreviewItem, setImageItems]
+  );
 
   return (
-    <Box sx={{width: "100%", display: "flex", flexDirection: "column", gap: 3, pb: 10}}>
-      {/* Header with gradient */}
-      <Box
-        sx={{
-          background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
-          borderRadius: 3,
-          p: 3,
-          color: "white",
-          boxShadow: "0 8px 32px rgba(13, 100, 222, 0.25)",
-        }}
-      >
-        <Button
-          startIcon={<ArrowBackIcon/>}
-          onClick={() => navigate("/school/facility-config")}
-          sx={{
-            color: "#fff",
-            textTransform: "none",
-            mb: 1,
-            "&:hover": {bgcolor: "rgba(255,255,255,0.12)"},
-          }}
-        >
-          Quay lại xem trước
-        </Button>
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: {xs: "column", sm: "row"},
-            alignItems: {xs: "stretch", sm: "center"},
-            justifyContent: "flex-start",
-            gap: 2,
-          }}
-        >
-          <Box>
-            <Typography
-              variant="h4"
-              sx={{
-                fontWeight: 700,
-                letterSpacing: "-0.02em",
-                textShadow: "0 1px 2px rgba(0,0,0,0.1)",
-              }}
-            >
-              Cấu hình Cơ sở vật chất
-            </Typography>
-            <Typography variant="body2" sx={{mt: 0.5, opacity: 0.95}}>
-              Quản lý overview, danh sách cơ sở vật chất và thư viện hình ảnh hiển thị.
-            </Typography>
-          </Box>
-        </Box>
-      </Box>
-
-      {/* Section 1: Facility Overview */}
+    <Box sx={{width: "100%", display: "flex", flexDirection: "column", gap: 3, pb: 1}}>
+      {/* Section 1: chỉ tổng quan mô tả */}
       <Card sx={{borderRadius: "12px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)", border: "1px solid rgba(226,232,240,1)"}}>
         <CardContent sx={{p: 3}}>
-          <Typography sx={{fontWeight: 900, color: "#0f172a", mb: 1.25, fontSize: 18}}>
-            Tổng quan cơ sở vật chất
-          </Typography>
-
+          <Typography sx={{fontWeight: 900, color: "#0f172a", mb: 1.25, fontSize: 18}}>Tổng quan cơ sở vật chất</Typography>
           {loading ? (
             <Stack spacing={1.5}>
-              <Skeleton variant="rounded" height={120}/>
+              <Skeleton variant="rounded" height={120} sx={{borderRadius: "12px"}}/>
               <Skeleton variant="text" width="35%"/>
             </Stack>
           ) : (
@@ -591,9 +423,9 @@ export default function SchoolFacilityConfiguration() {
                 inputProps={{maxLength: MAX_OVERVIEW_CHARS}}
                 fullWidth
                 variant="outlined"
+                disabled={formLocked}
               />
               <Box sx={{display: "flex", justifyContent: "space-between", mt: 1}}>
-                
                 <Typography variant="caption" sx={{color: overview.length >= MAX_OVERVIEW_CHARS ? "#ef4444" : "#94a3b8"}}>
                   {overview.length}/{MAX_OVERVIEW_CHARS}
                 </Typography>
@@ -603,18 +435,16 @@ export default function SchoolFacilityConfiguration() {
         </CardContent>
       </Card>
 
-      {/* Section 2: Facility List */}
+      {/* Section 2: danh sách + ảnh bìa + lọc + từng mục */}
       <Card sx={{borderRadius: "12px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)", border: "1px solid rgba(226,232,240,1)"}}>
         <CardContent sx={{p: 3}}>
           <Box sx={{display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, mb: 2}}>
-            <Typography sx={{fontWeight: 900, color: "#0f172a", fontSize: 18}}>
-              Danh sách cơ sở vật chất
-            </Typography>
+            <Typography sx={{fontWeight: 900, color: "#0f172a", fontSize: 18}}>Danh sách cơ sở vật chất</Typography>
             <Button
               variant="contained"
               startIcon={<AddIcon/>}
               onClick={handleAddFacility}
-              disabled={loading || saving}
+              disabled={formLocked}
               sx={{
                 borderRadius: "12px",
                 textTransform: "none",
@@ -631,7 +461,7 @@ export default function SchoolFacilityConfiguration() {
             Ảnh bìa
           </Typography>
           {loading ? (
-            <Skeleton variant="rounded" height={180}/>
+            <Skeleton variant="rounded" height={180} sx={{borderRadius: "12px", mb: 2.5}}/>
           ) : (
             <Box
               sx={{
@@ -645,104 +475,117 @@ export default function SchoolFacilityConfiguration() {
               }}
             >
               <CloudinaryUpload
-                inputId="school-facility-cover-upload"
-                accept="image/*"
-                multiple={false}
-                onSuccess={handleCoverUploaded}
-                onError={(msg) => enqueueSnackbar(msg, { variant: "error" })}
-              >
-                {({inputId, loading: uploadLoading}) => (
-                  <Box
-                    component="label"
-                    htmlFor={inputId}
-                    sx={{
-                      display: "flex",
-                      flexDirection: {xs: "column", sm: "row"},
-                      alignItems: {xs: "stretch", sm: "center"},
-                      justifyContent: "space-between",
-                      gap: 2,
-                      cursor: uploadLoading ? "default" : "pointer",
-                    }}
-                  >
-                    <Box sx={{display: "flex", flexDirection: "column", gap: 0.75}}>
-                      <Typography sx={{fontWeight: 900, color: "#0f172a"}}>
-                        {coverUrl ? "Thay ảnh bìa" : "Kéo thả hoặc bấm để tải lên"}
-                      </Typography>
-                      {coverUrl && (
-                        <Box sx={{display: "flex", gap: 1.25, mt: 0.75, flexWrap: "wrap"}}>
-                          <Button
-                            variant="outlined"
-                            size="small"
-                            disabled={uploadLoading || saving}
-                            sx={{textTransform: "none", borderRadius: "12px"}}
-                          >
-                            {uploadLoading ? "Đang tải lên..." : "Thay ảnh"}
-                          </Button>
-                          <Button
-                            variant="text"
-                            color="error"
-                            size="small"
-                            disabled={saving || uploadLoading}
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              setCoverUrl("");
-                              enqueueSnackbar("Đã xoá cover image", { variant: "info" });
+                  inputId="school-facility-cover-upload"
+                  accept="image/*"
+                  multiple={false}
+                  disabled={formLocked}
+                  onSuccess={handleCoverUploaded}
+                  onError={(msg) => enqueueSnackbar(msg, {variant: "error"})}
+                >
+                  {({inputId, loading: uploadLoading}) => (
+                    <Box
+                      component="label"
+                      htmlFor={inputId}
+                      sx={{
+                        display: "flex",
+                        flexDirection: {xs: "column", sm: "row"},
+                        alignItems: {xs: "stretch", sm: "center"},
+                        justifyContent: "space-between",
+                        gap: 2,
+                        cursor: uploadLoading || formLocked ? "default" : "pointer",
+                      }}
+                    >
+                      <Box sx={{display: "flex", flexDirection: "column", gap: 0.75}}>
+                        <Typography sx={{fontWeight: 900, color: "#0f172a"}}>
+                          {coverUrl ? "Thay ảnh bìa" : "Kéo thả hoặc bấm để tải lên"}
+                        </Typography>
+                        {coverUrl && (
+                          <Box sx={{display: "flex", gap: 0.75, mt: 0.75, flexWrap: "wrap", alignItems: "center"}}>
+                            <IconButton
+                              size="small"
+                              disabled={uploadLoading || formLocked}
+                              aria-label={uploadLoading ? "Đang tải lên" : "Thay ảnh bìa"}
+                              sx={{
+                                border: "1px solid rgba(203,213,225,1)",
+                                borderRadius: "10px",
+                                color: "#2563eb",
+                                "&:hover": {bgcolor: "rgba(37,99,235,0.06)"},
+                              }}
+                            >
+                              {uploadLoading ? (
+                                <CircularProgress color="inherit" size={18}/>
+                              ) : (
+                                <CloudUploadIcon fontSize="small"/>
+                              )}
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              disabled={formLocked || uploadLoading}
+                              aria-label="Xoá ảnh bìa"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setCoverUrl("");
+                                enqueueSnackbar("Đã xoá ảnh bìa", {variant: "info"});
+                              }}
+                              sx={{
+                                border: "1px solid rgba(203,213,225,1)",
+                                borderRadius: "10px",
+                                color: "#dc2626",
+                                "&:hover": {bgcolor: "rgba(220,38,38,0.08)"},
+                              }}
+                            >
+                              <DeleteOutlineIcon fontSize="small"/>
+                            </IconButton>
+                          </Box>
+                        )}
+                      </Box>
+                      <Box sx={{flex: 1, minWidth: 180}}>
+                        {coverUrl ? (
+                          <Box
+                            component="img"
+                            src={coverUrl}
+                            alt="Cover preview"
+                            sx={{
+                              width: "100%",
+                              height: {xs: 180, sm: 150},
+                              objectFit: "cover",
+                              borderRadius: "12px",
+                              border: "1px solid rgba(226,232,240,1)",
                             }}
-                            sx={{textTransform: "none", fontWeight: 800}}
+                          />
+                        ) : (
+                          <Box
+                            sx={{
+                              width: "100%",
+                              height: {xs: 180, sm: 150},
+                              borderRadius: "12px",
+                              border: "1px solid rgba(226,232,240,1)",
+                              bgcolor: "rgba(148,163,184,0.12)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              color: "#94a3b8",
+                              fontWeight: 800,
+                            }}
                           >
-                            Xoá
-                          </Button>
-                        </Box>
-                      )}
+                            Xem trước
+                          </Box>
+                        )}
+                      </Box>
                     </Box>
-                    <Box sx={{flex: 1, minWidth: 180}}>
-                      {coverUrl ? (
-                        <Box
-                          component="img"
-                          src={coverUrl}
-                          alt="Cover preview"
-                          sx={{
-                            width: "100%",
-                            height: {xs: 180, sm: 150},
-                            objectFit: "cover",
-                            borderRadius: "12px",
-                            border: "1px solid rgba(226,232,240,1)",
-                          }}
-                        />
-                      ) : (
-                        <Box
-                          sx={{
-                            width: "100%",
-                            height: {xs: 180, sm: 150},
-                            borderRadius: "12px",
-                            border: "1px solid rgba(226,232,240,1)",
-                            bgcolor: "rgba(148,163,184,0.12)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            color: "#94a3b8",
-                            fontWeight: 800,
-                          }}
-                        >
-                          Xem trước
-                        </Box>
-                      )}
-                    </Box>
-                  </Box>
-                )}
-              </CloudinaryUpload>
+                  )}
+                </CloudinaryUpload>
             </Box>
           )}
 
-          {/* Search & Filter */}
           <Box sx={{display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center", mb: 2}}>
             <TextField
               size="small"
               placeholder="Tìm kiếm cơ sở vật chất..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              disabled={loading || saving}
+              disabled={formLocked}
               sx={{flex: 1, minWidth: 220}}
               InputProps={{
                 startAdornment: (
@@ -752,12 +595,11 @@ export default function SchoolFacilityConfiguration() {
                 ),
               }}
             />
-
             <FormControl size="small" sx={{minWidth: 200}}>
               <Select
                 value={categoriesFilter}
                 onChange={(e) => setCategoriesFilter(e.target.value)}
-                disabled={loading || saving}
+                disabled={formLocked}
                 displayEmpty
                 sx={{borderRadius: "12px"}}
               >
@@ -773,15 +615,15 @@ export default function SchoolFacilityConfiguration() {
 
           {loading ? (
             <Stack spacing={2}>
-              <Skeleton variant="rounded" height={76}/>
-              <Skeleton variant="rounded" height={140}/>
+              <Skeleton variant="rounded" height={76} sx={{borderRadius: "12px"}}/>
+              <Skeleton variant="rounded" height={140} sx={{borderRadius: "12px"}}/>
             </Stack>
           ) : facilityItems.length === 0 ? (
             <Box sx={{py: 5, display: "flex", flexDirection: "column", alignItems: "center", gap: 1}}>
               <PhotoPreviewIcon sx={{fontSize: 44, color: "#cbd5e1"}}/>
               <Typography sx={{fontWeight: 800, color: "#64748b"}}>Chưa có cơ sở vật chất</Typography>
               <Typography variant="body2" sx={{color: "#94a3b8", textAlign: "center"}}>
-                Nhấn "Thêm cơ sở vật chất" để bắt đầu tạo danh sách.
+                Nhấn &quot;Thêm cơ sở vật chất&quot; để bắt đầu tạo danh sách.
               </Typography>
             </Box>
           ) : (
@@ -789,16 +631,12 @@ export default function SchoolFacilityConfiguration() {
               {filteredFacilities.map((item) => {
                 const isExpanded = expandedFacilityId === item.id;
                 const errors = facilityErrorsById[item.id] || {};
-
                 return (
                   <Box
                     key={item.id}
                     ref={(el) => {
-                      if (el) {
-                        facilityRowRefs.current[item.id] = el;
-                      } else {
-                        delete facilityRowRefs.current[item.id];
-                      }
+                      if (el) facilityRowRefs.current[item.id] = el;
+                      else delete facilityRowRefs.current[item.id];
                     }}
                     sx={{
                       border: "1px solid rgba(226,232,240,1)",
@@ -806,7 +644,7 @@ export default function SchoolFacilityConfiguration() {
                       overflow: "hidden",
                       bgcolor: isExpanded ? "rgba(37, 99, 235, 0.04)" : "white",
                       transition: "background-color 180ms ease, box-shadow 180ms ease",
-                      "&:hover": { boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)" },
+                      "&:hover": {boxShadow: "0 10px 24px rgba(15, 23, 42, 0.06)"},
                     }}
                   >
                     <Box
@@ -838,7 +676,6 @@ export default function SchoolFacilityConfiguration() {
                           </Typography>
                         </Box>
                       </Box>
-
                       <Box sx={{display: "flex", gap: 0.5, alignItems: "center"}}>
                         <IconButton
                           size="small"
@@ -857,18 +694,14 @@ export default function SchoolFacilityConfiguration() {
                             e.stopPropagation();
                             openDeleteFacilityConfirm(item.id);
                           }}
-                          disabled={saving}
-                          sx={{
-                            color: "#64748b",
-                            "&:hover": {color: "#dc2626"},
-                          }}
+                          disabled={formLocked}
+                          sx={{color: "#64748b", "&:hover": {color: "#dc2626"}}}
                           title="Xoá"
                         >
                           <DeleteOutlineIcon fontSize="small"/>
                         </IconButton>
                       </Box>
                     </Box>
-
                     <Collapse in={isExpanded} timeout={220} unmountOnExit>
                       <Box sx={{p: 2}}>
                         <Stack spacing={1.5}>
@@ -881,7 +714,7 @@ export default function SchoolFacilityConfiguration() {
                             required
                             fullWidth
                             size="small"
-                            placeholder="Ví dụ: LAB_PHYSICS"
+                            disabled={formLocked}
                           />
                           <TextField
                             label="Tên"
@@ -892,12 +725,13 @@ export default function SchoolFacilityConfiguration() {
                             required
                             fullWidth
                             size="small"
+                            disabled={formLocked}
                           />
-
                           <Autocomplete
                             freeSolo
                             options={facilityCategories}
                             value={item.category || ""}
+                            disabled={formLocked}
                             onChange={(e, newValue) => handleUpdateFacilityField(item.id, "category", newValue || "")}
                             onInputChange={(e, newInputValue, reason) => {
                               if (reason === "input" || reason === "clear") {
@@ -905,16 +739,9 @@ export default function SchoolFacilityConfiguration() {
                               }
                             }}
                             renderInput={(params) => (
-                              <TextField
-                                {...params}
-                                label="Danh mục"
-                                error={Boolean(errors.category)}
-                                helperText={errors.category}
-                                size="small"
-                              />
+                              <TextField {...params} label="Danh mục" error={Boolean(errors.category)} helperText={errors.category} size="small"/>
                             )}
                           />
-
                           <Stack direction={{xs: "column", sm: "row"}} spacing={1.5}>
                             <TextField
                               label="Số lượng"
@@ -926,6 +753,7 @@ export default function SchoolFacilityConfiguration() {
                               type="number"
                               size="small"
                               fullWidth
+                              disabled={formLocked}
                             />
                             <TextField
                               label="Đơn vị"
@@ -936,9 +764,9 @@ export default function SchoolFacilityConfiguration() {
                               required
                               size="small"
                               fullWidth
+                              disabled={formLocked}
                             />
                           </Stack>
-
                           <Divider/>
                           <Box sx={{display: "flex", justifyContent: "space-between", gap: 2}}>
                             <Typography variant="caption" sx={{color: "#94a3b8"}}>
@@ -948,17 +776,15 @@ export default function SchoolFacilityConfiguration() {
                               Nhấn vào dòng để thu gọn
                             </Typography>
                           </Box>
-
                           <Divider/>
                           <Box>
                             <Box sx={{display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1.5, mb: 1}}>
-                              <Typography sx={{fontWeight: 800, color: "#0f172a", fontSize: 14}}>
-                                Ảnh minh họa cho mục này
-                              </Typography>
+                              <Typography sx={{fontWeight: 800, color: "#0f172a", fontSize: 14}}>Ảnh minh họa cho mục này</Typography>
                               <CloudinaryUpload
                                 inputId={`school-facility-images-${item.id}`}
                                 accept="image/*"
                                 multiple
+                                disabled={formLocked}
                                 onSuccess={handleFacilityImagesUploaded(item)}
                                 onError={(msg) => enqueueSnackbar(msg, {variant: "error"})}
                               >
@@ -969,7 +795,7 @@ export default function SchoolFacilityConfiguration() {
                                     variant="outlined"
                                     size="small"
                                     startIcon={<CloudUploadIcon/>}
-                                    disabled={saving || uploadLoading || !normalizeFacilityCode(item.facilityCode)}
+                                    disabled={formLocked || uploadLoading || !normalizeFacilityCode(item.facilityCode)}
                                     sx={{textTransform: "none", borderRadius: "12px", fontWeight: 700}}
                                   >
                                     {uploadLoading ? "Đang tải..." : "Tải ảnh"}
@@ -977,7 +803,6 @@ export default function SchoolFacilityConfiguration() {
                                 )}
                               </CloudinaryUpload>
                             </Box>
-
                             {!normalizeFacilityCode(item.facilityCode) ? (
                               <Typography variant="caption" sx={{color: "#f59e0b"}}>
                                 Cần nhập Mã cơ sở vật chất trước khi tải ảnh cho mục này.
@@ -987,10 +812,12 @@ export default function SchoolFacilityConfiguration() {
                               const normalizedName = (item.name || "").trim().toLowerCase();
                               const itemImages = imageItems.filter((img) => {
                                 const sameCode = normalizeFacilityCode(img.facilityCode) === normalizedCode;
-                                const fallbackByName = !normalizeFacilityCode(img.facilityCode) && normalizedName && (img.name || "").trim().toLowerCase() === normalizedName;
+                                const fallbackByName =
+                                  !normalizeFacilityCode(img.facilityCode) &&
+                                  normalizedName &&
+                                  (img.name || "").trim().toLowerCase() === normalizedName;
                                 return sameCode || fallbackByName;
                               });
-
                               if (itemImages.length === 0) {
                                 return (
                                   <Typography variant="caption" sx={{color: "#94a3b8"}}>
@@ -998,13 +825,13 @@ export default function SchoolFacilityConfiguration() {
                                   </Typography>
                                 );
                               }
-
                               return (
                                 <Box sx={{display: "grid", gridTemplateColumns: {xs: "repeat(2, 1fr)", sm: "repeat(3, 1fr)"}, gap: 1}}>
                                   {itemImages.map((img) => (
                                     <Box key={`${item.id}-${img.url}`} sx={{...imageCardSx(), position: "relative"}}>
                                       <IconButton
                                         size="small"
+                                        disabled={formLocked}
                                         onClick={() => openDeleteImageConfirm(img.url)}
                                         sx={{position: "absolute", top: 4, right: 4, bgcolor: "rgba(255,255,255,0.9)", zIndex: 2}}
                                       >
@@ -1013,7 +840,7 @@ export default function SchoolFacilityConfiguration() {
                                       <Box
                                         component="img"
                                         src={img.url}
-                                        alt={img.altName || img.name || "Ảnh cơ sở vật chất"}
+                                        alt={img.altName || img.name || "Ảnh"}
                                         onClick={() => handleOpenImagePreview(img.url)}
                                         sx={{width: "100%", height: 100, objectFit: "cover", cursor: "pointer"}}
                                       />
@@ -1032,66 +859,35 @@ export default function SchoolFacilityConfiguration() {
             </Stack>
           )}
 
-          <Box
-            sx={{
-              mt: 3,
-              background: "rgba(255,255,255,0.92)",
-              py: 1.75,
-              px: 0,
-            }}
-          >
-            <Stack direction="row" justifyContent="flex-end" alignItems="center" gap={1.5}>
-              <Button
-                variant="outlined"
-                onClick={resetToInitial}
-                sx={{borderRadius: "12px", textTransform: "none", fontWeight: 800}}
-              >
-                Huỷ
-              </Button>
-              <Button
-                variant="contained"
-                onClick={handleSave}
-                sx={{
-                  borderRadius: "12px",
-                  textTransform: "none",
-                  fontWeight: 900,
-                  px: 3,
-                  boxShadow: "0 12px 26px rgba(37, 99, 235, 0.24)",
-                }}
-              >
-                {saving ? <CircularProgress size={18} sx={{color: "white", mr: 1}}/> : null}
-                Lưu
-              </Button>
-            </Stack>
-          </Box>
         </CardContent>
       </Card>
 
-      {/* Confirm: delete facility */}
       <ConfirmDialog
         open={confirmDeleteFacilityOpen}
         title="Xoá cơ sở vật chất?"
-        description="Thao tác này sẽ xoá mục cơ sở vật chất khỏi mẫu cấu hình."
+        description="Thao tác này sẽ xoá mục khỏi danh sách."
         cancelText="Huỷ"
         confirmText="Xoá"
         loading={saving}
-        onCancel={handleCancelDeleteFacility}
+        onCancel={() => {
+          setConfirmDeleteFacilityOpen(false);
+          setFacilityIdToDelete(null);
+        }}
         onConfirm={handleDeleteFacility}
       />
-
-      {/* Confirm: delete image */}
       <ConfirmDialog
         open={confirmDeleteImageOpen}
         title="Xoá ảnh?"
-        description="Thao tác này sẽ xoá ảnh khỏi thư viện của mẫu cấu hình."
+        description="Ảnh sẽ bị xoá khỏi thư viện."
         cancelText="Huỷ"
         confirmText="Xoá"
         loading={saving}
-        onCancel={handleCancelDeleteImage}
+        onCancel={() => {
+          setConfirmDeleteImageOpen(false);
+          setImageUrlToDelete(null);
+        }}
         onConfirm={handleDeleteImage}
       />
-
-      {/* Image Preview Modal */}
       <Dialog open={imagePreviewOpen} onClose={() => setImagePreviewOpen(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2}}>
           <Typography sx={{fontWeight: 900, color: "#0f172a"}}>Xem trước ảnh</Typography>
@@ -1114,6 +910,7 @@ export default function SchoolFacilityConfiguration() {
                 onChange={(e) => updatePreviewField("name", e.target.value)}
                 fullWidth
                 size="small"
+                disabled={formLocked}
               />
               <TextField
                 label="Tên thay thế (EN)"
@@ -1121,20 +918,26 @@ export default function SchoolFacilityConfiguration() {
                 onChange={(e) => updatePreviewField("altName", e.target.value)}
                 fullWidth
                 size="small"
+                disabled={formLocked}
               />
               <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
-                <Typography variant="body2" sx={{fontWeight: 800, color: "#0f172a"}}>Dùng để hiển thị</Typography>
+                <Typography variant="body2" sx={{fontWeight: 800, color: "#0f172a"}}>
+                  Dùng để hiển thị
+                </Typography>
                 <Switch
                   checked={Boolean(imagePreviewItem.isUsage)}
+                  disabled={formLocked}
                   onChange={(e) => updatePreviewField("isUsage", e.target.checked)}
                 />
               </Stack>
               <Typography variant="caption" sx={{color: "#94a3b8"}}>
-                Ngày tải lên: {formatViDate(imagePreviewItem.uploadDate)}
+                Ngày tải: {formatViDate(imagePreviewItem.uploadDate)}
               </Typography>
             </Stack>
           ) : (
-            <Typography variant="body2" sx={{color: "#94a3b8"}}>Không có dữ liệu xem trước.</Typography>
+            <Typography variant="body2" sx={{color: "#94a3b8"}}>
+              Không có dữ liệu.
+            </Typography>
           )}
         </DialogContent>
         <DialogActions sx={{p: 2.5}}>
@@ -1145,5 +948,17 @@ export default function SchoolFacilityConfiguration() {
       </Dialog>
     </Box>
   );
-}
+});
 
+/** @deprecated Dùng ref tới SchoolFacilityOverview; giữ route cũ */
+export default function SchoolFacilityConfiguration() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    navigate("/school/facility-config?tab=facility", {replace: true});
+  }, [navigate]);
+  return (
+    <Box sx={{display: "flex", justifyContent: "center", p: 4}}>
+      <CircularProgress/>
+    </Box>
+  );
+}

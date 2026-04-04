@@ -1,64 +1,68 @@
 import axiosClient from "../configs/APIConfig.jsx";
 
-/**
- * GET facility template by schoolId
- * @param {{ schoolId: number | string }}
- */
-export const getFacilityTemplate = async ({ schoolId }) => {
-  try {
-    const response = await axiosClient.get("/school/config/facility/template", {
-      params: { schoolId: Number(schoolId) || schoolId },
-    });
-    return response || null;
-  } catch (error) {
-    // Khi BE trả 404 (chưa có cấu hình), FE coi như "chưa có data"
-    // để không hiển thị lỗi cho người dùng.
-    if (error?.response?.status === 404) {
-      return { status: 404, data: { body: null } };
+/** Parse `message` + `body` envelope từ GET config (full hoặc key). */
+export function parseSchoolConfigResponseBody(res) {
+  let body = res?.data?.body ?? res?.data?.data?.body ?? res?.body ?? {};
+  if (typeof body === "string") {
+    try {
+      body = JSON.parse(body);
+    } catch {
+      body = {};
     }
-    throw error;
   }
+  return body && typeof body === "object" ? body : {};
+}
+
+/**
+ * GET /school/config/key?k=admissionSettingsData trả body dạng:
+ * `{ "admissionSettingsData": { ... } }` (một key cấp top).
+ * Hàm này trả object đưa vào `normalizeFromApi` cùng cách với GET full config.
+ */
+export function schoolConfigKeyedBodyForNormalize(res, k) {
+  const raw = parseSchoolConfigResponseBody(res);
+  if (k == null || String(k).trim() === "") return raw;
+  if (raw[k] != null && typeof raw[k] === "object") {
+    return {[k]: raw[k]};
+  }
+  return raw;
+}
+
+/** Query keys `k` for GET /api/v1/school/config/key?k= */
+export const SCHOOL_CONFIG_KEY = {
+  ADMISSION_SETTINGS_DATA: "admissionSettingsData",
+  DOCUMENT_REQUIREMENTS_DATA: "documentRequirementsData",
+  FINANCE_POLICY_DATA: "financePolicyData",
+  OPERATION_SETTINGS_DATA: "operationSettingsData",
+  FACILITY_DATA: "facilityData",
+  QUOTA_CONFIG_DATA: "quotaConfigData",
 };
 
 /**
- * POST upsert facility template by schoolId
- * - If `id` is provided -> update
- * - Otherwise -> create
- * @param {{
- *   schoolId: number | string,
- *   id?: number | string | null,
- *   overview: string,
- *   itemList: Array<{
- *     facilityCode: string,
- *     name: string,
- *     value: string | number,
- *     unit: string,
- *     category: string
- *   }>,
- *   imageJsonData: {
- *     coverUrl: string,
- *     itemList: Array<{
- *       url: string,
- *       name: string,
- *       altName: string,
- *       uploadDate: string,
- *       isUsage: boolean
- *     }>
- *   }
- * }}
+ * GET full school configuration
+ * @param {number | string} schoolId
  */
-export const upsertFacilityTemplate = async ({ schoolId, id, overview, itemList, imageJsonData }) => {
-  const payload = {
-    ...(id != null && id !== "" ? { id: Number(id) || id } : {}),
-    overview: overview ?? "",
-    itemList: Array.isArray(itemList) ? itemList : [],
-    imageJsonData: imageJsonData ?? { coverUrl: "", itemList: [] },
-  };
-
-  const response = await axiosClient.post("/school/config/facility/template", payload, {
-    params: { schoolId: Number(schoolId) || schoolId },
-  });
-
-  return response || null;
+export const getSchoolConfig = async (schoolId) => {
+  const response = await axiosClient.get(`/school/config/${Number(schoolId) || schoolId}`);
+  return response;
 };
 
+/**
+ * GET partial config by key (catalog / section)
+ * @param {string} k — e.g. admissionSettingsData, facilityData (see SCHOOL_CONFIG_KEY)
+ */
+export const getSchoolConfigByKey = async (k) => {
+  const response = await axiosClient.get("/school/config/key", {
+    params: { k },
+  });
+  return response;
+};
+
+/**
+ * PUT update school configuration (partial or full body)
+ * @param {number | string} schoolId
+ * @param {Record<string, unknown>} payload — e.g. { admissionSettingsData: {...}, facilityData: {...} }
+ */
+export const updateSchoolConfig = async (schoolId, payload) => {
+  const response = await axiosClient.put(`/school/config/${Number(schoolId) || schoolId}`, payload);
+  return response;
+};
