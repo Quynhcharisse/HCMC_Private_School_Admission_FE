@@ -38,6 +38,7 @@ import SchoolIcon from "@mui/icons-material/School";
 import { enqueueSnackbar } from "notistack";
 import { extractCampusListBody, listCampuses } from "../../../services/CampusService.jsx";
 import { getProgramList } from "../../../services/ProgramService.jsx";
+import { useSchool } from "../../../contexts/SchoolContext.jsx";
 import {
     getCampaignOfferingsByCampus,
     createCampaignOffering,
@@ -179,6 +180,9 @@ export default function CampaignOfferingsSection({
     campaignPaused,
     canMutate,
 }) {
+    const { isPrimaryBranch, loading: schoolCtxLoading } = useSchool();
+    const useCampusOfferingApi = !isPrimaryBranch;
+
     const [campuses, setCampuses] = useState([]);
     const [programs, setPrograms] = useState([]);
     const [campusesLoading, setCampusesLoading] = useState(true);
@@ -262,8 +266,10 @@ export default function CampaignOfferingsSection({
     }, []);
 
     useEffect(() => {
+        if (schoolCtxLoading) return;
         if (!campusFilter || !campaignId) {
             setRawItems([]);
+            setLoading(false);
             return;
         }
         let cancelled = false;
@@ -274,10 +280,14 @@ export default function CampaignOfferingsSection({
             const batchSize = 50;
             try {
                 while (!cancelled) {
-                    const res = await getCampaignOfferingsByCampus(parseInt(campusFilter, 10), {
-                        page: p,
-                        pageSize: batchSize,
-                    });
+                    const res = await getCampaignOfferingsByCampus(
+                        parseInt(campusFilter, 10),
+                        {
+                            page: p,
+                            pageSize: batchSize,
+                        },
+                        { useCampusOfferingApi }
+                    );
                     const body = res?.data?.body ?? res?.data;
                     const chunk = Array.isArray(body) ? body : body?.items ?? [];
                     const forCampaign = chunk.filter(
@@ -308,7 +318,7 @@ export default function CampaignOfferingsSection({
         return () => {
             cancelled = true;
         };
-    }, [campusFilter, campaignId, listNonce]);
+    }, [campusFilter, campaignId, listNonce, schoolCtxLoading, useCampusOfferingApi]);
 
     const filteredItems = useMemo(() => {
         let list = rawItems;
@@ -418,17 +428,20 @@ export default function CampaignOfferingsSection({
         setSubmitLoading(true);
         try {
             if (editingRow) {
-                const res = await updateCampaignOffering({
-                    id: editingRow.id,
-                    admissionCampaignId: campaignId,
-                    campusId: Number(formValues.campusId),
-                    programId: Number(formValues.programId),
-                    quota: Number(formValues.quota) || 0,
-                    learningMode: formValues.learningMode || "DAY_SCHOOL",
-                    tuitionFee: Number(formValues.tuitionFee) || 0,
-                    openDate: formValues.openDate || "",
-                    closeDate: formValues.closeDate || "",
-                });
+                const res = await updateCampaignOffering(
+                    {
+                        id: editingRow.id,
+                        admissionCampaignId: campaignId,
+                        campusId: Number(formValues.campusId),
+                        programId: Number(formValues.programId),
+                        quota: Number(formValues.quota) || 0,
+                        learningMode: formValues.learningMode || "DAY_SCHOOL",
+                        tuitionFee: Number(formValues.tuitionFee) || 0,
+                        openDate: formValues.openDate || "",
+                        closeDate: formValues.closeDate || "",
+                    },
+                    { useCampusOfferingApi }
+                );
                 if (res?.status === 200 || res?.data?.message) {
                     enqueueSnackbar(res?.data?.message || "Cập nhật chỉ tiêu thành công", {
                         variant: "success",
@@ -439,16 +452,19 @@ export default function CampaignOfferingsSection({
                     enqueueSnackbar(res?.data?.message || "Cập nhật chỉ tiêu thất bại", { variant: "error" });
                 }
             } else {
-                const res = await createCampaignOffering({
-                    admissionCampaignId: campaignId,
-                    campusId: Number(formValues.campusId),
-                    programId: Number(formValues.programId),
-                    quota: Number(formValues.quota) || 0,
-                    learningMode: formValues.learningMode || "DAY_SCHOOL",
-                    priceAdjustmentPercentage: Number(formValues.priceAdjustmentPercentage) || 0,
-                    openDate: formValues.openDate || "",
-                    closeDate: formValues.closeDate || "",
-                });
+                const res = await createCampaignOffering(
+                    {
+                        admissionCampaignId: campaignId,
+                        campusId: Number(formValues.campusId),
+                        programId: Number(formValues.programId),
+                        quota: Number(formValues.quota) || 0,
+                        learningMode: formValues.learningMode || "DAY_SCHOOL",
+                        priceAdjustmentPercentage: Number(formValues.priceAdjustmentPercentage) || 0,
+                        openDate: formValues.openDate || "",
+                        closeDate: formValues.closeDate || "",
+                    },
+                    { useCampusOfferingApi }
+                );
                 if (res?.status === 200 || res?.data?.message != null) {
                     enqueueSnackbar(res?.data?.message || "Tạo chỉ tiêu thành công", { variant: "success" });
                     setModalOpen(false);
@@ -501,13 +517,13 @@ export default function CampaignOfferingsSection({
         setConfirmActionLoading(true);
         try {
             if (confirmActionType === "toggle") {
-                await updateCampusOfferingStatus(confirmRow.id, confirmTargetStatus);
+                await updateCampusOfferingStatus(confirmRow.id, confirmTargetStatus, { useCampusOfferingApi });
                 enqueueSnackbar(
                     confirmTargetStatus === "PAUSED" ? "Đã tạm dừng nhận hồ sơ." : "Đã mở lại nhận hồ sơ.",
                     { variant: "success" }
                 );
             } else if (confirmActionType === "close") {
-                await closeCampusOffering(confirmRow.id);
+                await closeCampusOffering(confirmRow.id, { useCampusOfferingApi });
                 enqueueSnackbar("Đã đóng chương trình.", { variant: "success" });
             }
             setConfirmActionOpen(false);

@@ -38,9 +38,12 @@ import {useSearchParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 
 import {extractCampusListBody, listCampuses} from "../../../services/CampusService.jsx";
+import {useSchool} from "../../../contexts/SchoolContext.jsx";
 import {
+  getCampusConfig,
   getSchoolConfig,
   parseSchoolConfigResponseBody,
+  updateCampusConfig,
   updateSchoolConfig,
 } from "../../../services/SchoolFacilityService.jsx";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
@@ -54,6 +57,10 @@ const TAB_LABELS = [
   "Cài đặt Vận hành",
   "Cài đặt Cơ sở vật chất",
 ];
+
+/** Campus phụ: chỉ vận hành + CSVC (API GET/PUT /campus/{id}/config) */
+const BRANCH_TAB_SLUGS = ["operation", "facility"];
+const BRANCH_TAB_LABELS = ["Cài đặt Vận hành", "Cài đặt Cơ sở vật chất"];
 
 const METHOD_CATALOG = [
   {code: "ACADEMIC_RECORD", description: "Dựa trên điểm 5 học kỳ", displayName: "Xét học bạ"},
@@ -498,6 +505,190 @@ function pickSchoolIdFromCampuses(campuses) {
   return null;
 }
 
+function parseBranchFacilityJson(raw) {
+  if (raw == null) return null;
+  if (typeof raw === "object") return raw;
+  if (typeof raw === "string") {
+    const t = raw.trim();
+    if (!t) return null;
+    try {
+      return JSON.parse(t);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function policyFromCampusCurrent(cur) {
+  if (!cur || typeof cur !== "object") return "";
+  if (cur.policyDetail != null && String(cur.policyDetail).trim() !== "") return String(cur.policyDetail);
+  if (cur.policyDetailRendered != null) return String(cur.policyDetailRendered);
+  return "";
+}
+
+/**
+ * Campus phụ: CSVC + ảnh bìa lấy từ `campusCurrent.facilityJson` (campusCurrent).
+ * `hqDefault` là mặc định trụ sở — chỉ dùng khi chưa có `facilityJson`.
+ * Ảnh bìa campus: BE trả `facilityJson.imageData.cover` (khác HQ dùng `coverUrl`).
+ */
+function normalizeFromCampusConfigApi(body) {
+  const d = defaultConfig();
+  const hq = body && typeof body === "object" ? body.hqDefault || {} : {};
+  const hqFac = hq.facility && typeof hq.facility === "object" ? hq.facility : {};
+  const hqOp = hq.operation && typeof hq.operation === "object" ? hq.operation : {};
+  const cur = body && typeof body === "object" ? body.campusCurrent || {} : {};
+  const fj = parseBranchFacilityJson(cur.facilityJson);
+
+  const hqImg = hqFac.imageData && typeof hqFac.imageData === "object" ? hqFac.imageData : {};
+
+  /** Ảnh bìa từ facilityJson campus (ưu tiên `imageData.cover` theo contract GET) */
+  function coverUrlFromFacilityJson(facilityJson) {
+    if (!facilityJson || typeof facilityJson !== "object") return "";
+    const img = facilityJson.imageData && typeof facilityJson.imageData === "object" ? facilityJson.imageData : {};
+    if (img.cover != null && String(img.cover).trim() !== "") return String(img.cover);
+    if (img.coverUrl != null && String(img.coverUrl).trim() !== "") return String(img.coverUrl);
+    const ij = facilityJson.imageJsonData && typeof facilityJson.imageJsonData === "object" ? facilityJson.imageJsonData : {};
+    if (ij.cover != null && String(ij.cover).trim() !== "") return String(ij.cover);
+    return "";
+  }
+
+  let mergedFacility;
+  if (fj && typeof fj === "object") {
+    const fjImg = fj.imageData && typeof fj.imageData === "object" ? fj.imageData : {};
+    mergedFacility = {
+      itemList: Array.isArray(fj.itemList) ? fj.itemList : [],
+      overview: fj.overview != null ? String(fj.overview) : "",
+      imageData: {
+        coverUrl: coverUrlFromFacilityJson(fj),
+        imageList: Array.isArray(fjImg.imageList) ? fjImg.imageList : [],
+      },
+    };
+  } else {
+    mergedFacility = {
+      itemList: Array.isArray(hqFac.itemList) ? hqFac.itemList : [],
+      overview: hqFac.overview != null ? String(hqFac.overview) : "",
+      imageData: {
+        coverUrl: hqImg.coverUrl != null ? String(hqImg.coverUrl) : "",
+        imageList: Array.isArray(hqImg.imageList) ? hqImg.imageList : [],
+      },
+    };
+  }
+
+  const wc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
+  const mergedOp = {
+    hotline: hqOp.hotline != null ? String(hqOp.hotline) : "",
+    emailSupport: hqOp.emailSupport != null ? String(hqOp.emailSupport) : "",
+    workingConfig: {
+      note: wc.note != null ? String(wc.note) : "",
+      workShifts: Array.isArray(wc.workShifts) ? wc.workShifts : [],
+      regularDays: Array.isArray(wc.regularDays) ? wc.regularDays : d.operationSettingsData.workingConfig.regularDays,
+      weekendDays: Array.isArray(wc.weekendDays) ? wc.weekendDays : d.operationSettingsData.workingConfig.weekendDays,
+      isOpenSunday: Boolean(wc.isOpenSunday),
+    },
+    admissionSteps: Array.isArray(hqOp.admissionSteps) ? hqOp.admissionSteps.map((s) => ({...s})) : [],
+  };
+
+  if (fj && typeof fj === "object") {
+    if (fj.hotline != null) mergedOp.hotline = String(fj.hotline);
+    if (fj.emailSupport != null) mergedOp.emailSupport = String(fj.emailSupport);
+    if (fj.workingOverride && typeof fj.workingOverride === "object") {
+      const wo = fj.workingOverride;
+      mergedOp.workingConfig = {
+        ...mergedOp.workingConfig,
+        ...(wo.note != null ? {note: String(wo.note)} : {}),
+        ...(typeof wo.isOpenSunday === "boolean" ? {isOpenSunday: wo.isOpenSunday} : {}),
+        ...(Array.isArray(wo.regularDays) ? {regularDays: wo.regularDays} : {}),
+        ...(Array.isArray(wo.weekendDays) ? {weekendDays: wo.weekendDays} : {}),
+        ...(Array.isArray(wo.workShifts) ? {workShifts: wo.workShifts} : {}),
+      };
+    }
+    if (Array.isArray(fj.admissionStepsOverride)) {
+      const steps = [...mergedOp.admissionSteps];
+      fj.admissionStepsOverride.forEach((ov) => {
+        const ord = Number(ov.stepOrder);
+        const idx = steps.findIndex((s) => Number(s.stepOrder) === ord);
+        if (idx >= 0) {
+          steps[idx] = {...steps[idx], ...ov};
+        } else {
+          steps.push({
+            stepName: ov.stepName != null ? String(ov.stepName) : "",
+            stepOrder: ord,
+            description: ov.description != null ? String(ov.description) : "",
+          });
+        }
+      });
+      mergedOp.admissionSteps = steps.sort((a, b) => Number(a.stepOrder) - Number(b.stepOrder));
+    }
+  }
+
+  return {
+    ...d,
+    facilityData: mergedFacility,
+    operationSettingsData: mergedOp,
+  };
+}
+
+function buildBranchCampusConfigPutPayload(config, initial, hqOperation, initialPolicy, policy) {
+  const payload = {};
+  const fac = config.facilityData;
+  const iFac = initial.facilityData;
+  if (JSON.stringify(fac) !== JSON.stringify(iFac)) {
+    payload.overview = fac.overview ?? "";
+    payload.itemList = Array.isArray(fac.itemList)
+      ? fac.itemList.map((it) => ({
+          facilityCode: it.facilityCode != null ? String(it.facilityCode).trim() : "",
+          name: it.name != null ? String(it.name) : "",
+          value: it.value != null ? Number(it.value) || 0 : 0,
+          unit: it.unit != null ? String(it.unit) : "",
+          category: it.category != null ? String(it.category) : "",
+        }))
+      : [];
+    const cover = fac.imageData?.coverUrl ?? "";
+    payload.imageJsonData = {cover: cover || ""};
+  }
+
+  const op = config.operationSettingsData;
+  const iOp = initial.operationSettingsData;
+  const hqOp = hqOperation && typeof hqOperation === "object" ? hqOperation : {};
+  const hqWc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
+
+  if (op.hotline !== iOp.hotline) payload.hotline = op.hotline ?? "";
+  if (op.emailSupport !== iOp.emailSupport) payload.emailSupport = op.emailSupport ?? "";
+
+  const wc = op.workingConfig || {};
+  const iWc = iOp.workingConfig || {};
+  if (JSON.stringify(wc) !== JSON.stringify(iWc)) {
+    const wo = {};
+    if ((wc.note ?? "") !== (hqWc.note ?? "")) wo.note = wc.note ?? "";
+    if (Boolean(wc.isOpenSunday) !== Boolean(hqWc.isOpenSunday)) wo.isOpenSunday = Boolean(wc.isOpenSunday);
+    if (JSON.stringify(wc.regularDays || []) !== JSON.stringify(hqWc.regularDays || []))
+      wo.regularDays = wc.regularDays || [];
+    if (JSON.stringify(wc.weekendDays || []) !== JSON.stringify(hqWc.weekendDays || []))
+      wo.weekendDays = wc.weekendDays || [];
+    if (JSON.stringify(wc.workShifts || []) !== JSON.stringify(hqWc.workShifts || []))
+      wo.workShifts = wc.workShifts || [];
+    if (Object.keys(wo).length > 0) payload.workingOverride = wo;
+  }
+
+  const hqSteps = Array.isArray(hqOp.admissionSteps) ? hqOp.admissionSteps : [];
+  if (JSON.stringify(op.admissionSteps || []) !== JSON.stringify(iOp.admissionSteps || [])) {
+    const admissionStepsOverride = [];
+    (op.admissionSteps || []).forEach((step, idx) => {
+      const ord = Number(step.stepOrder) || idx + 1;
+      const hqS = hqSteps.find((s) => Number(s.stepOrder) === ord);
+      const desc = step.description ?? "";
+      const hqDesc = hqS?.description ?? "";
+      if (desc !== hqDesc) admissionStepsOverride.push({stepOrder: ord, description: desc});
+    });
+    if (admissionStepsOverride.length > 0) payload.admissionStepsOverride = admissionStepsOverride;
+  }
+
+  if ((policy ?? "") !== (initialPolicy ?? "")) payload.policyDetail = policy ?? "";
+
+  return payload;
+}
+
 const ADMISSION_METHOD_DETAIL_SKIP = new Set(["code", "displayName", "description", "__isNewRow"]);
 
 function admissionMethodExtraEntries(m) {
@@ -506,22 +697,30 @@ function admissionMethodExtraEntries(m) {
 }
 
 export default function SchoolFacilityOverview() {
+  const {isPrimaryBranch, currentCampusId, loading: schoolCtxLoading} = useSchool();
+  const isBranchCampusConfig = !isPrimaryBranch && currentCampusId != null;
+
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabSlug = searchParams.get("tab") || "admission";
-  const tabIndex = TAB_SLUGS.includes(tabSlug) ? TAB_SLUGS.indexOf(tabSlug) : 0;
+  const tabSlugs = isBranchCampusConfig ? BRANCH_TAB_SLUGS : TAB_SLUGS;
+  const tabLabels = isBranchCampusConfig ? BRANCH_TAB_LABELS : TAB_LABELS;
+  const tabSlug = searchParams.get("tab") || (isBranchCampusConfig ? "operation" : "admission");
+  const tabIndex = tabSlugs.includes(tabSlug) ? tabSlugs.indexOf(tabSlug) : 0;
 
   const setTabIndex = useCallback(
     (idx) => {
-      const slug = TAB_SLUGS[idx] || "admission";
+      const slug = tabSlugs[idx] || tabSlugs[0] || "admission";
       setSearchParams({tab: slug}, {replace: true});
     },
-    [setSearchParams]
+    [setSearchParams, tabSlugs]
   );
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [schoolId, setSchoolId] = useState(null);
+  const [branchPolicyDetail, setBranchPolicyDetail] = useState("");
+  const branchHqOperationRef = useRef(null);
+  const initialPolicyRef = useRef("");
   const [config, setConfig] = useState(() => defaultConfig());
   const initialRef = useRef(null);
   const facilityFormRef = useRef(null);
@@ -538,8 +737,13 @@ export default function SchoolFacilityOverview() {
   const isDirty = useMemo(() => {
     const init = initialRef.current;
     if (!init) return false;
+    if (isBranchCampusConfig) {
+      const cfgDirty = snapshot !== JSON.stringify(init);
+      const polDirty = branchPolicyDetail !== (initialPolicyRef.current ?? "");
+      return cfgDirty || polDirty;
+    }
     return snapshot !== JSON.stringify(init);
-  }, [snapshot]);
+  }, [snapshot, isBranchCampusConfig, branchPolicyDetail]);
 
   /** Khi không chỉnh sửa hoặc đang lưu: khoá nhập nhưng giữ màu bình thường (readOnly / chặn pointer, không dùng disabled). */
   const fieldDisabled = saving || !editing;
@@ -551,12 +755,33 @@ export default function SchoolFacilityOverview() {
       if (!silent) setLoading(true);
       const resCampuses = await listCampuses();
       const campuses = extractCampusListBody(resCampuses);
+
+      if (isBranchCampusConfig && currentCampusId != null) {
+        const cfgRes = await getCampusConfig(currentCampusId);
+        const envelope = parseSchoolConfigResponseBody(cfgRes);
+        branchHqOperationRef.current = envelope?.hqDefault?.operation
+          ? JSON.parse(JSON.stringify(envelope.hqDefault.operation))
+          : {};
+        const pol = policyFromCampusCurrent(envelope?.campusCurrent);
+        setBranchPolicyDetail(pol);
+        initialPolicyRef.current = pol;
+        const next = normalizeFromCampusConfigApi(envelope);
+        setSchoolId(pickSchoolIdFromCampuses(campuses));
+        setConfig(next);
+        initialRef.current = JSON.parse(JSON.stringify(next));
+        setLastLoadedAt(new Date());
+        return;
+      }
+
       const sid = pickSchoolIdFromCampuses(campuses);
       if (sid == null) {
         enqueueSnackbar("Không lấy được schoolId", {variant: "error"});
         return;
       }
       setSchoolId(sid);
+      branchHqOperationRef.current = null;
+      setBranchPolicyDetail("");
+      initialPolicyRef.current = "";
 
       const cfgRes = await getSchoolConfig(sid);
       const body = parseSchoolConfigResponseBody(cfgRes);
@@ -587,23 +812,30 @@ export default function SchoolFacilityOverview() {
       setLastLoadedAt(new Date());
     } catch (e) {
       console.error(e);
-      enqueueSnackbar("Không thể tải cấu hình trường", {variant: "error"});
+      enqueueSnackbar(
+        isBranchCampusConfig ? "Không thể tải cấu hình cơ sở" : "Không thể tải cấu hình trường",
+        {variant: "error"}
+      );
     } finally {
       if (!silent) setLoading(false);
     }
-  }, []);
+  }, [isBranchCampusConfig, currentCampusId]);
 
   useEffect(() => {
+    if (schoolCtxLoading) return;
     load();
-  }, [load]);
+  }, [load, schoolCtxLoading]);
 
   const handleReset = useCallback(() => {
     const init = initialRef.current;
     if (!init) return;
     setConfig(JSON.parse(JSON.stringify(init)));
+    if (isBranchCampusConfig) {
+      setBranchPolicyDetail(initialPolicyRef.current ?? "");
+    }
     setEditing(false);
     enqueueSnackbar("Đã huỷ thay đổi", {variant: "info"});
-  }, []);
+  }, [isBranchCampusConfig]);
 
   const patchFinanceDisplay = useCallback((amount) => {
     setConfig((c) => ({
@@ -621,9 +853,50 @@ export default function SchoolFacilityOverview() {
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (!schoolId || !editing) return;
+    if (!editing) return;
+    if (!isBranchCampusConfig && !schoolId) return;
+    if (isBranchCampusConfig && currentCampusId == null) return;
     const initial = initialRef.current;
     if (!initial) return;
+
+    if (isBranchCampusConfig && currentCampusId != null) {
+      const payload = buildBranchCampusConfigPutPayload(
+        config,
+        initial,
+        branchHqOperationRef.current,
+        initialPolicyRef.current,
+        branchPolicyDetail
+      );
+      if (Object.keys(payload).length === 0) {
+        enqueueSnackbar("Không có thay đổi để lưu", {variant: "info"});
+        return;
+      }
+      if (payload.overview != null || payload.itemList != null || payload.imageJsonData != null) {
+        const ok = facilityFormRef.current?.validate?.() ?? true;
+        if (!ok) {
+          enqueueSnackbar("Vui lòng kiểm tra lại tab Cơ sở vật chất", {variant: "error"});
+          setTabIndex(isBranchCampusConfig ? 1 : 5);
+          return;
+        }
+      }
+      setSaving(true);
+      try {
+        const res = await updateCampusConfig(currentCampusId, payload);
+        if (res?.status >= 200 && res?.status < 300) {
+          enqueueSnackbar(res?.data?.message || "Lưu thành công", {variant: "success"});
+          setEditing(false);
+          await load({silent: true});
+        } else {
+          enqueueSnackbar(res?.data?.message || "Có lỗi khi lưu", {variant: "error"});
+        }
+      } catch (e) {
+        console.error(e);
+        enqueueSnackbar("Không thể lưu cấu hình cơ sở", {variant: "error"});
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
 
     const payload = buildPartialPayload(config, initial);
     if (Object.keys(payload).length === 0) {
@@ -671,7 +944,16 @@ export default function SchoolFacilityOverview() {
       } finally {
       setSaving(false);
     }
-  }, [config, schoolId, setTabIndex, editing, load]);
+  }, [
+    config,
+    schoolId,
+    currentCampusId,
+    isBranchCampusConfig,
+    branchPolicyDetail,
+    setTabIndex,
+    editing,
+    load,
+  ]);
 
   const allocatedTotal = useMemo(() => {
     return (config.quotaConfigData?.campusAssignments || []).reduce((s, r) => s + Number(r.allocatedQuota || 0), 0);
@@ -796,6 +1078,13 @@ export default function SchoolFacilityOverview() {
     "&:hover": {bgcolor: "#1d4ed8"},
   };
 
+  const showAdmissionTab = !isBranchCampusConfig && tabIndex === 0;
+  const showQuotaTab = !isBranchCampusConfig && tabIndex === 1;
+  const showFinanceTab = !isBranchCampusConfig && tabIndex === 2;
+  const showDocumentsTab = !isBranchCampusConfig && tabIndex === 3;
+  const showOperationTab = (!isBranchCampusConfig && tabIndex === 4) || (isBranchCampusConfig && tabIndex === 0);
+  const showFacilityTab = (!isBranchCampusConfig && tabIndex === 5) || (isBranchCampusConfig && tabIndex === 1);
+
   return (
       <Box
         sx={{
@@ -825,7 +1114,9 @@ export default function SchoolFacilityOverview() {
                 Cấu hình nền tảng
             </Typography>
               <Typography variant="body2" sx={{mt: 0.75, opacity: 0.95}}>
-                Quản lý tuyển sinh, chỉ tiêu, tài chính, hồ sơ, vận hành và cơ sở vật chất.
+                {isBranchCampusConfig
+                  ? "Chỉnh sửa vận hành và cơ sở vật chất của cơ sở này (API cấu hình campus; mặc định lấy từ trụ sở)."
+                  : "Quản lý tuyển sinh, chỉ tiêu, tài chính, hồ sơ, vận hành và cơ sở vật chất."}
             </Typography>
               {lastLoadedAt && (
                 <Typography variant="caption" sx={{display: "block", mt: 1.25, opacity: 0.88}}>
@@ -866,9 +1157,9 @@ export default function SchoolFacilityOverview() {
             mb: 2,
           }}
         >
-          {TAB_LABELS.map((label, i) => (
+          {tabLabels.map((label, i) => (
             <Tab
-              key={TAB_SLUGS[i]}
+              key={tabSlugs[i]}
               label={label}
               sx={{
               textTransform: "none",
@@ -885,17 +1176,17 @@ export default function SchoolFacilityOverview() {
         </Tabs>
 
         <Typography variant="body2" sx={{color: "#2563eb", fontWeight: 700, mb: 2}}>
-          {TAB_LABELS[tabIndex]}
+          {tabLabels[tabIndex]}
         </Typography>
 
         <Box sx={{pt: 0.5}}>
-          {loading ? (
+          {loading || schoolCtxLoading ? (
             <Box sx={{display: "flex", justifyContent: "center", py: 5}}>
               <CircularProgress/>
             </Box>
           ) : (
             <>
-          {tabIndex === 0 && (
+          {showAdmissionTab && (
             <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
               <CardContent sx={{p: 3}}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{mb: 2}}>
@@ -1295,7 +1586,7 @@ export default function SchoolFacilityOverview() {
             </Card>
           )}
 
-          {tabIndex === 1 && (
+          {showQuotaTab && (
             <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
               <CardContent sx={{p: 3}}>
                 <Stack spacing={2}>
@@ -1381,7 +1672,7 @@ export default function SchoolFacilityOverview() {
             </Card>
           )}
 
-          {tabIndex === 2 && (
+          {showFinanceTab && (
             <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
               <CardContent sx={{p: 3}}>
                 <Stack spacing={2}>
@@ -1453,7 +1744,7 @@ export default function SchoolFacilityOverview() {
             </Card>
           )}
 
-          {tabIndex === 3 && (
+          {showDocumentsTab && (
             <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
               <CardContent sx={{p: 3}}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{mb: 2}}>
@@ -1680,7 +1971,7 @@ export default function SchoolFacilityOverview() {
             </Card>
           )}
 
-          {tabIndex === 4 && (
+          {showOperationTab && (
             <Stack spacing={2}>
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>
@@ -1993,10 +2284,33 @@ export default function SchoolFacilityOverview() {
                   </Stack>
                 </CardContent>
               </Card>
+
+              {isBranchCampusConfig && (
+                <Card
+                  sx={{
+                    borderRadius: "12px",
+                    border: "1px solid rgba(226,232,240,1)",
+                    boxShadow: "0 8px 24px rgba(15,23,42,0.06)",
+                  }}
+                >
+                  <CardContent sx={{p: 3}}>
+                    <Typography sx={{fontWeight: 800, mb: 2}}>Quy định tại cơ sở</Typography>
+                    <TextField
+                      label="Chi tiết quy định"
+                      multiline
+                      minRows={3}
+                      fullWidth
+                      value={branchPolicyDetail}
+                      onChange={(e) => setBranchPolicyDetail(e.target.value)}
+                      inputProps={{readOnly: fieldDisabled}}
+                    />
+                  </CardContent>
+                </Card>
+              )}
             </Stack>
           )}
 
-          {tabIndex === 5 && (
+          {showFacilityTab && (
             <SchoolFacilityFacilityForm
               ref={facilityFormRef}
               value={config.facilityData}
@@ -2012,15 +2326,15 @@ export default function SchoolFacilityOverview() {
 
         <Box sx={{mt: 2, display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap"}}>
           {!editing ? (
-            <Button variant="contained" onClick={() => setEditing(true)} disabled={loading || saving} sx={footerSaveSx}>
+            <Button variant="contained" onClick={() => setEditing(true)} disabled={loading || saving || schoolCtxLoading} sx={footerSaveSx}>
               Chỉnh sửa
             </Button>
           ) : (
             <>
-              <Button variant="outlined" onClick={handleReset} disabled={loading || saving} sx={footerCancelSx}>
+              <Button variant="outlined" onClick={handleReset} disabled={loading || saving || schoolCtxLoading} sx={footerCancelSx}>
                 Huỷ
               </Button>
-              <Button variant="contained" onClick={handleSave} disabled={loading || saving || !isDirty} sx={footerSaveSx}>
+              <Button variant="contained" onClick={handleSave} disabled={loading || saving || schoolCtxLoading || !isDirty} sx={footerSaveSx}>
                 {saving ? <CircularProgress size={18} sx={{color: "white", mr: 1}}/> : null}
                 Lưu thay đổi
               </Button>

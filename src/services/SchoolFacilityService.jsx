@@ -66,3 +66,24 @@ export const updateSchoolConfig = async (schoolId, payload) => {
   const response = await axiosClient.put(`/school/config/${Number(schoolId) || schoolId}`, payload);
   return response;
 };
+
+/**
+ * GET /api/v1/campus/{campusId}/config — campus phụ (body: campusCurrent + hqDefault)
+ * @param {number | string} campusId
+ */
+export const getCampusConfig = async (campusId) => {
+  const id = Number(campusId) || campusId;
+  const response = await axiosClient.get(`/campus/${id}/config`);
+  return response;
+};
+
+/**
+ * PUT /api/v1/campus/{campusId}/config
+ * @param {number | string} campusId
+ * @param {Record<string, unknown>} payload — overview, itemList, imageJsonData, hotline, …
+ */
+export const updateCampusConfig = async (campusId, payload) => {
+  const id = Number(campusId) || campusId;
+  const response = await axiosClient.put(`/campus/${id}/config`, payload);
+  return response;
+};
