@@ -2,10 +2,13 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Avatar,
     Box,
+    Button,
     Card,
     CardContent,
     Chip,
     CircularProgress,
+    DialogActions,
+    Divider,
     FormControl,
     IconButton,
     InputAdornment,
@@ -32,10 +35,11 @@ import {
     alpha,
 } from "@mui/material";
 import PsychologyOutlinedIcon from "@mui/icons-material/PsychologyOutlined";
+import AddIcon from "@mui/icons-material/Add";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import SearchIcon from "@mui/icons-material/Search";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import ArticleOutlinedIcon from "@mui/icons-material/ArticleOutlined";
 import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
@@ -48,6 +52,7 @@ import { enqueueSnackbar } from "notistack";
 import {
     getAdminPersonalityTypes,
     patchAdminPersonalityTypeStatus,
+    postAdminPersonalityType,
 } from "../../../services/AdminService.jsx";
 import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
 import { APP_PRIMARY_MAIN } from "../../../constants/homeLandingTheme";
@@ -69,6 +74,18 @@ const GROUP_PALETTE = {
     SENTINEL: { main: "#4298b4", soft: "rgba(66, 152, 180, 0.14)" },
     EXPLORER: { main: "#e2a03f", soft: "rgba(226, 160, 63, 0.16)" },
 };
+
+const PERSONALITY_GROUP_OPTIONS = Object.freeze(Object.keys(GROUP_PALETTE));
+
+function pickHttpErrorMessage(error, fallback) {
+    const d = error?.response?.data;
+    if (d == null || typeof d !== "object") return fallback;
+    const m = d.message;
+    if (typeof m === "string" && m.trim()) return m.trim();
+    if (Array.isArray(m) && m.length) return m.filter((x) => x != null && String(x).trim()).join(" ");
+    if (typeof d.error === "string" && d.error.trim()) return d.error.trim();
+    return fallback;
+}
 
 function resolveGroupKey(personalityTypeGroup, groupLabel) {
     const g = String(personalityTypeGroup || "").toUpperCase();
@@ -120,6 +137,7 @@ export default function AdminPersonalityTypes() {
     const [deleteRow, setDeleteRow] = useState(null);
     const [statusUpdatingIds, setStatusUpdatingIds] = useState(() => new Set());
     const [page, setPage] = useState(1);
+    const [addOpen, setAddOpen] = useState(false);
 
     const allRows = useMemo(() => flattenBody(rawBody), [rawBody]);
 
@@ -257,17 +275,24 @@ export default function AdminPersonalityTypes() {
             <Card elevation={0} sx={{ ...adminDataCardBorderSx, borderRadius: 2 }}>
                 <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
                     <Stack
-                        direction={{ xs: "column", sm: "row" }}
-                        spacing={2}
-                        sx={{ mb: 2 }}
-                        alignItems={{ xs: "stretch", sm: "center" }}
+                        direction="row"
+                        flexWrap="wrap"
+                        alignItems="center"
+                        spacing={1.5}
+                        useFlexGap
+                        sx={{ mb: 2, width: "100%" }}
                     >
                         <TextField
                             size="small"
                             placeholder="Tìm theo mã (INTJ) hoặc tên..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
-                            sx={{ flex: 1, minWidth: 220 }}
+                            sx={{
+                                flex: "1 1 220px",
+                                minWidth: 0,
+                                "& .MuiOutlinedInput-root": { height: 40, boxSizing: "border-box" },
+                                "& .MuiOutlinedInput-input": { py: 0, height: 40, boxSizing: "border-box" },
+                            }}
                             InputProps={{
                                 startAdornment: (
                                     <InputAdornment position="start">
@@ -276,7 +301,14 @@ export default function AdminPersonalityTypes() {
                                 ),
                             }}
                         />
-                        <FormControl size="small" sx={{ minWidth: 240 }}>
+                        <FormControl
+                            size="small"
+                            sx={{
+                                minWidth: 200,
+                                flex: "0 1 240px",
+                                "& .MuiOutlinedInput-root": { height: 40, boxSizing: "border-box" },
+                            }}
+                        >
                             <InputLabel id="personality-group-filter">Nhóm tính cách</InputLabel>
                             <Select
                                 labelId="personality-group-filter"
@@ -294,6 +326,24 @@ export default function AdminPersonalityTypes() {
                                 ))}
                             </Select>
                         </FormControl>
+                        <Button
+                            variant="contained"
+                            size="small"
+                            startIcon={<AddIcon />}
+                            onClick={() => setAddOpen(true)}
+                            sx={{
+                                flexShrink: 0,
+                                height: 40,
+                                minHeight: 40,
+                                px: 2,
+                                textTransform: "none",
+                                fontWeight: 700,
+                                boxShadow: "0 6px 14px rgba(37,99,235,0.35)",
+                                ml: { xs: 0, md: "auto" },
+                            }}
+                        >
+                            Thêm loại tính cách
+                        </Button>
                     </Stack>
 
                     <TableContainer component={Paper} elevation={0} sx={adminTableContainerSx}>
@@ -490,6 +540,8 @@ export default function AdminPersonalityTypes() {
                 </CardContent>
             </Card>
 
+            <AddPersonalityTypeDialog open={addOpen} onClose={() => setAddOpen(false)} onCreated={load} />
+
             <PersonalityDetailModal row={detailRow} onClose={() => setDetailRow(null)} />
 
             <ConfirmDialog
@@ -509,6 +561,464 @@ export default function AdminPersonalityTypes() {
                 confirmText="Đã hiểu"
             />
         </Box>
+    );
+}
+
+function createInitialAddForm() {
+    return {
+        code: "",
+        name: "",
+        description: "",
+        quoteContent: "",
+        quoteAuthor: "",
+        traits: [{ name: "", description: "" }],
+        strengthsText: "",
+        weaknessesText: "",
+        sources: [{ title: "", url: "" }],
+        recommendedCareers: [{ name: "", explainText: "" }],
+        personalityTypeGroup: PERSONALITY_GROUP_OPTIONS[0] || "ANALYST",
+    };
+}
+
+function buildPostPersonalityPayload(form) {
+    const strengths = String(form.strengthsText ?? "")
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    const weaknesses = String(form.weaknessesText ?? "")
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    const traits = (form.traits || [])
+        .map((t) => ({
+            name: String(t?.name ?? "").trim(),
+            description: String(t?.description ?? "").trim(),
+        }))
+        .filter((t) => t.name || t.description);
+    const sources = (form.sources || [])
+        .map((s) => ({
+            title: String(s?.title ?? "").trim(),
+            url: String(s?.url ?? "").trim(),
+        }))
+        .filter((s) => s.title || s.url);
+    const recommendedCareers = (form.recommendedCareers || [])
+        .map((c) => ({
+            name: String(c?.name ?? "").trim(),
+            explainText: String(c?.explainText ?? "").trim(),
+        }))
+        .filter((c) => c.name || c.explainText);
+
+    return {
+        code: String(form.code ?? "").trim(),
+        name: String(form.name ?? "").trim(),
+        description: String(form.description ?? "").trim(),
+        quoteInfo: {
+            content: String(form.quoteContent ?? "").trim(),
+            author: String(form.quoteAuthor ?? "").trim(),
+        },
+        traits,
+        strengths,
+        weaknesses,
+        sources,
+        recommendedCareers,
+        personalityTypeGroup: String(form.personalityTypeGroup ?? "").trim(),
+    };
+}
+
+function addDialogFieldSx() {
+    return {
+        "& .MuiOutlinedInput-root": { borderRadius: 2 },
+    };
+}
+
+function AddPersonalityTypeDialog({ open, onClose, onCreated }) {
+    const [submitting, setSubmitting] = useState(false);
+    const [form, setForm] = useState(createInitialAddForm);
+
+    useEffect(() => {
+        if (open) setForm(createInitialAddForm());
+    }, [open]);
+
+    const handleClose = () => {
+        if (submitting) return;
+        onClose();
+    };
+
+    const setTrait = (index, key, value) => {
+        setForm((prev) => {
+            const traits = [...(prev.traits || [])];
+            traits[index] = { ...traits[index], [key]: value };
+            return { ...prev, traits };
+        });
+    };
+
+    const addTraitRow = () => {
+        setForm((prev) => ({ ...prev, traits: [...(prev.traits || []), { name: "", description: "" }] }));
+    };
+
+    const removeTraitRow = (index) => {
+        setForm((prev) => {
+            const traits = [...(prev.traits || [])];
+            if (traits.length <= 1) return prev;
+            traits.splice(index, 1);
+            return { ...prev, traits };
+        });
+    };
+
+    const setSource = (index, key, value) => {
+        setForm((prev) => {
+            const sources = [...(prev.sources || [])];
+            sources[index] = { ...sources[index], [key]: value };
+            return { ...prev, sources };
+        });
+    };
+
+    const addSourceRow = () => {
+        setForm((prev) => ({ ...prev, sources: [...(prev.sources || []), { title: "", url: "" }] }));
+    };
+
+    const removeSourceRow = (index) => {
+        setForm((prev) => {
+            const sources = [...(prev.sources || [])];
+            if (sources.length <= 1) return prev;
+            sources.splice(index, 1);
+            return { ...prev, sources };
+        });
+    };
+
+    const setCareer = (index, key, value) => {
+        setForm((prev) => {
+            const recommendedCareers = [...(prev.recommendedCareers || [])];
+            recommendedCareers[index] = { ...recommendedCareers[index], [key]: value };
+            return { ...prev, recommendedCareers };
+        });
+    };
+
+    const addCareerRow = () => {
+        setForm((prev) => ({
+            ...prev,
+            recommendedCareers: [...(prev.recommendedCareers || []), { name: "", explainText: "" }],
+        }));
+    };
+
+    const removeCareerRow = (index) => {
+        setForm((prev) => {
+            const recommendedCareers = [...(prev.recommendedCareers || [])];
+            if (recommendedCareers.length <= 1) return prev;
+            recommendedCareers.splice(index, 1);
+            return { ...prev, recommendedCareers };
+        });
+    };
+
+    const handleSubmit = async () => {
+        const payload = buildPostPersonalityPayload(form);
+        if (!payload.code || !payload.name) {
+            enqueueSnackbar("Vui lòng nhập mã và tên loại tính cách.", { variant: "warning" });
+            return;
+        }
+        if (!payload.personalityTypeGroup) {
+            enqueueSnackbar("Vui lòng chọn nhóm tính cách.", { variant: "warning" });
+            return;
+        }
+        setSubmitting(true);
+        try {
+            await postAdminPersonalityType(payload);
+            enqueueSnackbar("Đã thêm loại tính cách.", { variant: "success" });
+            onClose();
+            await onCreated?.();
+        } catch (e) {
+            console.error(e);
+            enqueueSnackbar(
+                pickHttpErrorMessage(e, "Không thể thêm loại tính cách. Kiểm tra dữ liệu hoặc quyền admin."),
+                { variant: "error" }
+            );
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog
+            open={open}
+            onClose={handleClose}
+            fullWidth
+            maxWidth="md"
+            PaperProps={{ sx: { borderRadius: 3 } }}
+        >
+            <DialogTitle sx={{ fontWeight: 800, pb: 0.5 }}>Thêm loại tính cách</DialogTitle>
+            <DialogContent
+                dividers
+                sx={{ maxHeight: "min(85vh, 720px)", bgcolor: "#f8fafc", borderColor: "#e2e8f0" }}
+            >
+                <Stack spacing={2} sx={{ pt: 0.5 }}>
+                    <Typography variant="body2" color="text.secondary">
+                        Các trường có dấu <strong>*</strong> là bắt buộc. Điểm mạnh/yếu: mỗi dòng một mục.
+                    </Typography>
+                    <Box>
+                        <Typography sx={{ fontWeight: 700, mb: 1, color: "#334155" }}>Thông tin cơ bản</Typography>
+                        <Stack spacing={1.5}>
+                            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                                <TextField
+                                    required
+                                    label="Mã (code)"
+                                    size="small"
+                                    fullWidth
+                                    value={form.code}
+                                    onChange={(e) => setForm((p) => ({ ...p, code: e.target.value }))}
+                                    disabled={submitting}
+                                    sx={addDialogFieldSx()}
+                                />
+                                <FormControl size="small" fullWidth sx={addDialogFieldSx()}>
+                                    <InputLabel id="add-personality-group">Nhóm *</InputLabel>
+                                    <Select
+                                        labelId="add-personality-group"
+                                        label="Nhóm *"
+                                        value={form.personalityTypeGroup}
+                                        onChange={(e) =>
+                                            setForm((p) => ({ ...p, personalityTypeGroup: e.target.value }))
+                                        }
+                                        disabled={submitting}
+                                    >
+                                        {PERSONALITY_GROUP_OPTIONS.map((g) => (
+                                            <MenuItem key={g} value={g}>
+                                                {g}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                            </Stack>
+                            <TextField
+                                required
+                                label="Tên gọi"
+                                size="small"
+                                fullWidth
+                                value={form.name}
+                                onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))}
+                                disabled={submitting}
+                                sx={addDialogFieldSx()}
+                            />
+                            <TextField
+                                label="Mô tả"
+                                size="small"
+                                fullWidth
+                                multiline
+                                minRows={3}
+                                value={form.description}
+                                onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+                                disabled={submitting}
+                                sx={addDialogFieldSx()}
+                            />
+                        </Stack>
+                    </Box>
+                    <Divider />
+                    <Box>
+                        <Typography sx={{ fontWeight: 700, mb: 1, color: "#334155" }}>Trích dẫn (quoteInfo)</Typography>
+                        <Stack spacing={1.5}>
+                            <TextField
+                                label="Nội dung trích dẫn"
+                                size="small"
+                                fullWidth
+                                multiline
+                                minRows={2}
+                                value={form.quoteContent}
+                                onChange={(e) => setForm((p) => ({ ...p, quoteContent: e.target.value }))}
+                                disabled={submitting}
+                                sx={addDialogFieldSx()}
+                            />
+                            <TextField
+                                label="Tác giả"
+                                size="small"
+                                fullWidth
+                                value={form.quoteAuthor}
+                                onChange={(e) => setForm((p) => ({ ...p, quoteAuthor: e.target.value }))}
+                                disabled={submitting}
+                                sx={addDialogFieldSx()}
+                            />
+                        </Stack>
+                    </Box>
+                    <Divider />
+                    <Box>
+                        <Typography sx={{ fontWeight: 700, mb: 1, color: "#334155" }}>Đặc điểm (traits)</Typography>
+                        <Stack spacing={1}>
+                            {(form.traits || []).map((t, i) => (
+                                <Stack key={i} direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="flex-start">
+                                    <TextField
+                                        label="Tên đặc điểm"
+                                        size="small"
+                                        fullWidth
+                                        value={t.name}
+                                        onChange={(e) => setTrait(i, "name", e.target.value)}
+                                        disabled={submitting}
+                                        sx={{ ...addDialogFieldSx(), flex: 1 }}
+                                    />
+                                    <TextField
+                                        label="Mô tả"
+                                        size="small"
+                                        fullWidth
+                                        value={t.description}
+                                        onChange={(e) => setTrait(i, "description", e.target.value)}
+                                        disabled={submitting}
+                                        sx={{ ...addDialogFieldSx(), flex: 2 }}
+                                    />
+                                    <IconButton
+                                        aria-label="Xóa dòng"
+                                        color="error"
+                                        onClick={() => removeTraitRow(i)}
+                                        disabled={submitting || (form.traits || []).length <= 1}
+                                        sx={{ mt: { sm: 0.5 } }}
+                                    >
+                                        <DeleteOutlineIcon />
+                                    </IconButton>
+                                </Stack>
+                            ))}
+                            <Button
+                                size="small"
+                                startIcon={<AddIcon />}
+                                onClick={addTraitRow}
+                                disabled={submitting}
+                                sx={{ alignSelf: "flex-start", textTransform: "none", fontWeight: 600 }}
+                            >
+                                Thêm đặc điểm
+                            </Button>
+                        </Stack>
+                    </Box>
+                    <Divider />
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+                        <TextField
+                            label="Điểm mạnh (mỗi dòng một ý)"
+                            size="small"
+                            fullWidth
+                            multiline
+                            minRows={4}
+                            value={form.strengthsText}
+                            onChange={(e) => setForm((p) => ({ ...p, strengthsText: e.target.value }))}
+                            disabled={submitting}
+                            sx={addDialogFieldSx()}
+                        />
+                        <TextField
+                            label="Điểm yếu (mỗi dòng một ý)"
+                            size="small"
+                            fullWidth
+                            multiline
+                            minRows={4}
+                            value={form.weaknessesText}
+                            onChange={(e) => setForm((p) => ({ ...p, weaknessesText: e.target.value }))}
+                            disabled={submitting}
+                            sx={addDialogFieldSx()}
+                        />
+                    </Stack>
+                    <Divider />
+                    <Box>
+                        <Typography sx={{ fontWeight: 700, mb: 1, color: "#334155" }}>Nguồn tham khảo</Typography>
+                        <Stack spacing={1}>
+                            {(form.sources || []).map((s, i) => (
+                                <Stack key={i} direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="flex-start">
+                                    <TextField
+                                        label="Tiêu đề"
+                                        size="small"
+                                        fullWidth
+                                        value={s.title}
+                                        onChange={(e) => setSource(i, "title", e.target.value)}
+                                        disabled={submitting}
+                                        sx={{ ...addDialogFieldSx(), flex: 1 }}
+                                    />
+                                    <TextField
+                                        label="URL"
+                                        size="small"
+                                        fullWidth
+                                        value={s.url}
+                                        onChange={(e) => setSource(i, "url", e.target.value)}
+                                        disabled={submitting}
+                                        sx={{ ...addDialogFieldSx(), flex: 2 }}
+                                    />
+                                    <IconButton
+                                        aria-label="Xóa nguồn"
+                                        color="error"
+                                        onClick={() => removeSourceRow(i)}
+                                        disabled={submitting || (form.sources || []).length <= 1}
+                                        sx={{ mt: { sm: 0.5 } }}
+                                    >
+                                        <DeleteOutlineIcon />
+                                    </IconButton>
+                                </Stack>
+                            ))}
+                            <Button
+                                size="small"
+                                startIcon={<AddIcon />}
+                                onClick={addSourceRow}
+                                disabled={submitting}
+                                sx={{ alignSelf: "flex-start", textTransform: "none", fontWeight: 600 }}
+                            >
+                                Thêm nguồn
+                            </Button>
+                        </Stack>
+                    </Box>
+                    <Divider />
+                    <Box>
+                        <Typography sx={{ fontWeight: 700, mb: 1, color: "#334155" }}>
+                            Nghề nghiệp gợi ý (recommendedCareers)
+                        </Typography>
+                        <Stack spacing={1}>
+                            {(form.recommendedCareers || []).map((c, i) => (
+                                <Stack key={i} direction={{ xs: "column", sm: "row" }} spacing={1} alignItems="flex-start">
+                                    <TextField
+                                        label="Tên nghề"
+                                        size="small"
+                                        fullWidth
+                                        value={c.name}
+                                        onChange={(e) => setCareer(i, "name", e.target.value)}
+                                        disabled={submitting}
+                                        sx={{ ...addDialogFieldSx(), flex: 1 }}
+                                    />
+                                    <TextField
+                                        label="Giải thích"
+                                        size="small"
+                                        fullWidth
+                                        multiline
+                                        minRows={2}
+                                        value={c.explainText}
+                                        onChange={(e) => setCareer(i, "explainText", e.target.value)}
+                                        disabled={submitting}
+                                        sx={{ ...addDialogFieldSx(), flex: 2 }}
+                                    />
+                                    <IconButton
+                                        aria-label="Xóa nghề"
+                                        color="error"
+                                        onClick={() => removeCareerRow(i)}
+                                        disabled={submitting || (form.recommendedCareers || []).length <= 1}
+                                        sx={{ mt: { sm: 0.5 } }}
+                                    >
+                                        <DeleteOutlineIcon />
+                                    </IconButton>
+                                </Stack>
+                            ))}
+                            <Button
+                                size="small"
+                                startIcon={<AddIcon />}
+                                onClick={addCareerRow}
+                                disabled={submitting}
+                                sx={{ alignSelf: "flex-start", textTransform: "none", fontWeight: 600 }}
+                            >
+                                Thêm nghề gợi ý
+                            </Button>
+                        </Stack>
+                    </Box>
+                </Stack>
+            </DialogContent>
+            <DialogActions sx={{ px: 3, py: 2, bgcolor: "#fff", borderTop: "1px solid #e2e8f0" }}>
+                <Button onClick={handleClose} disabled={submitting} sx={{ textTransform: "none", fontWeight: 600 }}>
+                    Hủy
+                </Button>
+                <Button
+                    variant="contained"
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                    sx={{ textTransform: "none", fontWeight: 700, boxShadow: "0 6px 14px rgba(37,99,235,0.35)" }}
+                >
+                    {submitting ? "Đang gửi…" : "Lưu"}
+                </Button>
+            </DialogActions>
+        </Dialog>
     );
 }
 

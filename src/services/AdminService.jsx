@@ -62,6 +62,11 @@ export const patchAdminPersonalityTypeStatus = async (id, status) => {
     return response || null;
 };
 
+export const postAdminPersonalityType = async (body) => {
+    const response = await axiosClient.post("/admin/personality/type", body);
+    return response || null;
+};
+
 export const ADMIN_SUBJECT_TYPE = Object.freeze({
     REGULAR_SUBJECT: "REGULAR_SUBJECT",
     FOREIGN_LANGUAGE_SUBJECT: "FOREIGN_LANGUAGE_SUBJECT",
