@@ -7,6 +7,7 @@ import {
     getParentStudent,
     getParentSubjects,
     postParentStudent,
+    putParentStudent,
 } from '../../../services/ParentService.jsx';
 import {
     applyStudentBodyToState,
@@ -52,6 +53,7 @@ export function useChildrenInfoPage() {
     const [studentRecords, setStudentRecords] = useState([]);
     const [activeStudentTab, setActiveStudentTab] = useState(0);
     const [creatingNewStudent, setCreatingNewStudent] = useState(false);
+    const [currentStudentId, setCurrentStudentId] = useState(null);
 
     const setters = {
         setForm,
@@ -62,6 +64,7 @@ export function useChildrenInfoPage() {
         setForeignGrades,
         setPendingAcademicInfos,
         setPendingFavouriteJobLabel,
+        setCurrentStudentId,
     };
 
     const extractStudentRecords = (body) => {
@@ -242,7 +245,6 @@ export function useChildrenInfoPage() {
         return findPersonalityByCode(personalityGroups, selectedPersonalityId);
     }, [personalityGroups, selectedPersonalityId]);
 
-    /** GET trả `personalityTypeCode` (mã MBTI) — map sang `id` để khớp Radio */
     useEffect(() => {
         if (!personalityGroups || selectedPersonalityId === '') return;
         if (findPersonalityById(personalityGroups, selectedPersonalityId)) return;
@@ -250,7 +252,6 @@ export function useChildrenInfoPage() {
         if (byCode) setSelectedPersonalityId(String(byCode.id));
     }, [personalityGroups, selectedPersonalityId]);
 
-    /** GET trả `academicInfos` — gán điểm khi đã có danh sách môn */
     useEffect(() => {
         if (!pendingAcademicInfos || subjectGroupsLoading) return;
         if (!regularSubjects.length && !foreignSubjects.length) {
@@ -268,7 +269,6 @@ export function useChildrenInfoPage() {
         setPendingAcademicInfos(null);
     }, [pendingAcademicInfos, regularSubjects, foreignSubjects, subjectGroupsLoading]);
 
-    /** GET trả `favouriteJob` là tên ngành — map sang mã ngành */
     useEffect(() => {
         if (!pendingFavouriteJobLabel || !majorGroups.length) return;
         const label = pendingFavouriteJobLabel.trim();
@@ -300,7 +300,6 @@ export function useChildrenInfoPage() {
         setSelectedPersonalityId(e.target.value);
     };
 
-    /** Một ngành duy nhất (radio) — payload vẫn là mảng tối đa 1 phần tử */
     const handleFavoriteMajorChange = (e) => {
         const v = e.target.value;
         setFavoriteMajorCodes(v === '' ? [] : [Number(v)]);
@@ -399,7 +398,16 @@ export function useChildrenInfoPage() {
                 );
                 return;
             }
-            const res = await postParentStudent(payload);
+            const usePut =
+                !creatingNewStudent &&
+                currentStudentId != null &&
+                Number.isFinite(Number(currentStudentId));
+            const res = usePut
+                ? await putParentStudent({
+                      ...payload,
+                      studentId: Number(currentStudentId),
+                  })
+                : await postParentStudent(payload);
             if (res && res.status >= 200 && res.status < 300) {
                 let reloadOk = false;
                 try {

@@ -1,5 +1,3 @@
-/** MUI `sx` dùng chung cho ChildrenInfoPage */
-
 export const sectionLabelSx = {
     fontSize: 14,
     fontWeight: 700,
