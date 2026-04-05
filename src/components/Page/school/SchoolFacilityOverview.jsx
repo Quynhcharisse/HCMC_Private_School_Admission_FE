@@ -1327,9 +1327,9 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
   const pageTitle = isCampusVariant ? "Cấu hình theo cơ sở" : "Cấu hình nền tảng";
   const pageSubtitle = isCampusVariant
     ? isPrimaryBranch
-      ? "Chỉnh vận hành và CSVC của cơ sở chính (GET/PUT /campus/{campusId}/config). Mỗi cơ sở chỉ sửa được cấu hình của chính mình."
-      : "Chỉnh vận hành và CSVC của cơ sở bạn (GET/PUT /campus/{campusId}/config)."
-    : "Quản lý tuyển sinh, chỉ tiêu, tài chính, hồ sơ, vận hành và cơ sở vật chất chung (GET/PUT /school/config).";
+      ? "Chỉnh vận hành và CSVC của cơ sở chính. Mỗi cơ sở chỉ sửa được cấu hình của chính mình."
+      : "Chỉnh vận hành và CSVC của cơ sở bạn."
+    : "Quản lý tuyển sinh, chỉ tiêu, tài chính, hồ sơ, vận hành và cơ sở vật chất chung.";
 
   return (
       <Box
