@@ -26,12 +26,10 @@ import {useTheme} from "@mui/material/styles";
 import {updateProfile} from "../../services/AccountService";
 import {enqueueSnackbar} from "notistack";
 import {
-    Chat as ChatIcon,
     ArrowForward as ArrowForwardIcon,
     LocationOn as LocationIcon,
     Star as StarIcon,
     AttachMoney as MoneyIcon,
-    Verified as VerifiedIcon,
     ChevronLeft as ChevronLeftIcon,
     ChevronRight as ChevronRightIcon,
     Search as SearchIcon,
@@ -46,28 +44,32 @@ import {
     BRAND_NAVY,
     BRAND_SKY,
     BRAND_SKY_LIGHT,
-    HEADER_HOME_BAR_BG,
-    HOME_PAGE_HERO_BACKDROP,
     HOME_SCHOOL_SECTION_SURFACE,
     HOME_CONSULT_SECTION_TOP,
-    HOME_PAGE_HERO_BANNER_GRADIENT,
     HOME_PAGE_SURFACE_GRADIENT,
     landingSectionShadow
 } from "../../constants/homeLandingTheme";
-import LayeredMountainSilhouette from "../ui/LayeredMountainSilhouette.jsx";
 import SectionWaveEdge from "../ui/SectionWaveEdge.jsx";
 import admissionCard1Image from "../../assets/Nguyên tắc công bố tuyển sinh (từ Bộ GD&ĐT).jpg";
 import admissionCard2Image from "../../assets/Nhiều trường THPT công bố chỉ tiêu tuyển sinh 2026.jpg";
 import admissionCard3Image from "../../assets/TPHCM chốt 3 môn thi tuyển sinh lớp 10 năm 2026.jpeg";
 import admissionCard4Image from "../../assets/Đề thi lớp 10 2026 thay đổi theo hướng đánh giá năng lựcwebp.webp";
 import admissionCard5Image from "../../assets/TP.HCM tiếp tục kết hợp thi tuyển và xét tuyển.jpg.webp";
+import topPromoBanner1 from "../../assets/1.png";
+import topPromoBanner2 from "../../assets/2.png";
 import {getPublicSchoolList} from "../../services/SchoolPublicService.jsx";
-
-const heroMuted = '#334155';
 
 const ADMISSION_CAROUSEL_INTERVAL_MS = 7000;
 const ADMISSION_ANIM_MS = 1400;
 const admissionEase = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
+
+const TOP_PROMO_CAROUSEL_INTERVAL_MS = 6000;
+const TOP_PROMO_SLIDE_MS = 520;
+const TOP_PROMO_SLIDE_EASE = 'cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+const TOP_PROMO_SLIDES = [
+    {src: topPromoBanner1, alt: 'Hỗ trợ tư vấn tuyển sinh — EduBridgeHCM'},
+    {src: topPromoBanner2, alt: 'Hỗ trợ tư vấn tuyển sinh — EduBridgeHCM'}
+];
 
 const ADMISSION_POSTS = [
     {
@@ -678,6 +680,255 @@ function LatestAdmissionNewsSection() {
     );
 }
 
+const carouselCtaEase = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
+
+function HomeTopPromoCarousel({isParentRole, onRegisterClick, navigate}) {
+    const slides = TOP_PROMO_SLIDES;
+    const n = slides.length;
+    const extendedSlides = React.useMemo(() => {
+        if (n <= 1) return slides;
+        return [slides[n - 1], ...slides, slides[0]];
+    }, [slides, n]);
+    const len = extendedSlides.length;
+
+    const [slideIndex, setSlideIndex] = React.useState(n <= 1 ? 0 : 1);
+    const [noTransition, setNoTransition] = React.useState(false);
+    const timerRef = React.useRef(null);
+    const slideIndexRef = React.useRef(slideIndex);
+
+    React.useEffect(() => {
+        slideIndexRef.current = slideIndex;
+    }, [slideIndex]);
+
+    const clearTimer = () => {
+        if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+        }
+    };
+
+    const restartTimer = React.useCallback(() => {
+        clearTimer();
+        if (n <= 1) return;
+        timerRef.current = setInterval(() => {
+            setSlideIndex((si) => (si >= len - 1 ? si : si + 1));
+        }, TOP_PROMO_CAROUSEL_INTERVAL_MS);
+    }, [n, len]);
+
+    const advanceOneLeft = React.useCallback(() => {
+        setSlideIndex((si) => (si >= len - 1 ? si : si + 1));
+    }, [len]);
+
+    const handleTrackTransitionEnd = React.useCallback(
+        (e) => {
+            if (e.propertyName !== 'transform') return;
+            if (slideIndexRef.current !== len - 1) return;
+            setNoTransition(true);
+            setSlideIndex(1);
+        },
+        [len]
+    );
+
+    React.useLayoutEffect(() => {
+        if (!noTransition) return;
+        const id = requestAnimationFrame(() => {
+            setNoTransition(false);
+        });
+        return () => cancelAnimationFrame(id);
+    }, [noTransition]);
+
+    React.useEffect(() => {
+        restartTimer();
+        return () => clearTimer();
+    }, [restartTimer]);
+
+    return (
+        <Box
+            component="section"
+            aria-label="Banner tuyển sinh"
+            sx={{
+                width: '100%',
+                pt: 0,
+                pb: 0,
+                px: 0,
+                mx: 0,
+                mt: 0,
+                position: 'relative',
+                zIndex: 3,
+                isolation: 'isolate',
+                bgcolor: 'transparent',
+                backgroundImage: 'none'
+            }}
+        >
+            <Box sx={{width: '100%', maxWidth: '100%', px: 0, mx: 0}}>
+                <Box
+                    sx={{
+                        position: 'relative',
+                        width: '100%',
+                        overflow: 'hidden',
+                        borderRadius: 0,
+                        boxShadow: 'none',
+                        border: 'none',
+                        bgcolor: '#f0f7ff',
+                        pb: {xs: 1.5, sm: 2}
+                    }}
+                >
+                    <Box
+                        onTransitionEnd={n <= 1 ? undefined : handleTrackTransitionEnd}
+                        sx={{
+                            display: 'flex',
+                            width: n <= 1 ? '100%' : `${len * 100}%`,
+                            transform:
+                                n <= 1
+                                    ? 'none'
+                                    : `translateX(-${(slideIndex * 100) / len}%)`,
+                            transition: noTransition
+                                ? 'none'
+                                : `transform ${TOP_PROMO_SLIDE_MS}ms ${TOP_PROMO_SLIDE_EASE}`
+                        }}
+                    >
+                        {extendedSlides.map((slide, idx) => (
+                            <Box
+                                key={`${idx}-${slide.src}`}
+                                sx={{
+                                    width: n <= 1 ? '100%' : `${100 / len}%`,
+                                    flexShrink: 0
+                                }}
+                            >
+                                <Box
+                                    component="img"
+                                    src={slide.src}
+                                    alt={slide.alt}
+                                    sx={{
+                                        width: '100%',
+                                        height: 'auto',
+                                        display: 'block',
+                                        verticalAlign: 'bottom'
+                                    }}
+                                />
+                            </Box>
+                        ))}
+                    </Box>
+                    <Stack
+                        direction={{xs: 'column', sm: 'row'}}
+                        spacing={1.5}
+                        sx={{
+                            position: 'absolute',
+                            left: 0,
+                            right: 0,
+                            bottom: {xs: 'min(14%, 72px)', sm: 'min(12%, 64px)', md: 'min(10%, 56px)'},
+                            px: {xs: 2, sm: 3},
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            zIndex: 4,
+                            pointerEvents: 'none',
+                            '& .MuiButton-root': {pointerEvents: 'auto'}
+                        }}
+                    >
+                        {!isParentRole && (
+                            <Button
+                                variant="contained"
+                                size="large"
+                                onClick={onRegisterClick}
+                                sx={{
+                                    bgcolor: BRAND_NAVY,
+                                    color: '#fff',
+                                    px: 3,
+                                    py: 1.1,
+                                    fontSize: '0.9rem',
+                                    fontWeight: 700,
+                                    borderRadius: 999,
+                                    textTransform: 'none',
+                                    boxShadow: '0 12px 28px rgba(30, 58, 138, 0.35)',
+                                    minWidth: {xs: 'min(100%, 280px)', sm: 200},
+                                    transition: `transform 0.35s ${carouselCtaEase}, box-shadow 0.35s ease, background-color 0.25s ease`,
+                                    '&:hover': {
+                                        bgcolor: APP_PRIMARY_DARK,
+                                        boxShadow: '0 16px 36px rgba(30, 58, 138, 0.42)',
+                                        transform: 'translateY(-2px)'
+                                    }
+                                }}
+                            >
+                                Đăng ký miễn phí
+                            </Button>
+                        )}
+                        <Button
+                            variant="contained"
+                            size="large"
+                            startIcon={<SearchIcon sx={{color: 'inherit'}}/>}
+                            onClick={() => navigate('/search-schools')}
+                            sx={{
+                                borderRadius: 999,
+                                textTransform: 'none',
+                                fontWeight: 700,
+                                px: 2.75,
+                                py: 1.1,
+                                fontSize: '0.9rem',
+                                color: BRAND_NAVY,
+                                bgcolor: '#dbeafe',
+                                border: `2px solid ${BRAND_SKY}`,
+                                boxShadow: '0 8px 22px rgba(37, 99, 235, 0.14)',
+                                minWidth: {xs: 'min(100%, 280px)', sm: 200},
+                                '&:hover': {
+                                    bgcolor: '#bfdbfe',
+                                    borderColor: BRAND_NAVY,
+                                    boxShadow: '0 10px 26px rgba(37, 99, 235, 0.2)'
+                                }
+                            }}
+                        >
+                            Tìm trường ngay
+                        </Button>
+                    </Stack>
+                    <IconButton
+                        onClick={() => {
+                            if (n <= 1) return;
+                            clearTimer();
+                            advanceOneLeft();
+                            restartTimer();
+                        }}
+                        size="small"
+                        aria-label="Banner trước"
+                        sx={{
+                            position: 'absolute',
+                            left: {xs: 4, sm: 10},
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            zIndex: 5,
+                            bgcolor: 'rgba(255,255,255,0.9)',
+                            boxShadow: landingSectionShadow(2),
+                            '&:hover': {bgcolor: '#fff'}
+                        }}
+                    >
+                        <ChevronLeftIcon fontSize="small"/>
+                    </IconButton>
+                    <IconButton
+                        onClick={() => {
+                            if (n <= 1) return;
+                            clearTimer();
+                            advanceOneLeft();
+                            restartTimer();
+                        }}
+                        size="small"
+                        aria-label="Banner sau"
+                        sx={{
+                            position: 'absolute',
+                            right: {xs: 4, sm: 10},
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            zIndex: 5,
+                            bgcolor: 'rgba(255,255,255,0.9)',
+                            boxShadow: landingSectionShadow(2),
+                            '&:hover': {bgcolor: '#fff'}
+                        }}
+                    >
+                        <ChevronRightIcon fontSize="small"/>
+                    </IconButton>
+                </Box>
+            </Box>
+        </Box>
+    );
+}
+
 export default function HomePage() {
     const navigate = useNavigate();
     const [homeSchools, setHomeSchools] = React.useState([]);
@@ -1111,381 +1362,19 @@ export default function HomePage() {
                     </Button>
                 </DialogActions>
             </Dialog>
-            <Box
-                sx={{
-                    position: 'relative',
-                    pt: {xs: 'calc(72px + 40px)', md: 'calc(80px + 56px)'},
-                    pb: {xs: 18, md: 26},
-                    overflow: 'hidden',
-                    bgcolor: HEADER_HOME_BAR_BG,
-                    backgroundImage: HOME_PAGE_HERO_BANNER_GRADIENT,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundSize: '100% 100%',
-                    boxShadow: 'none'
-                }}
-            >
-                <LayeredMountainSilhouette variant="hero"/>
-                <Container maxWidth="lg" sx={{position: 'relative', zIndex: 1, px: {xs: 2, md: 3}, py: 0}}>
-                    <Box
-                        sx={{
-                            display: 'grid',
-                            gridTemplateColumns: {xs: '1fr', md: 'repeat(2, minmax(0, 1fr))'},
-                            gap: {xs: 4, md: 6},
-                            alignItems: 'stretch',
-                            width: '100%'
-                        }}
-                    >
-                        <Box
-                            sx={{
-                                minWidth: 0,
-                                order: {xs: 1, md: 1},
-                                display: 'flex',
-                                flexDirection: 'column'
-                            }}
-                        >
-                            <Box
-                                sx={{
-                                    textAlign: {xs: 'center', md: 'left'},
-                                    width: '100%',
-                                    flex: 1,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    minHeight: 0
-                                }}
-                            >
-                                <Box
-                                    sx={{
-                                        p: {xs: 2.25, md: 3},
-                                        borderRadius: 4,
-                                        overflow: 'visible',
-                                        bgcolor: 'rgba(255,255,255,0.9)',
-                                        backdropFilter: 'blur(16px)',
-                                        WebkitBackdropFilter: 'blur(16px)',
-                                        border: '1px solid rgba(255,255,255,0.98)',
-                                        boxShadow: '0 20px 50px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(255,255,255,0.8) inset',
-                                        flex: 1,
-                                        display: 'flex',
-                                        flexDirection: 'column',
-                                        height: '100%'
-                                    }}
-                                >
-                                <Box
-                                    sx={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: 1,
-                                        mb: 2.5,
-                                        px: 2.25,
-                                        py: 0.85,
-                                        borderRadius: 999,
-                                        bgcolor: 'rgba(255,255,255,0.95)',
-                                        backdropFilter: 'blur(10px)',
-                                        border: `1px solid rgba(59,130,246,0.45)`,
-                                        boxShadow: '0 8px 28px rgba(15,23,42,0.08)'
-                                    }}
-                                >
-                                    <SparkleIcon sx={{fontSize: 20, color: BRAND_SKY}}/>
-                                    <Typography sx={{fontSize: '0.8125rem', fontWeight: 700, letterSpacing: '0.06em', color: BRAND_NAVY}}>
-                                        TƯ VẤN TUYỂN SINH THÔNG MINH
-                                    </Typography>
-                                </Box>
-                                <Typography
-                                    variant="h1"
-                                    sx={{
-                                        fontWeight: 800,
-                                        mb: 1.5,
-                                        fontSize: {xs: '1.35rem', sm: '1.5rem', md: '1.65rem'},
-                                        lineHeight: 1.35,
-                                        letterSpacing: '-0.02em',
-                                        pt: '0.04em',
-                                        pb: '0.2em',
-                                        overflow: 'visible',
-                                        background: `linear-gradient(120deg, ${APP_PRIMARY_MAIN} 0%, ${BRAND_SKY} 38%, ${BRAND_SKY_LIGHT} 72%, #93c5fd 100%)`,
-                                        WebkitBackgroundClip: 'text',
-                                        WebkitTextFillColor: 'transparent',
-                                        backgroundClip: 'text',
-                                        filter: 'drop-shadow(0 1px 0 rgba(255,255,255,0.85)) drop-shadow(0 2px 8px rgba(255,255,255,0.35))'
-                                    }}
-                                >
-                                    Kết nối phụ huynh và nhà trường
-                                </Typography>
-                                <Typography
-                                    variant="h5"
-                                    component="p"
-                                    sx={{
-                                        mb: 2.5,
-                                        fontWeight: 400,
-                                        fontSize: {xs: '0.9rem', md: '0.95rem'},
-                                        lineHeight: 1.65,
-                                        color: heroMuted,
-                                        maxWidth: 520,
-                                        mx: {xs: 'auto', md: 0}
-                                    }}
-                                >
-                                    So sánh trường, đặt lịch tư vấn và theo dõi hành trình tuyển sinh — giao diện hiện đại, thao tác rõ ràng cho phụ huynh bận rộn.
-                                </Typography>
-                                <Box sx={{flex: 1, minHeight: 0, minWidth: 0}}/>
-                                <Stack
-                                    direction={{xs: 'column', sm: 'row'}}
-                                    spacing={1.5}
-                                    sx={{justifyContent: {xs: 'center', md: 'flex-start'}, mb: 2}}
-                                >
-                                    {!isParentRole && (
-                                        <Button
-                                            variant="contained"
-                                            size="large"
-                                            onClick={handleRegisterClick}
-                                            sx={{
-                                                bgcolor: '#ffffff',
-                                                color: BRAND_NAVY,
-                                                px: 3,
-                                                py: 1.1,
-                                                fontSize: '0.9rem',
-                                                fontWeight: 700,
-                                                borderRadius: 999,
-                                                textTransform: 'none',
-                                                boxShadow: '0 12px 32px rgba(37, 99, 235, 0.14), 0 2px 8px rgba(255,255,255,0.9) inset',
-                                                minWidth: {xs: '100%', sm: 200},
-                                                transition: `transform 0.35s ${consultMotionEase}, box-shadow 0.35s ease`,
-                                                '&:hover': {
-                                                    bgcolor: '#ffffff',
-                                                    boxShadow: '0 18px 44px rgba(37, 99, 235, 0.18), 0 2px 10px rgba(255,255,255,0.95) inset',
-                                                    transform: 'translateY(-2px)'
-                                                }
-                                            }}
-                                        >
-                                            Đăng ký miễn phí
-                                        </Button>
-                                    )}
-                                    <Button
-                                        variant="outlined"
-                                        size="large"
-                                        startIcon={<SearchIcon sx={{color: 'inherit'}}/>}
-                                        onClick={() => navigate('/search-schools')}
-                                        sx={{
-                                            borderRadius: 999,
-                                            textTransform: 'none',
-                                            fontWeight: 700,
-                                            px: 2.75,
-                                            py: 1.1,
-                                            fontSize: '0.9rem',
-                                            borderColor: 'rgba(59,130,246,0.7)',
-                                            color: BRAND_NAVY,
-                                            bgcolor: 'rgba(255,255,255,0.88)',
-                                            minWidth: {xs: '100%', sm: 200},
-                                            '&:hover': {
-                                                borderColor: BRAND_NAVY,
-                                                bgcolor: '#ffffff'
-                                            }
-                                        }}
-                                    >
-                                        Tìm trường ngay
-                                    </Button>
-                                </Stack>
-                                <Stack
-                                    direction="row"
-                                    spacing={2}
-                                    flexWrap="wrap"
-                                    sx={{justifyContent: {xs: 'center', md: 'flex-start'}, gap: 1.5}}
-                                >
-                                    {[
-                                        {icon: <VerifiedIcon sx={{fontSize: 18, color: BRAND_NAVY}}/>, t: 'Thông tin đã kiểm duyệt'},
-                                        {icon: <ChatIcon sx={{fontSize: 18, color: BRAND_NAVY}}/>, t: 'Chat tư vấn 24/7'}
-                                    ].map((x) => (
-                                        <Box
-                                            key={x.t}
-                                            sx={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: 0.75,
-                                                px: 1.5,
-                                                py: 0.75,
-                                                borderRadius: 999,
-                                                bgcolor: 'rgba(255,255,255,0.92)',
-                                                border: '1px solid rgba(59,130,246,0.42)'
-                                            }}
-                                        >
-                                            {x.icon}
-                                            <Typography sx={{fontSize: '0.8rem', fontWeight: 600, color: BRAND_NAVY}}>
-                                                {x.t}
-                                            </Typography>
-                                        </Box>
-                                    ))}
-                                </Stack>
-                                </Box>
-                            </Box>
-                        </Box>
-                        <Box
-                            sx={{
-                                minWidth: 0,
-                                width: '100%',
-                                order: {xs: 2, md: 2},
-                                display: 'flex',
-                                flexDirection: 'column',
-                                alignItems: {xs: 'center', md: 'stretch'}
-                            }}
-                        >
-                            <Box
-                                sx={{
-                                    position: 'relative',
-                                    width: '100%',
-                                    maxWidth: {xs: 480, md: '100%'},
-                                    borderRadius: 3,
-                                    p: {xs: 2.5, md: 3},
-                                    background: 'linear-gradient(155deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.88) 100%)',
-                                    backdropFilter: 'blur(20px) saturate(1.12)',
-                                    WebkitBackdropFilter: 'blur(20px) saturate(1.12)',
-                                    border: '1px solid rgba(255,255,255,0.98)',
-                                    boxShadow: `
-                                        0 24px 56px rgba(15, 23, 42, 0.14),
-                                        0 0 0 1px rgba(255,255,255,0.9) inset,
-                                        0 1px 0 rgba(255,255,255,1) inset
-                                    `,
-                                    transition: 'transform 0.45s cubic-bezier(0.22, 0.61, 0.36, 1), box-shadow 0.45s ease',
-                                    flex: 1,
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    height: '100%',
-                                    minHeight: 0,
-                                    '&:hover': {
-                                        transform: 'translateY(-4px)',
-                                        boxShadow: `
-                                            0 32px 64px rgba(15, 23, 42, 0.16),
-                                            0 0 0 1px rgba(255,255,255,0.92) inset,
-                                            0 1px 0 rgba(255,255,255,1) inset
-                                        `
-                                    },
-                                    '&::before': {
-                                        content: '""',
-                                        position: 'absolute',
-                                        inset: -1,
-                                        borderRadius: 4,
-                                        background: `linear-gradient(135deg, rgba(59,130,246,0.22), rgba(37,99,235,0.14))`,
-                                        zIndex: -1,
-                                        filter: 'blur(8px)',
-                                        opacity: 0.9
-                                    }
-                                }}
-                            >
-                                <Stack spacing={0} sx={{mb: 2, flexShrink: 0}}>
-                                    <Typography sx={{fontWeight: 800, fontSize: '0.95rem', color: '#1e293b'}}>
-                                        Trò chuyện với EduBridge
-                                    </Typography>
-                                    <Typography sx={{fontSize: '0.78rem', color: '#64748b'}}>
-                                            Gợi ý trường phù hợp theo học lực và khu vực
-                                    </Typography>
-                                </Stack>
-                                <Stack spacing={1.5} sx={{flex: 1, minHeight: 0}}>
-                                    <Box
-                                        sx={{
-                                            alignSelf: 'flex-start',
-                                            maxWidth: '92%',
-                                            px: 2,
-                                            py: 1.25,
-                                            borderRadius: '16px 16px 16px 4px',
-                                            bgcolor: 'rgba(241,245,249,0.95)',
-                                            border: '1px solid rgba(148,163,184,0.35)'
-                                        }}
-                                    >
-                                        <Typography sx={{fontSize: '0.875rem', color: '#334155', lineHeight: 1.55}}>
-                                            Chào chị! Con em học lớp 9, điểm TB 8.2 — nên ưu tiên trường nào ở quận trung tâm ạ?
-                                        </Typography>
-                                    </Box>
-                                    <Box
-                                        sx={{
-                                            alignSelf: 'flex-end',
-                                            maxWidth: '88%',
-                                            px: 2,
-                                            py: 1.25,
-                                            borderRadius: '16px 16px 4px 16px',
-                                            background: `linear-gradient(125deg, ${BRAND_NAVY} 0%, ${BRAND_SKY} 50%, ${BRAND_SKY_LIGHT} 100%)`,
-                                            color: '#fff',
-                                            boxShadow: '0 8px 24px rgba(37,99,235,0.35)'
-                                        }}
-                                    >
-                                        <Typography sx={{fontSize: '0.875rem', lineHeight: 1.55, fontWeight: 500}}>
-                                            Dựa trên hồ sơ, em gợi ý 3 trường có tỷ lệ chọi phù hợp và lịch tư vấn tuần này. Chị xem nhé ↓
-                                        </Typography>
-                                    </Box>
-                                    <Box
-                                        sx={{
-                                            display: 'flex',
-                                            gap: 1,
-                                            flexWrap: 'wrap',
-                                            pt: 0.5
-                                        }}
-                                    >
-                                        {['THPT Chuyên', 'Tư thục A', 'Công lập gần nhà'].map((label) => (
-                                            <Chip
-                                                key={label}
-                                                label={label}
-                                                size="small"
-                                                sx={{
-                                                    bgcolor: 'rgba(255,255,255,0.9)',
-                                                    fontWeight: 600,
-                                                    fontSize: '0.72rem',
-                                                    border: `1px solid ${APP_PRIMARY_SOFT_BORDER}`
-                                                }}
-                                            />
-                                        ))}
-                                    </Box>
-                                </Stack>
-                                <Box
-                                    sx={{
-                                        mt: 'auto',
-                                        pt: 2.5,
-                                        borderTop: '1px dashed rgba(148,163,184,0.5)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: 1,
-                                        flexShrink: 0
-                                    }}
-                                >
-                                    <Box
-                                        sx={{
-                                            flex: 1,
-                                            height: 40,
-                                            borderRadius: 2,
-                                            bgcolor: 'rgba(255,255,255,0.65)',
-                                            border: '1px solid rgba(226,232,240,0.9)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            px: 1.5
-                                        }}
-                                    >
-                                        <Typography sx={{fontSize: '0.8rem', color: '#94a3b8'}}>
-                                            Nhập câu hỏi…
-                                        </Typography>
-                                    </Box>
-                                    <Button
-                                        size="small"
-                                        variant="contained"
-                                        sx={{
-                                            minWidth: 0,
-                                            px: 2,
-                                            borderRadius: 2,
-                                            textTransform: 'none',
-                                            fontWeight: 700,
-                                            background: `linear-gradient(90deg, ${BRAND_NAVY}, ${BRAND_SKY})`,
-                                            '&:hover': {background: `linear-gradient(90deg, ${APP_PRIMARY_DARK}, ${BRAND_NAVY})`}
-                                        }}
-                                    >
-                                        Gửi
-                                    </Button>
-                                </Box>
-                            </Box>
-                        </Box>
-                    </Box>
-                </Container>
-            </Box>
+            <HomeTopPromoCarousel
+                isParentRole={isParentRole}
+                onRegisterClick={handleRegisterClick}
+                navigate={navigate}
+            />
 
             <Box
                 id="trường-nổi-bật"
                 sx={{
                     position: 'relative',
                     zIndex: 1,
-                    mt: {xs: -7, md: -9},
-                    pt: {xs: 10, md: 12},
+                    mt: 0,
+                    pt: {xs: 6, md: 8},
                     pb: {xs: 11, md: 13},
                     overflow: 'visible',
                     background: `linear-gradient(180deg, ${HOME_SCHOOL_SECTION_SURFACE} 0%, #f0f9ff 32%, #fafcff 68%, ${HOME_CONSULT_SECTION_TOP} 100%)`,
