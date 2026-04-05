@@ -101,6 +101,10 @@ function defaultConfig() {
     operationSettingsData: {
       hotline: "",
       emailSupport: "",
+      maxBookingPerSlot: 1,
+      minCounsellorPerSlot: 1,
+      slotDurationInMinutes: 30,
+      allowBookingBeforeHours: 24,
       workingConfig: {
         note: "",
         workShifts: [],
@@ -144,16 +148,6 @@ function galleryStringToImageList(gallery) {
   }
 }
 
-function imageListToGalleryJsonString(list) {
-  if (!Array.isArray(list) || list.length === 0) return "[]";
-  return JSON.stringify(
-    list.map((im) => ({
-      name: im.name != null ? String(im.name) : "",
-      url: im.url != null ? String(im.url) : "",
-    }))
-  );
-}
-
 function imageListFromFacilityImageBlock(img) {
   if (!img || typeof img !== "object") return [];
   if (Array.isArray(img.imageList) && img.imageList.length > 0) return img.imageList;
@@ -171,7 +165,7 @@ function sanitizeCampusPutItemList(itemList) {
   }));
 }
 
-/** PUT /campus/{id}/config — `imageJsonData` theo contract mới */
+/** PUT /campus/{id}/config — `imageJsonData`: { coverUrl, imageList } */
 function buildImageJsonDataForCampusPut(imageData) {
   const img = imageData && typeof imageData === "object" ? imageData : {};
   const coverUrl =
@@ -180,12 +174,20 @@ function buildImageJsonDataForCampusPut(imageData) {
       : img.cover != null && String(img.cover).trim() !== ""
         ? String(img.cover).trim()
         : "";
-  const thumbnailUrl = img.thumbnailUrl != null ? String(img.thumbnailUrl).trim() : "";
   const list = Array.isArray(img.imageList) ? img.imageList : [];
   return {
     coverUrl,
-    thumbnailUrl,
-    gallery: imageListToGalleryJsonString(list),
+    imageList: list.map((im) => {
+      const row = {
+        url: im?.url != null ? String(im.url) : "",
+        name: im?.name != null ? String(im.name) : "",
+        altName: im?.altName != null ? String(im.altName ?? "") : "",
+      };
+      if (im && Object.prototype.hasOwnProperty.call(im, "isUsage")) {
+        row.isUsage = Boolean(im.isUsage);
+      }
+      return row;
+    }),
   };
 }
 
@@ -387,9 +389,16 @@ function sanitizeOperationSettingsForApi(op) {
         description: s.description != null ? String(s.description) : "",
       }))
     : [];
+  const numOr = (v, fallback) =>
+    v != null && !Number.isNaN(Number(v)) ? Number(v) : fallback;
+
   return {
     hotline: op.hotline != null ? String(op.hotline) : "",
     emailSupport: op.emailSupport != null ? String(op.emailSupport) : "",
+    maxBookingPerSlot: numOr(op.maxBookingPerSlot, 1),
+    minCounsellorPerSlot: numOr(op.minCounsellorPerSlot, 1),
+    slotDurationInMinutes: numOr(op.slotDurationInMinutes, 30),
+    allowBookingBeforeHours: numOr(op.allowBookingBeforeHours, 24),
     workingConfig: {
       note: wc.note != null ? String(wc.note) : "",
       workShifts: shifts,
@@ -438,15 +447,17 @@ function sanitizeFacilityDataForApi(f) {
     }
     return o;
   });
-  return {
+  const out = {
     itemList,
     overview: f.overview != null ? String(f.overview) : "",
     imageData: {
       coverUrl,
-      thumbnailUrl,
       imageList,
     },
   };
+  const th = img.thumbnailUrl != null ? String(img.thumbnailUrl).trim() : "";
+  if (th) out.imageData.thumbnailUrl = th;
+  return out;
 }
 
 /** Gộp admission_settings (snake) với admissionSettingsData — bỏ key lạ như itemList: boolean */
@@ -509,6 +520,22 @@ function normalizeFromApi(body) {
     operationSettingsData: {
       ...d.operationSettingsData,
       ...op,
+      maxBookingPerSlot:
+        op.maxBookingPerSlot != null && !Number.isNaN(Number(op.maxBookingPerSlot))
+          ? Number(op.maxBookingPerSlot)
+          : d.operationSettingsData.maxBookingPerSlot,
+      minCounsellorPerSlot:
+        op.minCounsellorPerSlot != null && !Number.isNaN(Number(op.minCounsellorPerSlot))
+          ? Number(op.minCounsellorPerSlot)
+          : d.operationSettingsData.minCounsellorPerSlot,
+      slotDurationInMinutes:
+        op.slotDurationInMinutes != null && !Number.isNaN(Number(op.slotDurationInMinutes))
+          ? Number(op.slotDurationInMinutes)
+          : d.operationSettingsData.slotDurationInMinutes,
+      allowBookingBeforeHours:
+        op.allowBookingBeforeHours != null && !Number.isNaN(Number(op.allowBookingBeforeHours))
+          ? Number(op.allowBookingBeforeHours)
+          : d.operationSettingsData.allowBookingBeforeHours,
       workingConfig: {
         ...d.operationSettingsData.workingConfig,
         ...(op.workingConfig || {}),
@@ -626,8 +653,9 @@ function parseBranchFacilityJson(raw) {
 
 function policyFromCampusCurrent(cur) {
   if (!cur || typeof cur !== "object") return "";
+  const pdr = cur.policyDetailRendered && typeof cur.policyDetailRendered === "object" ? cur.policyDetailRendered : null;
+  if (pdr?.rawCustomNote != null && String(pdr.rawCustomNote).trim() !== "") return String(pdr.rawCustomNote);
   if (cur.policyDetail != null && String(cur.policyDetail).trim() !== "") return String(cur.policyDetail);
-  if (cur.policyDetailRendered != null) return String(cur.policyDetailRendered);
   return "";
 }
 
@@ -695,9 +723,15 @@ function normalizeFromCampusConfigApi(body) {
   }
 
   const wc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
+  const numHq = (v, fallback) =>
+    v != null && !Number.isNaN(Number(v)) ? Number(v) : fallback;
   const mergedOp = {
     hotline: hqOp.hotline != null ? String(hqOp.hotline) : "",
     emailSupport: hqOp.emailSupport != null ? String(hqOp.emailSupport) : "",
+    maxBookingPerSlot: numHq(hqOp.maxBookingPerSlot, d.operationSettingsData.maxBookingPerSlot),
+    minCounsellorPerSlot: numHq(hqOp.minCounsellorPerSlot, d.operationSettingsData.minCounsellorPerSlot),
+    slotDurationInMinutes: numHq(hqOp.slotDurationInMinutes, d.operationSettingsData.slotDurationInMinutes),
+    allowBookingBeforeHours: numHq(hqOp.allowBookingBeforeHours, d.operationSettingsData.allowBookingBeforeHours),
     workingConfig: {
       note: wc.note != null ? String(wc.note) : "",
       workShifts: Array.isArray(wc.workShifts) ? wc.workShifts : [],
@@ -707,6 +741,22 @@ function normalizeFromCampusConfigApi(body) {
     },
     admissionSteps: Array.isArray(hqOp.admissionSteps) ? hqOp.admissionSteps.map((s) => ({...s})) : [],
   };
+
+  const pdr = cur.policyDetailRendered && typeof cur.policyDetailRendered === "object" ? cur.policyDetailRendered : null;
+  if (pdr) {
+    if (pdr.maxBookingPerSlot != null && !Number.isNaN(Number(pdr.maxBookingPerSlot)))
+      mergedOp.maxBookingPerSlot = Number(pdr.maxBookingPerSlot);
+    if (pdr.minCounsellorPerSlot != null && !Number.isNaN(Number(pdr.minCounsellorPerSlot)))
+      mergedOp.minCounsellorPerSlot = Number(pdr.minCounsellorPerSlot);
+    if (pdr.slotDurationInMinutes != null && !Number.isNaN(Number(pdr.slotDurationInMinutes)))
+      mergedOp.slotDurationInMinutes = Number(pdr.slotDurationInMinutes);
+    if (pdr.allowBookingBeforeHours != null && !Number.isNaN(Number(pdr.allowBookingBeforeHours)))
+      mergedOp.allowBookingBeforeHours = Number(pdr.allowBookingBeforeHours);
+    if (pdr.hotline != null && String(pdr.hotline).trim() !== "") mergedOp.hotline = String(pdr.hotline);
+    if (pdr.emailSupport != null && String(pdr.emailSupport).trim() !== "") mergedOp.emailSupport = String(pdr.emailSupport);
+  }
+  if (cur.hotline != null && String(cur.hotline).trim() !== "") mergedOp.hotline = String(cur.hotline);
+  if (cur.emailSupport != null && String(cur.emailSupport).trim() !== "") mergedOp.emailSupport = String(cur.emailSupport);
 
   if (fj && typeof fj === "object") {
     if (fj.hotline != null) mergedOp.hotline = String(fj.hotline);
@@ -769,6 +819,15 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
 
   if (op.hotline !== iOp.hotline) payload.hotline = op.hotline ?? "";
   if (op.emailSupport !== iOp.emailSupport) payload.emailSupport = op.emailSupport ?? "";
+
+  if (Number(op.maxBookingPerSlot) !== Number(iOp.maxBookingPerSlot))
+    payload.maxBookingPerSlot = Number(op.maxBookingPerSlot) || 0;
+  if (Number(op.minCounsellorPerSlot) !== Number(iOp.minCounsellorPerSlot))
+    payload.minCounsellorPerSlot = Number(op.minCounsellorPerSlot) || 0;
+  if (Number(op.slotDurationInMinutes) !== Number(iOp.slotDurationInMinutes))
+    payload.slotDurationInMinutes = Number(op.slotDurationInMinutes) || 0;
+  if (Number(op.allowBookingBeforeHours) !== Number(iOp.allowBookingBeforeHours))
+    payload.allowBookingBeforeHours = Number(op.allowBookingBeforeHours) || 0;
 
   const wc = op.workingConfig || {};
   const iWc = iOp.workingConfig || {};
@@ -2171,6 +2230,79 @@ export default function SchoolFacilityOverview() {
                       size="small"
                       inputProps={{readOnly: fieldDisabled}}
                     />
+                    <Stack direction={{xs: "column", sm: "row"}} spacing={2} useFlexGap sx={{flexWrap: "wrap"}}>
+                      <TextField
+                        label="Số khách tối đa mỗi ca"
+                        type="number"
+                        value={config.operationSettingsData.maxBookingPerSlot ?? 0}
+                        onChange={(e) =>
+                          setConfig((c) => ({
+                            ...c,
+                            operationSettingsData: {
+                              ...c.operationSettingsData,
+                              maxBookingPerSlot: Number(e.target.value) || 0,
+                            },
+                          }))
+                        }
+                        size="small"
+                        inputProps={{readOnly: fieldDisabled, min: 0}}
+                        sx={{minWidth: 200, flex: 1}}
+                      />
+                      <TextField
+                        label="Tư vấn viên tối thiểu / ca"
+                        type="number"
+                        value={config.operationSettingsData.minCounsellorPerSlot ?? 0}
+                        onChange={(e) =>
+                          setConfig((c) => ({
+                            ...c,
+                            operationSettingsData: {
+                              ...c.operationSettingsData,
+                              minCounsellorPerSlot: Number(e.target.value) || 0,
+                            },
+                          }))
+                        }
+                        size="small"
+                        inputProps={{readOnly: fieldDisabled, min: 0}}
+                        sx={{minWidth: 200, flex: 1}}
+                      />
+                      <TextField
+                        label="Thời lượng ca (phút)"
+                        type="number"
+                        value={config.operationSettingsData.slotDurationInMinutes ?? 0}
+                        onChange={(e) =>
+                          setConfig((c) => ({
+                            ...c,
+                            operationSettingsData: {
+                              ...c.operationSettingsData,
+                              slotDurationInMinutes:
+                                e.target.value === ""
+                                  ? 0
+                                  : Math.max(1, Number(e.target.value) || 0),
+                            },
+                          }))
+                        }
+                        size="small"
+                        inputProps={{readOnly: fieldDisabled, min: 0}}
+                        sx={{minWidth: 180, flex: 1}}
+                      />
+                      <TextField
+                        label="Đặt lịch trước (giờ)"
+                        type="number"
+                        value={config.operationSettingsData.allowBookingBeforeHours ?? 0}
+                        onChange={(e) =>
+                          setConfig((c) => ({
+                            ...c,
+                            operationSettingsData: {
+                              ...c.operationSettingsData,
+                              allowBookingBeforeHours: Number(e.target.value) || 0,
+                            },
+                          }))
+                        }
+                        size="small"
+                        inputProps={{readOnly: fieldDisabled, min: 0}}
+                        sx={{minWidth: 180, flex: 1}}
+                      />
+                    </Stack>
                   </Stack>
                 </CardContent>
               </Card>

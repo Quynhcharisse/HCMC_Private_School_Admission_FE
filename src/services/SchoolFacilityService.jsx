@@ -89,8 +89,9 @@ export const getCampusConfig = async (campusId) => {
 
 /**
  * PUT /api/v1/campus/{campusId}/config — path: `campusId`
- * Body phẳng (partial): overview, itemList, imageJsonData { coverUrl, thumbnailUrl, gallery },
- * hotline, emailSupport, workingOverride, admissionStepsOverride, policyDetail.
+ * Body phẳng (partial): overview, itemList, imageJsonData { coverUrl, imageList },
+ * hotline, emailSupport, minCounsellorPerSlot, slotDurationInMinutes, maxBookingPerSlot,
+ * allowBookingBeforeHours, workingOverride, admissionStepsOverride, policyDetail.
  * @param {number | string} campusId
  * @param {Record<string, unknown>} payload
  */
@@ -110,5 +111,32 @@ export const getSchoolCampusConfigList = async () => {
 /** Normalize list body to an array of campus config rows */
 export function parseSchoolCampusConfigListBody(res) {
   const body = res?.data?.body ?? res?.data?.data?.body;
-  return Array.isArray(body) ? body : [];
+  if (!Array.isArray(body)) return [];
+  return body.map((row) => {
+    if (!row || typeof row !== "object") return row;
+    if (row.facilityConfig && typeof row.facilityConfig === "object") return row;
+    const alt = row.facilityJson ?? row.facility_json;
+    if (alt && typeof alt === "object") return {...row, facilityConfig: alt};
+    return row;
+  });
+}
+
+/**
+ * GET /school/config/campus/list — `policyDetail` có thể là string (legacy) hoặc object
+ * { fullTextRendered, rawCustomNote, ... }.
+ */
+export function schoolCampusListRowPolicyText(row) {
+  const p = row?.policyDetail;
+  if (p == null || p === "") return null;
+  if (typeof p === "string") {
+    const t = p.trim();
+    return t || null;
+  }
+  if (typeof p === "object") {
+    const full = p.fullTextRendered != null ? String(p.fullTextRendered).trim() : "";
+    if (full) return full;
+    const raw = p.rawCustomNote != null ? String(p.rawCustomNote).trim() : "";
+    if (raw) return raw;
+  }
+  return null;
 }

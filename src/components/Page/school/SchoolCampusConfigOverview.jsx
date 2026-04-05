@@ -28,6 +28,7 @@ import { enqueueSnackbar } from "notistack";
 import {
   getSchoolCampusConfigList,
   parseSchoolCampusConfigListBody,
+  schoolCampusListRowPolicyText,
 } from "../../../services/SchoolFacilityService.jsx";
 
 function facilityCoverUrl(imageData) {
@@ -282,8 +283,7 @@ export default function SchoolCampusConfigOverview() {
       ? String(facilityConfig.overview)
       : null;
   const cover = facilityCoverUrl(facilityConfig?.imageData);
-  const policyDetail =
-    active?.policyDetail != null && String(active.policyDetail).trim() !== "" ? String(active.policyDetail) : null;
+  const policyDetail = schoolCampusListRowPolicyText(active);
   const bothEmpty = !facilityConfig && !policyDetail;
 
   const campaignsTabSx = {
