@@ -318,7 +318,7 @@ export default function SchoolCampusConfigOverview() {
             Danh sách cấu hình
           </Typography>
           <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.95 }}>
-            Xem nhanh cơ sở vật chất và chính sách vận hành từng cơ sở (GET /school/config/campus/list)
+            Xem nhanh cơ sở vật chất và chính sách vận hành từng cơ sở
           </Typography>
         </Box>
       </Box>
