@@ -18,6 +18,7 @@ import {
 import DashboardIcon from "@mui/icons-material/Dashboard";
 import ApartmentIcon from "@mui/icons-material/Apartment";
 import SupportAgentIcon from "@mui/icons-material/SupportAgent";
+import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import ViewAgendaIcon from "@mui/icons-material/ViewAgenda";
@@ -41,6 +42,7 @@ const menuGroups = [
         items: [
             { text: "Cơ sở", icon: <ApartmentIcon />, path: "/school/campus" },
             { text: "Tư vấn viên", icon: <SupportAgentIcon />, path: "/school/counselors" },
+            { text: "Lịch tư vấn viên", icon: <EventAvailableIcon />, path: "/school/counselor-schedule" },
         ],
     },
     {

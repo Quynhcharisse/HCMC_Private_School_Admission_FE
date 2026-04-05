@@ -27,6 +27,7 @@ const SchoolDashboard = lazy(() => import("./components/Page/school/SchoolDashbo
 const SchoolCampus = lazy(() => import("./components/Page/school/SchoolCampus.jsx"));
 const UserProfilePage = lazy(() => import("./components/Page/UserProfilePage.jsx"));
 const SchoolCounselors = lazy(() => import("./components/Page/school/SchoolCounselors.jsx"));
+const SchoolCounselorSchedule = lazy(() => import("./components/Page/school/SchoolCounselorSchedule.jsx"));
 const SchoolCampaigns = lazy(() => import("./components/Page/school/SchoolCampaigns.jsx"));
 const SchoolCampaignOfferings = lazy(() => import("./components/Page/school/SchoolCampaignOfferings.jsx"));
 const SchoolCampaignDetail = lazy(() =>import("./components/Page/school/SchoolCampaignDetail.jsx"));
@@ -310,6 +311,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <SchoolCounselors/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'counselor-schedule',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolCounselorSchedule/>
                     </Suspense>
                 )
             },
