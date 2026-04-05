@@ -291,10 +291,18 @@ const router = createBrowserRouter([
                 )
             },
             {
+                path: 'campus-facility-config',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolFacilityOverview variant="campus"/>
+                    </Suspense>
+                )
+            },
+            {
                 path: 'facility-config',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
-                        <SchoolFacilityOverview/>
+                        <SchoolFacilityOverview variant="platform"/>
                     </Suspense>
                 )
             },

@@ -58,7 +58,8 @@ export const getSchoolConfigByKey = async (k) => {
 };
 
 /**
- * PUT /api/v1/school/config/{schoolId} — tuyển sinh / chỉ tiêu / tài chính / hồ sơ (không gồm CSVC + vận hành campus)
+ * PUT /api/v1/school/config/{schoolId} — cấu hình cấp trường (cơ sở chính / isPrimaryBranch):
+ * admission, quota, finance, documents, operationSettingsData, facilityData (partial theo diff).
  * @param {number | string} schoolId
  * @param {Record<string, unknown>} payload
  */
