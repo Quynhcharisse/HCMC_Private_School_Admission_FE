@@ -31,8 +31,21 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
 import { signout } from "../../services/AccountService.jsx";
+import { useSchool } from "../../contexts/SchoolContext.jsx";
 
-const menuGroups = [
+function buildConfigMenuItems(isPrimaryBranch, schoolCtxLoading) {
+    const items = [];
+    if (schoolCtxLoading || isPrimaryBranch) {
+        items.push({ text: "Cấu hình nền tảng", icon: <SettingsOutlinedIcon />, path: "/school/facility-config" });
+    }
+    items.push(
+        { text: "Cấu hình theo cơ sở", icon: <ApartmentIcon />, path: "/school/campus-facility-config" },
+        { text: "Danh sách cấu hình", icon: <CorporateFareOutlinedIcon />, path: "/school/campus-config" },
+    );
+    return items;
+}
+
+const menuGroupsBase = [
     {
         title: "TỔNG QUAN",
         items: [{ text: "Bảng thống kê", icon: <DashboardIcon />, path: "/school/dashboard" }],
@@ -58,19 +71,20 @@ const menuGroups = [
     },
     {
         title: "CẤU HÌNH",
-        items: [
-            { text: "Cấu hình nền tảng", icon: <SettingsOutlinedIcon />, path: "/school/facility-config" },
-            {
-                text: "Cấu hình theo cơ sở",
-                icon: <CorporateFareOutlinedIcon />,
-                path: "/school/campus-config",
-            },
-        ],
+        items: [],
     },
 ];
 
 export default function SchoolSidebar({ currentPath, collapsed = false, onToggleCollapse }) {
     const navigate = useNavigate();
+    const { isPrimaryBranch, loading: schoolCtxLoading } = useSchool();
+
+    const menuGroups = useMemo(() => {
+        return menuGroupsBase.map((g) => {
+            if (g.title !== "CẤU HÌNH") return g;
+            return { ...g, items: buildConfigMenuItems(isPrimaryBranch, schoolCtxLoading) };
+        });
+    }, [isPrimaryBranch, schoolCtxLoading]);
     const [userAnchorEl, setUserAnchorEl] = useState(null);
 
     const userInfo = useMemo(() => {

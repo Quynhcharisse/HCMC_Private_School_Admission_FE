@@ -34,7 +34,7 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AddIcon from "@mui/icons-material/Add";
-import {useSearchParams} from "react-router-dom";
+import {Navigate, useSearchParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 
 import {extractCampusListBody, listCampuses} from "../../../services/CampusService.jsx";
@@ -625,7 +625,7 @@ function pickSchoolIdFromCampuses(campuses) {
   return null;
 }
 
-/** Cơ sở chính — dùng PUT /campus/{id}/config thay cho PUT /school/config/{schoolId} */
+/** Campus chính để GET/PUT /campus/{id}/config (chỉ sửa cơ sở mình, không chọn campus khác). */
 function pickPrimaryCampusIdFromCampuses(campuses) {
   if (!Array.isArray(campuses) || campuses.length === 0) return null;
   const primary = campuses.find((c) => c.isPrimaryBranch === true);
@@ -869,14 +869,30 @@ function admissionMethodExtraEntries(m) {
   return Object.entries(m).filter(([k]) => !ADMISSION_METHOD_DETAIL_SKIP.has(k));
 }
 
-export default function SchoolFacilityOverview() {
+/**
+ * @param {{ variant?: "platform" | "campus" }} props
+ * - platform: GET/PUT /school/config/{schoolId} (chỉ campus chính / isPrimaryBranch)
+ * - campus: GET/PUT /campus/{campusId}/config — campus phụ: cơ sở đăng nhập; campus chính: chỉ cơ sở chính (không chọn campus khác).
+ */
+export default function SchoolFacilityOverview({variant = "platform"}) {
+  const isCampusVariant = variant === "campus";
   const {isPrimaryBranch, currentCampusId, loading: schoolCtxLoading} = useSchool();
-  const isBranchCampusConfig = !isPrimaryBranch && currentCampusId != null;
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const tabSlugs = isBranchCampusConfig ? BRANCH_TAB_SLUGS : TAB_SLUGS;
-  const tabLabels = isBranchCampusConfig ? BRANCH_TAB_LABELS : TAB_LABELS;
-  const tabSlug = searchParams.get("tab") || (isBranchCampusConfig ? "operation" : "admission");
+  /** Chỉ dùng khi campus chính + variant campus — id cơ sở chính sau listCampuses. */
+  const [primaryCampusResolvedId, setPrimaryCampusResolvedId] = useState(null);
+
+  const effectiveCampusId = useMemo(() => {
+    if (!isCampusVariant) return null;
+    if (!isPrimaryBranch) return currentCampusId;
+    return primaryCampusResolvedId;
+  }, [isCampusVariant, isPrimaryBranch, currentCampusId, primaryCampusResolvedId]);
+
+  const useCampusConfigFlow = Boolean(isCampusVariant && effectiveCampusId != null);
+
+  const tabSlugs = isCampusVariant ? BRANCH_TAB_SLUGS : TAB_SLUGS;
+  const tabLabels = isCampusVariant ? BRANCH_TAB_LABELS : TAB_LABELS;
+  const tabSlug = searchParams.get("tab") || (isCampusVariant ? "operation" : "admission");
   const tabIndex = tabSlugs.includes(tabSlug) ? tabSlugs.indexOf(tabSlug) : 0;
 
   const setTabIndex = useCallback(
@@ -891,7 +907,6 @@ export default function SchoolFacilityOverview() {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [schoolId, setSchoolId] = useState(null);
-  const [primaryCampusId, setPrimaryCampusId] = useState(null);
   const [branchPolicyDetail, setBranchPolicyDetail] = useState("");
   const branchHqOperationRef = useRef(null);
   const initialPolicyRef = useRef("");
@@ -927,8 +942,41 @@ export default function SchoolFacilityOverview() {
       const resCampuses = await listCampuses();
       const campuses = extractCampusListBody(resCampuses);
 
-      if (isBranchCampusConfig && currentCampusId != null) {
-        const cfgRes = await getCampusConfig(currentCampusId);
+      if (isCampusVariant) {
+        let cid = null;
+        if (isPrimaryBranch) {
+          cid = pickPrimaryCampusIdFromCampuses(campuses);
+          setPrimaryCampusResolvedId(cid);
+          if (cid == null) {
+            enqueueSnackbar("Không xác định được cơ sở chính để tải cấu hình.", {variant: "error"});
+            const empty = defaultConfig();
+            setConfig(empty);
+            initialRef.current = JSON.parse(JSON.stringify(empty));
+            setBranchPolicyDetail("");
+            initialPolicyRef.current = "";
+            branchHqOperationRef.current = {};
+            setSchoolId(pickSchoolIdFromCampuses(campuses));
+            setLastLoadedAt(new Date());
+            return;
+          }
+        } else {
+          setPrimaryCampusResolvedId(null);
+          cid = currentCampusId;
+          if (cid == null) {
+            enqueueSnackbar("Không xác định được cơ sở đăng nhập.", {variant: "error"});
+            const empty = defaultConfig();
+            setConfig(empty);
+            initialRef.current = JSON.parse(JSON.stringify(empty));
+            setBranchPolicyDetail("");
+            initialPolicyRef.current = "";
+            branchHqOperationRef.current = {};
+            setSchoolId(pickSchoolIdFromCampuses(campuses));
+            setLastLoadedAt(new Date());
+            return;
+          }
+        }
+
+        const cfgRes = await getCampusConfig(cid);
         const envelope = parseSchoolConfigResponseBody(cfgRes);
         branchHqOperationRef.current = envelope?.hqDefault?.operation
           ? JSON.parse(JSON.stringify(envelope.hqDefault.operation))
@@ -938,7 +986,6 @@ export default function SchoolFacilityOverview() {
         initialPolicyRef.current = pol;
         const next = normalizeFromCampusConfigApi(envelope);
         setSchoolId(pickSchoolIdFromCampuses(campuses));
-        setPrimaryCampusId(null);
         setConfig(next);
         initialRef.current = JSON.parse(JSON.stringify(next));
         setLastLoadedAt(new Date());
@@ -948,45 +995,30 @@ export default function SchoolFacilityOverview() {
       const sid = pickSchoolIdFromCampuses(campuses);
       if (sid == null) {
         enqueueSnackbar("Không lấy được schoolId", {variant: "error"});
-        setPrimaryCampusId(null);
         return;
       }
       setSchoolId(sid);
-      const pid = pickPrimaryCampusIdFromCampuses(campuses);
-      setPrimaryCampusId(pid);
-      if (pid == null) {
-        enqueueSnackbar("Không xác định được cơ sở chính (campusId)", {variant: "error"});
-        return;
-      }
 
-      const cfgRes = await getCampusConfig(pid);
-      const envelope = parseSchoolConfigResponseBody(cfgRes);
-      branchHqOperationRef.current = envelope?.hqDefault?.operation
-        ? JSON.parse(JSON.stringify(envelope.hqDefault.operation))
-        : {};
-      const pol = policyFromCampusCurrent(envelope?.campusCurrent);
-      setBranchPolicyDetail(pol);
-      initialPolicyRef.current = pol;
+      /** Cơ sở chính (isPrimaryBranch): GET /api/v1/school/config/{schoolId} — toàn bộ form. */
+      setBranchPolicyDetail("");
+      initialPolicyRef.current = "";
+      branchHqOperationRef.current = {};
 
-      let next = normalizeFromCampusConfigApi(envelope);
-
+      let next;
       try {
         const schoolRes = await getSchoolConfig(sid);
+        if (schoolRes?.status != null && (schoolRes.status < 200 || schoolRes.status >= 300)) {
+          throw new Error(schoolRes?.data?.message || "Yêu cầu thất bại");
+        }
         const schoolBody = parseSchoolConfigResponseBody(schoolRes);
-        const schoolPart = normalizeFromApi(schoolBody);
-        next = {
-          ...next,
-          admissionSettingsData: schoolPart.admissionSettingsData,
-          quotaConfigData: schoolPart.quotaConfigData,
-          financePolicyData: schoolPart.financePolicyData,
-          documentRequirementsData: schoolPart.documentRequirementsData,
-        };
+        next = normalizeFromApi(schoolBody);
       } catch (e) {
         console.error(e);
         enqueueSnackbar(
-          "Đã tải cấu hình cơ sở; không tải được cấu hình trường (tuyển sinh, chỉ tiêu, …).",
-          {variant: "warning"}
+          e?.response?.data?.message || e?.message || "Không tải được cấu hình trường (GET /school/config).",
+          {variant: "error"}
         );
+        next = defaultConfig();
       }
 
       const qa = next.quotaConfigData?.campusAssignments;
@@ -1015,13 +1047,13 @@ export default function SchoolFacilityOverview() {
     } catch (e) {
       console.error(e);
       enqueueSnackbar(
-        isBranchCampusConfig ? "Không thể tải cấu hình cơ sở" : "Không thể tải cấu hình trường",
+        useCampusConfigFlow || isCampusVariant ? "Không thể tải cấu hình cơ sở" : "Không thể tải cấu hình trường",
         {variant: "error"}
       );
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [isBranchCampusConfig, currentCampusId]);
+  }, [isCampusVariant, isPrimaryBranch, currentCampusId]);
 
   useEffect(() => {
     if (schoolCtxLoading) return;
@@ -1054,18 +1086,12 @@ export default function SchoolFacilityOverview() {
 
   const handleSave = useCallback(async () => {
     if (!editing) return;
-    if (!isBranchCampusConfig) {
-      if (schoolId == null) return;
-      if (primaryCampusId == null) {
-        enqueueSnackbar("Không xác định được cơ sở chính để lưu. Vui lòng tải lại trang.", {variant: "error"});
-        return;
-      }
-    }
-    if (isBranchCampusConfig && currentCampusId == null) return;
+    if (!useCampusConfigFlow && schoolId == null) return;
+    if (useCampusConfigFlow && effectiveCampusId == null) return;
     const initial = initialRef.current;
     if (!initial) return;
 
-    if (isBranchCampusConfig && currentCampusId != null) {
+    if (useCampusConfigFlow && effectiveCampusId != null) {
       const payload = buildCampusFlatPutPayload(
         config,
         initial,
@@ -1081,13 +1107,13 @@ export default function SchoolFacilityOverview() {
         const ok = facilityFormRef.current?.validate?.() ?? true;
         if (!ok) {
           enqueueSnackbar("Vui lòng kiểm tra lại tab Cơ sở vật chất", {variant: "error"});
-          setTabIndex(isBranchCampusConfig ? 1 : 5);
+          setTabIndex(useCampusConfigFlow ? 1 : 5);
           return;
         }
       }
       setSaving(true);
       try {
-        const res = await updateCampusConfig(currentCampusId, payload);
+        const res = await updateCampusConfig(effectiveCampusId, payload);
         if (res?.status >= 200 && res?.status < 300) {
           enqueueSnackbar(res?.data?.message || "Lưu thành công", {variant: "success"});
           setEditing(false);
@@ -1104,24 +1130,15 @@ export default function SchoolFacilityOverview() {
       return;
     }
 
-    const campusPayload = buildCampusFlatPutPayload(
-      config,
-      initial,
-      branchHqOperationRef.current,
-      initialPolicyRef.current ?? "",
-      branchPolicyDetail
-    );
-
+    /** Cơ sở chính: PUT /api/v1/school/config/{schoolId} (gồm operationSettingsData + facilityData nếu đổi). */
     const schoolPayload = buildPartialPayload(config, initial);
-    delete schoolPayload.facilityData;
-    delete schoolPayload.operationSettingsData;
 
-    if (Object.keys(campusPayload).length === 0 && Object.keys(schoolPayload).length === 0) {
+    if (Object.keys(schoolPayload).length === 0) {
       enqueueSnackbar("Không có thay đổi để lưu", {variant: "info"});
       return;
     }
 
-    if (campusPayload.overview != null || campusPayload.itemList != null || campusPayload.imageJsonData != null) {
+    if (schoolPayload.facilityData != null) {
       const ok = facilityFormRef.current?.validate?.() ?? true;
       if (!ok) {
         enqueueSnackbar("Vui lòng kiểm tra lại tab Cơ sở vật chất", {variant: "error"});
@@ -1147,22 +1164,13 @@ export default function SchoolFacilityOverview() {
 
     setSaving(true);
     try {
-      if (Object.keys(campusPayload).length > 0) {
-        const resCampus = await updateCampusConfig(primaryCampusId, campusPayload);
-        if (resCampus?.status < 200 || resCampus?.status >= 300) {
-          enqueueSnackbar(resCampus?.data?.message || "Có lỗi khi lưu cấu hình cơ sở", {variant: "error"});
-          return;
-        }
+      const resSchool = await updateSchoolConfig(schoolId, schoolPayload);
+      if (resSchool?.status < 200 || resSchool?.status >= 300) {
+        enqueueSnackbar(resSchool?.data?.message || "Có lỗi khi lưu cấu hình trường", {variant: "error"});
+        await load({silent: true});
+        return;
       }
-      if (Object.keys(schoolPayload).length > 0) {
-        const resSchool = await updateSchoolConfig(schoolId, schoolPayload);
-        if (resSchool?.status < 200 || resSchool?.status >= 300) {
-          enqueueSnackbar(resSchool?.data?.message || "Có lỗi khi lưu cấu hình trường", {variant: "error"});
-          await load({silent: true});
-          return;
-        }
-      }
-      enqueueSnackbar("Lưu thành công", {variant: "success"});
+      enqueueSnackbar(resSchool?.data?.message || "Lưu thành công", {variant: "success"});
       setEditing(false);
       await load({silent: true});
     } catch (e) {
@@ -1174,9 +1182,8 @@ export default function SchoolFacilityOverview() {
   }, [
     config,
     schoolId,
-    primaryCampusId,
-    currentCampusId,
-    isBranchCampusConfig,
+    useCampusConfigFlow,
+    effectiveCampusId,
     branchPolicyDetail,
     setTabIndex,
     editing,
@@ -1306,12 +1313,23 @@ export default function SchoolFacilityOverview() {
     "&:hover": {bgcolor: "#1d4ed8"},
   };
 
-  const showAdmissionTab = !isBranchCampusConfig && tabIndex === 0;
-  const showQuotaTab = !isBranchCampusConfig && tabIndex === 1;
-  const showFinanceTab = !isBranchCampusConfig && tabIndex === 2;
-  const showDocumentsTab = !isBranchCampusConfig && tabIndex === 3;
-  const showOperationTab = (!isBranchCampusConfig && tabIndex === 4) || (isBranchCampusConfig && tabIndex === 0);
-  const showFacilityTab = (!isBranchCampusConfig && tabIndex === 5) || (isBranchCampusConfig && tabIndex === 1);
+  const showAdmissionTab = !useCampusConfigFlow && tabIndex === 0;
+  const showQuotaTab = !useCampusConfigFlow && tabIndex === 1;
+  const showFinanceTab = !useCampusConfigFlow && tabIndex === 2;
+  const showDocumentsTab = !useCampusConfigFlow && tabIndex === 3;
+  const showOperationTab = (!useCampusConfigFlow && tabIndex === 4) || (useCampusConfigFlow && tabIndex === 0);
+  const showFacilityTab = (!useCampusConfigFlow && tabIndex === 5) || (useCampusConfigFlow && tabIndex === 1);
+
+  if (!schoolCtxLoading && variant === "platform" && !isPrimaryBranch) {
+    return <Navigate to="/school/campus-facility-config" replace />;
+  }
+
+  const pageTitle = isCampusVariant ? "Cấu hình theo cơ sở" : "Cấu hình nền tảng";
+  const pageSubtitle = isCampusVariant
+    ? isPrimaryBranch
+      ? "Chỉnh vận hành và CSVC của cơ sở chính (GET/PUT /campus/{campusId}/config). Mỗi cơ sở chỉ sửa được cấu hình của chính mình."
+      : "Chỉnh vận hành và CSVC của cơ sở bạn (GET/PUT /campus/{campusId}/config)."
+    : "Quản lý tuyển sinh, chỉ tiêu, tài chính, hồ sơ, vận hành và cơ sở vật chất chung (GET/PUT /school/config).";
 
   return (
       <Box
@@ -1339,12 +1357,10 @@ export default function SchoolFacilityOverview() {
           <Box sx={{display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2}}>
           <Box>
               <Typography variant="h5" sx={{fontWeight: 700, letterSpacing: "-0.02em", lineHeight: 1.2}}>
-                Cấu hình nền tảng
+                {pageTitle}
             </Typography>
               <Typography variant="body2" sx={{mt: 0.75, opacity: 0.95}}>
-                {isBranchCampusConfig
-                  ? "Chỉnh sửa vận hành và cơ sở vật chất của cơ sở này (API cấu hình campus; mặc định lấy từ trụ sở)."
-                  : "Quản lý tuyển sinh, chỉ tiêu, tài chính, hồ sơ, vận hành và cơ sở vật chất."}
+                {pageSubtitle}
             </Typography>
               {lastLoadedAt && (
                 <Typography variant="caption" sx={{display: "block", mt: 1.25, opacity: 0.88}}>
@@ -1370,45 +1386,60 @@ export default function SchoolFacilityOverview() {
         <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 1.5}}>
           <SettingsOutlinedIcon sx={{color: "#2563eb", fontSize: 22}}/>
           <Typography variant="subtitle1" sx={{fontWeight: 800, color: "#0f172a"}}>
-            Cấu hình nền tảng
+            {pageTitle}
           </Typography>
         </Stack>
 
-        <Tabs
-          value={tabIndex}
-          onChange={(_, v) => setTabIndex(v)}
-          variant="scrollable"
-          scrollButtons="auto"
-          sx={{
-            borderBottom: "1px solid #e2e8f0",
-            "& .MuiTabs-indicator": {height: 3, bgcolor: "#2563eb"},
-            mb: 2,
-          }}
-        >
-          {tabLabels.map((label, i) => (
-            <Tab
-              key={tabSlugs[i]}
-              label={label}
+        {!(isCampusVariant && !useCampusConfigFlow && !(loading || schoolCtxLoading)) ? (
+          <>
+            <Tabs
+              value={tabIndex}
+              onChange={(_, v) => setTabIndex(v)}
+              variant="scrollable"
+              scrollButtons="auto"
               sx={{
-              textTransform: "none",
-              fontWeight: 600,
-                color: "#64748b",
-                minHeight: 44,
-                fontSize: 13,
-                "&.Mui-selected": {
-                  color: "#2563eb",
-                },
+                borderBottom: "1px solid #e2e8f0",
+                "& .MuiTabs-indicator": {height: 3, bgcolor: "#2563eb"},
+                mb: 2,
               }}
-            />
-          ))}
-        </Tabs>
+            >
+              {tabLabels.map((label, i) => (
+                <Tab
+                  key={tabSlugs[i]}
+                  label={label}
+                  sx={{
+                    textTransform: "none",
+                    fontWeight: 600,
+                    color: "#64748b",
+                    minHeight: 44,
+                    fontSize: 13,
+                    "&.Mui-selected": {
+                      color: "#2563eb",
+                    },
+                  }}
+                />
+              ))}
+            </Tabs>
 
-        <Typography variant="body2" sx={{color: "#2563eb", fontWeight: 700, mb: 2}}>
-          {tabLabels[tabIndex]}
-        </Typography>
+            <Typography variant="body2" sx={{color: "#2563eb", fontWeight: 700, mb: 2}}>
+              {tabLabels[tabIndex]}
+            </Typography>
+          </>
+        ) : null}
 
         <Box sx={{pt: 0.5}}>
-          {loading || schoolCtxLoading ? (
+          {isCampusVariant && !useCampusConfigFlow && !(loading || schoolCtxLoading) ? (
+            <Card sx={{borderRadius: "12px", border: "1px solid #e2e8f0", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
+              <CardContent sx={{p: 3}}>
+                <Typography sx={{fontWeight: 700, mb: 1}}>Không tải được cấu hình cơ sở</Typography>
+                <Typography variant="body2" sx={{color: "#64748b"}}>
+                  {isPrimaryBranch
+                    ? "Không xác định được cơ sở chính. Vui lòng kiểm tra danh sách cơ sở hoặc thử tải lại trang."
+                    : "Không xác định được cơ sở đăng nhập. Vui lòng tải lại trang."}
+                </Typography>
+              </CardContent>
+            </Card>
+          ) : loading || schoolCtxLoading ? (
             <Box sx={{display: "flex", justifyContent: "center", py: 5}}>
               <CircularProgress/>
             </Box>
@@ -1820,10 +1851,17 @@ export default function SchoolFacilityOverview() {
                 <Stack spacing={2}>
                   <TextField
                     label="Năm học"
-                    value={config.quotaConfigData.academicYear}
-                    InputProps={{readOnly: true}}
+                    value={config.quotaConfigData.academicYear ?? ""}
+                    onChange={(e) =>
+                      setConfig((c) => ({
+                        ...c,
+                        quotaConfigData: {...c.quotaConfigData, academicYear: e.target.value},
+                      }))
+                    }
                     fullWidth
                     size="small"
+                    placeholder="Ví dụ: 2026-2027"
+                    inputProps={{readOnly: fieldDisabled}}
                   />
                   <TextField
                     label="Tổng chỉ tiêu toàn hệ thống"
@@ -2586,26 +2624,28 @@ export default function SchoolFacilityOverview() {
                 </CardContent>
               </Card>
 
-              <Card
-                sx={{
-                  borderRadius: "12px",
-                  border: "1px solid rgba(226,232,240,1)",
-                  boxShadow: "0 8px 24px rgba(15,23,42,0.06)",
-                }}
-              >
-                <CardContent sx={{p: 3}}>
-                  <Typography sx={{fontWeight: 800, mb: 2}}>Quy định tại cơ sở</Typography>
-                  <TextField
-                    label="Chi tiết quy định"
-                    multiline
-                    minRows={3}
-                    fullWidth
-                    value={branchPolicyDetail}
-                    onChange={(e) => setBranchPolicyDetail(e.target.value)}
-                    inputProps={{readOnly: fieldDisabled}}
-                  />
-                </CardContent>
-              </Card>
+              {useCampusConfigFlow ? (
+                <Card
+                  sx={{
+                    borderRadius: "12px",
+                    border: "1px solid rgba(226,232,240,1)",
+                    boxShadow: "0 8px 24px rgba(15,23,42,0.06)",
+                  }}
+                >
+                  <CardContent sx={{p: 3}}>
+                    <Typography sx={{fontWeight: 800, mb: 2}}>Quy định tại cơ sở</Typography>
+                    <TextField
+                      label="Chi tiết quy định"
+                      multiline
+                      minRows={3}
+                      fullWidth
+                      value={branchPolicyDetail}
+                      onChange={(e) => setBranchPolicyDetail(e.target.value)}
+                      inputProps={{readOnly: fieldDisabled}}
+                    />
+                  </CardContent>
+                </Card>
+              ) : null}
             </Stack>
           )}
 
@@ -2625,7 +2665,12 @@ export default function SchoolFacilityOverview() {
 
         <Box sx={{mt: 2, display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap"}}>
           {!editing ? (
-            <Button variant="contained" onClick={() => setEditing(true)} disabled={loading || saving || schoolCtxLoading} sx={footerSaveSx}>
+            <Button
+              variant="contained"
+              onClick={() => setEditing(true)}
+              disabled={loading || saving || schoolCtxLoading || (isCampusVariant && !useCampusConfigFlow)}
+              sx={footerSaveSx}
+            >
               Chỉnh sửa
             </Button>
           ) : (

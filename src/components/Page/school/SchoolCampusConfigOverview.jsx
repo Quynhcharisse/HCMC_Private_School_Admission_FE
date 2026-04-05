@@ -37,37 +37,6 @@ function facilityCoverUrl(imageData) {
   return typeof c === "string" && c.trim() ? c.trim() : "";
 }
 
-/** Ưu tiên campus chính lên đầu danh sách tab (API hoặc gợi ý tên). */
-function rowIsPrimaryCampus(r) {
-  if (!r || typeof r !== "object") return false;
-  if (r.isPrimaryBranch === true || r.is_primary_branch === true) return true;
-  const n = String(r.campusName ?? r.campus_name ?? "")
-    .trim()
-    .toLowerCase();
-  if (!n) return false;
-  const hints = [
-    "cơ sở chính",
-    "co so chinh",
-    "campus chính",
-    "campus chinh",
-    "trụ sở",
-    "tru so",
-    "head office",
-    "headquarter",
-  ];
-  return hints.some((h) => n.includes(h));
-}
-
-function sortCampusConfigRowsPrimaryFirst(list) {
-  if (!Array.isArray(list) || list.length < 2) return list;
-  return [...list].sort((a, b) => {
-    const aP = rowIsPrimaryCampus(a);
-    const bP = rowIsPrimaryCampus(b);
-    if (aP !== bP) return aP ? -1 : 1;
-    return 0;
-  });
-}
-
 /** Chuẩn hoá tên hiển thị khi BE thiếu dấu (vd. "Campus Chinh" → "Campus chính"). */
 function displayCampusConfigName(name, fallbackIndex) {
   const raw = name != null && String(name).trim() !== "" ? String(name).trim() : "";
@@ -242,8 +211,7 @@ export default function SchoolCampusConfigOverview() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const base = !q ? rows : rows.filter((r) => String(r?.campusName || "").toLowerCase().includes(q));
-    return sortCampusConfigRowsPrimaryFirst(base);
+    return !q ? rows : rows.filter((r) => String(r?.campusName || "").toLowerCase().includes(q));
   }, [rows, search]);
 
   useEffect(() => {
@@ -347,10 +315,10 @@ export default function SchoolCampusConfigOverview() {
               textShadow: "0 1px 2px rgba(0,0,0,0.1)",
             }}
           >
-            Cấu hình cơ sở
+            Danh sách cấu hình
           </Typography>
           <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.95 }}>
-            Xem cơ sở vật chất và chính sách vận hành theo từng cơ sở
+            Xem nhanh cơ sở vật chất và chính sách vận hành từng cơ sở (GET /school/config/campus/list)
           </Typography>
         </Box>
       </Box>
@@ -381,10 +349,10 @@ export default function SchoolCampusConfigOverview() {
         <CorporateFareOutlinedIcon sx={{ color: "#0D64DE", fontSize: 28, mt: 0.25 }} />
         <Box>
           <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b", lineHeight: 1.3 }}>
-            Theo từng cơ sở
+            Danh sách theo cơ sở
           </Typography>
           <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5 }}>
-            Chọn cơ sở, lọc theo tên và xem cấu hình CSVC cùng chính sách (chỉ đọc).
+            Chọn cơ sở hoặc lọc theo tên.
           </Typography>
         </Box>
       </Box>
@@ -484,27 +452,23 @@ export default function SchoolCampusConfigOverview() {
             <Divider sx={{ borderColor: "#e2e8f0" }} />
 
             <CardContent sx={{ p: 2.5, pb: 2 }}>
-              <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ xs: "stretch", md: "center" }}>
-                <TextField
-                  placeholder="Tìm theo tên cơ sở..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  size="small"
-                  sx={{
-                    flex: 1,
-                    minWidth: 200,
-                    maxWidth: { md: 280 },
-                    "& .MuiOutlinedInput-root": { borderRadius: "12px", bgcolor: "#f8fafc" },
-                  }}
-                  InputProps={{
-                    startAdornment: (
-                      <InputAdornment position="start">
-                        <SearchIcon sx={{ color: "#64748b" }} />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-              </Stack>
+              <TextField
+                placeholder="Tìm theo tên cơ sở..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                size="small"
+                sx={{
+                  maxWidth: { md: 280 },
+                  "& .MuiOutlinedInput-root": { borderRadius: "12px", bgcolor: "#f8fafc" },
+                }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <SearchIcon sx={{ color: "#64748b" }} />
+                    </InputAdornment>
+                  ),
+                }}
+              />
             </CardContent>
 
             <Box
