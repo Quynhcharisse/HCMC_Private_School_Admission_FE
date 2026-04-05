@@ -1,12 +1,18 @@
 import axios from "axios";
 import {refreshToken} from "../services/AuthService.jsx";
 
-const url = import.meta.env.VITE_SERVER_BE || "http://localhost:8080"
+function resolveApiV1Base() {
+    const raw = (import.meta.env.VITE_SERVER_BE || "http://localhost:8080").trim().replace(/\/+$/, "");
+    const withoutApi = raw.replace(/\/api\/v1$/i, "");
+    return `${withoutApi}/api/v1`;
+}
 
-axios.defaults.baseURL = `${url}/api/v1`
+const apiBase = resolveApiV1Base();
+
+axios.defaults.baseURL = apiBase;
 
 const axiosClient = axios.create({
-    baseURL: axios.defaults.baseURL,
+    baseURL: apiBase,
     headers: {
         "Content-Type": "application/json",
         "X-Device-Type": "web"

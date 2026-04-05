@@ -62,3 +62,28 @@ export const patchAdminPersonalityTypeStatus = async (id, status) => {
     return response || null;
 };
 
+export const ADMIN_SUBJECT_TYPE = Object.freeze({
+    REGULAR_SUBJECT: "REGULAR_SUBJECT",
+    FOREIGN_LANGUAGE_SUBJECT: "FOREIGN_LANGUAGE_SUBJECT",
+});
+
+export const getAdminSubjects = async () => {
+    const response = await axiosClient.get("/admin/subject");
+    return response || null;
+};
+
+export const postAdminSubject = async (payload) => {
+    const trimmedName = String(payload?.name ?? "").trim();
+    const subjectType = String(payload?.subjectType ?? "");
+    const response = await axiosClient.post(
+        "/admin/subject",
+        null,
+        {
+            params: {
+                name: trimmedName,
+                subjectType,
+            },
+        }
+    );
+    return response || null;
+};
