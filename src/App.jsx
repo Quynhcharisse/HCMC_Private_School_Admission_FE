@@ -21,33 +21,22 @@ const AdminSchoolCampuses = lazy(() => import("./components/Page/admin/AdminScho
 const AdminCampusConsultants = lazy(() => import("./components/Page/admin/AdminCampusConsultants.jsx"));
 const AdminPlatformSettings = lazy(() => import("./components/Page/admin/AdminPlatformSettings.jsx"));
 const AdminPersonalityTypes = lazy(() => import("./components/Page/admin/AdminPersonalityTypes.jsx"));
+const AdminSubjectsManagement = lazy(() => import("./components/Page/admin/AdminSubjectsManagement.jsx"));
 const SchoolLayout = lazy(() => import("./components/layouts/SchoolLayout.jsx"));
 const SchoolDashboard = lazy(() => import("./components/Page/school/SchoolDashboard.jsx"));
 const SchoolCampus = lazy(() => import("./components/Page/school/SchoolCampus.jsx"));
 const UserProfilePage = lazy(() => import("./components/Page/UserProfilePage.jsx"));
 const SchoolCounselors = lazy(() => import("./components/Page/school/SchoolCounselors.jsx"));
 const SchoolCampaigns = lazy(() => import("./components/Page/school/SchoolCampaigns.jsx"));
-const SchoolCampaignOfferings = lazy(() =>
-    import("./components/Page/school/SchoolCampaignOfferings.jsx")
-);
-const SchoolCampaignDetail = lazy(() =>
-    import("./components/Page/school/SchoolCampaignDetail.jsx")
-);
+const SchoolCampaignOfferings = lazy(() => import("./components/Page/school/SchoolCampaignOfferings.jsx"));
+const SchoolCampaignDetail = lazy(() =>import("./components/Page/school/SchoolCampaignDetail.jsx"));
 const SchoolProfile = lazy(() => import("./components/Page/school/SchoolProfile.jsx"));
-const SchoolFacilityOverview = lazy(() =>
-    import("./components/Page/school/SchoolFacilityOverview.jsx")
-);
-const SchoolFacilityConfiguration = lazy(() =>
-    import("./components/Page/school/SchoolFacilityConfiguration.jsx")
-);
-const SchoolCampusConfigOverview = lazy(() =>
-    import("./components/Page/school/SchoolCampusConfigOverview.jsx")
-);
+const SchoolFacilityOverview = lazy(() => import("./components/Page/school/SchoolFacilityOverview.jsx"));
+const SchoolFacilityConfiguration = lazy(() =>import("./components/Page/school/SchoolFacilityConfiguration.jsx"));
+const SchoolCampusConfigOverview = lazy(() =>import("./components/Page/school/SchoolCampusConfigOverview.jsx"));
 const CounsellorLayout = lazy(() => import("./components/layouts/CounsellorLayout.jsx"));
 const CounsellorDashboard = lazy(() => import("./components/Page/counsellor/CounsellorDashboard.jsx"));
-const CounsellorParentConsultation = lazy(() =>
-    import("./components/Page/counsellor/CounsellorParentConsultation.jsx")
-);
+const CounsellorParentConsultation = lazy(() => import("./components/Page/counsellor/CounsellorParentConsultation.jsx"));
 const CounsellorProfile = lazy(() => import("./components/Page/counsellor/CounsellorProfile.jsx"));
 const SchoolCurriculums = lazy(() => import("./components/Page/school/SchoolCurriculums.jsx"));
 const SchoolPrograms = lazy(() => import("./components/Page/school/SchoolPrograms.jsx"));
@@ -419,6 +408,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <AdminPersonalityTypes/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'subjects',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminSubjectsManagement/>
                     </Suspense>
                 )
             },

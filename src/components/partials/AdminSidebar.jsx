@@ -23,6 +23,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import PsychologyOutlinedIcon from "@mui/icons-material/PsychologyOutlined";
+import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
@@ -41,6 +42,11 @@ const menuGroups = [
                 text: "Quản lý loại tính cách",
                 icon: <PsychologyOutlinedIcon />,
                 path: "/admin/personality-types",
+            },
+            {
+                text: "Quản lý môn học",
+                icon: <MenuBookOutlinedIcon />,
+                path: "/admin/subjects",
             },
         ],
     },
