@@ -10,6 +10,7 @@ import {
     DialogTitle,
     Divider,
     IconButton,
+    Pagination,
     Rating,
     Typography
 } from "@mui/material";
@@ -24,13 +25,63 @@ import {
     HOME_PAGE_SURFACE_GRADIENT,
     landingSectionShadow
 } from "../../constants/homeLandingTheme";
-import {getPublicSchoolDetail, getPublicSchoolList} from "../../services/SchoolPublicService.jsx";
-import {postParentFavouriteSchool} from "../../services/ParentService.jsx";
+import {getPublicSchoolDetail} from "../../services/SchoolPublicService.jsx";
+import {
+    deleteParentFavouriteSchool,
+    getParentFavouriteSchools
+} from "../../services/ParentService.jsx";
 
 const DEFAULT_SCHOOL_IMAGE =
     "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=900&q=80";
 const LOCATION_FALLBACK_PROVINCE = "Đang cập nhật";
 const LOCATION_FALLBACK_WARD = "Đang cập nhật";
+const FAVOURITE_PAGE_SIZE = 10;
+
+function mapFavouriteSchoolRow(item) {
+    if (!item || typeof item !== "object") return null;
+    const school = item.school ?? item.schoolDto ?? item;
+    const id = school?.id ?? item.schoolId ?? item.id ?? null;
+    const campusList = Array.isArray(school?.campusList)
+        ? school.campusList
+        : Array.isArray(school?.campustList)
+            ? school.campustList
+            : Array.isArray(item?.campusList)
+                ? item.campusList
+                : Array.isArray(item?.campustList)
+                    ? item.campustList
+                    : [];
+    const firstCampus = campusList[0] ?? null;
+    return {
+        id,
+        schoolKey: id != null ? `id:${id}` : `saved-${school?.name || item?.name || Math.random()}`,
+        schoolName: school?.name || item?.name || item?.schoolName || "Trường đang cập nhật",
+        province: (firstCampus?.city || "").trim() || LOCATION_FALLBACK_PROVINCE,
+        ward: (firstCampus?.district || "").trim() || LOCATION_FALLBACK_WARD,
+        logoUrl: school?.logoUrl || item?.logoUrl || null,
+        averageRating: Number(school?.averageRating ?? item?.averageRating) || 0,
+        isFavourite: true
+    };
+}
+
+function parseFavouriteListPayload(res) {
+    const raw = res?.data?.body ?? res?.body ?? res?.data ?? res;
+    const items = Array.isArray(raw?.items)
+        ? raw.items
+        : Array.isArray(raw?.content)
+            ? raw.content
+            : Array.isArray(raw)
+                ? raw
+                : [];
+    const totalItemsRaw = raw?.totalItems ?? raw?.total;
+    const totalPagesRaw = raw?.totalPages;
+    const totalItems = Number(totalItemsRaw);
+    const totalPages = Number(totalPagesRaw);
+    return {
+        items,
+        totalItems: Number.isFinite(totalItems) ? totalItems : null,
+        totalPages: Number.isFinite(totalPages) && totalPages > 0 ? totalPages : null
+    };
+}
 
 export default function SavedSchoolsPage() {
     const navigate = useNavigate();
@@ -46,6 +97,8 @@ export default function SavedSchoolsPage() {
 
     const isParent = userInfo?.role === "PARENT";
     const [savedSchools, setSavedSchools] = React.useState([]);
+    const [page, setPage] = React.useState(0);
+    const [totalPages, setTotalPages] = React.useState(1);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState("");
     const [detailOpen, setDetailOpen] = React.useState(false);
@@ -59,54 +112,55 @@ export default function SavedSchoolsPage() {
         }
     }, [isParent, navigate]);
 
+    const loadFavouritePage = React.useCallback(
+        async (pageIndex) => {
+            setLoading(true);
+            setError("");
+            try {
+                const res = await getParentFavouriteSchools(pageIndex, FAVOURITE_PAGE_SIZE);
+                const {items, totalItems, totalPages: apiTotalPages} = parseFavouriteListPayload(res);
+                const rows = items.map(mapFavouriteSchoolRow).filter(Boolean);
+                let resolvedTotalPages = apiTotalPages;
+                if (resolvedTotalPages == null && totalItems != null) {
+                    resolvedTotalPages = Math.max(1, Math.ceil(totalItems / FAVOURITE_PAGE_SIZE));
+                }
+                if (resolvedTotalPages == null) {
+                    resolvedTotalPages =
+                        rows.length < FAVOURITE_PAGE_SIZE && pageIndex === 0 ? 1 : Math.max(pageIndex + 1, 1);
+                }
+                if (rows.length === 0 && pageIndex > 0) {
+                    await loadFavouritePage(pageIndex - 1);
+                    return;
+                }
+                setSavedSchools(rows);
+                setTotalPages(Math.max(1, resolvedTotalPages));
+                setPage(pageIndex);
+            } catch (e) {
+                setError(
+                    e?.response?.data?.message ||
+                    e?.message ||
+                    "Không tải được danh sách trường yêu thích."
+                );
+                setSavedSchools([]);
+                setTotalPages(1);
+            } finally {
+                setLoading(false);
+            }
+        },
+        []
+    );
+
     React.useEffect(() => {
         if (!isParent) return;
         let cancelled = false;
         (async () => {
-            setLoading(true);
-            setError("");
-            try {
-                const schoolList = await getPublicSchoolList();
-                if (cancelled) return;
-                const rows = (Array.isArray(schoolList) ? schoolList : [])
-                    .filter((item) => Boolean(item?.isFavourite))
-                    .map((item) => {
-                        const campusList = Array.isArray(item?.campusList)
-                            ? item.campusList
-                            : Array.isArray(item?.campustList)
-                                ? item.campustList
-                                : [];
-                        const firstCampus = campusList[0] ?? null;
-                        const id = item?.id ?? null;
-                        return {
-                            id,
-                            schoolKey: id != null ? `id:${id}` : `saved-${item?.name || Math.random()}`,
-                            schoolName: item?.name || "Trường đang cập nhật",
-                            province: (firstCampus?.city || "").trim() || LOCATION_FALLBACK_PROVINCE,
-                            ward: (firstCampus?.district || "").trim() || LOCATION_FALLBACK_WARD,
-                            logoUrl: item?.logoUrl || null,
-                            averageRating: Number(item?.averageRating) || 0,
-                            isFavourite: true
-                        };
-                    });
-                if (!cancelled) setSavedSchools(rows);
-            } catch (e) {
-                if (!cancelled) {
-                    setError(
-                        e?.response?.data?.message ||
-                        e?.message ||
-                        "Không tải được danh sách trường yêu thích."
-                    );
-                    setSavedSchools([]);
-                }
-            } finally {
-                if (!cancelled) setLoading(false);
-            }
+            await loadFavouritePage(page);
+            if (cancelled) return;
         })();
         return () => {
             cancelled = true;
         };
-    }, [isParent, userInfo]);
+    }, [isParent, userInfo, page, loadFavouritePage]);
 
     const onRemove = async (schoolRecord) => {
         if (!isParent) {
@@ -118,17 +172,17 @@ export default function SavedSchoolsPage() {
             return;
         }
         try {
-            await postParentFavouriteSchool({schoolId: schoolRecord.id});
+            await deleteParentFavouriteSchool(schoolRecord.id);
         } catch (e) {
             showWarningSnackbar(
                 e?.response?.data?.message ||
                 e?.message ||
-                "Không thể cập nhật trạng thái yêu thích trường."
+                "Không thể gỡ trường khỏi danh sách yêu thích."
             );
             return;
         }
-        setSavedSchools((prev) => prev.filter((x) => x?.id !== schoolRecord.id));
         enqueueSnackbar("Đã gỡ trường khỏi Trường yêu thích.", {autoHideDuration: 1800});
+        await loadFavouritePage(page);
     };
 
     const openSchoolDetail = async (schoolRecord) => {
@@ -234,6 +288,7 @@ export default function SavedSchoolsPage() {
                                 </Typography>
                             </Card>
                         ) : (
+                            <>
                             <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", sm: "1fr 1fr"}, gap: 2}}>
                                 {savedSchools.map((item) => (
                                     <Card
@@ -338,6 +393,20 @@ export default function SavedSchoolsPage() {
                                     </Card>
                                 ))}
                             </Box>
+                            {totalPages > 1 && (
+                                <Box sx={{display: "flex", justifyContent: "center", mt: 3}}>
+                                    <Pagination
+                                        count={totalPages}
+                                        page={page + 1}
+                                        onChange={(_, value) => setPage(value - 1)}
+                                        color="primary"
+                                        sx={{
+                                            "& .MuiPaginationItem-root": {fontWeight: 600}
+                                        }}
+                                    />
+                                </Box>
+                            )}
+                            </>
                         )}
                     </>
                 )}
