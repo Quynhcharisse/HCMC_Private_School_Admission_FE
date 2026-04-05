@@ -34,3 +34,15 @@ export const postParentFavouriteSchool = async (payload) => {
     const response = await axiosClient.post('/parent/favourite/school', payload);
     return response || null;
 };
+
+export const getParentFavouriteSchools = async (page = 0, pageSize = 10) => {
+    const response = await axiosClient.get('/parent/favourite/school', {
+        params: {page, pageSize},
+    });
+    return response || null;
+};
+
+export const deleteParentFavouriteSchool = async (schoolId) => {
+    const response = await axiosClient.delete(`/parent/favourite/school/${schoolId}`);
+    return response || null;
+};
