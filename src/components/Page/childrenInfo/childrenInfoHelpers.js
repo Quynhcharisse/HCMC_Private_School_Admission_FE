@@ -4,7 +4,6 @@ export const genderOptions = [
     {value: 'OTHER', label: 'Khác'},
 ];
 
-/** Cột điểm nội bộ + nhãn UI + enum gửi/nhận API */
 export const GRADE_LEVELS = [
     {key: 'g06', label: 'Lớp 06', gradeLevelEnum: 'GRADE_06'},
     {key: 'g07', label: 'Lớp 07', gradeLevelEnum: 'GRADE_07'},
@@ -37,7 +36,6 @@ export function parseBody(res) {
     return raw;
 }
 
-/** GET có thể trả `body` là mảng một phần tử thay vì object */
 export function unwrapStudentRecord(input) {
     if (input == null) return null;
     if (Array.isArray(input)) {
@@ -68,7 +66,6 @@ export function findPersonalityById(groups, idStr) {
     return null;
 }
 
-/** Tìm MBTI theo mã (code) khi API trả `personalityTypeCode` thay vì id */
 export function findPersonalityByCode(groups, codeStr) {
     if (!groups || codeStr === '' || codeStr == null) return null;
     const c = String(codeStr).trim();
@@ -93,7 +90,6 @@ function parseScoreForPayload(val) {
     return Number.isFinite(n) ? n : null;
 }
 
-/** API `favouriteJob` là chuỗi — gửi tên ngành nếu tìm được, không thì mã */
 export function resolveFavouriteJobString(favoriteMajorCodes, majorGroups) {
     if (!favoriteMajorCodes?.length) return '';
     const code = favoriteMajorCodes[0];
@@ -109,7 +105,6 @@ export function resolveFavouriteJobString(favoriteMajorCodes, majorGroups) {
     return String(code);
 }
 
-/** Chuyển `gradeLevel` từ API (GRADE_06, "06", g06…) → key nội bộ g06…g09 */
 export function gradeLevelApiToKey(gl) {
     const s = String(gl ?? '').trim();
     if (!s) return null;
@@ -123,9 +118,6 @@ export function gradeLevelApiToKey(gl) {
     return null;
 }
 
-/**
- * Đổ `academicInfos` từ GET vào state điểm (sau khi đã có danh sách môn).
- */
 export function mergeAcademicInfosIntoGrades(academicInfos, regularSubjects, foreignSubjects) {
     const regularGrades = {};
     (regularSubjects || []).forEach((s) => {
@@ -252,6 +244,7 @@ export function getEmptyStudentState() {
         foreignGrades: {},
         pendingAcademicInfos: null,
         pendingFavouriteJobLabel: null,
+        studentId: null,
     };
 }
 
@@ -286,7 +279,6 @@ export function applyStudentBodyToState(body) {
         }
     }
 
-    /** GET có thể dùng `academicProfileMetadata` thay cho `academicInfos` */
     const academicInfosFromApi =
         Array.isArray(raw.academicInfos) && raw.academicInfos.length > 0
             ? raw.academicInfos
@@ -312,7 +304,6 @@ export function applyStudentBodyToState(body) {
     let pendingAcademicInfos = null;
     let pendingFavouriteJobLabel = null;
 
-    /** BE thường gửi kèm regularGrades: [] — vẫn phải ưu tiên academicInfos / academicProfileMetadata */
     if (hasAcademicInfos) {
         pendingAcademicInfos = academicInfosFromApi;
     } else if (hasLegacyGrades || hasLegacyForeign) {
@@ -330,6 +321,13 @@ export function applyStudentBodyToState(body) {
         pendingFavouriteJobLabel = favStr;
     }
 
+    const idRaw = raw.studentId ?? raw.id;
+    let studentId = null;
+    if (idRaw != null && String(idRaw).trim() !== '') {
+        const n = Number(idRaw);
+        studentId = Number.isFinite(n) ? n : null;
+    }
+
     return {
         form: {name, gender},
         selectedPersonalityId,
@@ -339,12 +337,10 @@ export function applyStudentBodyToState(body) {
         foreignGrades,
         pendingAcademicInfos,
         pendingFavouriteJobLabel,
+        studentId,
     };
 }
 
-/**
- * Body POST `/parent/student` theo contract BE (`academicInfos`).
- */
 export function buildStudentPayload({
     form,
     selectedPersonality,
@@ -413,5 +409,11 @@ export function setStudentState(setters, mapped) {
     }
     if (setters.setPendingFavouriteJobLabel) {
         setters.setPendingFavouriteJobLabel(mapped.pendingFavouriteJobLabel ?? null);
+    }
+    if (setters.setCurrentStudentId) {
+        const sid = mapped.studentId;
+        setters.setCurrentStudentId(
+            sid != null && Number.isFinite(Number(sid)) ? Number(sid) : null,
+        );
     }
 }

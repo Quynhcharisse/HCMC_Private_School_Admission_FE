@@ -10,6 +10,11 @@ export const postParentStudent = async (payload) => {
     return response || null;
 };
 
+export const putParentStudent = async (payload) => {
+    const response = await axiosClient.put('/parent/student', payload);
+    return response || null;
+};
+
 export const getParentPersonalityTypes = async () => {
     const response = await axiosClient.get('/parent/personality/type');
     return response || null;
