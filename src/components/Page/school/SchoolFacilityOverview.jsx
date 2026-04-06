@@ -660,7 +660,7 @@ function policyFromCampusCurrent(cur) {
 }
 
 /**
- * GET /api/v1/campus/{campusId}/config — cả trụ sở và campus phụ.
+ * Phản hồi GET /api/v1/campus/config (campus theo phiên) — cả trụ sở và campus phụ.
  * CSVC + vận hành từ `campusCurrent.facilityJson` + merge HQ `hqDefault`.
  */
 function normalizeFromCampusConfigApi(body) {
@@ -872,7 +872,7 @@ function admissionMethodExtraEntries(m) {
 /**
  * @param {{ variant?: "platform" | "campus" }} props
  * - platform: GET/PUT /school/config/{schoolId} (chỉ campus chính / isPrimaryBranch)
- * - campus: GET/PUT /campus/{campusId}/config — campus phụ: cơ sở đăng nhập; campus chính: chỉ cơ sở chính (không chọn campus khác).
+ * - campus: GET /campus/config; PUT /campus/{campusId}/config — campus phụ: cơ sở đăng nhập; campus chính: chỉ cơ sở chính (không chọn campus khác).
  */
 export default function SchoolFacilityOverview({variant = "platform"}) {
   const isCampusVariant = variant === "campus";
@@ -976,7 +976,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
           }
         }
 
-        const cfgRes = await getCampusConfig(cid);
+        const cfgRes = await getCampusConfig();
         const envelope = parseSchoolConfigResponseBody(cfgRes);
         branchHqOperationRef.current = envelope?.hqDefault?.operation
           ? JSON.parse(JSON.stringify(envelope.hqDefault.operation))

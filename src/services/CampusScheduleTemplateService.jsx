@@ -16,7 +16,7 @@ export function normalizeScheduleTemplateDayMap(raw) {
 }
 
 /**
- * GET /api/v1/campus/{campusId}/schedule/templete/list
+ * GET /api/v1/campus/{campusId}/schedule/templete/list — chỉ path `campusId`, không query/body (Parameters: none).
  * @param {number|string} campusId
  */
 export const getCampusScheduleTemplateList = async (campusId) => {
@@ -118,6 +118,33 @@ function parseFlatTemplateItemsToCampusRows(items) {
   }
 
   return [...byCampus.values()].sort((a, b) => a.campusId - b.campusId);
+}
+
+/**
+ * Gọi GET /school/campus/schedule/template/list lặp theo `totalPages` rồi gộp `items`,
+ * tránh thiếu campus/khung giờ khi phân trang theo từng dòng template (không phải theo campus).
+ * @param {{ pageSize?: number }} [opts] — pageSize mỗi request (mặc định 200)
+ * @returns {Promise<Array<{ campusId: number, campusName?: string, scheduleByDay: Record<string, unknown[]> }>>}
+ */
+export async function fetchSchoolCampusScheduleTemplateListAll(opts = {}) {
+  const pageSize = opts.pageSize ?? 200;
+  const MAX_PAGES = 100;
+  const allItems = [];
+  let totalPages = 1;
+  for (let page = 0; page < totalPages && page < MAX_PAGES; page += 1) {
+    const res = await getSchoolCampusScheduleTemplateList({ page, pageSize });
+    if (res?.status !== 200) {
+      throw new Error(res?.data?.message || "Không tải được dữ liệu");
+    }
+    const body = res?.data?.body ?? res?.data?.data?.body;
+    const items = body?.items ?? body?.content ?? body?.records;
+    if (Array.isArray(items)) {
+      for (const it of items) allItems.push(it);
+    }
+    const meta = parseSchoolCampusScheduleTemplateListPageMeta(res);
+    totalPages = Math.max(1, meta.totalPages);
+  }
+  return parseFlatTemplateItemsToCampusRows(allItems);
 }
 
 /**
