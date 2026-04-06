@@ -28,6 +28,7 @@ import {
 } from "@mui/material";
 import Pagination from "@mui/material/Pagination";
 import AddIcon from "@mui/icons-material/Add";
+import DownloadIcon from "@mui/icons-material/Download";
 import SearchIcon from "@mui/icons-material/Search";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
@@ -36,7 +37,7 @@ import PersonOffIcon from "@mui/icons-material/PersonOff";
 import SupportAgentIcon from "@mui/icons-material/SupportAgent";
 import CloseIcon from "@mui/icons-material/Close";
 import {enqueueSnackbar} from "notistack";
-import {fetchCounsellors, createCounsellor} from "../../../services/CounsellorService.jsx";
+import {fetchCounsellors, createCounsellor, exportCounsellors} from "../../../services/CounsellorService.jsx";
 import {sendWelcomeEmail} from "../../../services/emailService.jsx";
 import ImageUpload from "../../ui/ImageUpload.jsx";
 
@@ -142,6 +143,7 @@ export default function SchoolCounselors() {
     const [totalItems, setTotalItems] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
     const [_loading, setLoading] = useState(false);
+    const [exporting, setExporting] = useState(false);
 
     const loadCounsellors = useCallback(async () => {
         setLoading(true);
@@ -341,6 +343,39 @@ export default function SchoolCounselors() {
             .toUpperCase();
     };
 
+    const handleExportCounsellors = async () => {
+        if (exporting) return;
+        setExporting(true);
+        try {
+            const res = await exportCounsellors();
+            const fileBlob = res?.data;
+            if (!fileBlob) {
+                enqueueSnackbar("Không có dữ liệu để xuất file.", {variant: "warning"});
+                return;
+            }
+
+            const contentDisposition = res?.headers?.["content-disposition"] || "";
+            const fileNameFromHeader = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i)?.[1];
+            const fileName = decodeURIComponent((fileNameFromHeader || "").replace(/"/g, "")) ||
+                `danh-sach-tu-van-vien-${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+            const downloadUrl = window.URL.createObjectURL(fileBlob);
+            const link = document.createElement("a");
+            link.href = downloadUrl;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+            enqueueSnackbar("Xuất file thành công.", {variant: "success"});
+        } catch (error) {
+            console.error("Export counsellors error:", error);
+            enqueueSnackbar("Xuất file thất bại.", {variant: "error"});
+        } finally {
+            setExporting(false);
+        }
+    };
+
     return (
         <Box sx={{display: "flex", flexDirection: "column", gap: 3, width: "100%"}}>
             {/* Header with gradient */}
@@ -450,6 +485,23 @@ export default function SchoolCounselors() {
                                 <MenuItem value="inactive">Ngưng hoạt động</MenuItem>
                             </Select>
                         </FormControl>
+                        <IconButton
+                            onClick={handleExportCounsellors}
+                            disabled={exporting}
+                            title={exporting ? "Đang xuất..." : "Xuất danh sách tư vấn viên"}
+                            sx={{
+                                border: "1px solid #cbd5e1",
+                                color: "#64748b",
+                                bgcolor: "#ffffff",
+                                borderRadius: 2,
+                                "&:hover": {
+                                    borderColor: "#94a3b8",
+                                    bgcolor: "#f8fafc",
+                                },
+                            }}
+                        >
+                            <DownloadIcon fontSize="small"/>
+                        </IconButton>
                     </Stack>
                 </CardContent>
             </Card>

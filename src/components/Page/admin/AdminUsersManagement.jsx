@@ -45,9 +45,8 @@ import BadgeIcon from '@mui/icons-material/Badge';
 import LockIcon from '@mui/icons-material/Lock';
 import {useLocation, useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
-import {getUsersByRole, setAccountRestricted} from "../../../services/AdminService.jsx";
+import {exportSchools, exportUsersByRole, getUsersByRole, setAccountRestricted} from "../../../services/AdminService.jsx";
 import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
-import * as XLSX from "xlsx";
 import {APP_PRIMARY_MAIN} from "../../../constants/homeLandingTheme";
 import {
     adminTableBodyRowSx,
@@ -362,76 +361,35 @@ export default function AdminUsersManagement() {
         return parsed.toLocaleDateString("vi-VN");
     };
 
-    const fetchAllUsersForExport = async () => {
-        const role = roleTab;
-        const pageSize = pagination.pageSize || 10;
-        const keyword = search;
-        let page = 0;
-        let totalPages = 1;
-        const allItems = [];
-
-        while (page < totalPages) {
-            const res = await getUsersByRole({role, page, pageSize, search: keyword});
-            const body = res?.data?.body || {};
-            const items = body?.items || [];
-            allItems.push(...items);
-            totalPages = Math.max(1, body?.totalPages ?? totalPages);
-            page += 1;
-        }
-
-        return allItems;
-    };
-
     const handleExportExcel = async () => {
         if (exporting) return;
         setExporting(true);
         try {
-            const exportItems = await fetchAllUsersForExport();
-            if (!exportItems.length) {
+            const isSchoolTab = roleTab === "SCHOOL";
+            const res = isSchoolTab
+                ? await exportSchools()
+                : await exportUsersByRole({role: "PARENT"});
+            const fileBlob = res?.data;
+            if (!fileBlob) {
                 enqueueSnackbar("Không có dữ liệu để xuất file.", {variant: "warning"});
                 return;
             }
 
-            const rows = roleTab === "PARENT"
-                ? exportItems.map((item, index) => ({
-                    STT: index + 1,
-                    "Họ tên": item.name || "-",
-                    Email: item.email || item.account?.email || "-",
-                    "Số điện thoại": item.phone || "-",
-                    "Giới tính": getGenderLabel(item.gender),
-                    "Vai trò": getRoleLabel(item.role),
-                    "Mối quan hệ": getRelationshipLabel(item.relationship),
-                    "Số CCCD/CMND": maskIdCardNumber(item.idCardNumber),
-                    "Địa chỉ hiện tại": item.currentAddress || "-",
-                    "Nghề nghiệp": item.occupation || "-",
-                    "Nơi làm việc": item.workplace || "-",
-                    "Trạng thái": getStatusLabel(item.status),
-                    "Bị hạn chế": item.isRestricted ? "Có" : "Không",
-                    "Lý do hạn chế": item.isRestricted ? (item.restrictionReason || "-") : "-",
-                }))
-                : exportItems.map((item, index) => ({
-                    STT: index + 1,
-                    "Tên trường": item.schoolName || "-",
-                    Website: item.websiteUrl || "-",
-                    Hotline: item.hotline || "-",
-                    "Mã số thuế": item.taxCode || "-",
-                    "Trạng thái": getStatusLabel(item.overallStatus || item.status || item.primaryCampus?.status),
-                }));
+            const contentDisposition = res?.headers?.["content-disposition"] || "";
+            const fileNameFromHeader = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i)?.[1];
+            const fileName = decodeURIComponent((fileNameFromHeader || "").replace(/"/g, "")) ||
+                (isSchoolTab
+                    ? `danh-sach-nha-truong-${new Date().toISOString().slice(0, 10)}.xlsx`
+                    : `danh-sach-phu-huynh-${new Date().toISOString().slice(0, 10)}.xlsx`);
 
-            const worksheet = XLSX.utils.json_to_sheet(rows);
-            const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(
-                workbook,
-                worksheet,
-                roleTab === "PARENT" ? "Danh sách phụ huynh" : "Danh sách nhà trường"
-            );
-
-            const date = new Date().toISOString().slice(0, 10);
-            const fileName = roleTab === "PARENT"
-                ? `danh-sach-phu-huynh-${date}.xlsx`
-                : `danh-sach-nha-truong-${date}.xlsx`;
-
-            XLSX.writeFile(workbook, fileName);
+            const downloadUrl = window.URL.createObjectURL(fileBlob);
+            const link = document.createElement("a");
+            link.href = downloadUrl;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(downloadUrl);
             enqueueSnackbar("Xuất file Excel thành công.", {variant: "success"});
         } catch (error) {
             console.error("Export excel failed", error);
