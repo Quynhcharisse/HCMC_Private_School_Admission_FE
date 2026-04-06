@@ -78,18 +78,15 @@ function campusConfigPathId(campusId) {
 }
 
 /**
- * GET /api/v1/campus/{campusId}/config
- * @param {number | string} campusId — path parameter (id cơ sở trong URL)
+ * GET /api/v1/campus/config — không path/query; campus theo phiên đăng nhập.
  */
-export const getCampusConfig = async (campusId) => {
-  const id = campusConfigPathId(campusId);
-  if (id == null) return Promise.reject(new Error("campusId is required"));
-  const response = await axiosClient.get(`/campus/${id}/config`);
+export const getCampusConfig = async () => {
+  const response = await axiosClient.get("/campus/config");
   return response;
 };
 
 /**
- * PUT /api/v1/campus/{campusId}/config — path: `campusId`
+ * PUT /api/v1/campus/{campusId}/config — path `campusId`, không query params.
  * Body phẳng (partial): overview, itemList, imageJsonData { coverUrl, imageList },
  * hotline, emailSupport, minCounsellorPerSlot, slotDurationInMinutes, maxBookingPerSlot,
  * allowBookingBeforeHours, workingOverride, admissionStepsOverride, policyDetail.

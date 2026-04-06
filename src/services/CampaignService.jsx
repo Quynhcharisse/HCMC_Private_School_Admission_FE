@@ -91,7 +91,7 @@ export const cloneCampaignTemplate = async (id) => {
  * GET campus offerings by campus (paginated)
  * @param {number} campusId
  * @param {{ page: number, pageSize: number }} params
- * @param {{ useCampusOfferingApi?: boolean }} [options] — true: campus phụ → GET /campus/{campusId}/offering/list
+ * @param {{ useCampusOfferingApi?: boolean }} [options] — true: GET /campus/offering/list (không path campusId)
  */
 export const getCampaignOfferingsByCampus = async (
     campusId,
@@ -99,7 +99,7 @@ export const getCampaignOfferingsByCampus = async (
     { useCampusOfferingApi = false } = {}
 ) => {
     const path = useCampusOfferingApi
-        ? `/campus/${Number(campusId)}/offering/list`
+        ? "/campus/offering/list"
         : `/school/${Number(campusId)}/campus/offering/list`;
     const response = await axiosClient.get(path, {
         params: {
