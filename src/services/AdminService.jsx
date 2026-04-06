@@ -24,6 +24,21 @@ export const getUsersByRole = async ({ role, page = 0, pageSize = 10, search = "
     return response || null;
 };
 
+export const exportUsersByRole = async ({ role }) => {
+    const response = await axiosClient.get("/account/user/list/export", {
+        params: { role },
+        responseType: "blob",
+    });
+    return response || null;
+};
+
+export const exportSchools = async () => {
+    const response = await axiosClient.get("/account/school/list/export", {
+        responseType: "blob",
+    });
+    return response || null;
+};
+
 export const setAccountRestricted = async (accountId, { isRestricted, reason = "" }) => {
     const response = await axiosClient.post(`/account/${accountId}/restrict`, {
         isRestricted,
@@ -48,6 +63,13 @@ export const getCampusCounsellors = async ({ campusId, page = 0, pageSize = 10 }
             page,
             pageSize,
         },
+    });
+    return response || null;
+};
+
+export const exportCampusCounsellors = async () => {
+    const response = await axiosClient.get("/account/counsellor/list/export", {
+        responseType: "blob",
     });
     return response || null;
 };

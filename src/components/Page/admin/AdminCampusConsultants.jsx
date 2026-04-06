@@ -2,6 +2,7 @@ import React, {useEffect, useState} from "react";
 import {
     Box,
     Breadcrumbs,
+    Button,
     Card,
     CardContent,
     Chip,
@@ -20,9 +21,10 @@ import {
 } from "@mui/material";
 import GroupIcon from "@mui/icons-material/Group";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import DownloadIcon from "@mui/icons-material/Download";
 import {useLocation, useNavigate, useParams, useSearchParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
-import {getCampusCounsellors} from "../../../services/AdminService.jsx";
+import {exportCampusCounsellors, getCampusCounsellors} from "../../../services/AdminService.jsx";
 import {
     adminTableBodyRowSx,
     adminTableContainerSx,
@@ -47,6 +49,7 @@ export default function AdminCampusConsultants() {
         hasPrevious: false,
     });
     const [campusName, setCampusName] = useState("");
+    const [exporting, setExporting] = useState(false);
 
     const fetchConsultants = async (page = 0) => {
         setLoading(true);
@@ -77,6 +80,39 @@ export default function AdminCampusConsultants() {
     useEffect(() => {
         fetchConsultants(0);
     }, [campusId]);
+
+    const handleExportCounsellors = async () => {
+        if (exporting) return;
+        setExporting(true);
+        try {
+            const res = await exportCampusCounsellors();
+            const fileBlob = res?.data;
+            if (!fileBlob) {
+                enqueueSnackbar("Không có dữ liệu để xuất file.", {variant: "warning"});
+                return;
+            }
+
+            const contentDisposition = res?.headers?.["content-disposition"] || "";
+            const fileNameFromHeader = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^\";]+)/i)?.[1];
+            const fileName = decodeURIComponent((fileNameFromHeader || "").replace(/"/g, "")) ||
+                `danh-sach-tu-van-vien-${new Date().toISOString().slice(0, 10)}.xlsx`;
+
+            const downloadUrl = window.URL.createObjectURL(fileBlob);
+            const link = document.createElement("a");
+            link.href = downloadUrl;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+            enqueueSnackbar("Xuất file thành công.", {variant: "success"});
+        } catch (e) {
+            console.error("Export consultants failed", e);
+            enqueueSnackbar("Xuất file thất bại.", {variant: "error"});
+        } finally {
+            setExporting(false);
+        }
+    };
 
     const renderStatusChip = (status) => {
         if (!status) return <Chip label="Không xác định" size="small"/>;
@@ -122,6 +158,15 @@ export default function AdminCampusConsultants() {
                         Danh Sách Tư Vấn Viên
                     </Typography>
                 </Box>
+                <Button
+                    variant="outlined"
+                    startIcon={<DownloadIcon/>}
+                    onClick={handleExportCounsellors}
+                    disabled={exporting}
+                    sx={{textTransform: "none", fontWeight: 600}}
+                >
+                    {exporting ? "Đang xuất..." : "Xuất file"}
+                </Button>
             </Box>
 
             <Card
