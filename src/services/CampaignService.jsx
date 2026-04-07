@@ -88,21 +88,15 @@ export const cloneCampaignTemplate = async (id) => {
 };
 
 /**
- * GET campus offerings by campus (paginated)
+ * GET /campus/{campusId}/offering/list — danh sách chỉ tiêu theo cơ sở (cả campus chính & phụ)
  * @param {number} campusId
- * @param {{ page: number, pageSize: number }} params
- * @param {{ useCampusOfferingApi?: boolean }} [options] — true: GET /campus/offering/list (không path campusId)
+ * @param {{ page?: number, pageSize?: number }} [params]
  */
-export const getCampaignOfferingsByCampus = async (
-    campusId,
-    { page = 0, pageSize = 10 } = {},
-    { useCampusOfferingApi = false } = {}
-) => {
-    const path = useCampusOfferingApi
-        ? "/campus/offering/list"
-        : `/school/${Number(campusId)}/campus/offering/list`;
-    const response = await axiosClient.get(path, {
+export const getCampaignOfferingsByCampus = async (campusId, { page = 0, pageSize = 10 } = {}) => {
+    const cid = Number(campusId);
+    const response = await axiosClient.get(`/campus/${cid}/offering/list`, {
         params: {
+            campusId: cid,
             page,
             pageSize,
         },
@@ -111,7 +105,7 @@ export const getCampaignOfferingsByCampus = async (
 };
 
 /**
- * POST create campus offering
+ * POST /campus/offering — tạo chỉ tiêu
  * @param {{
  *   admissionCampaignId: number,
  *   campusId: number,
@@ -122,11 +116,9 @@ export const getCampaignOfferingsByCampus = async (
  *   openDate: string,
  *   closeDate: string
  * }} body
- * @param {{ useCampusOfferingApi?: boolean }} [options]
  */
-export const createCampaignOffering = async (body, { useCampusOfferingApi = false } = {}) => {
-    const url = useCampusOfferingApi ? "/campus/offering" : "/school/campus/offering";
-    const response = await axiosClient.post(url, {
+export const createCampaignOffering = async (body) => {
+    const response = await axiosClient.post("/campus/offering", {
         admissionCampaignId: Number(body.admissionCampaignId),
         campusId: Number(body.campusId),
         programId: Number(body.programId),
@@ -139,13 +131,9 @@ export const createCampaignOffering = async (body, { useCampusOfferingApi = fals
     return response || null;
 };
 
-/**
- * PUT update campus offering
- * @param {{ useCampusOfferingApi?: boolean }} [options]
- */
-export const updateCampaignOffering = async (body, { useCampusOfferingApi = false } = {}) => {
-    const url = useCampusOfferingApi ? "/campus/offering/list" : "/school/campus/offering/list";
-    const response = await axiosClient.put(url, {
+/** PUT /campus/offering/list — cập nhật chỉ tiêu */
+export const updateCampaignOffering = async (body) => {
+    const response = await axiosClient.put("/campus/offering/list", {
         id: Number(body.id),
         admissionCampaignId: Number(body.admissionCampaignId),
         campusId: Number(body.campusId),
@@ -160,28 +148,31 @@ export const updateCampaignOffering = async (body, { useCampusOfferingApi = fals
 };
 
 /**
- * PUT toggle / update campus offering lifecycle status (e.g. đóng chỉ tiêu)
+ * PUT /campus/{offeringId}/offering/status
  * @param {number} offeringId
  * @param {string} targetStatus - e.g. OPEN, CLOSED, PAUSED, ...
  */
-export const updateCampusOfferingStatus = async (offeringId, targetStatus, { useCampusOfferingApi = false } = {}) => {
-    const path = useCampusOfferingApi
-        ? `/campus/${Number(offeringId)}/offering/status`
-        : `/school/${Number(offeringId)}/campus/offering/status`;
-    const response = await axiosClient.put(path, null, {
+export const updateCampusOfferingStatus = async (offeringId, targetStatus) => {
+    const response = await axiosClient.put(`/campus/${Number(offeringId)}/offering/status`, null, {
         params: { targetStatus },
     });
     return response || null;
 };
 
+/** PUT /campus/{offeringId}/offering/close */
+export const closeCampusOffering = async (offeringId) => {
+    const response = await axiosClient.put(`/campus/${Number(offeringId)}/offering/close`, null);
+    return response || null;
+};
+
 /**
- * PUT close campus offering (đóng chỉ tiêu)
- * @param {number} offeringId
+ * GET /school/admission/campaign/list/export — file Excel danh sách chiến dịch theo năm
+ * @param {number} year
  */
-export const closeCampusOffering = async (offeringId, { useCampusOfferingApi = false } = {}) => {
-    const path = useCampusOfferingApi
-        ? `/campus/${Number(offeringId)}/offering/close`
-        : `/school/${Number(offeringId)}/campus/offering/close`;
-    const response = await axiosClient.put(path, null);
+export const exportAdmissionCampaignList = async (year) => {
+    const response = await axiosClient.get("/school/admission/campaign/list/export", {
+        params: { year: Number(year) },
+        responseType: "blob",
+    });
     return response || null;
 };
