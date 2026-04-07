@@ -15,7 +15,13 @@ import {
 } from '@mui/material';
 import {ArrowBack, CalendarMonth} from '@mui/icons-material';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
-import {checkTaxCode, registerSchool} from '../../services/AuthService';
+import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
+import {
+    checkTaxCode,
+    getSchoolLicenseUploadErrorMessage,
+    registerSchool,
+    uploadSchoolBusinessLicensePdf,
+} from '../../services/AuthService';
 import backgroundLogin from '../../assets/backgroundLogin.png';
 import {useNavigate} from 'react-router-dom';
 import {enqueueSnackbar} from 'notistack';
@@ -25,6 +31,13 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import {APP_PRIMARY_DARK, BRAND_NAVY, BRAND_SKY, BRAND_SKY_LIGHT} from '../../constants/homeLandingTheme';
 
 const HEADER_MUTED = 'rgba(30, 58, 138, 0.82)';
+
+const MAX_BUSINESS_LICENSE_PDF_BYTES =
+    (() => {
+        const raw = import.meta.env.VITE_MAX_BUSINESS_LICENSE_PDF_MB;
+        const mb = raw != null && String(raw).trim() !== '' ? Number(raw) : 25;
+        return Number.isFinite(mb) && mb > 0 ? Math.floor(mb * 1024 * 1024) : 25 * 1024 * 1024;
+    })();
 
 const SchoolRegistrationForm = ({email, onBack}) => {
     const navigate = useNavigate();
@@ -46,7 +59,9 @@ const SchoolRegistrationForm = ({email, onBack}) => {
     
     const [formErrors, setFormErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isUploadingBusinessLicense, setIsUploadingBusinessLicense] = useState(false);
     const foundingDatePickerRef = useRef(null);
+    const businessLicenseInputRef = useRef(null);
     const taxCodeRequestIdRef = useRef(0);
     const lastCheckedTaxCodeRef = useRef('');
     const taxCodeCacheRef = useRef(new Map());
@@ -339,6 +354,46 @@ const SchoolRegistrationForm = ({email, onBack}) => {
             console.error('Registration error:', error);
             showErrorSnackbar('Có lỗi xảy ra khi đăng ký. Vui lòng thử lại.');
             setIsSubmitting(false);
+        }
+    };
+
+    const handleBusinessLicensePdfUpload = async (event) => {
+        const file = event.target.files?.[0];
+        event.target.value = '';
+        if (!file) return;
+
+        const isPdfMime = file.type === 'application/pdf';
+        const isPdfExtension = file.name?.toLowerCase().endsWith('.pdf');
+        if (!isPdfMime && !isPdfExtension) {
+            setFormErrors((prev) => ({
+                ...prev,
+                businessLicenseUrl: 'Chỉ hỗ trợ file PDF cho giấy phép kinh doanh',
+            }));
+            showErrorSnackbar('Vui lòng chọn file PDF.');
+            return;
+        }
+
+        if (file.size > MAX_BUSINESS_LICENSE_PDF_BYTES) {
+            const maxMb = Math.round((MAX_BUSINESS_LICENSE_PDF_BYTES / (1024 * 1024)) * 10) / 10;
+            const msg = `File vượt quá ${maxMb} MB. Hãy nén PDF hoặc tăng VITE_MAX_BUSINESS_LICENSE_PDF_MB nếu backend cho phép.`;
+            setFormErrors((prev) => ({...prev, businessLicenseUrl: msg}));
+            showErrorSnackbar(msg);
+            return;
+        }
+
+        setIsUploadingBusinessLicense(true);
+        setFormErrors((prev) => ({...prev, businessLicenseUrl: ''}));
+        try {
+            const uploadedUrl = await uploadSchoolBusinessLicensePdf(file);
+            setFormData((prev) => ({...prev, businessLicenseUrl: uploadedUrl}));
+            showSuccessSnackbar('Đã tải file giấy phép kinh doanh thành công.');
+        } catch (error) {
+            console.error('Business license upload error:', error);
+            const msg = getSchoolLicenseUploadErrorMessage(error);
+            setFormErrors((prev) => ({...prev, businessLicenseUrl: msg}));
+            showErrorSnackbar(msg);
+        } finally {
+            setIsUploadingBusinessLicense(false);
         }
     };
 
@@ -924,13 +979,19 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                     </Grid>
                                         <Grid size={{xs: 12, md: 6}}>
                                             <TextField
-                                                label="Ảnh giấy phép kinh doanh"
+                                                label="Giấy phép kinh doanh (PDF)"
                                                 name="businessLicenseUrl"
                                                 value={formData.businessLicenseUrl}
-                                                onChange={handleInputChange}
                                                 fullWidth
                                                 size="small"
-                                                placeholder="URL ảnh hoặc tải JPG/PNG"
+                                                placeholder="Chỉ thay đổi bằng nút upload"
+                                                error={!!formErrors.businessLicenseUrl}
+                                                helperText={formErrors.businessLicenseUrl}
+                                                inputProps={{
+                                                    readOnly: true,
+                                                    onKeyDown: (e) => e.preventDefault(),
+                                                    onPaste: (e) => e.preventDefault(),
+                                                }}
                                                 sx={{
                                                     '& .MuiOutlinedInput-root': {
                                                         borderRadius: 2,
@@ -939,50 +1000,33 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 InputProps={{
                                                     endAdornment: (
                                                         <InputAdornment position="end">
-                                                            <CloudinaryUpload
-                                                                inputId="school-registration-business-license"
-                                                                accept="image/*"
-                                                                multiple={false}
-                                                                onSuccess={([f]) => {
-                                                                    if (f?.url) {
-                                                                        setFormData((p) => ({...p, businessLicenseUrl: f.url}));
-                                                                        enqueueSnackbar("Đã tải ảnh lên", {variant: "success"});
-                                                                    }
+                                                            <input
+                                                                ref={businessLicenseInputRef}
+                                                                type="file"
+                                                                accept="application/pdf,.pdf"
+                                                                hidden
+                                                                onChange={handleBusinessLicensePdfUpload}
+                                                            />
+                                                            <IconButton
+                                                                onClick={() => businessLicenseInputRef.current?.click()}
+                                                                disabled={isUploadingBusinessLicense}
+                                                                size="small"
+                                                                sx={{
+                                                                    borderRadius: 1,
+                                                                    color: BRAND_NAVY,
+                                                                    bgcolor: isUploadingBusinessLicense ? 'rgba(85,179,217,0.14)' : 'transparent',
                                                                 }}
-                                                                onError={(m) => enqueueSnackbar(m, {variant: "error"})}
                                                             >
-                                                                {({inputId, loading}) => (
-                                                                    <IconButton
-                                                                        component="label"
-                                                                        htmlFor={inputId}
-                                                                        disabled={loading}
-                                                                        size="small"
-                                                                        sx={{
-                                                                            borderRadius: 1,
-                                                                            color: BRAND_NAVY,
-                                                                            bgcolor: loading ? 'rgba(85,179,217,0.14)' : 'transparent',
-                                                                        }}
-                                                                    >
-                                                                        <CloudUploadIcon fontSize="small" />
-                                                                    </IconButton>
+                                                                {isUploadingBusinessLicense ? (
+                                                                    <CircularProgress size={16} />
+                                                                ) : (
+                                                                    <UploadFileOutlinedIcon fontSize="small" />
                                                                 )}
-                                                            </CloudinaryUpload>
+                                                            </IconButton>
                                                         </InputAdornment>
                                                     ),
                                                 }}
                                             />
-                                            {formData.businessLicenseUrl ? (
-                                                <Typography variant="caption" sx={{display: "block", mt: 0.75}}>
-                                                    <a
-                                                        href={formData.businessLicenseUrl}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                        style={{color: BRAND_NAVY, textDecoration: "none"}}
-                                                    >
-                                                        Mở giấy phép
-                                                    </a>
-                                                </Typography>
-                                            ) : null}
                                     </Grid>
                                 </Grid>
                                 </Box>
