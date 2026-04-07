@@ -114,3 +114,13 @@ export const postAdminSubject = async (payload) => {
     );
     return response || null;
 };
+
+export const getAdminPackageFees = async () => {
+    const response = await axiosClient.get("/admin/service/package/fee/list");
+    return response || null;
+};
+
+export const upsertAdminPackageFee = async (payload) => {
+    const response = await axiosClient.post("/admin/service/package/fee", payload);
+    return response || null;
+};

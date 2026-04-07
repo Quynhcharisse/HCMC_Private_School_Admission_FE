@@ -24,6 +24,7 @@ import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import PsychologyOutlinedIcon from "@mui/icons-material/PsychologyOutlined";
 import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
+import MonetizationOnOutlinedIcon from "@mui/icons-material/MonetizationOnOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
@@ -47,6 +48,11 @@ const menuGroups = [
                 text: "Quản lý môn học",
                 icon: <MenuBookOutlinedIcon />,
                 path: "/admin/subjects",
+            },
+            {
+                text: "Quản lý phí gói dịch vụ",
+                icon: <MonetizationOnOutlinedIcon />,
+                path: "/admin/package-fees",
             },
         ],
     },
@@ -283,7 +289,7 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
                                             py: 1.25,
                                             px: collapsed ? 1.5 : 2,
                                             justifyContent: collapsed ? "center" : "flex-start",
-                                            alignItems: collapsed ? "center" : "flex-start",
+                                            alignItems: "center",
                                             overflow: "hidden",
                                             bgcolor: isActive ? "rgba(29, 78, 216, 0.1)" : "transparent",
                                             color: isActive ? "#2563eb" : "#64748b",
@@ -307,8 +313,7 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
                                                 flexShrink: 0,
                                                 justifyContent: "center",
                                                 mr: collapsed ? 0 : 0.75,
-                                                alignSelf: collapsed ? "center" : "flex-start",
-                                                mt: collapsed ? 0 : 0.125,
+                                                alignSelf: "center",
                                             }}
                                         >
                                             {item.icon}

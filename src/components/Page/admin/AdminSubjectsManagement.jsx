@@ -38,6 +38,12 @@ import {
 } from "../../../services/AdminService.jsx";
 import { APP_PRIMARY_MAIN } from "../../../constants/homeLandingTheme";
 import {
+    adminDialogActionsSx,
+    adminDialogContentSx,
+    adminDialogPaperSx,
+    adminDialogTitleSx,
+} from "../../../constants/adminDialogStyles.js";
+import {
     adminDataCardBorderSx,
     adminTableBodyRowSx,
     adminTableContainerSx,
@@ -396,9 +402,9 @@ export default function AdminSubjectsManagement() {
                 </CardContent>
             </Card>
 
-            <Dialog open={createOpen} onClose={handleCloseCreate} fullWidth maxWidth="sm" PaperProps={{ sx: { borderRadius: 3 } }}>
-                <DialogTitle sx={{ fontWeight: 800, pb: 0.5 }}>Tạo môn học</DialogTitle>
-                <DialogContent>
+            <Dialog open={createOpen} onClose={handleCloseCreate} fullWidth maxWidth="sm" PaperProps={{ sx: adminDialogPaperSx }}>
+                <DialogTitle sx={adminDialogTitleSx}>Tạo môn học</DialogTitle>
+                <DialogContent dividers sx={adminDialogContentSx}>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2, mt: 0.5 }}>
                         Môn mới thuộc nhóm: <strong>{TAB_CONFIG[tab]?.label ?? "—"}</strong>
                     </Typography>
@@ -418,7 +424,7 @@ export default function AdminSubjectsManagement() {
                         }}
                     />
                 </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2 }}>
+                <DialogActions sx={adminDialogActionsSx}>
                     <Button onClick={handleCloseCreate} disabled={createSubmitting} sx={{ textTransform: "none" }}>
                         Hủy
                     </Button>
