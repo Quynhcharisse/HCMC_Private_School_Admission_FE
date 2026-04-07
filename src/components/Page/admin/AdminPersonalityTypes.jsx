@@ -34,6 +34,11 @@ import {
     Pagination,
     alpha,
 } from "@mui/material";
+import {
+    adminDialogActionsSx,
+    adminDialogPaperSx,
+    adminDialogTitleSx,
+} from "../../../constants/adminDialogStyles.js";
 import PsychologyOutlinedIcon from "@mui/icons-material/PsychologyOutlined";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
@@ -743,9 +748,9 @@ function AddPersonalityTypeDialog({ open, onClose, onCreated }) {
             onClose={handleClose}
             fullWidth
             maxWidth="md"
-            PaperProps={{ sx: { borderRadius: 3 } }}
+            PaperProps={{ sx: adminDialogPaperSx }}
         >
-            <DialogTitle sx={{ fontWeight: 800, pb: 0.5 }}>Thêm loại tính cách</DialogTitle>
+            <DialogTitle sx={adminDialogTitleSx}>Thêm loại tính cách</DialogTitle>
             <DialogContent
                 dividers
                 sx={{ maxHeight: "min(85vh, 720px)", bgcolor: "#f8fafc", borderColor: "#e2e8f0" }}
@@ -1005,7 +1010,7 @@ function AddPersonalityTypeDialog({ open, onClose, onCreated }) {
                     </Box>
                 </Stack>
             </DialogContent>
-            <DialogActions sx={{ px: 3, py: 2, bgcolor: "#fff", borderTop: "1px solid #e2e8f0" }}>
+            <DialogActions sx={adminDialogActionsSx}>
                 <Button onClick={handleClose} disabled={submitting} sx={{ textTransform: "none", fontWeight: 600 }}>
                     Hủy
                 </Button>
@@ -1142,24 +1147,9 @@ function PersonalityDetailModal({ row, onClose }) {
             onClose={onClose}
             fullWidth
             maxWidth="md"
-            PaperProps={{
-                sx: {
-                    borderRadius: 4,
-                    overflow: "hidden",
-                    border: "1px solid #93c5fd",
-                    boxShadow: "0 24px 48px rgba(37,99,235,0.24)",
-                },
-            }}
+            PaperProps={{ sx: adminDialogPaperSx }}
         >
-            <DialogTitle
-                sx={{
-                    fontWeight: 800,
-                    color: "#1e293b",
-                    pb: 1.2,
-                    background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 48%, #93c5fd 100%)",
-                    borderBottom: "1px solid #93c5fd",
-                }}
-            >
+            <DialogTitle sx={adminDialogTitleSx}>
                 Chi tiết loại tính cách
             </DialogTitle>
             <DialogContent dividers sx={personalityModalContentSx}>

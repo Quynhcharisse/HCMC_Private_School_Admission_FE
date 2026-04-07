@@ -1,4 +1,7 @@
 export const adminTableContainerSx = {
+    width: "100%",
+    overflowX: "auto",
+    overflowY: "hidden",
     bgcolor: "#ffffff",
     border: "1px solid #bfdbfe",
     borderRadius: 3,
