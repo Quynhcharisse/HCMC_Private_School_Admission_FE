@@ -35,10 +35,15 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import CloseIcon from "@mui/icons-material/Close";
+import DownloadIcon from "@mui/icons-material/Download";
 import {useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import { useSchool } from "../../../contexts/SchoolContext.jsx";
-import { getCampaignTemplatesByYear, createCampaignTemplate } from "../../../services/CampaignService.jsx";
+import {
+    getCampaignTemplatesByYear,
+    createCampaignTemplate,
+    exportAdmissionCampaignList,
+} from "../../../services/CampaignService.jsx";
 
 const modalPaperSx = {
     borderRadius: "16px",
@@ -105,6 +110,8 @@ function formatDate(dateStr) {
 
 const CURRENT_YEAR = new Date().getFullYear();
 const YEAR_OPTIONS = [CURRENT_YEAR + 1, CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2];
+/** Năm chọn khi xuất Excel (danh sách rộng để xuất theo từng năm) */
+const CAMPAIGN_EXPORT_YEAR_OPTIONS = Array.from({length: 16}, (_, i) => CURRENT_YEAR + 1 - i);
 
 /** Các năm quá khứ gộp trong tab «Các năm trước» (gọi API theo từng năm rồi merge). */
 const PAST_YEARS_FETCH_COUNT = 8;
@@ -224,6 +231,13 @@ export default function SchoolCampaigns() {
     const [formErrors, setFormErrors] = useState({});
     const [page, setPage] = useState(0);
     const rowsPerPage = 10;
+    const [exporting, setExporting] = useState(false);
+    const [exportYear, setExportYear] = useState(CURRENT_YEAR);
+
+    useEffect(() => {
+        setExportYear(campaignTab === CAMPAIGN_TAB_CURRENT ? CURRENT_YEAR : CURRENT_YEAR - 1);
+    }, [campaignTab]);
+
     useEffect(() => {
         let cancelled = false;
         setLoading(true);
@@ -481,6 +495,42 @@ export default function SchoolCampaigns() {
         if (upper === "EXPIRED") return {bg: "rgba(248, 113, 113, 0.15)", color: "#b91c1c"};
         if (upper === "CLOSED") return {bg: "rgba(148, 163, 184, 0.2)", color: "#64748b"};
         return {bg: "rgba(148, 163, 184, 0.18)", color: "#64748b"};
+    };
+
+    const handleExportCampaignsExcel = async () => {
+        if (exporting) return;
+        const y = Number(exportYear);
+        if (!Number.isFinite(y) || y <= 0) {
+            enqueueSnackbar("Chọn năm hợp lệ để xuất.", {variant: "warning"});
+            return;
+        }
+        setExporting(true);
+        try {
+            const res = await exportAdmissionCampaignList(y);
+            const fileBlob = res?.data;
+            if (!fileBlob) {
+                enqueueSnackbar("Không có dữ liệu để xuất file.", {variant: "warning"});
+                return;
+            }
+            const contentDisposition = res?.headers?.["content-disposition"] || "";
+            const fileNameFromHeader = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i)?.[1];
+            const fileName = decodeURIComponent((fileNameFromHeader || "").replace(/"/g, "")) ||
+                `danh-sach-chien-dich-tuyen-sinh-${y}.xlsx`;
+            const downloadUrl = window.URL.createObjectURL(fileBlob);
+            const link = document.createElement("a");
+            link.href = downloadUrl;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+            enqueueSnackbar("Xuất file Excel thành công.", {variant: "success"});
+        } catch (e) {
+            console.error("Export campaign list failed", e);
+            enqueueSnackbar("Xuất file Excel thất bại.", {variant: "error"});
+        } finally {
+            setExporting(false);
+        }
     };
 
     return (
@@ -760,6 +810,37 @@ export default function SchoolCampaigns() {
                                 ))}
                             </Select>
                         </FormControl>
+                        <FormControl size="small" sx={{minWidth: 120}}>
+                            <InputLabel>Năm xuất</InputLabel>
+                            <Select
+                                value={exportYear}
+                                label="Năm xuất"
+                                onChange={(e) => setExportYear(Number(e.target.value))}
+                                sx={{borderRadius: "12px", bgcolor: "#f8fafc"}}
+                            >
+                                {CAMPAIGN_EXPORT_YEAR_OPTIONS.map((y) => (
+                                    <MenuItem key={y} value={y}>
+                                        {y}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        <Button
+                            variant="outlined"
+                            startIcon={<DownloadIcon/>}
+                            onClick={handleExportCampaignsExcel}
+                            disabled={exporting}
+                            sx={{
+                                textTransform: "none",
+                                fontWeight: 600,
+                                borderRadius: "12px",
+                                borderColor: "#cbd5e1",
+                                color: "#0f172a",
+                                "&:hover": {borderColor: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.06)"},
+                            }}
+                        >
+                            {exporting ? "Đang xuất..." : "Xuất Excel"}
+                        </Button>
                     </Stack>
                 </CardContent>
 

@@ -180,8 +180,7 @@ export default function CampaignOfferingsSection({
     campaignPaused,
     canMutate,
 }) {
-    const { isPrimaryBranch, loading: schoolCtxLoading } = useSchool();
-    const useCampusOfferingApi = !isPrimaryBranch;
+    const { loading: schoolCtxLoading } = useSchool();
 
     const [campuses, setCampuses] = useState([]);
     const [programs, setPrograms] = useState([]);
@@ -280,14 +279,10 @@ export default function CampaignOfferingsSection({
             const batchSize = 50;
             try {
                 while (!cancelled) {
-                    const res = await getCampaignOfferingsByCampus(
-                        parseInt(campusFilter, 10),
-                        {
-                            page: p,
-                            pageSize: batchSize,
-                        },
-                        { useCampusOfferingApi }
-                    );
+                    const res = await getCampaignOfferingsByCampus(parseInt(campusFilter, 10), {
+                        page: p,
+                        pageSize: batchSize,
+                    });
                     const body = res?.data?.body ?? res?.data;
                     const chunk = Array.isArray(body) ? body : body?.items ?? [];
                     const forCampaign = chunk.filter(
@@ -318,7 +313,7 @@ export default function CampaignOfferingsSection({
         return () => {
             cancelled = true;
         };
-    }, [campusFilter, campaignId, listNonce, schoolCtxLoading, useCampusOfferingApi]);
+    }, [campusFilter, campaignId, listNonce, schoolCtxLoading]);
 
     const filteredItems = useMemo(() => {
         let list = rawItems;
@@ -428,20 +423,17 @@ export default function CampaignOfferingsSection({
         setSubmitLoading(true);
         try {
             if (editingRow) {
-                const res = await updateCampaignOffering(
-                    {
-                        id: editingRow.id,
-                        admissionCampaignId: campaignId,
-                        campusId: Number(formValues.campusId),
-                        programId: Number(formValues.programId),
-                        quota: Number(formValues.quota) || 0,
-                        learningMode: formValues.learningMode || "DAY_SCHOOL",
-                        tuitionFee: Number(formValues.tuitionFee) || 0,
-                        openDate: formValues.openDate || "",
-                        closeDate: formValues.closeDate || "",
-                    },
-                    { useCampusOfferingApi }
-                );
+                const res = await updateCampaignOffering({
+                    id: editingRow.id,
+                    admissionCampaignId: campaignId,
+                    campusId: Number(formValues.campusId),
+                    programId: Number(formValues.programId),
+                    quota: Number(formValues.quota) || 0,
+                    learningMode: formValues.learningMode || "DAY_SCHOOL",
+                    tuitionFee: Number(formValues.tuitionFee) || 0,
+                    openDate: formValues.openDate || "",
+                    closeDate: formValues.closeDate || "",
+                });
                 if (res?.status === 200 || res?.data?.message) {
                     enqueueSnackbar(res?.data?.message || "Cập nhật chỉ tiêu thành công", {
                         variant: "success",
@@ -452,19 +444,16 @@ export default function CampaignOfferingsSection({
                     enqueueSnackbar(res?.data?.message || "Cập nhật chỉ tiêu thất bại", { variant: "error" });
                 }
             } else {
-                const res = await createCampaignOffering(
-                    {
-                        admissionCampaignId: campaignId,
-                        campusId: Number(formValues.campusId),
-                        programId: Number(formValues.programId),
-                        quota: Number(formValues.quota) || 0,
-                        learningMode: formValues.learningMode || "DAY_SCHOOL",
-                        priceAdjustmentPercentage: Number(formValues.priceAdjustmentPercentage) || 0,
-                        openDate: formValues.openDate || "",
-                        closeDate: formValues.closeDate || "",
-                    },
-                    { useCampusOfferingApi }
-                );
+                const res = await createCampaignOffering({
+                    admissionCampaignId: campaignId,
+                    campusId: Number(formValues.campusId),
+                    programId: Number(formValues.programId),
+                    quota: Number(formValues.quota) || 0,
+                    learningMode: formValues.learningMode || "DAY_SCHOOL",
+                    priceAdjustmentPercentage: Number(formValues.priceAdjustmentPercentage) || 0,
+                    openDate: formValues.openDate || "",
+                    closeDate: formValues.closeDate || "",
+                });
                 if (res?.status === 200 || res?.data?.message != null) {
                     enqueueSnackbar(res?.data?.message || "Tạo chỉ tiêu thành công", { variant: "success" });
                     setModalOpen(false);
@@ -517,13 +506,13 @@ export default function CampaignOfferingsSection({
         setConfirmActionLoading(true);
         try {
             if (confirmActionType === "toggle") {
-                await updateCampusOfferingStatus(confirmRow.id, confirmTargetStatus, { useCampusOfferingApi });
+                await updateCampusOfferingStatus(confirmRow.id, confirmTargetStatus);
                 enqueueSnackbar(
                     confirmTargetStatus === "PAUSED" ? "Đã tạm dừng nhận hồ sơ." : "Đã mở lại nhận hồ sơ.",
                     { variant: "success" }
                 );
             } else if (confirmActionType === "close") {
-                await closeCampusOffering(confirmRow.id, { useCampusOfferingApi });
+                await closeCampusOffering(confirmRow.id);
                 enqueueSnackbar("Đã đóng chương trình.", { variant: "success" });
             }
             setConfirmActionOpen(false);
@@ -825,7 +814,10 @@ export default function CampaignOfferingsSection({
                 </IconButton>
                 <DialogContent dividers sx={{ pt: 2, pb: 2 }}>
                     <Stack spacing={2.5}>
-                        {DETAIL_SECTIONS.map(({ id, title, Icon: SectionIcon, fields }) => (
+                        {DETAIL_SECTIONS.map((section) => {
+                            const { id, title, fields } = section;
+                            const SectionIcon = section.Icon;
+                            return (
                             <Card
                                 key={id}
                                 elevation={0}
@@ -911,7 +903,8 @@ export default function CampaignOfferingsSection({
                                     </Box>
                                 </CardContent>
                             </Card>
-                        ))}
+                            );
+                        })}
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, py: 2 }}>

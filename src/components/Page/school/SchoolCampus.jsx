@@ -37,12 +37,13 @@ import PersonOffIcon from "@mui/icons-material/PersonOff";
 import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import WarningAmberOutlinedIcon from "@mui/icons-material/WarningAmberOutlined";
+import DownloadIcon from "@mui/icons-material/Download";
 import PhoneIcon from "@mui/icons-material/Phone";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import {enqueueSnackbar} from "notistack";
 import {useSchool} from "../../../contexts/SchoolContext.jsx";
-import {extractCampusListBody, listCampuses, createCampus} from "../../../services/CampusService.jsx";
+import {extractCampusListBody, listCampuses, createCampus, exportCampusList} from "../../../services/CampusService.jsx";
 import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
 
 const modalPaperSx = {
@@ -152,6 +153,7 @@ export default function SchoolCampus() {
     const [formErrors, setFormErrors] = useState({});
     const [page, setPage] = useState(0);
     const rowsPerPage = 10;
+    const [exporting, setExporting] = useState(false);
 
     const districts = useMemo(() => {
         const set = new Set(campuses.map((c) => c.district).filter(Boolean));
@@ -384,6 +386,37 @@ export default function SchoolCampus() {
         setSelectedCampus(null);
     };
 
+    const handleExportCampusExcel = async () => {
+        if (exporting) return;
+        setExporting(true);
+        try {
+            const res = await exportCampusList();
+            const fileBlob = res?.data;
+            if (!fileBlob) {
+                enqueueSnackbar("Không có dữ liệu để xuất file.", {variant: "warning"});
+                return;
+            }
+            const contentDisposition = res?.headers?.["content-disposition"] || "";
+            const fileNameFromHeader = contentDisposition.match(/filename\*?=(?:UTF-8''|")?([^";]+)/i)?.[1];
+            const fileName = decodeURIComponent((fileNameFromHeader || "").replace(/"/g, "")) ||
+                `danh-sach-co-so-${new Date().toISOString().slice(0, 10)}.xlsx`;
+            const downloadUrl = window.URL.createObjectURL(fileBlob);
+            const link = document.createElement("a");
+            link.href = downloadUrl;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+            enqueueSnackbar("Xuất file Excel thành công.", {variant: "success"});
+        } catch (e) {
+            console.error("Export campus list failed", e);
+            enqueueSnackbar("Xuất file Excel thất bại.", {variant: "error"});
+        } finally {
+            setExporting(false);
+        }
+    };
+
     return (
         <Box sx={{display: "flex", flexDirection: "column", gap: 3, width: "100%"}}>
             {/* Page Header */}
@@ -516,6 +549,22 @@ export default function SchoolCampus() {
                                 ))}
                             </Select>
                         </FormControl>
+                        <Button
+                            variant="outlined"
+                            startIcon={<DownloadIcon/>}
+                            onClick={handleExportCampusExcel}
+                            disabled={exporting}
+                            sx={{
+                                textTransform: "none",
+                                fontWeight: 600,
+                                borderRadius: 2,
+                                borderColor: "#cbd5e1",
+                                color: "#0f172a",
+                                "&:hover": {borderColor: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.06)"},
+                            }}
+                        >
+                            {exporting ? "Đang xuất..." : "Xuất Excel"}
+                        </Button>
                     </Stack>
                 </CardContent>
             </Card>

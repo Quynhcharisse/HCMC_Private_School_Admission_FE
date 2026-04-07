@@ -19,6 +19,14 @@ export const listCampuses = async () => {
     return response || null;
 };
 
+/** GET /school/campus/list/export — file Excel danh sách cơ sở */
+export const exportCampusList = async () => {
+    const response = await axiosClient.get("/school/campus/list/export", {
+        responseType: "blob",
+    });
+    return response || null;
+};
+
 export const createCampus = async ({
     email,
     name,
