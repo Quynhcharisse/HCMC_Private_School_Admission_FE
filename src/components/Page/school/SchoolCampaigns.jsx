@@ -36,7 +36,7 @@ import EditIcon from "@mui/icons-material/Edit";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import CloseIcon from "@mui/icons-material/Close";
 import DownloadIcon from "@mui/icons-material/Download";
-import {useNavigate} from "react-router-dom";
+import {useLocation, useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import { useSchool } from "../../../contexts/SchoolContext.jsx";
 import {
@@ -218,6 +218,7 @@ function getCampaignErrorMessage(backendMessage, fallback) {
 
 export default function SchoolCampaigns() {
     const navigate = useNavigate();
+    const location = useLocation();
     const { isPrimaryBranch } = useSchool();
     const [campaigns, setCampaigns] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -428,6 +429,17 @@ export default function SchoolCampaigns() {
         setFormErrors({});
         setCreateModalOpen(true);
     };
+
+    useEffect(() => {
+        if (!location.state?.openCreateModal || !isPrimaryBranch || isPastYearView) return;
+        setFormValues({
+            ...emptyForm,
+            year: new Date().getFullYear(),
+        });
+        setFormErrors({});
+        setCreateModalOpen(true);
+        navigate(location.pathname, { replace: true, state: null });
+    }, [isPastYearView, isPrimaryBranch, location.pathname, location.state, navigate]);
 
     const handleCreateSubmit = async () => {
         if (!validateForm()) return;

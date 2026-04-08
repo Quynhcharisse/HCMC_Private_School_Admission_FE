@@ -4,7 +4,6 @@ import {
     Button,
     Card,
     CardContent,
-    CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
@@ -33,16 +32,6 @@ const HEADER_ACCENT = "#0D64DE";
 
 /** Đổi sang route quản lý hồ sơ đăng ký / tuyển sinh khi có trang riêng. */
 const SCHOOL_REGISTRATION_PROFILES_PATH = "/school/dashboard";
-
-/**
- * Thời gian hiển thị bước “chuẩn bị” trước khi vào xác nhận.
- * Không gọi API cancel ở bước này — BE thực hiện hủy ngay khi gọi PUT cancel;
- * kiểm tra 412 (còn hồ sơ) chỉ xảy ra khi user gửi lý do ở runCancelCampaign.
- *
- * TODO (khi BE có API check riêng): gọi service mới trong handleOpenCancelFlow (trong lúc phase "checking"),
- * xử lý 412 → blocked, lỗi → precheckFailed, OK → confirm; giữ MIN_PRECHECK_SPINNER_MS nếu cần chờ tối thiểu.
- */
-const MIN_PRECHECK_SPINNER_MS = 850;
 
 const DEFAULT_CANCEL_BLOCKED_MESSAGE =
     "Cannot cancel campaign. There are active registration profiles linked to this campaign. Please Reject or Process all profiles before cancelling to ensure student data integrity.";
@@ -231,9 +220,11 @@ export default function SchoolCampaignDetail() {
     const [submitLoading, setSubmitLoading] = useState(false);
     const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
     const [cancelFlowOpen, setCancelFlowOpen] = useState(false);
-    /** idle | checking | blocked | confirm | reason | precheckFailed */
+    /** idle | confirm | reason | blocked */
     const [cancelFlowPhase, setCancelFlowPhase] = useState("idle");
     const [cancelBlockedMessage, setCancelBlockedMessage] = useState("");
+    const [postCancelChoiceOpen, setPostCancelChoiceOpen] = useState(false);
+    const [selectedPostCancelOption, setSelectedPostCancelOption] = useState("");
     const [confirmCloneOpen, setConfirmCloneOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
     const [cancelReasonError, setCancelReasonError] = useState("");
@@ -425,16 +416,7 @@ export default function SchoolCampaignDetail() {
         setCancelReasonError("");
         setCancelBlockedMessage("");
         setCancelFlowOpen(true);
-        setCancelFlowPhase("checking");
-        setSubmitLoading(true);
-        /* Hiện chỉ delay UI; khi có API precheck → thay khối async bên dưới (xem TODO trên MIN_PRECHECK_SPINNER_MS). */
-        void (async () => {
-            const t0 = Date.now();
-            const wait = Math.max(0, MIN_PRECHECK_SPINNER_MS - (Date.now() - t0));
-            if (wait > 0) await new Promise((r) => setTimeout(r, wait));
-            setCancelFlowPhase("confirm");
-            setSubmitLoading(false);
-        })();
+        setCancelFlowPhase("confirm");
     };
 
     const runPublish = async () => {
@@ -486,7 +468,7 @@ export default function SchoolCampaignDetail() {
         try {
             const res = await cancelCampaignTemplate(templateId, reason);
             if (res?.status >= 200 && res?.status < 300) {
-                enqueueSnackbar("Cancelled successfully", { variant: "success" });
+                enqueueSnackbar("Đã hủy chiến dịch thành công.", { variant: "success" });
                 resetCancelFlow();
                 const updated = await refreshCampaign();
                 setOfferingsRemountKey((k) => k + 1);
@@ -496,6 +478,8 @@ export default function SchoolCampaignDetail() {
                         state: { campaign: updated },
                     });
                 }
+                setSelectedPostCancelOption("");
+                setPostCancelChoiceOpen(true);
             } else {
                 enqueueSnackbar(getCampaignErrorMessage(res?.data?.message, "Không thể hủy chiến dịch"), {
                     variant: "error",
@@ -838,10 +822,10 @@ export default function SchoolCampaignDetail() {
                                     variant="outlined"
                                     onClick={handleOpenCancelFlow}
                                     disabled={submitLoading}
-                                    color="error"
+                                    color="primary"
                                     sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px" }}
                                 >
-                                    Hủy chiến dịch
+                                    Cập nhật
                                 </Button>
                             )}
                             {isPrimaryBranch && isCancelled && !isPastYearCampaign && (
@@ -974,9 +958,8 @@ export default function SchoolCampaignDetail() {
 
             <Dialog
                 open={cancelFlowOpen}
-                disableEscapeKeyDown={cancelFlowPhase === "checking"}
+                disableEscapeKeyDown={false}
                 onClose={() => {
-                    if (cancelFlowPhase === "checking") return;
                     if (submitLoading) return;
                     resetCancelFlow();
                 }}
@@ -984,51 +967,6 @@ export default function SchoolCampaignDetail() {
                 maxWidth="sm"
                 PaperProps={{ sx: { borderRadius: "16px" } }}
             >
-                {cancelFlowPhase === "checking" && (
-                    <DialogContent sx={{ py: 4 }}>
-                        <Stack alignItems="center" spacing={2.5} sx={{ py: 2 }}>
-                            <CircularProgress size={48} sx={{ color: HEADER_ACCENT }} />
-                            <Typography variant="body1" color="text.secondary" textAlign="center" sx={{ maxWidth: 380 }}>
-                                Đang chuẩn bị các bước xác nhận hủy chiến dịch…
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary" textAlign="center">
-                                Bạn sẽ xác nhận ý định hủy, sau đó nhập lý do; hệ thống chỉ thực hiện hủy khi bạn xác nhận
-                                cuối cùng.
-                            </Typography>
-                        </Stack>
-                    </DialogContent>
-                )}
-
-                {cancelFlowPhase === "precheckFailed" && (
-                    <>
-                        <DialogContent sx={{ pt: 3 }}>
-                            <Stack spacing={2} alignItems="flex-start">
-                                <WarningAmberIcon sx={{ fontSize: 48, color: "#dc2626" }} />
-                                <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b" }}>
-                                    Không thể hoàn tất kiểm tra
-                                </Typography>
-                                <Typography
-                                    variant="body2"
-                                    color="text.secondary"
-                                    sx={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}
-                                >
-                                    {cancelBlockedMessage}
-                                </Typography>
-                            </Stack>
-                        </DialogContent>
-                        <DialogActions sx={{ px: 3, pb: 2.5 }}>
-                            <Button
-                                onClick={resetCancelFlow}
-                                color="inherit"
-                                variant="outlined"
-                                sx={{ textTransform: "none", borderColor: "#cbd5e1", color: "#64748b" }}
-                            >
-                                Đóng
-                            </Button>
-                        </DialogActions>
-                    </>
-                )}
-
                 {cancelFlowPhase === "blocked" && (
                     <>
                         <DialogContent sx={{ pt: 3 }}>
@@ -1080,16 +1018,7 @@ export default function SchoolCampaignDetail() {
                     <>
                         <DialogContent sx={{ pt: 2.5 }}>
                             <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                                Xác nhận hủy chiến dịch?
-                            </Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, lineHeight: 1.6 }}>
-                                Bước tiếp theo bạn sẽ nhập lý do hủy. Chỉ khi bấm xác nhận cuối cùng, hệ thống mới gửi
-                                yêu cầu hủy và kiểm tra điều kiện (ví dụ còn hồ sơ đăng ký). Nếu hủy thành công, toàn bộ
-                                Suất tuyển sinh (Offerings) liên quan sẽ bị đóng và{" "}
-                                <Box component="span" sx={{ fontWeight: 600, color: "#1e293b" }}>
-                                    không thể hoàn tác
-                                </Box>
-                                .
+                                Không thể cập nhật khi chiến dịch đang trong trạng thái mở. Vui lòng Huỷ trước khi cập nhật.
                             </Typography>
                         </DialogContent>
                         <DialogActions sx={{ px: 3, pb: 2.5, gap: 1, flexWrap: "wrap" }}>
@@ -1119,7 +1048,7 @@ export default function SchoolCampaignDetail() {
                                     bgcolor: HEADER_ACCENT,
                                 }}
                             >
-                                Xác nhận hủy
+                                Đã hiểu và tiếp tục Huỷ
                             </Button>
                         </DialogActions>
                     </>
@@ -1163,20 +1092,6 @@ export default function SchoolCampaignDetail() {
                                 Quay lại
                             </Button>
                             <Button
-                                onClick={resetCancelFlow}
-                                disabled={submitLoading}
-                                color="inherit"
-                                variant="outlined"
-                                sx={{
-                                    textTransform: "none",
-                                    borderRadius: "12px",
-                                    borderColor: "#cbd5e1",
-                                    color: "#64748b",
-                                }}
-                            >
-                                Đóng
-                            </Button>
-                            <Button
                                 variant="contained"
                                 onClick={runCancelCampaign}
                                 disabled={submitLoading || !cancelReason.trim()}
@@ -1189,11 +1104,120 @@ export default function SchoolCampaignDetail() {
                                     "&.Mui-disabled": { bgcolor: "rgba(153, 27, 27, 0.35)" },
                                 }}
                             >
-                                {submitLoading ? "Đang xử lý…" : "Tôi hiểu và xác nhận hủy"}
+                                {submitLoading ? "Đang xử lý…" : "Huỷ"}
                             </Button>
                         </DialogActions>
                     </>
                 )}
+            </Dialog>
+
+            <Dialog
+                open={postCancelChoiceOpen}
+                onClose={() => {
+                    if (submitLoading) return;
+                    setPostCancelChoiceOpen(false);
+                    setSelectedPostCancelOption("");
+                }}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{ sx: { borderRadius: "16px" } }}
+            >
+                <DialogContent sx={{ pt: 2.5 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Chiến dịch đã được hủy
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25, lineHeight: 1.6 }}>
+                        Bạn muốn tiếp tục theo hướng nào?
+                    </Typography>
+                    <Stack spacing={1.5} sx={{ mt: 2 }}>
+                        <Card
+                            elevation={0}
+                            onClick={() => setSelectedPostCancelOption("create")}
+                            sx={{
+                                p: 2,
+                                borderRadius: "12px",
+                                border: "2px solid",
+                                borderColor:
+                                    selectedPostCancelOption === "create" ? HEADER_ACCENT : "transparent",
+                                cursor: "pointer",
+                                backgroundColor:
+                                    selectedPostCancelOption === "create"
+                                        ? "rgba(13, 100, 222, 0.08)"
+                                        : "#fff",
+                                boxShadow:
+                                    selectedPostCancelOption === "create"
+                                        ? "0 0 0 1px rgba(13, 100, 222, 0.15)"
+                                        : "0 0 0 1px #e2e8f0",
+                                transition: "all 0.2s ease",
+                            }}
+                        >
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#1e293b" }}>
+                                Optional 1
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 0.5, color: "#475569" }}>
+                                Bạn có muốn tạo chiến dịch mới
+                            </Typography>
+                        </Card>
+                        <Card
+                            elevation={0}
+                            onClick={() => setSelectedPostCancelOption("clone")}
+                            sx={{
+                                p: 2,
+                                borderRadius: "12px",
+                                border: "2px solid",
+                                borderColor:
+                                    selectedPostCancelOption === "clone" ? HEADER_ACCENT : "transparent",
+                                cursor: "pointer",
+                                backgroundColor:
+                                    selectedPostCancelOption === "clone"
+                                        ? "rgba(13, 100, 222, 0.08)"
+                                        : "#fff",
+                                boxShadow:
+                                    selectedPostCancelOption === "clone"
+                                        ? "0 0 0 1px rgba(13, 100, 222, 0.15)"
+                                        : "0 0 0 1px #e2e8f0",
+                                transition: "all 0.2s ease",
+                            }}
+                        >
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#1e293b" }}>
+                                Optional 2
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 0.5, color: "#475569" }}>
+                                Bạn vẫn muốn giữ dữ liệu của chiến dịch hiện tại để clone cập nhật
+                            </Typography>
+                        </Card>
+                    </Stack>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2.5, gap: 1, flexWrap: "wrap" }}>
+                    <Button
+                        onClick={() => {
+                            setPostCancelChoiceOpen(false);
+                            setSelectedPostCancelOption("");
+                        }}
+                        disabled={submitLoading}
+                        sx={{ textTransform: "none", color: "#64748b" }}
+                    >
+                        Đóng
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={async () => {
+                            if (!selectedPostCancelOption) return;
+                            setPostCancelChoiceOpen(false);
+                            if (selectedPostCancelOption === "create") {
+                                setSelectedPostCancelOption("");
+                                navigate("/school/campaigns", { state: { openCreateModal: true } });
+                                return;
+                            }
+                            setSelectedPostCancelOption("");
+                            await runCloneCampaign();
+                        }}
+                        disabled={submitLoading || !selectedPostCancelOption}
+                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px", bgcolor: HEADER_ACCENT }}
+                    >
+                        Tiếp tục
+                    </Button>
+                </DialogActions>
             </Dialog>
 
             <Dialog
