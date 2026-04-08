@@ -86,11 +86,7 @@ export default function SchoolAuthHeader({ headerLeftOffset }) {
     "Người dùng";
   const displayEmail = profileBody?.email || userInfo?.email || "";
   const avatarUrl = profileBody?.picture || userInfo?.picture || null;
-  const isSchool = userInfo?.role === "SCHOOL";
-
   const handleGoHome = () => {
-    // Với role SCHOOL không cho click về /home từ logo
-    if (isSchool) return;
     window.location.href = "/home";
   };
 
@@ -130,7 +126,7 @@ export default function SchoolAuthHeader({ headerLeftOffset }) {
                 display: "flex",
                 alignItems: "center",
                 gap: 1.5,
-                cursor: isSchool ? "default" : "pointer",
+                cursor: "pointer",
               }}
               onClick={handleGoHome}
             >
