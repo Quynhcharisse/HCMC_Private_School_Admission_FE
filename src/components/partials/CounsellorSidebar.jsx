@@ -71,7 +71,7 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
       if (response && response.status === 200) {
         if (localStorage.length > 0) localStorage.clear();
         if (sessionStorage.length > 0) sessionStorage.clear();
-        enqueueSnackbar(response.data?.message || "Đã đăng xuất", {
+        enqueueSnackbar("Đăng xuất thành công.", {
           variant: "success",
           autoHideDuration: 1000,
         });
