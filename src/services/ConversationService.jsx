@@ -14,12 +14,15 @@ export const getParentConversations = async (cursorId) => {
     return response || null;
 };
 
-export const getCounsellorConversations = async (cursorId) => {
-    const params = cursorId ? {cursorId} : undefined;
+export const getCounsellorConversations = async ({cursorId, status} = {}) => {
+    const params = {
+        ...(cursorId ? {cursorId} : {}),
+        ...(status ? {status} : {})
+    };
     const response = await axiosClient.request({
         url: "/counsellor/conversations",
         method: "get",
-        params,
+        params: Object.keys(params).length ? params : undefined,
         headers: {
             "X-Device-Type": "web"
         }

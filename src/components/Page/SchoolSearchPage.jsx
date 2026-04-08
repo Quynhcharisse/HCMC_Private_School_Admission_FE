@@ -76,7 +76,7 @@ function mapPublicSchoolToRow(api) {
         website: api.websiteUrl || "",
         phone: api.hotline || "",
         email: api.email || api.schoolEmail || api.accountEmail || "",
-        counsellorEmail: api.counsellorEmail || api.email || api.schoolEmail || api.accountEmail || "",
+        counsellorEmail: api.counsellorEmail || "",
         address: firstCampus?.address || api.address || "",
         locationLabel: "TP.HCM",
         description: api.description,
