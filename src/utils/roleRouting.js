@@ -25,7 +25,11 @@ export const isRouteAllowedForRole = (path, role) => {
     }
 
     if (normalizedRole === 'SCHOOL') {
-        return path.startsWith('/school');
+        const schoolAllowedPrefixes = [
+            '/school',
+            '/home'
+        ];
+        return schoolAllowedPrefixes.some((allowedPrefix) => path.startsWith(allowedPrefix));
     }
 
     if (normalizedRole === 'COUNSELLOR') {
