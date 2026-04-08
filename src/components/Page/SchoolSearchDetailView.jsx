@@ -78,11 +78,7 @@ export function mapPublicSchoolDetailToRow(api) {
         counsellorEmail:
             primaryConsultantEmail ||
             firstCampus?.counsellorEmail ||
-            firstCampus?.email ||
             api.counsellorEmail ||
-            api.email ||
-            api.schoolEmail ||
-            api.accountEmail ||
             "",
         consultantEmails,
         address: firstCampus?.address || (api.description ? String(api.description) : "Đang cập nhật"),
@@ -1268,8 +1264,7 @@ export default function SchoolSearchDetailView({
             const emails = Array.isArray(campus?.consultantEmails)
                 ? campus.consultantEmails.map((e) => String(e || "").trim()).filter(Boolean)
                 : [];
-            const counsellorEmail =
-                emails[0] || String(school.counsellorEmail || school.email || "").trim();
+            const counsellorEmail = "";
             window.dispatchEvent(
                 new CustomEvent(OPEN_PARENT_CHAT_EVENT, {
                     detail: {

@@ -348,7 +348,6 @@ function MainHeader() {
             (
                 selectedConversation?.counsellorEmail ||
                 selectedConversation?.participantEmail ||
-                selectedConversation?.schoolEmail ||
                 selectedConversation?.otherUser ||
                 ""
             )
@@ -386,8 +385,8 @@ function MainHeader() {
             ...conversation,
             conversationId: conversation?.conversationId ?? conversation?.id ?? conversation?.conversation?.id ?? null,
             campusId: Number.isFinite(campusIdParsed) ? campusIdParsed : null,
-            participantEmail: conversation?.otherUser ?? conversation?.participantEmail ?? conversation?.counsellorEmail ?? conversation?.schoolEmail ?? '',
-            counsellorEmail: conversation?.otherUser ?? conversation?.counsellorEmail ?? conversation?.participantEmail ?? conversation?.schoolEmail ?? '',
+            participantEmail: conversation?.otherUser ?? conversation?.participantEmail ?? conversation?.counsellorEmail ?? '',
+            counsellorEmail: conversation?.otherUser ?? conversation?.counsellorEmail ?? conversation?.participantEmail ?? '',
             schoolEmail: conversation?.schoolEmail ?? conversation?.otherUser ?? conversation?.participantEmail ?? '',
             schoolName: conversation?.schoolName ?? conversation?.school ?? '',
             schoolLogoUrl: pickConversationSchoolLogoUrl(conversation),
@@ -546,7 +545,7 @@ function MainHeader() {
 
     const resolveConversationEmails = (conversation) => {
         const parentEmail = userInfo?.email || conversation?.parentEmail || conversation?.participantParentEmail || '';
-        const counsellorEmail = conversation?.counsellorEmail || conversation?.otherUser || conversation?.schoolEmail || conversation?.participantCounsellorEmail || conversation?.participantEmail || '';
+        const counsellorEmail = conversation?.counsellorEmail || conversation?.otherUser || conversation?.participantCounsellorEmail || conversation?.participantEmail || '';
         return {parentEmail, counsellorEmail};
     };
 
@@ -555,6 +554,37 @@ function MainHeader() {
         if (raw == null || String(raw).trim() === '') return null;
         const n = Number(raw);
         return Number.isFinite(n) ? n : null;
+    };
+
+    const resolveCampusIdFromHistory = (parsed) => {
+        const profile = parsed?.studentProfile || {};
+        const fromProfile = profile?.campusId ?? profile?.campusID ?? profile?.campus?.id ?? null;
+        if (fromProfile != null && String(fromProfile).trim() !== '') {
+            const n = Number(fromProfile);
+            if (Number.isFinite(n)) return n;
+        }
+        const firstItem = Array.isArray(parsed?.items) && parsed.items.length ? parsed.items[0] : null;
+        const fromMessage = firstItem?.campusId ?? firstItem?.campusID ?? firstItem?.campus?.id ?? null;
+        if (fromMessage != null && String(fromMessage).trim() !== '') {
+            const n = Number(fromMessage);
+            if (Number.isFinite(n)) return n;
+        }
+        return null;
+    };
+
+    const resolveConversationIdFromHistory = (parsed) => {
+        const profile = parsed?.studentProfile || {};
+        const candidates = [
+            profile?.conversationId,
+            parsed?.conversationId,
+            parsed?.items?.[0]?.conversationId,
+            parsed?.items?.[0]?.conversation?.id
+        ];
+        for (const candidate of candidates) {
+            if (candidate == null || String(candidate).trim() === '') continue;
+            return candidate;
+        }
+        return null;
     };
 
     const loadMessageHistory = async ({conversation, cursorId = null, silent = false}) => {
@@ -570,6 +600,7 @@ function MainHeader() {
             if (!silent) setMessageError('Thiếu thông tin cơ sở hoặc tài khoản để tải lịch sử tin nhắn.');
             return;
         }
+
         const studentProfileId =
             conversation?.studentProfileId ??
             conversation?.studentId ??
@@ -594,6 +625,44 @@ function MainHeader() {
             if (response?.status === 200) {
                 if (conversationKey) forbiddenHistoryConversationIdsRef.current.delete(conversationKey);
                 const parsed = parseHistoryResponse(response);
+                const loadedCampusId = resolveCampusIdFromHistory(parsed);
+                const loadedConversationId = resolveConversationIdFromHistory(parsed);
+                if (loadedCampusId != null) {
+                    const targetConversationId = conversation?.conversationId ?? conversation?.id;
+                    setConversationItems((prev) =>
+                        prev.map((item) => {
+                            const id = item?.conversationId ?? item?.id;
+                            if (!isSameConversationId(id, targetConversationId)) return item;
+                            return {...item, campusId: loadedCampusId};
+                        })
+                    );
+                    setSelectedConversation((prev) => {
+                        if (!prev) return prev;
+                        const selectedId = prev?.conversationId ?? prev?.id;
+                        if (!isSameConversationId(selectedId, targetConversationId)) return prev;
+                        const next = {...prev, campusId: loadedCampusId};
+                        selectedConversationRef.current = next;
+                        return next;
+                    });
+                }
+                if (loadedConversationId != null) {
+                    const targetConversationId = conversation?.conversationId ?? conversation?.id;
+                    setConversationItems((prev) =>
+                        prev.map((item) => {
+                            const id = item?.conversationId ?? item?.id;
+                            if (!isSameConversationId(id, targetConversationId)) return item;
+                            return {...item, conversationId: loadedConversationId, id: loadedConversationId};
+                        })
+                    );
+                    setSelectedConversation((prev) => {
+                        if (!prev) return prev;
+                        const selectedId = prev?.conversationId ?? prev?.id;
+                        if (!isSameConversationId(selectedId, targetConversationId)) return prev;
+                        const next = {...prev, conversationId: loadedConversationId, id: loadedConversationId};
+                        selectedConversationRef.current = next;
+                        return next;
+                    });
+                }
                 setSelectedConversationStudent((prev) =>
                     areStudentProfilesEquivalent(prev, parsed.studentProfile || null) ? prev : (parsed.studentProfile || null)
                 );
@@ -698,18 +767,32 @@ function MainHeader() {
         const trimmed = chatInput.trim();
         if (!trimmed || !selectedConversation) return;
 
-        const {parentEmail, counsellorEmail} = resolveConversationEmails(selectedConversation);
+        let workingConversation = selectedConversation;
+        const {parentEmail, counsellorEmail} = resolveConversationEmails(workingConversation);
         const senderName = (parentEmail || userInfo?.email || '').trim();
         const receiverName = (counsellorEmail || '').trim();
-        if (!senderName || !receiverName) {
-            enqueueSnackbar('Thiếu email phụ huynh hoặc tư vấn viên để gửi tin.', {variant: 'warning'});
-            return;
+        let conversationId = workingConversation?.conversationId ?? workingConversation?.id ?? null;
+
+        if (conversationId == null || String(conversationId).trim() === '') {
+            await loadMessageHistory({conversation: workingConversation, cursorId: null, silent: true});
+            workingConversation = selectedConversationRef.current || workingConversation;
+            conversationId =
+                workingConversation?.conversationId ??
+                workingConversation?.id ??
+                selectedConversationStudent?.conversationId ??
+                null;
+            if (conversationId == null || String(conversationId).trim() === '') {
+                enqueueSnackbar('Thiếu conversationId để gửi tin nhắn. Vui lòng mở lại cuộc trò chuyện.', {variant: 'warning'});
+                return;
+            }
         }
+       
         const payload = buildPrivateChatPayload({
-            conversationId: selectedConversation?.conversationId || selectedConversation?.id,
+            conversationId,
             message: trimmed,
             senderName,
             receiverName,
+            campusId: resolveHistoryCampusId(workingConversation),
         });
         const sent = sendMessage(payload);
         if (!sent) {
@@ -864,16 +947,13 @@ function MainHeader() {
     const openParentChatForStudent = React.useCallback(
         async ({target, student}) => {
             const parentEmail = (userInfo?.email || "").trim();
-            const counsellorEmail = (
-                target?.counsellorEmail ||
-                target?.schoolEmail ||
-                ""
-            ).trim();
+            const counsellorEmail = (target?.counsellorEmail || "").trim();
+            const schoolEmail = (target?.schoolEmail || "").trim();
             const campusIdRaw = target?.campusId;
             const campusId = campusIdRaw != null ? Number(campusIdRaw) : NaN;
             const studentProfileId = String(student?.studentProfileId || "").trim();
             const childName = String(student?.childName || "Học sinh").trim() || "Học sinh";
-            if (!parentEmail || !Number.isFinite(campusId) || !counsellorEmail || !studentProfileId) {
+            if (!parentEmail || !Number.isFinite(campusId) || !studentProfileId) {
                 enqueueSnackbar("Thiếu thông tin để mở hội thoại tư vấn.", {variant: "warning"});
                 return;
             }
@@ -882,7 +962,7 @@ function MainHeader() {
                 name: target?.schoolName || counsellorEmail,
                 schoolName: target?.schoolName || "",
                 schoolLogoUrl: (target?.schoolLogoUrl ?? target?.logoUrl ?? "").toString().trim(),
-                schoolEmail: counsellorEmail,
+                schoolEmail,
                 participantEmail: counsellorEmail,
                 counsellorEmail,
                 campusId,
@@ -917,7 +997,7 @@ function MainHeader() {
         } = {}) => {
             const schoolName = (sn || "").trim();
             const schoolEmail = (se || "").trim();
-            const counsellorEmail = (ce || se || "").trim();
+            const counsellorEmail = (ce || "").trim();
             const schoolLogoUrl = (slu ?? "").toString().trim();
             const campusIdNum = cid != null ? Number(cid) : NaN;
             if (!isSignedIn) {
@@ -933,10 +1013,7 @@ function MainHeader() {
                 enqueueSnackbar("Thiếu thông tin cơ sở (campus) để mở chat.", {variant: "warning"});
                 return;
             }
-            if (!counsellorEmail) {
-                enqueueSnackbar("Thiếu email tư vấn viên của trường.", {variant: "warning"});
-                return;
-            }
+        
             try {
                 setStudentSelectLoading(true);
                 const response = await getParentStudent();

@@ -24,6 +24,7 @@ import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import CloseIcon from "@mui/icons-material/Close";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import Zoom from "@mui/material/Zoom";
 
 import { getCounsellorConversations } from "../../../services/ConversationService.jsx";
@@ -91,6 +92,13 @@ const mergeUniqueMessages = (messages) => {
 };
 
 const isSameConversationId = (a, b) => a != null && b != null && String(a) === String(b);
+
+/** Số cuộc tối đa mỗi lần tải / mỗi tab (theo yêu cầu UI). */
+const CONVERSATION_PAGE_SIZE = 20;
+
+/** Hiển thị số lượng trên tab: nếu BE báo hasMore thì hiện 20+ */
+const formatConversationCountLabel = (count, hasMore) => (hasMore ? "20+" : String(count));
+
 export default function CounsellorParentConsultation() {
   const userInfo = useMemo(() => {
     try {
@@ -103,15 +111,31 @@ export default function CounsellorParentConsultation() {
 
   const usernameForRead = userInfo?.email || userInfo?.username || userInfo?.userName;
 
-  const [conversations, setConversations] = useState([]);
+  const [activeConversations, setActiveConversations] = useState([]);
+  const [pendingConversations, setPendingConversations] = useState([]);
+  const [activeHasMore, setActiveHasMore] = useState(false);
+  const [pendingHasMore, setPendingHasMore] = useState(false);
+  const [listTab, setListTab] = useState("pending");
   const [conversationsLoading, setConversationsLoading] = useState(false);
   const [conversationsError, setConversationsError] = useState("");
   const [selectedConversationId, setSelectedConversationId] = useState(null);
 
-  const selectedConversation = useMemo(
-    () => conversations.find((c) => c?.conversationId === selectedConversationId) || null,
-    [conversations, selectedConversationId]
+  const allConversationsFlat = useMemo(
+    () => [...pendingConversations, ...activeConversations],
+    [pendingConversations, activeConversations]
   );
+
+  const selectedConversation = useMemo(
+    () => allConversationsFlat.find((c) => c?.conversationId === selectedConversationId) || null,
+    [allConversationsFlat, selectedConversationId]
+  );
+
+  const updateConversationInLists = (conversationId, updater) => {
+    const mapRow = (item) =>
+      isSameConversationId(item?.conversationId, conversationId) ? updater(item) : item;
+    setActiveConversations((prev) => prev.map(mapRow));
+    setPendingConversations((prev) => prev.map(mapRow));
+  };
 
   const [inputValue, setInputValue] = useState("");
   const [searchValue, setSearchValue] = useState("");
@@ -197,14 +221,26 @@ export default function CounsellorParentConsultation() {
     };
   }, [studentInfoOpen, selectedConversation]);
 
-  const filteredConversations = useMemo(() => {
+  const filteredActiveConversations = useMemo(() => {
     const keyword = searchValue.trim().toLowerCase();
-    if (!keyword) return conversations;
-    return conversations.filter((item) => {
+    if (!keyword) return activeConversations;
+    return activeConversations.filter((item) => {
       const haystack = `${item?.name || ""} ${item?.lastMessage || ""} ${item?.parentEmail || ""}`.toLowerCase();
       return haystack.includes(keyword);
     });
-  }, [conversations, searchValue]);
+  }, [activeConversations, searchValue]);
+
+  const filteredPendingConversations = useMemo(() => {
+    const keyword = searchValue.trim().toLowerCase();
+    if (!keyword) return pendingConversations;
+    return pendingConversations.filter((item) => {
+      const haystack = `${item?.name || ""} ${item?.lastMessage || ""} ${item?.parentEmail || ""}`.toLowerCase();
+      return haystack.includes(keyword);
+    });
+  }, [pendingConversations, searchValue]);
+
+  const visibleConversationList = listTab === "pending" ? filteredPendingConversations : filteredActiveConversations;
+  const shouldShowPendingBlankPanel = listTab === "pending" && !selectedConversation;
 
   const groupedMessages = useMemo(() => {
     const groups = [];
@@ -278,7 +314,7 @@ export default function CounsellorParentConsultation() {
     };
   };
 
-  const normalizeConversation = (c, index) => {
+  const normalizeConversation = (c, index, fallbackStatus = "active") => {
     const conversationId = c?.conversationId ?? c?.id ?? c?.conversation?.id;
     const parentEmail =
       c?.parentEmail ??
@@ -305,6 +341,7 @@ export default function CounsellorParentConsultation() {
       lastMessage: c?.lastMessage ?? c?.lastText ?? c?.lastContent ?? c?.last?.content ?? "",
       time: c?.time ?? c?.lastMessageTime ?? c?.last?.sentAt ?? "",
       unreadCount: Number(c?.unreadCount ?? c?.unreadMessages ?? c?.unread ?? 0) || 0,
+      status: String(c?.status || fallbackStatus).toLowerCase(),
       parentEmail,
       counsellorEmail,
       raw: c,
@@ -440,15 +477,34 @@ export default function CounsellorParentConsultation() {
     await handleMarkRead({ conversation });
   };
 
+  const handleAcceptPendingConversation = async (event, conversation) => {
+    event?.stopPropagation?.();
+    if (!conversation) return;
+    await handleSelectConversation(conversation);
+    await loadConversations();
+  };
+
   const loadConversations = async ({ cursorId } = {}) => {
     setConversationsLoading(true);
     setConversationsError("");
     try {
-      const response = await getCounsellorConversations(cursorId);
-      if (response?.status === 200) {
-        const parsed = parseConversationResponse(response);
-        const normalized = parsed.items.map((c, idx) => normalizeConversation(c, idx));
-        setConversations(normalized);
+      const [activeResponse, pendingResponse] = await Promise.all([
+        getCounsellorConversations({ cursorId, status: "active" }),
+        getCounsellorConversations({ cursorId, status: "pending" }),
+      ]);
+      if (activeResponse?.status === 200 && pendingResponse?.status === 200) {
+        const activeParsed = parseConversationResponse(activeResponse);
+        const pendingParsed = parseConversationResponse(pendingResponse);
+        const activeItems = activeParsed.items
+          .slice(0, CONVERSATION_PAGE_SIZE)
+          .map((c, idx) => normalizeConversation(c, idx, "active"));
+        const pendingItems = pendingParsed.items
+          .slice(0, CONVERSATION_PAGE_SIZE)
+          .map((c, idx) => normalizeConversation(c, idx, "pending"));
+        setActiveHasMore(!!activeParsed.hasMore);
+        setPendingHasMore(!!pendingParsed.hasMore);
+        setActiveConversations(activeItems);
+        setPendingConversations(pendingItems);
       } else {
         setConversationsError("Không thể tải danh sách cuộc trò chuyện.");
       }
@@ -532,12 +588,10 @@ export default function CounsellorParentConsultation() {
         username: usernameForRead,
       });
       hasMarkedReadRef.current = true;
-      setConversations((prev) =>
-        prev.map((item) => {
-          if (item?.conversationId !== targetConversation.conversationId) return item;
-          return { ...item, unreadCount: 0 };
-        })
-      );
+      updateConversationInLists(targetConversation.conversationId, (item) => ({
+        ...item,
+        unreadCount: 0,
+      }));
     } catch (error) {
       console.error("Error marking messages as read:", error);
     }
@@ -548,16 +602,22 @@ export default function CounsellorParentConsultation() {
 
     const text = inputValue.trim();
     const { parentEmail, counsellorEmail } = getConversationEmails(selectedConversation);
+    const conversationId = selectedConversation?.conversationId ?? selectedConversation?.id ?? null;
     // Trùng principal Spring cho convertAndSendToUser — dùng email, không dùng tên hiển thị
     const senderName = (counsellorEmail || userInfo?.email || "").trim();
     const receiverName = (parentEmail || "").trim();
     if (!senderName || !receiverName) return;
+    if (conversationId == null || String(conversationId).trim() === "") return;
 
     const payload = buildPrivateChatPayload({
-      conversationId: selectedConversation.conversationId,
+      conversationId,
       message: text,
       senderName,
       receiverName,
+      campusId:
+        selectedConversation?.campusId ??
+        selectedConversation?.campusID ??
+        selectedConversation?.campus?.id,
     });
 
     const sent = sendMessage(payload);
@@ -573,18 +633,17 @@ export default function CounsellorParentConsultation() {
       content: text,
       senderEmail: senderName,
       senderName,
-      conversationId: selectedConversation.conversationId,
+      conversationId,
       timestamp: payload.timestamp,
       sentAt: new Date().toISOString(),
     };
     const optimisticMsg = normalizeMessage(optimisticRaw);
     setMessageItems((prev) => mergeUniqueMessages([...prev, optimisticMsg]));
-    setConversations((prev) =>
-      prev.map((item) => {
-        if (!isSameConversationId(item?.conversationId, selectedConversation.conversationId)) return item;
-        return { ...item, lastMessage: text, time: optimisticMsg.sentAt };
-      })
-    );
+    updateConversationInLists(conversationId, (item) => ({
+      ...item,
+      lastMessage: text,
+      time: optimisticMsg.sentAt,
+    }));
   };
 
   useEffect(() => {
@@ -600,21 +659,18 @@ export default function CounsellorParentConsultation() {
 
         const normalizedIncoming = normalizeMessage(payload);
 
-        setConversations((prev) =>
-          prev.map((item) => {
-            if (!isSameConversationId(item?.conversationId, conversationId)) return item;
-            const currentSelectedId = selectedConversationIdRef.current;
-            const shouldIncreaseUnread = !(
-              currentSelectedId != null && isSameConversationId(currentSelectedId, conversationId)
-            );
-            return {
-              ...item,
-              lastMessage: normalizedIncoming.text || item.lastMessage,
-              time: normalizedIncoming.sentAt || item.time,
-              unreadCount: shouldIncreaseUnread ? Number(item.unreadCount || 0) + 1 : item.unreadCount || 0,
-            };
-          })
-        );
+        updateConversationInLists(conversationId, (item) => {
+          const currentSelectedId = selectedConversationIdRef.current;
+          const shouldIncreaseUnread = !(
+            currentSelectedId != null && isSameConversationId(currentSelectedId, conversationId)
+          );
+          return {
+            ...item,
+            lastMessage: normalizedIncoming.text || item.lastMessage,
+            time: normalizedIncoming.sentAt || item.time,
+            unreadCount: shouldIncreaseUnread ? Number(item.unreadCount || 0) + 1 : item.unreadCount || 0,
+          };
+        });
 
         if (isSameConversationId(selectedConversationIdRef.current, conversationId)) {
           setMessageItems((prev) => {
@@ -749,107 +805,207 @@ export default function CounsellorParentConsultation() {
               <Box sx={{ px: 2, py: 2 }}>
                 <Typography sx={{ fontSize: 13, color: "#dc2626" }}>{conversationsError}</Typography>
               </Box>
-            ) : filteredConversations.length === 0 ? (
+            ) : activeConversations.length === 0 && pendingConversations.length === 0 ? (
               <Box sx={{ px: 2, py: 2 }}>
-                <Typography sx={{ fontSize: 13, color: "#64748b" }}>
-                  Không tìm thấy cuộc trò chuyện phù hợp.
-                </Typography>
+                <Typography sx={{ fontSize: 13, color: "#64748b" }}>Chưa có cuộc trò chuyện nào.</Typography>
               </Box>
             ) : (
-              filteredConversations.map((c) => {
-                const isActive = c?.conversationId === selectedConversationId;
-                return (
-                <ListItem
-                  key={c.conversationId}
-                  disablePadding
+              <>
+                <Box
                   sx={{
-                    px: 0,
-                    "&:not(:last-of-type)": { mb: 0.5 },
+                    display: "flex",
+                    gap: 1,
+                    px: 0.5,
+                    pt: 0.5,
+                    pb: 1,
+                    flexWrap: "wrap",
                   }}
                 >
                   <Paper
-                    onClick={() => handleSelectConversation(c)}
+                    component="button"
+                    type="button"
+                    onClick={() => setListTab("pending")}
                     elevation={0}
                     sx={{
-                      px: 1.75,
-                      py: 1.25,
-                      borderRadius: 3,
-                      display: "flex",
-                      alignItems: "center",
-                      width: "100%",
+                      flex: 1,
+                      minWidth: 120,
+                      py: 1,
+                      px: 1.25,
                       cursor: "pointer",
-                      bgcolor: isActive ? "rgba(37,99,235,0.08)" : "transparent",
-                      border: isActive ? "1px solid rgba(37,99,235,0.35)" : "1px solid transparent",
-                      boxShadow: isActive ? "0 10px 22px rgba(37,99,235,0.15)" : "none",
-                      transition:
-                        "all 0.22s ease-in-out",
-                      "&:hover": {
-                        bgcolor: isActive ? "rgba(37,99,235,0.12)" : "#f1f5f9",
-                        transform: "translateY(-1px)",
-                      },
+                      borderRadius: 2,
+                      border:
+                        listTab === "pending"
+                          ? "1px solid rgba(245,158,11,0.45)"
+                          : "1px solid rgba(148,163,184,0.45)",
+                      bgcolor: listTab === "pending" ? "rgba(245,158,11,0.12)" : "rgba(248,250,252,0.9)",
+                      textAlign: "left",
+                      font: "inherit",
                     }}
                   >
-                    <ListItemAvatar sx={{ minWidth: 44 }}>
-                      <Badge
-                        color="error"
-                        overlap="circular"
-                        variant={c.unreadCount ? "dot" : "standard"}
-                        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-                      >
-                        <Avatar
-                          sx={{
-                            width: 36,
-                            height: 36,
-                            fontSize: 14,
-                            bgcolor: c.avatarColor,
-                          }}
-                          src={c.avatarUrl || undefined}
-                        >
-                          {getInitials(c.studentName || c.name || "P")}
-                        </Avatar>
-                      </Badge>
-                    </ListItemAvatar>
-                    <ListItemText
-                      primary={
-                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                          <Typography
-                            sx={{
-                              fontSize: 14,
-                              fontWeight: isActive ? 600 : 500,
-                              color: "#1e293b",
-                              mr: 1,
-                              whiteSpace: "nowrap",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                            }}
-                          >
-                            {c.name}
-                          </Typography>
-                          <Typography sx={{ fontSize: 11, color: "#94a3b8", flexShrink: 0 }}>
-                            {formatMessageTime(c.time)}
-                          </Typography>
-                        </Box>
-                      }
-                      secondary={
-                        <Typography
-                          component="span"
-                          sx={{
-                            fontSize: 12,
-                            color: "#64748b",
-                            whiteSpace: "nowrap",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            display: "block",
-                          }}
-                        >
-                          {c.lastMessage || "Bắt đầu cuộc trò chuyện..."}
-                        </Typography>
-                      }
-                    />
+                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#f59e0b" }}>
+                      Đang chờ (
+                      {formatConversationCountLabel(pendingConversations.length, pendingHasMore)})
+                    </Typography>
                   </Paper>
-                </ListItem>
-                );
-              })
+                  <Paper
+                    component="button"
+                    type="button"
+                    onClick={() => setListTab("active")}
+                    elevation={0}
+                    sx={{
+                      flex: 1,
+                      minWidth: 120,
+                      py: 1,
+                      px: 1.25,
+                      cursor: "pointer",
+                      borderRadius: 2,
+                      border:
+                        listTab === "active"
+                          ? "1px solid rgba(37,99,235,0.45)"
+                          : "1px solid rgba(148,163,184,0.45)",
+                      bgcolor: listTab === "active" ? "rgba(37,99,235,0.1)" : "rgba(248,250,252,0.9)",
+                      textAlign: "left",
+                      font: "inherit",
+                    }}
+                  >
+                    <Typography sx={{ fontSize: 11, fontWeight: 700, color: "#2563eb" }}>
+                      Đang hoạt động (
+                      {formatConversationCountLabel(activeConversations.length, activeHasMore)})
+                    </Typography>
+                  </Paper>
+                </Box>
+
+                {visibleConversationList.length === 0 ? (
+                  <Box sx={{ px: 2, py: 2 }}>
+                    <Typography sx={{ fontSize: 13, color: "#64748b" }}>
+                      {searchValue.trim()
+                        ? "Không tìm thấy cuộc trò chuyện phù hợp."
+                        : listTab === "pending"
+                          ? "Không có cuộc trò chuyện đang chờ."
+                          : "Không có cuộc trò chuyện đang hoạt động."}
+                    </Typography>
+                  </Box>
+                ) : listTab === "pending" ? (
+                  filteredPendingConversations.map((c) => {
+                    const isActive = c?.conversationId === selectedConversationId;
+                    return (
+                      <ListItem
+                        key={`pending-${c.conversationId}`}
+                        disablePadding
+                        sx={{ px: 0, "&:not(:last-of-type)": { mb: 0.5 } }}
+                      >
+                        <Paper
+                          elevation={0}
+                          sx={{
+                            px: 1.75,
+                            py: 1.25,
+                            borderRadius: 3,
+                            display: "flex",
+                            alignItems: "center",
+                            width: "100%",
+                            cursor: "default",
+                            bgcolor: isActive ? "rgba(245,158,11,0.12)" : "rgba(245,158,11,0.03)",
+                            border: isActive ? "1px solid rgba(245,158,11,0.35)" : "1px solid rgba(245,158,11,0.15)",
+                            boxShadow: isActive ? "0 10px 22px rgba(245,158,11,0.15)" : "none",
+                            transition: "all 0.22s ease-in-out",
+                            "&:hover": {
+                              bgcolor: isActive ? "rgba(245,158,11,0.16)" : "rgba(245,158,11,0.08)",
+                            },
+                          }}
+                        >
+                          <ListItemAvatar sx={{ minWidth: 44 }}>
+                            <Badge
+                              color="warning"
+                              overlap="circular"
+                              variant={c.unreadCount ? "dot" : "standard"}
+                              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                            >
+                              <Avatar
+                                sx={{ width: 36, height: 36, fontSize: 14, bgcolor: c.avatarColor }}
+                                src={c.avatarUrl || undefined}
+                              >
+                                {getInitials(c.studentName || c.name || "P")}
+                              </Avatar>
+                            </Badge>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={<Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}><Typography sx={{ fontSize: 14, fontWeight: isActive ? 600 : 500, color: "#1e293b", mr: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</Typography><Typography sx={{ fontSize: 11, color: "#94a3b8", flexShrink: 0 }}>{formatMessageTime(c.time)}</Typography></Box>}
+                            secondary={<Typography component="span" sx={{ fontSize: 12, color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "block" }}>{c.lastMessage || "Bắt đầu cuộc trò chuyện..."}</Typography>}
+                          />
+                          <Tooltip title="Chấp nhận cuộc trò chuyện">
+                            <IconButton
+                              size="small"
+                              onClick={(event) => handleAcceptPendingConversation(event, c)}
+                              sx={{
+                                ml: 0.5,
+                                color: "#b45309",
+                                border: "1px solid rgba(245,158,11,0.35)",
+                                bgcolor: "rgba(255,255,255,0.75)",
+                                "&:hover": { bgcolor: "rgba(245,158,11,0.12)" },
+                              }}
+                            >
+                              <CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
+                            </IconButton>
+                          </Tooltip>
+                        </Paper>
+                      </ListItem>
+                    );
+                  })
+                ) : (
+                  filteredActiveConversations.map((c) => {
+                    const isActive = c?.conversationId === selectedConversationId;
+                    return (
+                      <ListItem
+                        key={`active-${c.conversationId}`}
+                        disablePadding
+                        sx={{ px: 0, "&:not(:last-of-type)": { mb: 0.5 } }}
+                      >
+                        <Paper
+                          onClick={() => handleSelectConversation(c)}
+                          elevation={0}
+                          sx={{
+                            px: 1.75,
+                            py: 1.25,
+                            borderRadius: 3,
+                            display: "flex",
+                            alignItems: "center",
+                            width: "100%",
+                            cursor: "pointer",
+                            bgcolor: isActive ? "rgba(37,99,235,0.08)" : "transparent",
+                            border: isActive ? "1px solid rgba(37,99,235,0.35)" : "1px solid transparent",
+                            boxShadow: isActive ? "0 10px 22px rgba(37,99,235,0.15)" : "none",
+                            transition: "all 0.22s ease-in-out",
+                            "&:hover": {
+                              bgcolor: isActive ? "rgba(37,99,235,0.12)" : "#f1f5f9",
+                              transform: "translateY(-1px)",
+                            },
+                          }}
+                        >
+                          <ListItemAvatar sx={{ minWidth: 44 }}>
+                            <Badge
+                              color="error"
+                              overlap="circular"
+                              variant={c.unreadCount ? "dot" : "standard"}
+                              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                            >
+                              <Avatar
+                                sx={{ width: 36, height: 36, fontSize: 14, bgcolor: c.avatarColor }}
+                                src={c.avatarUrl || undefined}
+                              >
+                                {getInitials(c.studentName || c.name || "P")}
+                              </Avatar>
+                            </Badge>
+                          </ListItemAvatar>
+                          <ListItemText
+                            primary={<Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}><Typography sx={{ fontSize: 14, fontWeight: isActive ? 600 : 500, color: "#1e293b", mr: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</Typography><Typography sx={{ fontSize: 11, color: "#94a3b8", flexShrink: 0 }}>{formatMessageTime(c.time)}</Typography></Box>}
+                            secondary={<Typography component="span" sx={{ fontSize: 12, color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "block" }}>{c.lastMessage || "Bắt đầu cuộc trò chuyện..."}</Typography>}
+                          />
+                        </Paper>
+                      </ListItem>
+                    );
+                  })
+                )}
+              </>
             )}
           </List>
         </Box>
@@ -949,7 +1105,7 @@ export default function CounsellorParentConsultation() {
                   </Box>
                 </Box>
               </>
-            ) : (
+            ) : shouldShowPendingBlankPanel ? null : (
               <Typography sx={{ fontSize: 14, fontWeight: 500, color: "#64748b" }}>
                 Chọn một cuộc trò chuyện ở bên trái để xem nội dung.
               </Typography>
@@ -1087,93 +1243,99 @@ export default function CounsellorParentConsultation() {
                 minHeight: 0,
                 px: 3,
                 py: 2,
-                bgcolor: "linear-gradient(135deg, #f8fafc 0, #eef2ff 40%, #e0f2fe 100%)",
+                bgcolor: shouldShowPendingBlankPanel
+                  ? "#ffffff"
+                  : "linear-gradient(135deg, #f8fafc 0, #eef2ff 40%, #e0f2fe 100%)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <Typography sx={{ fontSize: 14, color: "#94a3b8" }}>
-                Chưa có cuộc trò chuyện nào được chọn.
-              </Typography>
+              {shouldShowPendingBlankPanel ? null : (
+                <Typography sx={{ fontSize: 14, color: "#94a3b8" }}>
+                  Chưa có cuộc trò chuyện nào được chọn.
+                </Typography>
+              )}
             </Box>
           )}
 
-          <Box
-            sx={{
-              px: 3,
-              py: 1.5,
-              borderTop: "1px solid #e2e8f0",
-              bgcolor: "rgba(255,255,255,0.94)",
-              flexShrink: 0,
-            }}
-          >
-            <Paper
-              elevation={0}
+          {shouldShowPendingBlankPanel ? null : (
+            <Box
               sx={{
-                display: "flex",
-                alignItems: "center",
-                borderRadius: 999,
-                border: "1px solid #e2e8f0",
-                px: 1,
-                py: 0.5,
-                bgcolor: "#f8fafc",
-                transition: "all 0.2s ease-in-out",
-                "&:focus-within": {
-                  borderColor: "rgba(37,99,235,0.45)",
-                  boxShadow: "0 0 0 4px rgba(37,99,235,0.08)",
-                },
+                px: 3,
+                py: 1.5,
+                borderTop: "1px solid #e2e8f0",
+                bgcolor: "rgba(255,255,255,0.94)",
+                flexShrink: 0,
               }}
             >
-              <Tooltip title="Dinh kem">
-                <IconButton size="small" sx={{ color: APP_PRIMARY_MAIN, ml: 0.25 }}>
-                  <AttachFileRoundedIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <InputBase
-                placeholder={
-                  selectedConversation
-                    ? "Type a message..."
-                    : "Chon mot cuoc tro chuyen de bat dau nhan tin..."
-                }
-                sx={{ flex: 1, fontSize: 13, px: 1 }}
-                value={inputValue}
-                disabled={!selectedConversation}
-                onChange={(e) => setInputValue(e.target.value)}
-                onFocus={() => handleMarkRead()}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSend();
-                  }
-                }}
-              />
-              <Tooltip title="Emoji">
-                <IconButton size="small" sx={{ color: APP_PRIMARY_MAIN }}>
-                  <MoodRoundedIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <IconButton
-                onClick={handleSend}
-                disabled={!inputValue.trim() || !selectedConversation}
+              <Paper
+                elevation={0}
                 sx={{
-                  ml: 0.5,
-                  bgcolor: inputValue.trim() && selectedConversation ? "#4F46E5" : "transparent",
-                  color: inputValue.trim() && selectedConversation ? "#ffffff" : "#4F46E5",
-                  "&:hover": {
-                    bgcolor:
-                      inputValue.trim() && selectedConversation
-                        ? APP_PRIMARY_DARK
-                        : "rgba(37,99,235,0.08)",
-                  },
-                  "&:active": { transform: "scale(0.95)" },
+                  display: "flex",
+                  alignItems: "center",
+                  borderRadius: 999,
+                  border: "1px solid #e2e8f0",
+                  px: 1,
+                  py: 0.5,
+                  bgcolor: "#f8fafc",
                   transition: "all 0.2s ease-in-out",
+                  "&:focus-within": {
+                    borderColor: "rgba(37,99,235,0.45)",
+                    boxShadow: "0 0 0 4px rgba(37,99,235,0.08)",
+                  },
                 }}
               >
-                <SendIcon fontSize="small" />
-              </IconButton>
-            </Paper>
-          </Box>
+                <Tooltip title="Dinh kem">
+                  <IconButton size="small" sx={{ color: APP_PRIMARY_MAIN, ml: 0.25 }}>
+                    <AttachFileRoundedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <InputBase
+                  placeholder={
+                    selectedConversation
+                      ? "Type a message..."
+                      : "Chon mot cuoc tro chuyen de bat dau nhan tin..."
+                  }
+                  sx={{ flex: 1, fontSize: 13, px: 1 }}
+                  value={inputValue}
+                  disabled={!selectedConversation}
+                  onChange={(e) => setInputValue(e.target.value)}
+                  onFocus={() => handleMarkRead()}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                />
+                <Tooltip title="Emoji">
+                  <IconButton size="small" sx={{ color: APP_PRIMARY_MAIN }}>
+                    <MoodRoundedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <IconButton
+                  onClick={handleSend}
+                  disabled={!inputValue.trim() || !selectedConversation}
+                  sx={{
+                    ml: 0.5,
+                    bgcolor: inputValue.trim() && selectedConversation ? "#4F46E5" : "transparent",
+                    color: inputValue.trim() && selectedConversation ? "#ffffff" : "#4F46E5",
+                    "&:hover": {
+                      bgcolor:
+                        inputValue.trim() && selectedConversation
+                          ? APP_PRIMARY_DARK
+                          : "rgba(37,99,235,0.08)",
+                    },
+                    "&:active": { transform: "scale(0.95)" },
+                    transition: "all 0.2s ease-in-out",
+                  }}
+                >
+                  <SendIcon fontSize="small" />
+                </IconButton>
+              </Paper>
+            </Box>
+          )}
         </Box>
       </Paper>
 

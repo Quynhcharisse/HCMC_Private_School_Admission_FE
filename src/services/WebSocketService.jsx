@@ -15,16 +15,34 @@ export const toLocalDateTimeIso = (date = new Date()) => {
 };
 
 /**
- * Body for {@code /app/private-message} — must match the server DTO (senderName, receiverName, message, conversationId, timestamp).
+ * Luôn trả về int hợp lệ cho JSON/Java primitive int.
+ * Lưu ý: JSON.stringify(NaN) → "null" — không được để campusId thành NaN khi gửi.
+ */
+export const normalizeCampusId = (value) => {
+    if (value == null || value === "") return 0;
+    if (typeof value === "number") {
+        if (!Number.isFinite(value)) return 0;
+        return Math.trunc(value);
+    }
+    const s = String(value).trim();
+    if (s === "" || s === "null" || s === "undefined" || s === "NaN") return 0;
+    const n = Number(s);
+    if (!Number.isFinite(n)) return 0;
+    return Math.trunc(n);
+};
+
+/**
+ * Body for {@code /app/private-message} — must match the server DTO (senderName, receiverName, campusId, message, conversationId, timestamp).
  * Spring {@code convertAndSendToUser(username, "/private", ...)} dùng {@code username} trùng principal (thường là email) — gửi email, không gửi tên hiển thị.
  * Includes {@code content} / {@code sentAt} aliases for older handlers.
  */
-export const buildPrivateChatPayload = ({conversationId, message, senderName, receiverName}) => {
+export const buildPrivateChatPayload = ({conversationId, message, senderName, receiverName, campusId}) => {
     const text = message ?? "";
     const ts = toLocalDateTimeIso();
     return {
         senderName: senderName ?? "",
         receiverName: receiverName ?? "",
+        campusId: normalizeCampusId(campusId),
         message: text,
         conversationId,
         timestamp: ts,
@@ -72,9 +90,13 @@ export const connectPrivateMessageSocket = ({onMessage}) => {
 export const sendMessage = (message) => {
     if (!stompClient?.active) return false;
 
+    const payload =
+        message && typeof message === "object" && !Array.isArray(message)
+            ? {...message, campusId: normalizeCampusId(message.campusId)}
+            : message;
     stompClient.publish({
         destination: "/app/private-message",
-        body: JSON.stringify(message)
+        body: JSON.stringify(payload)
     });
     return true;
 };
