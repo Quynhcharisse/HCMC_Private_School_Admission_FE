@@ -68,10 +68,9 @@ const defaultForm = {
 };
 
 const supportLevelOptions = [
-    { value: "BASIC", label: "Cơ bản" },
-    { value: "STANDARD", label: "Tiêu chuẩn" },
-    { value: "PREMIUM", label: "Cao cấp" },
-    { value: "ENTERPRISE", label: "Doanh nghiệp" },
+    { value: "BASIC", label: "Hỗ trợ qua Email hoặc gọi điện hotline của trường" },
+    { value: "STANDARD", label: "Nhắn tin với tư vấn viên hỗ trợ trực tiếp 24/7" },
+    { value: "ENTERPRISE", label: "Hệ thống AI thông minh & Chuyên viên tư vấn cấp cao" },
 ];
 
 function toVietnameseStatus(status) {
@@ -82,7 +81,8 @@ function toVietnameseStatus(status) {
 
 function toVietnamesePermission(permission) {
     if (permission === "CREATE_POST") return "Được tạo bài đăng";
-    if (permission === "READ_ONLY") return "Chỉ đọc";
+    if (permission === "VIEW_ONLY") return "Chỉ xem bài viết của trường";
+    if (permission === "NONE") return "Không có quyền cộng đồng";
     return permission || "Không xác định";
 }
 
@@ -462,8 +462,9 @@ export default function AdminPackageFeeManagement() {
                                     value={form.parentPostPermission}
                                     onChange={handleChange("parentPostPermission")}
                                 >
+                                    <MenuItem value="NONE">Không có quyền cộng đồng</MenuItem>
                                     <MenuItem value="CREATE_POST">Được tạo bài đăng</MenuItem>
-                                    <MenuItem value="READ_ONLY">Chỉ đọc</MenuItem>
+                                    <MenuItem value="VIEW_ONLY">Chỉ xem bài viết của trường</MenuItem>
                                 </Select>
                             </FormControl>
                             <FormControl fullWidth size="small">
