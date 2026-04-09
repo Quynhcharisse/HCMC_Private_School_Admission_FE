@@ -55,9 +55,10 @@ import {
     getSchoolStorageKey,
     getUserIdentity
 } from "../../utils/savedSchoolsStorage";
-import {getPublicSchoolDetail, getPublicSchoolList} from "../../services/SchoolPublicService.jsx";
+import {getPublicSchoolDetail, getPublicSchoolList, searchNearbyCampuses} from "../../services/SchoolPublicService.jsx";
 import {postParentFavouriteSchool} from "../../services/ParentService.jsx";
-import SchoolSearchDetailView, {DEFAULT_SCHOOL_IMAGE, mapPublicSchoolDetailToRow} from "./SchoolSearchDetailView.jsx";
+import SchoolSearchDetailView from "./SchoolSearchDetailView.jsx";
+import {DEFAULT_SCHOOL_IMAGE, mapPublicSchoolDetailToRow} from "../../utils/schoolPublicMapper.js";
 
 const LOCATION_FALLBACK_PROVINCE = "Tất cả";
 const LOCATION_FALLBACK_WARD = "Tất cả";
@@ -241,7 +242,7 @@ export default function SchoolSearchPage() {
     const shownSchools = filteredSchools.slice(0, 20);
     const totalCount = filteredSchools.length;
     const paginationCount = Math.max(1, Math.ceil(totalCount / 20));
-    const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "";
+    const maptilerApiKey = import.meta.env.VITE_MAPTILER_API_KEY ?? "";
 
     const detailKeyRaw = React.useMemo(() => {
         const p = new URLSearchParams(location.search);
@@ -1219,7 +1220,16 @@ export default function SchoolSearchPage() {
                     detailKeyRaw={detailKeyRaw}
                     detailLoading={detailLoading}
                     detailError={detailError}
-                    googleMapsApiKey={googleMapsApiKey}
+                    maptilerApiKey={maptilerApiKey}
+                    onSearchNearbyCampuses={searchNearbyCampuses}
+                    onOpenSchoolById={(schoolId) => {
+                        const target = schools.find((s) => Number(s?.id) === Number(schoolId));
+                        if (target) {
+                            openSchoolDetail(target);
+                        } else {
+                            navigate("/search-schools");
+                        }
+                    }}
                     onClose={closeSchoolDetail}
                     navigate={navigate}
                     isParent={isParent}
