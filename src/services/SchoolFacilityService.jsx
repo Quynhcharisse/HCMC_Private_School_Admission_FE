@@ -35,6 +35,7 @@ export const SCHOOL_CONFIG_KEY = {
   OPERATION_SETTINGS_DATA: "operationSettingsData",
   FACILITY_DATA: "facilityData",
   QUOTA_CONFIG_DATA: "quotaConfigData",
+  RESOURCE_DISTRIBUTION_DATA: "resourceDistributionData",
 };
 
 /**
@@ -59,7 +60,8 @@ export const getSchoolConfigByKey = async (k) => {
 
 /**
  * PUT /api/v1/school/config/{schoolId} — cấu hình cấp trường (cơ sở chính / isPrimaryBranch):
- * admission, quota, finance, documents, operationSettingsData, facilityData (partial theo diff).
+ * admission, quota, finance, documents, operationSettingsData, facilityData,
+ * resourceDistributionData (partial theo diff).
  * @param {number | string} schoolId
  * @param {Record<string, unknown>} payload
  */
