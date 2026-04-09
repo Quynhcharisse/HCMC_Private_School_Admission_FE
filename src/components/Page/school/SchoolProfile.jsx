@@ -182,6 +182,7 @@ export default function SchoolProfile() {
     const [loading, setLoading] = useState(true);
     const [profile, setProfile] = useState(null);
     const [editOpen, setEditOpen] = useState(false);
+    const [unsavedConfirmOpen, setUnsavedConfirmOpen] = useState(false);
     const [saving, setSaving] = useState(false);
     const [districts, setDistricts] = useState([]);
     const [wards, setWards] = useState([]);
@@ -572,9 +573,17 @@ export default function SchoolProfile() {
         });
     }, [editOpen, formValues, selectedDistrictCode, selectedWardCode]);
 
-    const handleCloseEdit = () => {
+    const handleRequestCloseEdit = () => {
         if (saving) return;
-        if (isFormDirty && !window.confirm("Bạn có thay đổi chưa lưu. Bạn có chắc muốn đóng?")) return;
+        if (isFormDirty) {
+            setUnsavedConfirmOpen(true);
+        } else {
+            setEditOpen(false);
+        }
+    };
+
+    const handleConfirmDiscardUnsaved = () => {
+        setUnsavedConfirmOpen(false);
         setEditOpen(false);
     };
 
@@ -962,7 +971,7 @@ export default function SchoolProfile() {
                 </Card>
             )}
 
-            <Dialog open={editOpen} onClose={handleCloseEdit} fullWidth maxWidth="md" PaperProps={{ sx: { borderRadius: 3, bgcolor: "#f8fafc" } }}>
+            <Dialog open={editOpen} onClose={handleRequestCloseEdit} fullWidth maxWidth="md" PaperProps={{ sx: { borderRadius: 3, bgcolor: "#f8fafc" } }}>
                 <DialogTitle sx={{ px: 3, py: 2.5, borderBottom: "1px solid #e2e8f0" }}>
                     <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
                         <Box>
@@ -971,7 +980,7 @@ export default function SchoolProfile() {
                                 {isBranchCampus ? "Cập nhật thông tin cơ sở của bạn" : "Cập nhật thông tin trường học của bạn"}
                             </Typography>
                         </Box>
-                        <IconButton onClick={handleCloseEdit} size="small" aria-label="Đóng">
+                        <IconButton onClick={handleRequestCloseEdit} size="small" aria-label="Đóng">
                             <CloseIcon />
                         </IconButton>
                     </Stack>
@@ -1107,9 +1116,32 @@ export default function SchoolProfile() {
                     </Box>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, py: 2, borderTop: "1px solid #e2e8f0", position: "sticky", bottom: 0, bgcolor: "#fff", zIndex: 2 }}>
-                    <Button onClick={handleCloseEdit} sx={{ textTransform: "none" }} disabled={saving}>Hủy</Button>
+                    <Button onClick={handleRequestCloseEdit} sx={{ textTransform: "none" }} disabled={saving}>Hủy</Button>
                     <Button variant="contained" onClick={handleSaveProfile} disabled={saving} sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2, bgcolor: "#2563eb", "&:hover": { bgcolor: "#2563eb" } }}>
                         {saving ? "Đang lưu..." : "Lưu thay đổi"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={unsavedConfirmOpen}
+                onClose={() => setUnsavedConfirmOpen(false)}
+                maxWidth="xs"
+                fullWidth
+                PaperProps={{ sx: { borderRadius: 3 } }}
+            >
+                <DialogTitle sx={{ fontWeight: 700 }}>Đóng chỉnh sửa?</DialogTitle>
+                <DialogContent>
+                    <Typography variant="body2" color="text.secondary">
+                        Bạn có thay đổi chưa lưu. Bạn có chắc muốn đóng?
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
+                    <Button onClick={() => setUnsavedConfirmOpen(false)} sx={{ textTransform: "none" }}>
+                        Quay lại
+                    </Button>
+                    <Button variant="contained" color="error" onClick={handleConfirmDiscardUnsaved} sx={{ textTransform: "none", fontWeight: 600 }}>
+                        Đóng và hủy thay đổi
                     </Button>
                 </DialogActions>
             </Dialog>
