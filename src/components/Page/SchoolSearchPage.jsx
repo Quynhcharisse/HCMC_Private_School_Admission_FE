@@ -64,11 +64,7 @@ const LOCATION_FALLBACK_WARD = "Tất cả";
 
 function mapPublicSchoolToRow(api) {
     if (!api || typeof api !== "object") return null;
-    const campusList = Array.isArray(api.campusList)
-        ? api.campusList
-        : Array.isArray(api.campustList)
-            ? api.campustList
-            : [];
+    const campusList = Array.isArray(api.campusList) ? api.campusList : [];
     const firstCampus = campusList[0] ?? null;
     return {
         id: api.id,
