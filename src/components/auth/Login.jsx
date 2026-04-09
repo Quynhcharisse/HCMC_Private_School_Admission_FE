@@ -58,7 +58,11 @@ export default function Login() {
             localStorage.setItem('user', JSON.stringify(userData));
         }
 
-        const targetRoute = role ? getRoleDashboardRoute(role.toUpperCase()) : '/';
+        const normalizedForRoute = role ? role.toUpperCase() : '';
+        let targetRoute = normalizedForRoute ? getRoleDashboardRoute(normalizedForRoute) : '/';
+        if (normalizedForRoute === 'SCHOOL' && firstLogin) {
+            targetRoute = '/school/profile';
+        }
 
         showSuccessSnackbar('Đăng nhập thành công!');
 
