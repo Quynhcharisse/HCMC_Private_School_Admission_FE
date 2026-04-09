@@ -54,11 +54,7 @@ const LOCATION_FALLBACK_WARD = "Tất cả";
 
 export function mapPublicSchoolDetailToRow(api) {
     if (!api || typeof api !== "object") return null;
-    const campusList = Array.isArray(api.campusList)
-        ? api.campusList
-        : Array.isArray(api.campustList)
-          ? api.campustList
-          : [];
+    const campusList = Array.isArray(api.campusList) ? api.campusList : [];
     const firstCampus = campusList[0] ?? null;
     const consultantEmails = campusList
         .flatMap((campus) => (Array.isArray(campus?.consultantEmails) ? campus.consultantEmails : []))
