@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
     Box,
     Button,
@@ -9,8 +9,12 @@ import {
     DialogActions,
     DialogContent,
     DialogTitle,
+    FormControl,
     IconButton,
     InputAdornment,
+    InputLabel,
+    MenuItem,
+    Select,
     Skeleton,
     Stack,
     TextField,
@@ -30,7 +34,27 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import { enqueueSnackbar } from "notistack";
 import { getProfile, updateProfile } from "../../../services/AccountService.jsx";
+import {
+    BOARDING_TYPE_DEFAULT_VI,
+    BOARDING_TYPE_OPTIONS,
+    normalizeBoardingTypeForApi,
+} from "../../../constants/schoolBoardingType.js";
 import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
+
+const toBoolean = (value) => value === true || value === "true" || value === 1 || value === "1";
+
+function syncSchoolFirstLoginInStorage(nextFirstLogin) {
+    const raw = localStorage.getItem("user");
+    if (!raw) return;
+    try {
+        const u = JSON.parse(raw);
+        if (u?.role === "SCHOOL" && nextFirstLogin !== undefined) {
+            localStorage.setItem("user", JSON.stringify({ ...u, firstLogin: nextFirstLogin }));
+        }
+    } catch {
+        /* ignore */
+    }
+}
 
 const SectionHeader = ({ icon: Icon, title }) => (
     <Stack direction="row" alignItems="center" spacing={1.5} sx={{ mb: 2 }}>
@@ -100,11 +124,15 @@ export default function SchoolProfile() {
     const [profile, setProfile] = useState(null);
     const [editOpen, setEditOpen] = useState(false);
     const [saving, setSaving] = useState(false);
+    const firstLoginPromptedRef = useRef(false);
     const [formValues, setFormValues] = useState({
         campusName: "",
         phoneNumber: "",
         policyDetail: "",
         address: "",
+        city: "",
+        district: "",
+        boardingType: BOARDING_TYPE_DEFAULT_VI,
         schoolName: "",
         schoolDescription: "",
         logoUrl: "",
@@ -122,6 +150,9 @@ export default function SchoolProfile() {
     const hydrateFromBody = useCallback((body) => {
         if (body == null) return;
         setProfile(body);
+        if (body.firstLogin !== undefined) {
+            syncSchoolFirstLoginInStorage(body.firstLogin);
+        }
         const campus = body?.campus || {};
         const legacySchoolData = campus.schoolData || {};
         const facilityJson = campus.facilityJson || campus.facility || {};
@@ -134,6 +165,9 @@ export default function SchoolProfile() {
             phoneNumber: campus.phoneNumber || "",
             policyDetail: campus.policyDetail || "",
             address: campus.address || "",
+            city: campus.city || "",
+            district: campus.district || "",
+            boardingType: normalizeBoardingTypeForApi(campus.boardingType),
             schoolName: schoolName || "",
             schoolDescription: campus.schoolDescription ?? legacySchoolData.description ?? "",
             logoUrl: campus.logoUrl ?? legacySchoolData.logoUrl ?? "",
@@ -179,6 +213,22 @@ export default function SchoolProfile() {
         load();
     }, [hydrateFromBody]);
 
+    useEffect(() => {
+        if (loading) return;
+        try {
+            const raw = localStorage.getItem("user");
+            if (!raw) return;
+            const u = JSON.parse(raw);
+            if (u?.role === "SCHOOL" && toBoolean(u.firstLogin) && !firstLoginPromptedRef.current) {
+                firstLoginPromptedRef.current = true;
+                setEditOpen(true);
+                enqueueSnackbar("Vui lòng cập nhật thông tin hồ sơ cơ sở.", { variant: "info" });
+            }
+        } catch {
+            /* ignore */
+        }
+    }, [loading]);
+
     const handleImageItemChange = (index, field) => (e) => {
         const next = formValues.itemList.map((item, i) => (i === index ? { ...item, [field]: e.target.value } : item));
         setFormValues((p) => ({ ...p, itemList: next }));
@@ -220,6 +270,9 @@ export default function SchoolProfile() {
                     phoneNumber: formValues.phoneNumber?.trim() || "",
                     policyDetail: formValues.policyDetail?.trim() || "",
                     address: formValues.address?.trim() || "",
+                    city: formValues.city?.trim() || "",
+                    district: formValues.district?.trim() || "",
+                    boardingType: normalizeBoardingTypeForApi(formValues.boardingType),
                     schoolData: {
                         description: formValues.schoolDescription?.trim() || "",
                         logoUrl: formValues.logoUrl?.trim() || "",
@@ -235,12 +288,34 @@ export default function SchoolProfile() {
             if (res?.status === 200) {
                 enqueueSnackbar("Cập nhật hồ sơ thành công", { variant: "success" });
                 setEditOpen(false);
-                const putBody = res.data?.body;
-                if (putBody) {
-                    hydrateFromBody(putBody);
-                } else {
+                let nextBody = res.data?.body;
+                if (typeof nextBody === "string") {
+                    try {
+                        nextBody = JSON.parse(nextBody);
+                    } catch {
+                        nextBody = null;
+                    }
+                }
+                if (!nextBody) {
                     const fresh = await getProfile();
-                    if (fresh?.status === 200) hydrateFromBody(fresh?.data?.body);
+                    if (fresh?.status === 200) {
+                        nextBody = fresh.data?.body;
+                        if (typeof nextBody === "string") {
+                            try {
+                                nextBody = JSON.parse(nextBody);
+                            } catch {
+                                nextBody = null;
+                            }
+                        }
+                    }
+                }
+                if (nextBody) {
+                    hydrateFromBody(nextBody);
+                    if (nextBody.firstLogin === undefined) {
+                        syncSchoolFirstLoginInStorage(false);
+                    }
+                } else {
+                    syncSchoolFirstLoginInStorage(false);
                 }
             } else {
                 enqueueSnackbar("Cập nhật thất bại", { variant: "error" });
@@ -364,6 +439,10 @@ export default function SchoolProfile() {
                         <InfoRow label="Website URL" value={campus.websiteUrl ?? campus.schoolData?.websiteUrl} />
                         <InfoRow label="Giấy phép kinh doanh" value={campus.businessLicenseUrl ?? campus.schoolData?.businessLicenseUrl} />
                         <InfoRow label="Ngày thành lập" value={campus.foundingDate ?? campus.schoolData?.foundingDate} />
+                        <InfoRow label="Tỉnh / Thành phố" value={campus.city} />
+                        <InfoRow label="Quận / Huyện" value={campus.district} />
+                        <InfoRow label="Hình thức nội trú" value={normalizeBoardingTypeForApi(campus.boardingType)} />
+                        <InfoRow label="Mã số thuế" value={campus.taxCode} />
                     </Box>
                 </CardContent>
             </Card>
@@ -573,6 +652,23 @@ export default function SchoolProfile() {
                         <TextField label="Tên cơ sở" value={formValues.campusName} onChange={(e) => setFormValues((p) => ({ ...p, campusName: e.target.value }))} fullWidth size="small" />
                         <TextField label="Số điện thoại" value={formValues.phoneNumber} onChange={(e) => setFormValues((p) => ({ ...p, phoneNumber: e.target.value }))} fullWidth size="small" />
                         <TextField label="Địa chỉ" value={formValues.address} onChange={(e) => setFormValues((p) => ({ ...p, address: e.target.value }))} fullWidth size="small" multiline rows={2} />
+                        <TextField label="Tỉnh / Thành phố" value={formValues.city} onChange={(e) => setFormValues((p) => ({ ...p, city: e.target.value }))} fullWidth size="small" />
+                        <TextField label="Quận / Huyện" value={formValues.district} onChange={(e) => setFormValues((p) => ({ ...p, district: e.target.value }))} fullWidth size="small" />
+                        <FormControl fullWidth size="small">
+                            <InputLabel id="school-profile-boarding-type">Hình thức nội trú</InputLabel>
+                            <Select
+                                labelId="school-profile-boarding-type"
+                                label="Hình thức nội trú"
+                                value={formValues.boardingType || BOARDING_TYPE_DEFAULT_VI}
+                                onChange={(e) => setFormValues((p) => ({ ...p, boardingType: e.target.value }))}
+                            >
+                                {BOARDING_TYPE_OPTIONS.map((o) => (
+                                    <MenuItem key={o.value} value={o.value}>
+                                        {o.label}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
                         <TextField label="Mô tả chính sách" value={formValues.policyDetail} onChange={(e) => setFormValues((p) => ({ ...p, policyDetail: e.target.value }))} fullWidth size="small" multiline rows={2} placeholder="policyDetail" />
                         <TextField label="Mô tả trường" value={formValues.schoolDescription} onChange={(e) => setFormValues((p) => ({ ...p, schoolDescription: e.target.value }))} fullWidth size="small" multiline rows={2} placeholder="schoolDescription" />
                         <TextField label="Website URL" value={formValues.websiteUrl} onChange={(e) => setFormValues((p) => ({ ...p, websiteUrl: e.target.value }))} fullWidth size="small" placeholder="https://..." />

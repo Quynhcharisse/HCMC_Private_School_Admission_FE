@@ -44,6 +44,11 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import {enqueueSnackbar} from "notistack";
 import {useSchool} from "../../../contexts/SchoolContext.jsx";
 import {extractCampusListBody, listCampuses, createCampus, exportCampusList} from "../../../services/CampusService.jsx";
+import {
+    BOARDING_TYPE_DEFAULT_VI,
+    BOARDING_TYPE_OPTIONS,
+    normalizeBoardingTypeForApi,
+} from "../../../constants/schoolBoardingType.js";
 import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
 
 const modalPaperSx = {
@@ -99,13 +104,6 @@ const initialMockCampuses = [
     },
 ];
 
-const BOARDING_TYPE_OPTIONS = [
-    { value: "NONE", label: "Không nội trú" },
-    { value: "FULL_BOARDING", label: "Nội trú toàn phần" },
-    { value: "SEMI_BOARDING", label: "Nội trú bán phần" },
-    { value: "BOTH", label: "Cả hai" },
-];
-
 const emptyForm = {
     name: "",
     address: "",
@@ -115,7 +113,7 @@ const emptyForm = {
     email: "",
     latitude: "",
     longitude: "",
-    boardingType: "NONE",
+    boardingType: BOARDING_TYPE_DEFAULT_VI,
     description: "",
     imagePreview: null,
     status: true,
@@ -131,9 +129,13 @@ const formatDate = (d) => {
 };
 
 const getBoardingTypeLabelVi = (boardingType, boardingTypeLabel) => {
-    const match = BOARDING_TYPE_OPTIONS.find((o) => o.value === boardingType);
-    if (match) return match.label;
-    return boardingTypeLabel || "—";
+    if (boardingType != null && String(boardingType).trim() !== "") {
+        return normalizeBoardingTypeForApi(boardingType);
+    }
+    if (boardingTypeLabel != null && String(boardingTypeLabel).trim() !== "") {
+        return normalizeBoardingTypeForApi(boardingTypeLabel);
+    }
+    return "—";
 };
 
 const toCampusUiStatus = (status) => (status === "VERIFIED" ? "active" : "inactive");
@@ -234,7 +236,7 @@ export default function SchoolCampus() {
         district: dto.district ?? "",
         latitude: dto.latitude,
         longitude: dto.longitude,
-        boardingType: dto.boardingType ?? "NONE",
+        boardingType: normalizeBoardingTypeForApi(dto.boardingType ?? dto.boardingTypeLabel),
         boardingTypeLabel: dto.boardingTypeLabel ?? "",
         phone: dto.phoneNumber,
         email: account?.email ?? "",
@@ -293,7 +295,7 @@ export default function SchoolCampus() {
                 district: formValues.district?.trim() || undefined,
                 latitude: formValues.latitude !== "" ? formValues.latitude : undefined,
                 longitude: formValues.longitude !== "" ? formValues.longitude : undefined,
-                boardingType: formValues.boardingType || "NONE",
+                boardingType: normalizeBoardingTypeForApi(formValues.boardingType),
             });
 
             const body = res?.data?.body;
@@ -328,7 +330,7 @@ export default function SchoolCampus() {
             email: campus.email || "",
             latitude: campus.latitude ?? "",
             longitude: campus.longitude ?? "",
-            boardingType: campus.boardingType || "NONE",
+            boardingType: normalizeBoardingTypeForApi(campus.boardingType ?? campus.boardingTypeLabel),
             description: campus.description || "",
             imagePreview: campus.imageUrl || null,
             status: campus.status === "active",
@@ -350,7 +352,7 @@ export default function SchoolCampus() {
             email: formValues.email?.trim() || "",
             latitude: latitude !== undefined && Number.isNaN(latitude) ? undefined : latitude,
             longitude: longitude !== undefined && Number.isNaN(longitude) ? undefined : longitude,
-            boardingType: formValues.boardingType || "NONE",
+            boardingType: normalizeBoardingTypeForApi(formValues.boardingType),
             description: formValues.description?.trim() || "",
             imageUrl: formValues.imagePreview ?? selectedCampus?.imageUrl ?? null,
             status: formValues.status ? "active" : "inactive",

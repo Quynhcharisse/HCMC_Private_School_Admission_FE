@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Box, Drawer, Fade } from "@mui/material";
 import { ThemeProvider, createTheme, useTheme } from "@mui/material/styles";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { SchoolProvider } from "../../contexts/SchoolContext.jsx";
 import SchoolAuthHeader from "../Page/school/SchoolAuthHeader.jsx";
 import SchoolSidebar from "../partials/SchoolSidebar.jsx";
@@ -55,10 +55,28 @@ export default function SchoolLayout() {
   );
 
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
 
   const HEADER_HEIGHT = 65;
+
+  const toBoolean = (value) => value === true || value === "true" || value === 1 || value === "1";
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (!storedUser) return;
+    try {
+      const parsed = JSON.parse(storedUser);
+      if (parsed?.role === "SCHOOL" && toBoolean(parsed?.firstLogin)) {
+        if (location.pathname !== "/school/profile") {
+          navigate("/school/profile", { replace: true });
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [location.pathname, navigate]);
 
   return (
     <ThemeProvider theme={schoolTheme}>
