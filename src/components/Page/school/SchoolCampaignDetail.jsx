@@ -198,6 +198,14 @@ function getCampaignErrorMessage(backendMessage, fallback) {
         return `Đã tồn tại chiến dịch tuyển sinh cho năm ${duplicateTypo[1]}.`;
     }
 
+    const openCampaignConflict =
+        /^Academic year (\d+) already has an open campaign\. Please close it before publishing a new one\.$/i.exec(
+            trimmed
+        );
+    if (openCampaignConflict) {
+        return `Năm học ${openCampaignConflict[1]} đã có chiến dịch đang mở. Vui lòng đóng chiến dịch đó trước khi công bố chiến dịch mới.`;
+    }
+
     return trimmed || fallback;
 }
 
