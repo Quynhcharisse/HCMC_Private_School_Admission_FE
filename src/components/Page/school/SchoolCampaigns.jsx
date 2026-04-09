@@ -216,6 +216,17 @@ function getCampaignErrorMessage(backendMessage, fallback) {
     return trimmed || fallback;
 }
 
+const CAMPAIGN_SUCCESS_VI = {
+    "Create campaign template successfully": "Đã tạo chiến dịch thành công",
+};
+
+function getCampaignSuccessMessage(backendMessage, fallback) {
+    if (!backendMessage) return fallback;
+    const trimmed = String(backendMessage).trim();
+    if (CAMPAIGN_SUCCESS_VI[trimmed]) return CAMPAIGN_SUCCESS_VI[trimmed];
+    return trimmed || fallback;
+}
+
 export default function SchoolCampaigns() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -448,7 +459,10 @@ export default function SchoolCampaigns() {
             const payload = getCreatePayload();
             const res = await createCampaignTemplate(payload);
             if (res?.status >= 200 && res?.status < 300) {
-                enqueueSnackbar(res?.data?.message || "Tạo chiến dịch thành công", { variant: "success" });
+                enqueueSnackbar(
+                    getCampaignSuccessMessage(res?.data?.message, "Tạo chiến dịch thành công"),
+                    { variant: "success" }
+                );
                 setCreateModalOpen(false);
                 const createdYear = Number(payload.year);
                 if (Number.isFinite(createdYear)) {
