@@ -1302,7 +1302,15 @@ export default function ChildrenInfoPage() {
                                                                         size="small"
                                                                         fullWidth
                                                                         placeholder="—"
-                                                                        disabled={fieldsDisabled}
+                                                                        disabled={
+                                                                            fieldsDisabled ||
+                                                                            !selectedForeignSubject
+                                                                        }
+                                                                        title={
+                                                                            !selectedForeignSubject
+                                                                                ? 'Chọn ngôn ngữ trước khi nhập điểm'
+                                                                                : undefined
+                                                                        }
                                                                         inputProps={{
                                                                             inputMode: 'decimal',
                                                                             style: {textAlign: 'center'},
