@@ -313,10 +313,10 @@ const contactDividerSx = {borderColor: "rgba(51,65,85,0.1)"};
 
 const generalInfoCardSx = {
     p: {xs: 2, sm: 2.5},
-    borderRadius: 3,
-    border: "1px solid rgba(51,65,85,0.08)",
-    boxShadow: landingSectionShadow(2),
-    bgcolor: "#fff"
+    borderRadius: 3.25,
+    border: "1px solid rgba(96,165,250,0.55)",
+    background: "linear-gradient(180deg, #eaf4ff 0%, #dcecff 100%)",
+    boxShadow: "0 10px 22px rgba(59,130,246,0.16), 0 2px 6px rgba(15,23,42,0.05)"
 };
 
 const verticalCardTitleSx = {
@@ -339,10 +339,10 @@ const mainDetailSectionTitleSx = {
 
 const detailMainColumnCardSx = {
     p: 2.5,
-    borderRadius: 2,
-    border: "1px solid rgba(51,65,85,0.1)",
-    bgcolor: "#fff",
-    boxShadow: "0 1px 3px rgba(51,65,85,0.06)"
+    borderRadius: 2.75,
+    border: "1px solid rgba(96,165,250,0.52)",
+    background: "linear-gradient(180deg, #edf6ff 0%, #dfeeff 100%)",
+    boxShadow: "0 10px 22px rgba(59,130,246,0.15), 0 2px 6px rgba(15,23,42,0.05)"
 };
 
 function SchoolGeneralInfoCard({school}) {
@@ -1379,7 +1379,7 @@ export default function SchoolSearchDetailView({
                 zIndex: 900,
                 display: "flex",
                 flexDirection: "column",
-                bgcolor: "#f8fafc",
+                bgcolor: "#eef2f7",
                 overflow: "hidden"
             }}
         >
@@ -1619,39 +1619,50 @@ export default function SchoolSearchDetailView({
                 </Box>
 
                 <Box sx={{maxWidth: 1100, mx: "auto", width: "100%", px: {xs: 2, sm: 3}, py: 2}}>
-                    <Breadcrumbs sx={{mb: 2, "& a": {color: BRAND_NAVY, fontWeight: 600}}}>
-                        <Link
-                            component="button"
-                            type="button"
-                            underline="hover"
-                            onClick={() => navigate("/home")}
-                            sx={{cursor: "pointer", border: "none", background: "none", font: "inherit"}}
+                    <Box sx={{overflowX: "auto", WebkitOverflowScrolling: "touch", pb: 0.25, mx: {xs: -0.5, sm: 0}, px: {xs: 0.5, sm: 0}}}>
+                        <Breadcrumbs
+                            sx={{
+                                mb: 2,
+                                flexWrap: "nowrap",
+                                whiteSpace: "nowrap",
+                                "& a": {color: BRAND_NAVY, fontWeight: 600},
+                                "& .MuiBreadcrumbs-separator": {flexShrink: 0}
+                            }}
                         >
-                            Trang chủ
-                        </Link>
-                        <Link
-                            component="button"
-                            type="button"
-                            underline="hover"
-                            onClick={onClose}
-                            sx={{cursor: "pointer", border: "none", background: "none", font: "inherit"}}
-                        >
-                            Tìm trường
-                        </Link>
-                        <Typography
-                            color="text.secondary"
-                            sx={{fontWeight: 600, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis"}}
-                        >
-                            {school.school}
-                        </Typography>
-                    </Breadcrumbs>
+                            <Link
+                                component="button"
+                                type="button"
+                                underline="hover"
+                                onClick={() => navigate("/home")}
+                                sx={{cursor: "pointer", border: "none", background: "none", font: "inherit", flexShrink: 0}}
+                            >
+                                Trang chủ
+                            </Link>
+                            <Link
+                                component="button"
+                                type="button"
+                                underline="hover"
+                                onClick={onClose}
+                                sx={{cursor: "pointer", border: "none", background: "none", font: "inherit", flexShrink: 0}}
+                            >
+                                Tìm trường
+                            </Link>
+                            <Typography
+                                color="text.secondary"
+                                component="span"
+                                sx={{fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0}}
+                            >
+                                {school.school}
+                            </Typography>
+                        </Breadcrumbs>
+                    </Box>
 
                     <Box
                         sx={{
                             position: "sticky",
                             top: 0,
                             zIndex: 20,
-                            bgcolor: "#f8fafc",
+                            bgcolor: "#eef2f7",
                             pt: 0.25,
                             pb: 0,
                             mb: 1.5,
@@ -1779,9 +1790,14 @@ export default function SchoolSearchDetailView({
                                         <Box
                                             sx={{
                                                 flexShrink: 0,
-                                                width: {xs: "100%", sm: 140, md: 160},
+                                                width: "calc(0.95rem * 1.75 * 4)",
+                                                height: "calc(0.95rem * 1.75 * 4)",
+                                                maxWidth: "100%",
+                                                borderRadius: "50%",
+                                                overflow: "hidden",
+                                                bgcolor: "transparent",
                                                 display: "flex",
-                                                alignItems: "flex-start",
+                                                alignItems: "center",
                                                 justifyContent: "center",
                                                 alignSelf: {xs: "center", sm: "flex-start"},
                                                 mx: {xs: "auto", sm: 0}
@@ -1792,11 +1808,10 @@ export default function SchoolSearchDetailView({
                                                 image={school.logoUrl || DEFAULT_SCHOOL_IMAGE}
                                                 alt=""
                                                 sx={{
-                                                    width: "auto",
-                                                    maxWidth: "100%",
-                                                    height: "auto",
-                                                    maxHeight: "calc(0.95rem * 1.75 * 4)",
+                                                    width: "100%",
+                                                    height: "100%",
                                                     objectFit: "contain",
+                                                    objectPosition: "center",
                                                     display: "block"
                                                 }}
                                             />
