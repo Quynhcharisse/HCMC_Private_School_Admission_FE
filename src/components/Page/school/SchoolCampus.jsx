@@ -138,7 +138,12 @@ const getBoardingTypeLabelVi = (boardingType, boardingTypeLabel) => {
     return "—";
 };
 
-const toCampusUiStatus = (status) => (status === "VERIFIED" ? "active" : "inactive");
+const toCampusUiStatus = (status) => {
+    const normalizedStatus = String(status ?? "").toUpperCase();
+    return normalizedStatus === "ACTIVE" || normalizedStatus === "VERIFIED"
+        ? "active"
+        : "inactive";
+};
 
 export default function SchoolCampus() {
     const { isPrimaryBranch } = useSchool();
@@ -238,7 +243,7 @@ export default function SchoolCampus() {
         longitude: dto.longitude,
         boardingType: normalizeBoardingTypeForApi(dto.boardingType ?? dto.boardingTypeLabel),
         boardingTypeLabel: dto.boardingTypeLabel ?? "",
-        phone: dto.phoneNumber,
+        phone: dto.phoneNumber ?? dto.phone ?? "",
         email: account?.email ?? "",
         description: dto.policyDetail ?? "",
         imageUrl: dto.imageJson?.coverUrl ?? dto.imageUrl ?? null,
@@ -720,7 +725,7 @@ export default function SchoolCampus() {
                                                             : "#64748b",
                                                 }}
                                             >
-                                                {row.status === "active" ? "Xác thực" : "Chưa xác thực"}
+                                                {row.status === "active" ? "Hoạt động" : "Ngưng hoạt động"}
                                             </Box>
                                         </TableCell>
                                         <TableCell align="right">
@@ -1034,42 +1039,9 @@ export default function SchoolCampus() {
                                                 <WarningAmberOutlinedIcon sx={{fontSize: 16, color: "inherit"}}/>
                                             )}
                                         </Box>
-                                        {selectedCampus.status === "active" ? "Xác thực" : "Chưa xác thực"}
+                                        {selectedCampus.status === "active" ? "Hoạt động" : "Ngưng hoạt động"}
                                     </Box>
 
-                                    <Box
-                                        component="span"
-                                        sx={{
-                                            px: 1.25,
-                                            py: 0.75,
-                                            borderRadius: 999,
-                                            fontSize: 13,
-                                            fontWeight: 900,
-                                            bgcolor:
-                                                selectedCampus.accountStatus === "ACCOUNT_ACTIVE"
-                                                    ? "rgba(22, 163, 74, 0.12)"
-                                                    : "rgba(239, 68, 68, 0.10)",
-                                            color:
-                                                selectedCampus.accountStatus === "ACCOUNT_ACTIVE"
-                                                    ? "#16a34a"
-                                                    : "#ef4444",
-                                            display: "inline-flex",
-                                            alignItems: "center",
-                                            gap: 0.75,
-                                            whiteSpace: "nowrap",
-                                        }}
-                                    >
-                                        <Box component="span" sx={{display: "inline-flex", alignItems: "center"}}>
-                                            {selectedCampus.accountStatus === "ACCOUNT_ACTIVE" ? (
-                                                <CheckCircleIcon sx={{fontSize: 16, color: "inherit"}}/>
-                                            ) : (
-                                                <WarningAmberOutlinedIcon sx={{fontSize: 16, color: "inherit"}}/>
-                                            )}
-                                        </Box>
-                                        {selectedCampus.accountStatus === "ACCOUNT_ACTIVE"
-                                            ? "Hoạt động"
-                                            : "Ngưng hoạt động"}
-                                    </Box>
                                 </>
                             )}
 
