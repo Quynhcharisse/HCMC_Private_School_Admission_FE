@@ -34,12 +34,36 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import { enqueueSnackbar } from "notistack";
 import { getProfile, updateProfile } from "../../../services/AccountService.jsx";
-import {
-    BOARDING_TYPE_DEFAULT_VI,
-    BOARDING_TYPE_OPTIONS,
-    normalizeBoardingTypeForApi,
-} from "../../../constants/schoolBoardingType.js";
 import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
+
+const BOARDING_TYPE_OPTIONS = [
+    { value: "NONE", label: "Không có" },
+    { value: "FULL_BOARDING", label: "Nội trú" },
+    { value: "SEMI_BOARDING", label: "Bán trú" },
+    { value: "BOTH", label: "Cả hai (Nội trú & Bán trú)" },
+];
+
+const BOARDING_TYPE_DEFAULT = "NONE";
+const BOARDING_VI_TO_ENUM = {
+    "Không có": "NONE",
+    "Nội trú": "FULL_BOARDING",
+    "Bán trú": "SEMI_BOARDING",
+    "Cả hai (Nội trú & Bán trú)": "BOTH",
+};
+
+function normalizeBoardingTypeEnum(raw) {
+    if (raw == null || String(raw).trim() === "") return BOARDING_TYPE_DEFAULT;
+    const s = String(raw).trim();
+    if (BOARDING_TYPE_OPTIONS.some((o) => o.value === s)) return s;
+    if (BOARDING_VI_TO_ENUM[s]) return BOARDING_VI_TO_ENUM[s];
+    return BOARDING_TYPE_DEFAULT;
+}
+
+function boardingTypeLabel(value) {
+    const normalized = normalizeBoardingTypeEnum(value);
+    const match = BOARDING_TYPE_OPTIONS.find((o) => o.value === normalized);
+    return match ? match.label : "—";
+}
 
 const toBoolean = (value) => value === true || value === "true" || value === 1 || value === "1";
 
@@ -132,7 +156,9 @@ export default function SchoolProfile() {
         address: "",
         city: "",
         district: "",
-        boardingType: BOARDING_TYPE_DEFAULT_VI,
+        latitude: "",
+        longitude: "",
+        boardingType: BOARDING_TYPE_DEFAULT,
         schoolName: "",
         schoolDescription: "",
         logoUrl: "",
@@ -167,7 +193,9 @@ export default function SchoolProfile() {
             address: campus.address || "",
             city: campus.city || "",
             district: campus.district || "",
-            boardingType: normalizeBoardingTypeForApi(campus.boardingType),
+            latitude: campus.latitude != null ? String(campus.latitude) : "",
+            longitude: campus.longitude != null ? String(campus.longitude) : "",
+            boardingType: normalizeBoardingTypeEnum(campus.boardingType),
             schoolName: schoolName || "",
             schoolDescription: campus.schoolDescription ?? legacySchoolData.description ?? "",
             logoUrl: campus.logoUrl ?? legacySchoolData.logoUrl ?? "",
@@ -264,15 +292,18 @@ export default function SchoolProfile() {
     const handleSaveProfile = async () => {
         setSaving(true);
         try {
+            const latitudeNumber = formValues.latitude === "" ? undefined : Number(formValues.latitude);
+            const longitudeNumber = formValues.longitude === "" ? undefined : Number(formValues.longitude);
             const payload = {
                 campusData: {
                     name: formValues.campusName?.trim() || "",
                     phoneNumber: formValues.phoneNumber?.trim() || "",
-                    policyDetail: formValues.policyDetail?.trim() || "",
                     address: formValues.address?.trim() || "",
                     city: formValues.city?.trim() || "",
                     district: formValues.district?.trim() || "",
-                    boardingType: normalizeBoardingTypeForApi(formValues.boardingType),
+                    boardingType: normalizeBoardingTypeEnum(formValues.boardingType),
+                    latitude: Number.isFinite(latitudeNumber) ? latitudeNumber : undefined,
+                    longitude: Number.isFinite(longitudeNumber) ? longitudeNumber : undefined,
                     schoolData: {
                         description: formValues.schoolDescription?.trim() || "",
                         logoUrl: formValues.logoUrl?.trim() || "",
@@ -441,7 +472,9 @@ export default function SchoolProfile() {
                         <InfoRow label="Ngày thành lập" value={campus.foundingDate ?? campus.schoolData?.foundingDate} />
                         <InfoRow label="Tỉnh / Thành phố" value={campus.city} />
                         <InfoRow label="Quận / Huyện" value={campus.district} />
-                        <InfoRow label="Hình thức nội trú" value={normalizeBoardingTypeForApi(campus.boardingType)} />
+                        <InfoRow label="Hình thức nội trú" value={boardingTypeLabel(campus.boardingType)} />
+                        <InfoRow label="Vĩ độ" value={campus.latitude} />
+                        <InfoRow label="Kinh độ" value={campus.longitude} />
                         <InfoRow label="Mã số thuế" value={campus.taxCode} />
                     </Box>
                 </CardContent>
@@ -654,12 +687,14 @@ export default function SchoolProfile() {
                         <TextField label="Địa chỉ" value={formValues.address} onChange={(e) => setFormValues((p) => ({ ...p, address: e.target.value }))} fullWidth size="small" multiline rows={2} />
                         <TextField label="Tỉnh / Thành phố" value={formValues.city} onChange={(e) => setFormValues((p) => ({ ...p, city: e.target.value }))} fullWidth size="small" />
                         <TextField label="Quận / Huyện" value={formValues.district} onChange={(e) => setFormValues((p) => ({ ...p, district: e.target.value }))} fullWidth size="small" />
+                        <TextField label="Vĩ độ" value={formValues.latitude} onChange={(e) => setFormValues((p) => ({ ...p, latitude: e.target.value }))} fullWidth size="small" type="number" inputProps={{ step: "any" }} />
+                        <TextField label="Kinh độ" value={formValues.longitude} onChange={(e) => setFormValues((p) => ({ ...p, longitude: e.target.value }))} fullWidth size="small" type="number" inputProps={{ step: "any" }} />
                         <FormControl fullWidth size="small">
                             <InputLabel id="school-profile-boarding-type">Hình thức nội trú</InputLabel>
                             <Select
                                 labelId="school-profile-boarding-type"
                                 label="Hình thức nội trú"
-                                value={formValues.boardingType || BOARDING_TYPE_DEFAULT_VI}
+                                value={formValues.boardingType || BOARDING_TYPE_DEFAULT}
                                 onChange={(e) => setFormValues((p) => ({ ...p, boardingType: e.target.value }))}
                             >
                                 {BOARDING_TYPE_OPTIONS.map((o) => (
