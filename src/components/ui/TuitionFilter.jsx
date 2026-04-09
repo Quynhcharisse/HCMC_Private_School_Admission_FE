@@ -48,8 +48,9 @@ export default function TuitionFilter({ tuitionMin = 0, tuitionMax = 30, onChang
                 sx={{
                     fontSize: '0.8rem',
                     fontWeight: 700,
-                    color: '#64748b',
+                    color: BRAND_NAVY,
                     mb: 1,
+                    letterSpacing: '0.02em'
                 }}
             >
                 Khoảng học phí mỗi tháng
