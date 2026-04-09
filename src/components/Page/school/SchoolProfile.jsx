@@ -468,7 +468,23 @@ export default function SchoolProfile() {
                         <InfoRow label="Đại diện" value={campus.representativeName ?? campus.schoolData?.representativeName} />
                         <InfoRow label="Hotline" value={campus.hotline ?? campus.schoolData?.hotline} />
                         <InfoRow label="Website URL" value={campus.websiteUrl ?? campus.schoolData?.websiteUrl} />
-                        <InfoRow label="Giấy phép kinh doanh" value={campus.businessLicenseUrl ?? campus.schoolData?.businessLicenseUrl} />
+                        <InfoRow
+                            label="Giấy phép kinh doanh"
+                            value={(() => {
+                                const businessLicenseUrl = campus.businessLicenseUrl ?? campus.schoolData?.businessLicenseUrl;
+                                if (!businessLicenseUrl) return "—";
+                                return (
+                                    <Button
+                                        variant="outlined"
+                                        size="small"
+                                        sx={{ textTransform: "none" }}
+                                        onClick={() => window.open(businessLicenseUrl, "_blank", "noopener,noreferrer")}
+                                    >
+                                        Mở giấy phép
+                                    </Button>
+                                );
+                            })()}
+                        />
                         <InfoRow label="Ngày thành lập" value={campus.foundingDate ?? campus.schoolData?.foundingDate} />
                         <InfoRow label="Tỉnh / Thành phố" value={campus.city} />
                         <InfoRow label="Quận / Huyện" value={campus.district} />
