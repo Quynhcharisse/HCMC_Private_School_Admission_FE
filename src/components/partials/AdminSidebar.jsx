@@ -25,6 +25,7 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import PsychologyOutlinedIcon from "@mui/icons-material/PsychologyOutlined";
 import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
 import MonetizationOnOutlinedIcon from "@mui/icons-material/MonetizationOnOutlined";
+import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
@@ -53,6 +54,11 @@ const menuGroups = [
                 text: "Quản lý phí gói dịch vụ",
                 icon: <MonetizationOnOutlinedIcon />,
                 path: "/admin/package-fees",
+            },
+            {
+                text: "Quản lý tài liệu mẫu",
+                icon: <DescriptionOutlinedIcon />,
+                path: "/admin/document-templates",
             },
         ],
     },
