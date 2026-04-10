@@ -154,9 +154,9 @@ const SUPPORT_LEVEL_LABELS = Object.freeze({
 });
 
 const PARENT_POST_PERMISSION_LABELS = Object.freeze({
-    VIEW_ONLY: "Phụ huynh chỉ xem bài viết",
-    COMMENT_ONLY: "Phụ huynh được bình luận",
-    CREATE_POST: "Phụ huynh được tạo bài viết",
+    VIEW_ONLY: "Nhà trường chỉ xem bài viết",
+    COMMENT_ONLY: "Nhà trường được bình luận",
+    CREATE_POST: "Nhà trường được tạo bài viết",
 });
 
 const formatVndPrice = (value) => {
@@ -1191,7 +1191,9 @@ export default function HomePage() {
             try {
                 const res = await getAdminPackageFees();
                 const raw = Array.isArray(res?.data?.body) ? res.data.body : [];
-                const activePackages = raw.filter((item) => item?.status === "PACKAGE_ACTIVE");
+                const activePackages = raw.filter(
+                    (item) => String(item?.status || "").trim().toUpperCase() === "PACKAGE_ACTIVE"
+                );
                 if (!cancelled) setSchoolServicePackages(activePackages);
             } catch (error) {
                 console.error(error);
@@ -1876,15 +1878,18 @@ export default function HomePage() {
                                 sx={{
                                     display: 'grid',
                                     gridTemplateColumns: {
-                                        xs: '1fr',
-                                        md: 'repeat(2, minmax(0, 1fr))',
-                                        lg: 'repeat(3, minmax(0, 1fr))'
+                                        xs: 'minmax(0, 340px)',
+                                        sm: 'repeat(auto-fit, minmax(300px, 340px))',
                                     },
-                                    gap: 3
+                                    justifyContent: 'center',
+                                    gap: 3,
                                 }}
                             >
                                 {(() => {
-                                    const sortedPackages = [...schoolServicePackages].sort(
+                                    const strictlyActivePackages = schoolServicePackages.filter(
+                                        (pkg) => String(pkg?.status || "").trim().toUpperCase() === "PACKAGE_ACTIVE"
+                                    );
+                                    const sortedPackages = [...strictlyActivePackages].sort(
                                         (a, b) => getSupportLevelRank(a?.features?.supportLevel) - getSupportLevelRank(b?.features?.supportLevel)
                                     );
                                     const enterpriseIndex = sortedPackages.findIndex(
