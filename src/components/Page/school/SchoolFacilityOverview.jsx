@@ -1394,7 +1394,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
     return <Navigate to="/school/campus-facility-config" replace />;
   }
 
-  const pageTitle = isCampusVariant ? "Cấu hình theo cơ sở" : "Cấu hình nền tảng";
+  const pageTitle = isCampusVariant ? "Cấu hình theo mỗi cơ sở" : "Cấu hình chung cho các cơ sở";
   const pageSubtitle = isCampusVariant
     ? isPrimaryBranch
       ? "Chỉnh vận hành và CSVC của cơ sở chính. Mỗi cơ sở chỉ sửa được cấu hình của chính mình."

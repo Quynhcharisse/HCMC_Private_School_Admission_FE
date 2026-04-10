@@ -36,7 +36,7 @@ import { useSchool } from "../../contexts/SchoolContext.jsx";
 function buildConfigMenuItems(isPrimaryBranch, schoolCtxLoading) {
     const items = [];
     if (schoolCtxLoading || isPrimaryBranch) {
-        items.push({ text: "Cấu hình nền tảng", icon: <SettingsOutlinedIcon />, path: "/school/facility-config" });
+        items.push({ text: "Cấu hình chung", icon: <SettingsOutlinedIcon />, path: "/school/facility-config" });
     }
     items.push(
         { text: "Cấu hình theo cơ sở", icon: <ApartmentIcon />, path: "/school/campus-facility-config" },

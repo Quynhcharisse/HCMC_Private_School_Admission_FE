@@ -1261,7 +1261,7 @@ export default function SchoolCounselorSchedule() {
                   </Typography>
                 ) : null}
               </Box>
-              <Stack spacing={0.75} sx={{ flex: 1, minHeight: 340, display: "flex", flexDirection: "column" }}>
+              <Stack spacing={0.75} sx={{ display: "flex", flexDirection: "column" }}>
                 {SESSION_OPTIONS.map((sessionKey) => {
                   const zoneSlots = bySession[sessionKey];
                   const surface = sessionZoneSurface(sessionKey);
@@ -1269,8 +1269,7 @@ export default function SchoolCounselorSchedule() {
                     <Box
                       key={sessionKey}
                       sx={{
-                        flex: 1,
-                        minHeight: 104,
+                        minHeight: zoneSlots.length === 0 ? 104 : "auto",
                         display: "flex",
                         flexDirection: "column",
                         borderRadius: "10px",

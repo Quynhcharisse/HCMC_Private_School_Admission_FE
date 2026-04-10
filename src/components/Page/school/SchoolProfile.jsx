@@ -1105,7 +1105,6 @@ export default function SchoolProfile() {
                                                             }}
                                                         />
                                                     </Box>
-                                                    <TextField label="Đường dẫn giấy phép kinh doanh" value={formValues.businessLicenseUrl} fullWidth size="small" placeholder="https://..." disabled />
                                                 </Stack>
                                             </CardContent>
                                         </Card>
