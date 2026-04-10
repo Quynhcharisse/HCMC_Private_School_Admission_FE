@@ -105,13 +105,20 @@ function normalizeFacilityData(raw) {
  * Tab "Cài đặt Cơ sở vật chất" — controlled by `facilityData` (API shape facilityData).
  */
 export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFacilityForm(
-  {value, onChange, loading = false, saving = false, readOnly = false},
+  {value, onChange, loading = false, saving = false, readOnly = false, perCampus = false},
   ref
 ) {
   const formLocked = loading || saving || readOnly;
   /** Giữ giao diện không xám khi chỉ xem — chặn tương tác bằng pointer-events thay vì disabled. */
   const blockPointerSx = formLocked ? { pointerEvents: "none", cursor: "default" } : undefined;
   const facilityData = useMemo(() => normalizeFacilityData(value), [value]);
+
+  const overviewNoteText = perCampus
+    ? "Lưu ý: Tổng quan về cơ sở vật chất là một đoạn văn mô tả chung về cơ sở vật chất của mỗi cơ sở"
+    : "* Lưu ý: Tổng quan về cơ sở vật chất là một đoạn văn mô tả chung về cơ sở vật chất của trường";
+  const coverNoteText = perCampus
+    ? "* Lưu ý: Ảnh bìa là ảnh bao quát nhất về cơ sở vật chất (thường là ảnh chụp toàn cảnh trường từ trên cao hoặc cổng trường của mỗi cơ sở)"
+    : "* Lưu ý: Ảnh bìa là ảnh bao quát nhất về cơ sở vật chất (thường là ảnh chụp toàn cảnh trường từ trên cao hoặc cổng trường)";
 
   const setFacilityData = useCallback(
     (updater) => {
@@ -409,6 +416,9 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
       <Card sx={{borderRadius: "12px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)", border: "1px solid rgba(226,232,240,1)"}}>
         <CardContent sx={{p: 3}}>
           <Typography sx={{fontWeight: 900, color: "#0f172a", mb: 1.25, fontSize: 18}}>Tổng quan cơ sở vật chất</Typography>
+          <Typography variant="caption" sx={{display: "block", color: "#dc2626", fontWeight: 700, mb: 1.5}}>
+            {overviewNoteText}
+          </Typography>
           {loading ? (
             <Stack spacing={1.5}>
               <Skeleton variant="rounded" height={120} sx={{borderRadius: "12px"}}/>
@@ -460,6 +470,9 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
 
           <Typography variant="subtitle2" sx={{fontWeight: 800, color: "#0f172a", mb: 1.25}}>
             Ảnh bìa
+          </Typography>
+          <Typography variant="caption" sx={{display: "block", color: "#dc2626", fontWeight: 700, mb: 1.5}}>
+            {coverNoteText}
           </Typography>
           {loading ? (
             <Skeleton variant="rounded" height={180} sx={{borderRadius: "12px", mb: 2.5}}/>
@@ -596,21 +609,6 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
           )}
 
           <Box sx={{display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center", mb: 2}}>
-            <TextField
-              size="small"
-              placeholder="Tìm kiếm cơ sở vật chất..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              sx={{flex: 1, minWidth: 220}}
-              inputProps={{readOnly: formLocked}}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon sx={{color: "#64748b"}}/>
-                  </InputAdornment>
-                ),
-              }}
-            />
             <FormControl size="small" sx={{minWidth: 200, ...(formLocked ? blockPointerSx : {})}}>
               <Select
                 value={categoriesFilter}
