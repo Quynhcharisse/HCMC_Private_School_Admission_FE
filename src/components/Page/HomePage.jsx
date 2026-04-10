@@ -29,6 +29,7 @@ import {
     ArrowForward as ArrowForwardIcon,
     LocationOn as LocationIcon,
     Star as StarIcon,
+    CheckCircleOutline as CheckCircleOutlineIcon,
     AttachMoney as MoneyIcon,
     ChevronLeft as ChevronLeftIcon,
     ChevronRight as ChevronRightIcon,
@@ -58,6 +59,7 @@ import admissionCard5Image from "../../assets/TP.HCM tiếp tục kết hợp th
 import topPromoBanner1 from "../../assets/1.png";
 import topPromoBanner2 from "../../assets/2.png";
 import {getPublicSchoolList} from "../../services/SchoolPublicService.jsx";
+import {getAdminPackageFees} from "../../services/AdminService.jsx";
 
 const ADMISSION_CAROUSEL_INTERVAL_MS = 7000;
 const ADMISSION_ANIM_MS = 1400;
@@ -144,6 +146,63 @@ const CONSULT_STEPS = [
         showSparkle: true
     }
 ];
+
+const SUPPORT_LEVEL_LABELS = Object.freeze({
+    BASIC: "Basic",
+    STANDARD: "Standard",
+    PREMIUM: "Premium",
+});
+
+const PARENT_POST_PERMISSION_LABELS = Object.freeze({
+    VIEW_ONLY: "Phụ huynh chỉ xem bài viết",
+    COMMENT_ONLY: "Phụ huynh được bình luận",
+    CREATE_POST: "Phụ huynh được tạo bài viết",
+});
+
+const formatVndPrice = (value) => {
+    const amount = Number(value);
+    if (Number.isNaN(amount) || amount <= 0) return "Liên hệ";
+    return `${amount.toLocaleString("vi-VN")} VNĐ`;
+};
+
+const getSupportLevelLabel = (supportLevel) => {
+    const key = String(supportLevel || "").toUpperCase();
+    return SUPPORT_LEVEL_LABELS[key] || (supportLevel ? String(supportLevel) : "Chưa cập nhật");
+};
+
+const getSupportLevelRank = (supportLevel) => {
+    const key = String(supportLevel || "").toUpperCase();
+    if (key === "ENTERPRISE") return 1;
+    if (key === "STANDARD") return 2;
+    if (key === "BASIC") return 3;
+    return 99;
+};
+
+const buildFeatureLines = (features = {}, durationDays = 0) => {
+    const lines = [];
+    if (Number(features.maxAdmissions) > 0) {
+        lines.push(`Tối đa ${Number(features.maxAdmissions).toLocaleString("vi-VN")} hồ sơ tuyển sinh`);
+    }
+    if (Number(features.maxCounsellors) > 0) {
+        lines.push(`Tối đa ${Number(features.maxCounsellors).toLocaleString("vi-VN")} tư vấn viên`);
+    }
+    if (Number(features.topRanking) > 0) {
+        lines.push(`Ưu tiên hiển thị top ${Number(features.topRanking).toLocaleString("vi-VN")}`);
+    }
+    if (durationDays > 0) {
+        lines.push(`Thời hạn sử dụng ${Number(durationDays).toLocaleString("vi-VN")} ngày`);
+    }
+    if (features.allowChat === true) {
+        lines.push("Hỗ trợ nhắn tin trực tiếp với phụ huynh");
+    } else if (features.allowChat === false) {
+        lines.push("Không hỗ trợ nhắn tin trực tiếp với phụ huynh");
+    }
+    if (features.parentPostPermission) {
+        const permission = PARENT_POST_PERMISSION_LABELS[features.parentPostPermission] || features.parentPostPermission;
+        lines.push(permission);
+    }
+    return lines;
+};
 
 const glassPane = (sx) => ({
     position: 'absolute',
@@ -682,7 +741,7 @@ function LatestAdmissionNewsSection() {
 
 const carouselCtaEase = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
 
-function HomeTopPromoCarousel({isParentRole, onRegisterClick, navigate}) {
+function HomeTopPromoCarousel({isSignedIn, onRegisterClick, navigate}) {
     const slides = TOP_PROMO_SLIDES;
     const n = slides.length;
     const extendedSlides = React.useMemo(() => {
@@ -825,7 +884,7 @@ function HomeTopPromoCarousel({isParentRole, onRegisterClick, navigate}) {
                             '& .MuiButton-root': {pointerEvents: 'auto'}
                         }}
                     >
-                        {!isParentRole && (
+                        {!isSignedIn && (
                             <Button
                                 variant="contained"
                                 size="large"
@@ -933,7 +992,13 @@ export default function HomePage() {
     const navigate = useNavigate();
     const [homeSchools, setHomeSchools] = React.useState([]);
     const [schoolLoading, setSchoolLoading] = React.useState(true);
+    const [isSignedIn, setIsSignedIn] = React.useState(() =>
+        typeof window !== "undefined" && Boolean(localStorage.getItem("user"))
+    );
     const [isParentRole, setIsParentRole] = React.useState(false);
+    const [isSchoolRole, setIsSchoolRole] = React.useState(false);
+    const [schoolServicePackages, setSchoolServicePackages] = React.useState([]);
+    const [servicePackagesLoading, setServicePackagesLoading] = React.useState(false);
     const [showParentFormModal, setShowParentFormModal] = React.useState(false);
     const [isSubmittingParentForm, setIsSubmittingParentForm] = React.useState(false);
     const submitRef = React.useRef(false);
@@ -954,6 +1019,8 @@ export default function HomePage() {
 
     const consultSectionRef = React.useRef(null);
     const [consultVisible, setConsultVisible] = React.useState(false);
+    const servicePackagesSectionRef = React.useRef(null);
+    const [servicePackagesVisible, setServicePackagesVisible] = React.useState(false);
     const consultMotionEase = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
     const consultStaggerMs = 140;
     const consultHeadlineContentSx = {
@@ -1048,16 +1115,23 @@ export default function HomePage() {
 
     React.useEffect(() => {
         const userData = localStorage.getItem('user');
+        setIsSignedIn(Boolean(userData));
         if (userData) {
             try {
                 const user = JSON.parse(userData);
                 setIsParentRole(user.role === 'PARENT');
+                setIsSchoolRole(user.role === 'SCHOOL');
                 if (user.role === 'PARENT' && user.firstLogin === true) {
                     setShowParentFormModal(true);
                 }
             } catch (e) {
                 console.error('Error parsing user data:', e);
+                setIsParentRole(false);
+                setIsSchoolRole(false);
             }
+        } else {
+            setIsParentRole(false);
+            setIsSchoolRole(false);
         }
 
         const smoothScrollToElement = (element, headerHeight) => {
@@ -1106,6 +1180,36 @@ export default function HomePage() {
     }, []);
 
     React.useEffect(() => {
+        if (!isSchoolRole) {
+            setSchoolServicePackages([]);
+            return;
+        }
+
+        let cancelled = false;
+        (async () => {
+            setServicePackagesLoading(true);
+            try {
+                const res = await getAdminPackageFees();
+                const raw = Array.isArray(res?.data?.body) ? res.data.body : [];
+                const activePackages = raw.filter((item) => item?.status === "PACKAGE_ACTIVE");
+                if (!cancelled) setSchoolServicePackages(activePackages);
+            } catch (error) {
+                console.error(error);
+                if (!cancelled) {
+                    setSchoolServicePackages([]);
+                    enqueueSnackbar("Không thể tải danh sách gói dịch vụ.", {variant: "error"});
+                }
+            } finally {
+                if (!cancelled) setServicePackagesLoading(false);
+            }
+        })();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [isSchoolRole]);
+
+    React.useEffect(() => {
         const el = consultSectionRef.current;
         if (!el) return;
         const obs = new IntersectionObserver(
@@ -1120,6 +1224,22 @@ export default function HomePage() {
         obs.observe(el);
         return () => obs.disconnect();
     }, []);
+
+    React.useEffect(() => {
+        const el = servicePackagesSectionRef.current;
+        if (!el) return;
+        const obs = new IntersectionObserver(
+            ([entry]) => {
+                if (entry.isIntersecting) {
+                    setServicePackagesVisible(true);
+                    obs.disconnect();
+                }
+            },
+            {root: null, rootMargin: '-4% 0px -8% 0px', threshold: 0.1}
+        );
+        obs.observe(el);
+        return () => obs.disconnect();
+    }, [isSchoolRole]);
 
     const handleRegisterClick = () => {
         window.location.href = '/register';
@@ -1363,11 +1483,10 @@ export default function HomePage() {
                 </DialogActions>
             </Dialog>
             <HomeTopPromoCarousel
-                isParentRole={isParentRole}
+                isSignedIn={isSignedIn}
                 onRegisterClick={handleRegisterClick}
                 navigate={navigate}
             />
-
             <Box
                 id="trường-nổi-bật"
                 sx={{
@@ -1705,6 +1824,208 @@ export default function HomePage() {
                     </Box>
                 </Container>
             </Box>
+            {isSchoolRole && (
+                <Box
+                    ref={servicePackagesSectionRef}
+                    id="goi-dich-vu"
+                    sx={{
+                        position: 'relative',
+                        zIndex: 1,
+                        pt: {xs: 5, md: 7},
+                        pb: {xs: 5, md: 7},
+                        background: 'linear-gradient(180deg, #f8fafc 0%, #f0f9ff 100%)',
+                        opacity: servicePackagesVisible ? 1 : 0,
+                        transform: servicePackagesVisible ? 'translateY(0px)' : 'translateY(28px)',
+                        transition: 'opacity 0.8s ease, transform 0.8s cubic-bezier(0.22, 0.61, 0.36, 1)',
+                    }}
+                >
+                    <Container maxWidth="lg" sx={{px: {xs: 2, sm: 3, md: 4}}}>
+                        <Typography
+                            variant="h4"
+                            sx={{
+                                textAlign: 'center',
+                                fontWeight: 800,
+                                color: BRAND_NAVY,
+                                mb: 1,
+                                fontSize: {xs: '1.6rem', md: '2rem'}
+                            }}
+                        >
+                            Các gói dịch vụ
+                        </Typography>
+                        <Typography
+                            sx={{
+                                textAlign: 'center',
+                                color: '#64748b',
+                                fontSize: {xs: '0.95rem', md: '1rem'},
+                                mb: 4
+                            }}
+                        >
+                            Lựa chọn gói phù hợp để tăng hiệu quả tuyển sinh cho trường của bạn.
+                        </Typography>
+
+                        {servicePackagesLoading ? (
+                            <Box sx={{display: 'flex', justifyContent: 'center', py: 5}}>
+                                <CircularProgress />
+                            </Box>
+                        ) : schoolServicePackages.length === 0 ? (
+                            <Typography sx={{textAlign: 'center', color: '#64748b', py: 3}}>
+                                Chưa có gói dịch vụ đang hoạt động.
+                            </Typography>
+                        ) : (
+                            <Box
+                                sx={{
+                                    display: 'grid',
+                                    gridTemplateColumns: {
+                                        xs: '1fr',
+                                        md: 'repeat(2, minmax(0, 1fr))',
+                                        lg: 'repeat(3, minmax(0, 1fr))'
+                                    },
+                                    gap: 3
+                                }}
+                            >
+                                {(() => {
+                                    const sortedPackages = [...schoolServicePackages].sort(
+                                        (a, b) => getSupportLevelRank(a?.features?.supportLevel) - getSupportLevelRank(b?.features?.supportLevel)
+                                    );
+                                    const enterpriseIndex = sortedPackages.findIndex(
+                                        (pkg) => String(pkg?.features?.supportLevel || "").toUpperCase() === "ENTERPRISE"
+                                    );
+                                    const orderedPackages =
+                                        enterpriseIndex > -1 && sortedPackages.length >= 3
+                                            ? [
+                                                  sortedPackages[(enterpriseIndex + 1) % sortedPackages.length],
+                                                  sortedPackages[enterpriseIndex],
+                                                  ...sortedPackages.filter((_, idx) => idx !== enterpriseIndex && idx !== (enterpriseIndex + 1) % sortedPackages.length),
+                                              ]
+                                            : sortedPackages;
+
+                                    return orderedPackages.map((pkg, idx) => {
+                                        const supportLevel = String(pkg?.features?.supportLevel || "").toUpperCase();
+                                        const isEnterprise = supportLevel === "ENTERPRISE";
+                                        const isStandard = supportLevel === "STANDARD";
+                                        const isBasic = supportLevel === "BASIC";
+                                        const isHighlighted = isEnterprise || idx === 1;
+                                        const tone = isEnterprise
+                                            ? {
+                                                  border: '1px solid rgba(236,72,153,0.38)',
+                                                  shadow: '0 24px 58px rgba(236,72,153,0.2)',
+                                                  background: 'linear-gradient(160deg, #fce7f3 0%, #f5d0fe 50%, #e0e7ff 100%)',
+                                                  color: '#7e22ce',
+                                                  checkColor: '#db2777',
+                                              }
+                                            : isStandard
+                                                ? {
+                                                      border: '1px solid rgba(56,189,248,0.34)',
+                                                      shadow: '0 18px 42px rgba(14,165,233,0.14)',
+                                                      background: 'linear-gradient(165deg, #ecfeff 0%, #e0f2fe 52%, #dbeafe 100%)',
+                                                      color: '#1d4ed8',
+                                                      checkColor: '#0284c7',
+                                                  }
+                                                : isBasic
+                                                    ? {
+                                                          border: '1px solid rgba(20,184,166,0.28)',
+                                                          shadow: '0 16px 36px rgba(20,184,166,0.12)',
+                                                          background: 'linear-gradient(165deg, #f0fdf4 0%, #ecfdf5 50%, #f8fafc 100%)',
+                                                          color: '#0f766e',
+                                                          checkColor: '#0f766e',
+                                                      }
+                                                    : {
+                                                          border: '1px solid rgba(148,163,184,0.26)',
+                                                          shadow: '0 16px 40px rgba(51,65,85,0.1)',
+                                                          background: '#ffffff',
+                                                          color: '#1e3a8a',
+                                                          checkColor: '#16a34a',
+                                                      };
+                                        const featureLines = buildFeatureLines(pkg?.features || {}, pkg?.durationDays);
+                                        return (
+                                            <Card
+                                                key={pkg?.id ?? `${pkg?.name}-${idx}`}
+                                                sx={{
+                                                    borderRadius: 3,
+                                                    border: tone.border,
+                                                    boxShadow: tone.shadow,
+                                                    background: tone.background,
+                                                    color: '#0f172a',
+                                                    p: 3,
+                                                    minHeight: 470,
+                                                    maxWidth: 340,
+                                                    width: '100%',
+                                                    mx: 'auto',
+                                                    display: 'flex',
+                                                    flexDirection: 'column',
+                                                    opacity: servicePackagesVisible ? 1 : 0,
+                                                    transform: servicePackagesVisible ? 'translateY(0px)' : 'translateY(22px)',
+                                                    transition: `opacity 0.65s ease ${idx * 120}ms, transform 0.65s ease ${idx * 120}ms`,
+                                                    '&:hover': {
+                                                        transform: 'translateY(-8px)',
+                                                        boxShadow: isHighlighted
+                                                            ? '0 30px 64px rgba(236,72,153,0.24)'
+                                                            : '0 24px 54px rgba(51,65,85,0.18)',
+                                                    },
+                                                }}
+                                            >
+                                                <Box sx={{textAlign: 'center', mb: 2}}>
+                                                    <Typography sx={{fontSize: {xs: '2rem', md: '2.2rem'}, fontWeight: 800, letterSpacing: 0.5}}>
+                                                        {formatVndPrice(pkg?.price)}
+                                                    </Typography>
+                                                    <Chip
+                                                        label={getSupportLevelLabel(pkg?.features?.supportLevel)}
+                                                        sx={{
+                                                            mt: 1.2,
+                                                            borderRadius: 999,
+                                                            fontWeight: 700,
+                                                            bgcolor: 'rgba(255,255,255,0.9)',
+                                                            color: tone.color
+                                                        }}
+                                                    />
+                                                </Box>
+
+                                                <Box sx={{mb: 2.25, textAlign: 'center'}}>
+                                                    <Typography sx={{fontWeight: 800, fontSize: '1.05rem'}}>
+                                                        {pkg?.name || 'Gói dịch vụ'}
+                                                    </Typography>
+                                                </Box>
+
+                                                <Box sx={{display: 'flex', flexDirection: 'column', gap: 1.15, flex: 1}}>
+                                                    {featureLines.map((line) => (
+                                                        <Box key={`${pkg?.id}-${line}`} sx={{display: 'flex', alignItems: 'flex-start', gap: 1}}>
+                                                            <CheckCircleOutlineIcon sx={{fontSize: 18, mt: '2px', color: tone.checkColor}} />
+                                                            <Typography sx={{fontSize: 14, lineHeight: 1.55}}>
+                                                                {line}
+                                                            </Typography>
+                                                        </Box>
+                                                    ))}
+                                                </Box>
+
+                                                <Button
+                                                    variant={isHighlighted ? "contained" : "outlined"}
+                                                    onClick={() => navigate('/package-fees')}
+                                                    sx={{
+                                                        mt: 2.75,
+                                                        borderRadius: 999,
+                                                        textTransform: 'none',
+                                                        fontWeight: 800,
+                                                        py: 1.1,
+                                                        borderColor: isHighlighted ? 'rgba(126,34,206,0.35)' : '#cbd5e1',
+                                                        color: isHighlighted ? '#7e22ce' : BRAND_NAVY,
+                                                        bgcolor: '#ffffff',
+                                                        '&:hover': {
+                                                            bgcolor: '#f8fafc',
+                                                            borderColor: isHighlighted ? '#7e22ce' : BRAND_NAVY
+                                                        }
+                                                    }}
+                                                >
+                                                    Mua ngay
+                                                </Button>
+                                            </Card>
+                                        );
+                                    });
+                                })()}
+                            </Box>
+                        )}
+                    </Container>
+                </Box>
+            )}
 
             <LatestAdmissionNewsSection/>
         </Box>
