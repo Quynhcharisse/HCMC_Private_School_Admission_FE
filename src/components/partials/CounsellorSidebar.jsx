@@ -137,21 +137,23 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
               </Typography>
             </Tooltip>
           ) : null}
-          <Box sx={labelWrapperStyle}>
-            <Typography
-              variant="subtitle1"
-              sx={{
-                fontWeight: 700,
-                color: "#2563eb",
-                letterSpacing: "-0.01em",
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              Tư vấn viên
-            </Typography>
-          </Box>
+          {!collapsed ? (
+            <Box sx={labelWrapperStyle}>
+              <Typography
+                variant="subtitle1"
+                sx={{
+                  fontWeight: 700,
+                  color: "#2563eb",
+                  letterSpacing: "-0.01em",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                Tư vấn viên
+              </Typography>
+            </Box>
+          ) : null}
         </Box>
         {onToggleCollapse && (
           <Tooltip title={collapsed ? "Mở rộng" : "Thu gọn"} placement="right">
@@ -280,26 +282,28 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
                     >
                       {item.icon}
                     </ListItemIcon>
-                    <Box sx={labelWrapperStyle}>
-                      <Box
-                        sx={{
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        <ListItemText
-                          primary={item.text}
-                          primaryTypographyProps={{
-                            fontSize: 14,
-                            fontWeight: isActive ? 600 : 500,
+                    {!collapsed ? (
+                      <Box sx={labelWrapperStyle}>
+                        <Box
+                          sx={{
                             whiteSpace: "nowrap",
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                           }}
-                        />
+                        >
+                          <ListItemText
+                            primary={item.text}
+                            primaryTypographyProps={{
+                              fontSize: 14,
+                              fontWeight: isActive ? 600 : 500,
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          />
+                        </Box>
                       </Box>
-                    </Box>
+                    ) : null}
                   </ListItemButton>
                 </ListItem>
               );
@@ -350,34 +354,36 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
             >
               {!avatarUrl && displayName.charAt(0).toUpperCase()}
             </Avatar>
-            <Box sx={{ ...labelWrapperStyle, ml: collapsed ? 0 : 1.5 }}>
-              <Box sx={{ minWidth: 0, overflow: "hidden" }}>
-                <Typography
-                  variant="body2"
-                  sx={{
-                    fontWeight: 600,
-                    color: "#1e293b",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {displayName}
-                </Typography>
-                <Typography
-                  variant="caption"
-                  sx={{
-                    color: "#64748b",
-                    display: "block",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {roleLabel}
-                </Typography>
+            {!collapsed ? (
+              <Box sx={{ ...labelWrapperStyle, ml: 1.5 }}>
+                <Box sx={{ minWidth: 0, overflow: "hidden" }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 600,
+                      color: "#1e293b",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {displayName}
+                  </Typography>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "#64748b",
+                      display: "block",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {roleLabel}
+                  </Typography>
+                </Box>
               </Box>
-            </Box>
+            ) : null}
           </ListItemButton>
         </Tooltip>
       </Box>

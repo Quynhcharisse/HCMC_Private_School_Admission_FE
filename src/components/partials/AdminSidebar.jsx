@@ -334,9 +334,10 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
                                                     primaryTypographyProps={{
                                                         fontSize: 14,
                                                         fontWeight: isActive ? 600 : 500,
-                                                        whiteSpace: "normal",
+                                                        whiteSpace: "nowrap",
                                                         lineHeight: 1.35,
-                                                        wordBreak: "break-word",
+                                                        overflow: "hidden",
+                                                        textOverflow: "ellipsis",
                                                     }}
                                                 />
                                             </Box>
