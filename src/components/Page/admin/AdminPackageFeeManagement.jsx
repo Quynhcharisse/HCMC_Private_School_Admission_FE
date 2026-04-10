@@ -285,7 +285,7 @@ function PackageFeaturesDetailGrid({ features }) {
     const cells = [
         { Icon: SupportAgentOutlinedIcon, label: "Tư vấn viên", value: String(f.maxCounsellors ?? 0) },
         { Icon: SchoolOutlinedIcon, label: "Tuyển sinh", value: String(f.maxAdmissions ?? 0) },
-        { Icon: PolicyOutlinedIcon, label: "Quyền phụ huynh", value: displayEnum(f.parentPostPermission) },
+        { Icon: PolicyOutlinedIcon, label: "Quyền nhà trường", value: displayEnum(f.parentPostPermission) },
         { Icon: ChatBubbleOutlineIcon, label: "Chat", value: f.allowChat ? "Đã bật" : "Đã tắt" },
         { Icon: StarOutlineIcon, label: "Nổi bật", value: f.isFeatured ? "Có" : "Không" },
         { Icon: EmojiEventsOutlinedIcon, label: "Xếp hạng", value: `Số ${f.topRanking ?? 0}` },
@@ -946,10 +946,10 @@ export default function AdminPackageFeeManagement() {
                         </Stack>
                         <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2}>
                             <FormControl fullWidth size="small">
-                                <InputLabel id="parent-post-permission-label">Quyền đăng bài của phụ huynh</InputLabel>
+                                <InputLabel id="parent-post-permission-label">Quyền đăng bài của nhà trường</InputLabel>
                                 <Select
                                     labelId="parent-post-permission-label"
-                                    label="Quyền đăng bài của phụ huynh"
+                                    label="Quyền đăng bài của nhà trường"
                                     value={form.parentPostPermission}
                                     onChange={handleChange("parentPostPermission")}
                                     renderValue={(v) => displayEnum(v)}
@@ -993,7 +993,7 @@ export default function AdminPackageFeeManagement() {
                             />
                         </Stack>
                         <Typography variant="caption" color="#64748b" sx={{ wordBreak: "break-word" }}>
-                            Quyền phụ huynh hiện tại: {displayEnum(form.parentPostPermission)}
+                            Quyền nhà trường hiện tại: {displayEnum(form.parentPostPermission)}
                         </Typography>
                     </Stack>
                 </DialogContent>
