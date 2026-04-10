@@ -136,3 +136,24 @@ export const deactiveAdminPackageFee = async (packageId) => {
     const response = await axiosClient.put(`/admin/${id}/service/package/fee/deactive`);
     return response || null;
 };
+
+export const getAdminTemplateDocuments = async (categoryTemplate) => {
+    const response = await axiosClient.get(`/admin/${categoryTemplate}`);
+    return response || null;
+};
+
+export const uploadAdminTemplateDocument = async (categoryTemplate, file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await axiosClient.post(`/admin/${categoryTemplate}/upload`, formData, {
+        headers: {
+            "Content-Type": "multipart/form-data",
+        },
+    });
+    return response || null;
+};
+
+export const deleteAdminTemplateDocument = async (templateId) => {
+    const response = await axiosClient.delete(`/admin/${templateId}`);
+    return response || null;
+};
