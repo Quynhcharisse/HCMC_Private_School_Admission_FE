@@ -48,7 +48,7 @@ import {
 } from "../../../services/SchoolFacilityService.jsx";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
 
-const TAB_SLUGS = ["admission", "quota", "finance", "documents", "operation", "facility"];
+const TAB_SLUGS = ["admission", "quota", "finance", "documents", "operation", "facility", "resource-distribution"];
 const TAB_LABELS = [
   "Cài đặt Tuyển sinh",
   "Cài đặt Chỉ tiêu",
@@ -56,6 +56,7 @@ const TAB_LABELS = [
   "Cài đặt Hồ sơ",
   "Cài đặt Vận hành",
   "Cài đặt Cơ sở vật chất",
+  "Phân bổ nguồn lực",
 ];
 
 /** Campus phụ: chỉ vận hành + CSVC (API GET/PUT /campus/{id}/config) */
@@ -118,6 +119,9 @@ function defaultConfig() {
       itemList: [],
       overview: "",
       imageData: {coverUrl: "", thumbnailUrl: "", imageList: []},
+    },
+    resourceDistributionData: {
+      allocations: [],
     },
   };
 }
@@ -460,6 +464,17 @@ function sanitizeFacilityDataForApi(f) {
   return out;
 }
 
+function sanitizeResourceDistributionDataForApi(rd) {
+  const rows = Array.isArray(rd?.allocations) ? rd.allocations : [];
+  return {
+    allocations: rows.map((a) => ({
+      resourceType: a?.resourceType != null ? String(a.resourceType).trim() : "",
+      campusId: a?.campusId != null && !Number.isNaN(Number(a.campusId)) ? Number(a.campusId) : null,
+      allocatedAmount: a?.allocatedAmount != null && !Number.isNaN(Number(a.allocatedAmount)) ? Number(a.allocatedAmount) : 0,
+    })),
+  };
+}
+
 /** Gộp admission_settings (snake) với admissionSettingsData — bỏ key lạ như itemList: boolean */
 function mergeAdmissionFromBody(body) {
   const camel = body.admissionSettingsData && typeof body.admissionSettingsData === "object" ? body.admissionSettingsData : {};
@@ -482,8 +497,16 @@ function normalizeFromApi(body) {
   const doc = pickSection(body, "documentRequirementsData", "document_requirements");
   const op = pickSection(body, "operationSettingsData", "operation_settings");
   const fac = mergeFacilityFromBody(body);
+  const rd = pickSection(body, "resourceDistributionData", "resource_distribution_data");
 
   const imageData = fac.imageData && typeof fac.imageData === "object" ? fac.imageData : {};
+  const allocations = Array.isArray(rd?.allocations)
+    ? rd.allocations.map((a) => ({
+        resourceType: a?.resourceType != null ? String(a.resourceType) : "",
+        campusId: a?.campusId != null && !Number.isNaN(Number(a.campusId)) ? Number(a.campusId) : null,
+        allocatedAmount: a?.allocatedAmount != null && !Number.isNaN(Number(a.allocatedAmount)) ? Number(a.allocatedAmount) : 0,
+      }))
+    : [];
 
   return {
     admissionSettingsData: {
@@ -554,6 +577,11 @@ function normalizeFromApi(body) {
         imageList: Array.isArray(imageData.imageList) ? imageData.imageList : [],
       },
     },
+    resourceDistributionData: {
+      ...d.resourceDistributionData,
+      ...rd,
+      allocations,
+    },
   };
 }
 
@@ -564,6 +592,7 @@ const CONFIG_SECTION_SANITIZERS = {
   documentRequirementsData: sanitizeDocumentRequirementsForApi,
   operationSettingsData: sanitizeOperationSettingsForApi,
   facilityData: sanitizeFacilityDataForApi,
+  resourceDistributionData: sanitizeResourceDistributionDataForApi,
 };
 
 function buildPartialPayload(current, initial) {
@@ -574,6 +603,7 @@ function buildPartialPayload(current, initial) {
     "documentRequirementsData",
     "operationSettingsData",
     "facilityData",
+    "resourceDistributionData",
   ];
   const out = {};
   for (const k of keys) {
@@ -1264,6 +1294,45 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
     });
   }, []);
 
+  const addResourceAllocation = useCallback(() => {
+    setConfig((c) => ({
+      ...c,
+      resourceDistributionData: {
+        ...c.resourceDistributionData,
+        allocations: [...(c.resourceDistributionData?.allocations || []), {resourceType: "", campusId: null, allocatedAmount: 0}],
+      },
+    }));
+  }, []);
+
+  const updateResourceAllocationAt = useCallback((idx, patch) => {
+    setConfig((c) => {
+      const rows = [...(c.resourceDistributionData?.allocations || [])];
+      if (!rows[idx]) return c;
+      rows[idx] = {...rows[idx], ...patch};
+      return {
+        ...c,
+        resourceDistributionData: {
+          ...c.resourceDistributionData,
+          allocations: rows,
+        },
+      };
+    });
+  }, []);
+
+  const removeResourceAllocationAt = useCallback((idx) => {
+    setConfig((c) => {
+      const rows = [...(c.resourceDistributionData?.allocations || [])];
+      rows.splice(idx, 1);
+      return {
+        ...c,
+        resourceDistributionData: {
+          ...c.resourceDistributionData,
+          allocations: rows,
+        },
+      };
+    });
+  }, []);
+
   const addMandatoryDocument = useCallback(() => {
     setConfig((c) => ({
       ...c,
@@ -1319,6 +1388,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
   const showDocumentsTab = !useCampusConfigFlow && tabIndex === 3;
   const showOperationTab = (!useCampusConfigFlow && tabIndex === 4) || (useCampusConfigFlow && tabIndex === 0);
   const showFacilityTab = (!useCampusConfigFlow && tabIndex === 5) || (useCampusConfigFlow && tabIndex === 1);
+  const showResourceDistributionTab = !useCampusConfigFlow && tabIndex === 6;
 
   if (!schoolCtxLoading && variant === "platform" && !isPrimaryBranch) {
     return <Navigate to="/school/campus-facility-config" replace />;
@@ -2658,6 +2728,85 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
               saving={saving}
               readOnly={fieldDisabled}
             />
+          )}
+
+          {showResourceDistributionTab && (
+            <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
+              <CardContent sx={{p: 3}}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{mb: 2}}>
+                  <Box>
+                    <Typography sx={{fontWeight: 800, fontSize: 18}}>Phân bổ nguồn lực</Typography>
+                    <Typography variant="body2" sx={{color: "#64748b", mt: 0.5}}>
+                      UI tạm thời cho API `resourceDistributionData.allocations` (sẽ tích hợp API hoàn chỉnh sau).
+                    </Typography>
+                  </Box>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<AddIcon/>}
+                    onClick={addResourceAllocation}
+                    sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
+                  >
+                    Thêm dòng
+                  </Button>
+                </Stack>
+
+                {(config.resourceDistributionData?.allocations || []).length === 0 ? (
+                  <Paper variant="outlined" sx={{p: 2, borderStyle: "dashed", color: "#64748b"}}>
+                    Chưa có dữ liệu phân bổ. Nhấn "Thêm dòng" để tạo mới.
+                  </Paper>
+                ) : (
+                  <Stack spacing={1.25}>
+                    {(config.resourceDistributionData?.allocations || []).map((row, idx) => (
+                      <Card key={`resource-allocation-${idx}`} variant="outlined" sx={{borderRadius: 2}}>
+                        <CardContent sx={{py: 1.5}}>
+                          <Stack direction={{xs: "column", md: "row"}} spacing={1.25} alignItems={{xs: "stretch", md: "center"}}>
+                            <TextField
+                              label="Resource type"
+                              size="small"
+                              value={row.resourceType ?? ""}
+                              onChange={(e) => updateResourceAllocationAt(idx, {resourceType: e.target.value})}
+                              sx={{flex: 1}}
+                              inputProps={{readOnly: fieldDisabled}}
+                            />
+                            <TextField
+                              label="Campus ID"
+                              size="small"
+                              type="number"
+                              value={row.campusId ?? ""}
+                              onChange={(e) => {
+                                const raw = e.target.value;
+                                updateResourceAllocationAt(idx, {campusId: raw === "" ? null : Number(raw)});
+                              }}
+                              sx={{width: {xs: "100%", md: 180}}}
+                              inputProps={{readOnly: fieldDisabled, min: 0}}
+                            />
+                            <TextField
+                              label="Allocated amount"
+                              size="small"
+                              type="number"
+                              value={row.allocatedAmount ?? 0}
+                              onChange={(e) => updateResourceAllocationAt(idx, {allocatedAmount: Number(e.target.value) || 0})}
+                              sx={{width: {xs: "100%", md: 220}}}
+                              inputProps={{readOnly: fieldDisabled, min: 0}}
+                            />
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => removeResourceAllocationAt(idx)}
+                              aria-label="Xoá dòng phân bổ"
+                              sx={{alignSelf: {xs: "flex-end", md: "center"}, ...blockPointerSx}}
+                            >
+                              <DeleteOutlineIcon fontSize="small"/>
+                            </IconButton>
+                          </Stack>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </Stack>
+                )}
+              </CardContent>
+            </Card>
           )}
             </>
           )}

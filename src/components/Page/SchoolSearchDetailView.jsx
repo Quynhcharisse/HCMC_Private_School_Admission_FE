@@ -44,65 +44,30 @@ import {
     Favorite as FavoriteIcon,
     FavoriteBorder as FavoriteBorderIcon
 } from "@mui/icons-material";
-import {GoogleMap, MarkerF, useJsApiLoader} from "@react-google-maps/api";
+import {MapContainer, Marker, Popup, TileLayer} from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import {APP_PRIMARY_DARK, BRAND_NAVY, landingSectionShadow} from "../../constants/homeLandingTheme";
 import {OPEN_PARENT_CHAT_EVENT} from "../../constants/parentChatEvents";
 import {showSuccessSnackbar} from "../ui/AppSnackbar.jsx";
+import {DEFAULT_SCHOOL_IMAGE} from "../../utils/schoolPublicMapper.js";
 
-const LOCATION_FALLBACK_PROVINCE = "Tất cả";
-const LOCATION_FALLBACK_WARD = "Tất cả";
-
-export function mapPublicSchoolDetailToRow(api) {
-    if (!api || typeof api !== "object") return null;
-    const campusList = Array.isArray(api.campusList)
-        ? api.campusList
-        : Array.isArray(api.campustList)
-          ? api.campustList
-          : [];
-    const firstCampus = campusList[0] ?? null;
-    const consultantEmails = campusList
-        .flatMap((campus) => (Array.isArray(campus?.consultantEmails) ? campus.consultantEmails : []))
-        .map((email) => String(email || "").trim())
-        .filter(Boolean);
-    const primaryConsultantEmail = consultantEmails[0] || "";
-    const province = (firstCampus?.city || "").trim() || LOCATION_FALLBACK_PROVINCE;
-    const ward = (firstCampus?.district || "").trim() || LOCATION_FALLBACK_WARD;
-    return {
-        id: api.id,
-        school: api.name ?? "",
-        province,
-        ward,
-        website: api.websiteUrl || "",
-        phone: firstCampus?.phoneNumber || api.hotline || "",
-        email: primaryConsultantEmail || firstCampus?.email || api.email || api.schoolEmail || api.accountEmail || "",
-        counsellorEmail:
-            primaryConsultantEmail ||
-            firstCampus?.counsellorEmail ||
-            api.counsellorEmail ||
-            "",
-        consultantEmails,
-        address: firstCampus?.address || (api.description ? String(api.description) : "Đang cập nhật"),
-        locationLabel: province,
-        description: api.description,
-        averageRating: typeof api.averageRating === "number" ? api.averageRating : 0,
-        totalCampus: api.totalCampus ?? campusList.length,
-        logoUrl: api.logoUrl || null,
-        isFavourite: Boolean(api.isFavourite),
-        foundingDate: api.foundingDate,
-        representativeName: api.representativeName,
-        campusList,
-        curriculumList: Array.isArray(api.curriculumList) ? api.curriculumList : [],
-        boardingType: firstCampus?.boardingType || "",
-        primaryCampusId: firstCampus?.id != null ? Number(firstCampus.id) : null,
-        hasDetailLoaded: true
-    };
-}
-
-export const DEFAULT_SCHOOL_IMAGE =
-    "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=900&q=80";
-
-const FALLBACK_MAP_CENTER = {lat: 10.7769, lng: 106.7009};
 const MAP_CONTAINER_STYLE = {width: "100%", height: "260px"};
+const NEARBY_SEARCH_RADIUS_KM = 10;
+
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+    iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png",
+    iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png",
+    shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png"
+});
+
+const parentLocationIcon = L.divIcon({
+    className: "parent-location-marker",
+    html: '<span style="display:block;width:14px;height:14px;border-radius:999px;background:#2563eb;border:2px solid #fff;box-shadow:0 0 0 3px rgba(37,99,235,0.25);"></span>',
+    iconSize: [14, 14],
+    iconAnchor: [7, 7]
+});
 
 const DETAIL_SCROLL_HEADROOM = 88;
 const DETAIL_WITH_HEADER_OFFSET = 78;
@@ -348,10 +313,10 @@ const contactDividerSx = {borderColor: "rgba(51,65,85,0.1)"};
 
 const generalInfoCardSx = {
     p: {xs: 2, sm: 2.5},
-    borderRadius: 3,
-    border: "1px solid rgba(51,65,85,0.08)",
-    boxShadow: landingSectionShadow(2),
-    bgcolor: "#fff"
+    borderRadius: 3.25,
+    border: "1px solid rgba(96,165,250,0.55)",
+    background: "linear-gradient(180deg, #eaf4ff 0%, #dcecff 100%)",
+    boxShadow: "0 10px 22px rgba(59,130,246,0.16), 0 2px 6px rgba(15,23,42,0.05)"
 };
 
 const verticalCardTitleSx = {
@@ -374,10 +339,10 @@ const mainDetailSectionTitleSx = {
 
 const detailMainColumnCardSx = {
     p: 2.5,
-    borderRadius: 2,
-    border: "1px solid rgba(51,65,85,0.1)",
-    bgcolor: "#fff",
-    boxShadow: "0 1px 3px rgba(51,65,85,0.06)"
+    borderRadius: 2.75,
+    border: "1px solid rgba(96,165,250,0.52)",
+    background: "linear-gradient(180deg, #edf6ff 0%, #dfeeff 100%)",
+    boxShadow: "0 10px 22px rgba(59,130,246,0.15), 0 2px 6px rgba(15,23,42,0.05)"
 };
 
 function SchoolGeneralInfoCard({school}) {
@@ -1023,70 +988,51 @@ function SchoolContactPanel({school}) {
     );
 }
 
-function SchoolLocationMap({school, apiKey}) {
-    const [markerPosition, setMarkerPosition] = React.useState(null);
-    const [isGeocoding, setIsGeocoding] = React.useState(false);
-    const [geocodeError, setGeocodeError] = React.useState("");
-    const {isLoaded, loadError} = useJsApiLoader({
-        id: "school-location-map-script",
-        googleMapsApiKey: apiKey
-    });
-
-    React.useEffect(() => {
-        if (!isLoaded || !school || !window.google?.maps?.Geocoder) return;
-        setIsGeocoding(true);
-        setGeocodeError("");
-        const address = `${school.school}, ${school.ward}, ${school.province}, Vietnam`;
-        const geocoder = new window.google.maps.Geocoder();
-        geocoder.geocode({address}, (results, status) => {
-            setIsGeocoding(false);
-            if (status === "OK" && results?.[0]?.geometry?.location) {
-                const location = results[0].geometry.location;
-                setMarkerPosition({lat: location.lat(), lng: location.lng()});
-                return;
-            }
-            setMarkerPosition(null);
-            setGeocodeError("Không thể định vị trường trên bản đồ.");
-        });
-    }, [isLoaded, school]);
-
-    if (loadError) {
-        return (
-            <Typography sx={{color: "#dc2626", fontSize: "0.9rem"}}>
-                Không tải được Google Maps. Vui lòng kiểm tra API key.
-            </Typography>
-        );
-    }
-
-    if (!isLoaded) {
-        return <Typography sx={{color: "#64748b"}}>Đang tải bản đồ...</Typography>;
-    }
-
+function SchoolLocationMap({userLocation, fallbackCenter, campuses, maptilerApiKey, onViewSchoolDetail}) {
+    const center = userLocation || fallbackCenter || null;
+    if (!center) return <Typography sx={{color: "#64748b"}}>Không có tọa độ để hiển thị bản đồ.</Typography>;
+    const mapUrl = `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${maptilerApiKey}`;
     return (
-        <Box>
-            <GoogleMap
-                mapContainerStyle={MAP_CONTAINER_STYLE}
-                center={markerPosition ?? FALLBACK_MAP_CENTER}
-                zoom={markerPosition ? 15 : 11}
-                options={{
-                    mapTypeControl: false,
-                    streetViewControl: false,
-                    fullscreenControl: false
-                }}
-            >
-                {markerPosition && <MarkerF position={markerPosition} />}
-            </GoogleMap>
-            {isGeocoding && (
-                <Typography sx={{mt: 1, color: "#64748b", fontSize: "0.9rem"}}>
-                    Đang định vị địa chỉ trường...
-                </Typography>
-            )}
-            {!!geocodeError && (
-                <Typography sx={{mt: 1, color: "#dc2626", fontSize: "0.9rem"}}>
-                    {geocodeError}
-                </Typography>
-            )}
-        </Box>
+        <MapContainer
+            center={[center.lat, center.lng]}
+            zoom={11}
+            style={MAP_CONTAINER_STYLE}
+            scrollWheelZoom
+        >
+            <TileLayer url={mapUrl} attribution='&copy; <a href="https://www.maptiler.com/">MapTiler</a> &copy; OpenStreetMap contributors'/>
+            {userLocation ? (
+                <Marker position={[userLocation.lat, userLocation.lng]} icon={parentLocationIcon}>
+                    <Popup>Vị trí của bạn</Popup>
+                </Marker>
+            ) : null}
+            {campuses.map((campus) => (
+                <Marker key={`${campus.id ?? campus.schoolId}-${campus.latitude}-${campus.longitude}`} position={[campus.latitude, campus.longitude]}>
+                    <Popup>
+                        <Box sx={{minWidth: 220}}>
+                            <Typography sx={{fontWeight: 800, color: "#0f172a", mb: 0.25}}>
+                                {campus.name || "Campus"}
+                            </Typography>
+                            <Typography sx={{fontSize: "0.82rem", color: "#475569", mb: 0.5}}>
+                                {campus.address || "Đang cập nhật địa chỉ"}
+                            </Typography>
+                            <Typography sx={{fontSize: "0.82rem", color: "#0f172a", mb: 1}}>
+                                <b>Khoảng cách:</b> {campus.distanceLabel}
+                            </Typography>
+                            {campus.schoolId ? (
+                                <Button
+                                    size="small"
+                                    variant="contained"
+                                    onClick={() => onViewSchoolDetail?.(campus.schoolId)}
+                                    sx={{textTransform: "none", fontWeight: 700, bgcolor: BRAND_NAVY, "&:hover": {bgcolor: APP_PRIMARY_DARK}}}
+                                >
+                                    Xem chi tiết trường
+                                </Button>
+                            ) : null}
+                        </Box>
+                    </Popup>
+                </Marker>
+            ))}
+        </MapContainer>
     );
 }
 
@@ -1095,7 +1041,9 @@ export default function SchoolSearchDetailView({
     detailKeyRaw,
     detailLoading,
     detailError,
-    googleMapsApiKey,
+    maptilerApiKey,
+    onSearchNearbyCampuses,
+    onOpenSchoolById,
     onClose,
     navigate,
     isParent,
@@ -1116,6 +1064,135 @@ export default function SchoolSearchDetailView({
     const detailContactRef = React.useRef(null);
     const detailTabScrollLockRef = React.useRef(false);
     const detailTabUnlockTimerRef = React.useRef(0);
+    const [userLocation, setUserLocation] = React.useState(null);
+    const [nearbyCampuses, setNearbyCampuses] = React.useState([]);
+    const [nearbyLoading, setNearbyLoading] = React.useState(false);
+    const [nearbyError, setNearbyError] = React.useState("");
+    const [nearbyNotice, setNearbyNotice] = React.useState("");
+
+    const schoolCampusMarkers = React.useMemo(() => {
+        const list = Array.isArray(school?.campusList) ? school.campusList : [];
+        return list
+            .map((campus, idx) => {
+                const lat = Number(campus?.latitude);
+                const lng = Number(campus?.longitude);
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+                return {
+                    id: campus?.id ?? idx,
+                    schoolId: school?.id ?? null,
+                    name: campus?.name || `Campus ${idx + 1}`,
+                    address: campus?.address || "",
+                    latitude: lat,
+                    longitude: lng,
+                    distanceLabel: "Đang cập nhật"
+                };
+            })
+            .filter(Boolean);
+    }, [school]);
+
+    const fallbackCenter = React.useMemo(() => {
+        const first = schoolCampusMarkers[0];
+        if (!first) return null;
+        return {lat: first.latitude, lng: first.longitude};
+    }, [schoolCampusMarkers]);
+
+    const requestUserLocation = React.useCallback(() => {
+        setUserLocation(null);
+        setNearbyCampuses([]);
+        setNearbyError("");
+        setNearbyNotice("");
+        if (typeof navigator === "undefined" || !navigator.geolocation) {
+            setNearbyNotice("");
+            return;
+        }
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                setNearbyNotice("");
+                setUserLocation({
+                    lat: Number(position.coords.latitude),
+                    lng: Number(position.coords.longitude)
+                });
+            },
+            (error) => {
+                if (error?.code === 1) {
+                    setNearbyNotice("");
+                    return;
+                }
+                setNearbyNotice("");
+            },
+            {
+                enableHighAccuracy: true,
+                timeout: 10000,
+                maximumAge: 60000
+            }
+        );
+    }, []);
+
+    const normalizedNearbyCampuses = React.useMemo(() => {
+        return nearbyCampuses
+            .map((item, idx) => {
+                const lat = Number(item?.latitude);
+                const lng = Number(item?.longitude);
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+                const distanceNumber = Number(item?.distance);
+                return {
+                    ...item,
+                    id: item?.id ?? item?.campusId ?? idx,
+                    schoolId: item?.schoolId ?? item?.school?.id ?? null,
+                    name: item?.name ?? item?.campusName ?? item?.schoolName ?? `Campus ${idx + 1}`,
+                    address: item?.address ?? "",
+                    latitude: lat,
+                    longitude: lng,
+                    distanceLabel: Number.isFinite(distanceNumber) ? `${distanceNumber.toFixed(2)} km` : "Đang cập nhật"
+                };
+            })
+            .filter(Boolean);
+    }, [nearbyCampuses]);
+
+    const mapCampuses = normalizedNearbyCampuses.length > 0 ? normalizedNearbyCampuses : schoolCampusMarkers;
+
+    React.useEffect(() => {
+        requestUserLocation();
+    }, [detailKeyRaw, requestUserLocation]);
+
+    React.useEffect(() => {
+        if (typeof onSearchNearbyCampuses !== "function") return;
+        const searchOrigin = userLocation || fallbackCenter;
+        if (!searchOrigin) return;
+        let cancelled = false;
+        (async () => {
+            setNearbyLoading(true);
+            if (userLocation) {
+                setNearbyError("");
+            }
+            try {
+                const list = await onSearchNearbyCampuses({
+                    lat: searchOrigin.lat,
+                    lng: searchOrigin.lng,
+                    radius: NEARBY_SEARCH_RADIUS_KM
+                });
+                if (cancelled) return;
+                setNearbyCampuses(Array.isArray(list) ? list : []);
+            } catch (e) {
+                if (cancelled) return;
+                const status = Number(e?.response?.status);
+                const backendMsg = String(e?.response?.data?.message || "").trim();
+                let msg = "Không tải được danh sách campus gần bạn.";
+                if (status === 403) {
+                    msg = "Bạn không có quyền truy cập dữ liệu campus lân cận.";
+                } else if (backendMsg) {
+                    msg = backendMsg;
+                }
+                setNearbyError(msg);
+                setNearbyCampuses([]);
+            } finally {
+                if (!cancelled) setNearbyLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [userLocation, fallbackCenter, onSearchNearbyCampuses]);
 
     React.useEffect(() => {
         setDetailActiveSection("intro");
@@ -1261,9 +1338,6 @@ export default function SchoolSearchDetailView({
             if (rawId == null) return;
             const campusId = Number(rawId);
             if (!Number.isFinite(campusId)) return;
-            const emails = Array.isArray(campus?.consultantEmails)
-                ? campus.consultantEmails.map((e) => String(e || "").trim()).filter(Boolean)
-                : [];
             const counsellorEmail = "";
             window.dispatchEvent(
                 new CustomEvent(OPEN_PARENT_CHAT_EVENT, {
@@ -1305,7 +1379,7 @@ export default function SchoolSearchDetailView({
                 zIndex: 900,
                 display: "flex",
                 flexDirection: "column",
-                bgcolor: "#f8fafc",
+                bgcolor: "#eef2f7",
                 overflow: "hidden"
             }}
         >
@@ -1545,39 +1619,50 @@ export default function SchoolSearchDetailView({
                 </Box>
 
                 <Box sx={{maxWidth: 1100, mx: "auto", width: "100%", px: {xs: 2, sm: 3}, py: 2}}>
-                    <Breadcrumbs sx={{mb: 2, "& a": {color: BRAND_NAVY, fontWeight: 600}}}>
-                        <Link
-                            component="button"
-                            type="button"
-                            underline="hover"
-                            onClick={() => navigate("/home")}
-                            sx={{cursor: "pointer", border: "none", background: "none", font: "inherit"}}
+                    <Box sx={{overflowX: "auto", WebkitOverflowScrolling: "touch", pb: 0.25, mx: {xs: -0.5, sm: 0}, px: {xs: 0.5, sm: 0}}}>
+                        <Breadcrumbs
+                            sx={{
+                                mb: 2,
+                                flexWrap: "nowrap",
+                                whiteSpace: "nowrap",
+                                "& a": {color: BRAND_NAVY, fontWeight: 600},
+                                "& .MuiBreadcrumbs-separator": {flexShrink: 0}
+                            }}
                         >
-                            Trang chủ
-                        </Link>
-                        <Link
-                            component="button"
-                            type="button"
-                            underline="hover"
-                            onClick={onClose}
-                            sx={{cursor: "pointer", border: "none", background: "none", font: "inherit"}}
-                        >
-                            Tìm trường
-                        </Link>
-                        <Typography
-                            color="text.secondary"
-                            sx={{fontWeight: 600, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis"}}
-                        >
-                            {school.school}
-                        </Typography>
-                    </Breadcrumbs>
+                            <Link
+                                component="button"
+                                type="button"
+                                underline="hover"
+                                onClick={() => navigate("/home")}
+                                sx={{cursor: "pointer", border: "none", background: "none", font: "inherit", flexShrink: 0}}
+                            >
+                                Trang chủ
+                            </Link>
+                            <Link
+                                component="button"
+                                type="button"
+                                underline="hover"
+                                onClick={onClose}
+                                sx={{cursor: "pointer", border: "none", background: "none", font: "inherit", flexShrink: 0}}
+                            >
+                                Tìm trường
+                            </Link>
+                            <Typography
+                                color="text.secondary"
+                                component="span"
+                                sx={{fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0}}
+                            >
+                                {school.school}
+                            </Typography>
+                        </Breadcrumbs>
+                    </Box>
 
                     <Box
                         sx={{
                             position: "sticky",
                             top: 0,
                             zIndex: 20,
-                            bgcolor: "#f8fafc",
+                            bgcolor: "#eef2f7",
                             pt: 0.25,
                             pb: 0,
                             mb: 1.5,
@@ -1705,9 +1790,14 @@ export default function SchoolSearchDetailView({
                                         <Box
                                             sx={{
                                                 flexShrink: 0,
-                                                width: {xs: "100%", sm: 140, md: 160},
+                                                width: "calc(0.95rem * 1.75 * 4)",
+                                                height: "calc(0.95rem * 1.75 * 4)",
+                                                maxWidth: "100%",
+                                                borderRadius: "50%",
+                                                overflow: "hidden",
+                                                bgcolor: "transparent",
                                                 display: "flex",
-                                                alignItems: "flex-start",
+                                                alignItems: "center",
                                                 justifyContent: "center",
                                                 alignSelf: {xs: "center", sm: "flex-start"},
                                                 mx: {xs: "auto", sm: 0}
@@ -1718,11 +1808,10 @@ export default function SchoolSearchDetailView({
                                                 image={school.logoUrl || DEFAULT_SCHOOL_IMAGE}
                                                 alt=""
                                                 sx={{
-                                                    width: "auto",
-                                                    maxWidth: "100%",
-                                                    height: "auto",
-                                                    maxHeight: "calc(0.95rem * 1.75 * 4)",
+                                                    width: "100%",
+                                                    height: "100%",
                                                     objectFit: "contain",
+                                                    objectPosition: "center",
                                                     display: "block"
                                                 }}
                                             />
@@ -1761,14 +1850,50 @@ export default function SchoolSearchDetailView({
                                     <Typography sx={{color: "#64748b", fontSize: "0.92rem", mb: 2}}>
                                         {school.ward}, {school.province}, Việt Nam
                                     </Typography>
-                                    {!googleMapsApiKey ? (
+                                    {!maptilerApiKey ? (
                                         <Typography sx={{color: "#b45309", fontSize: "0.9rem"}}>
-                                            Chưa có API key. Thêm <code>VITE_GOOGLE_MAPS_API_KEY</code> vào file{" "}
+                                            Chưa có API key MapTiler. Thêm <code>VITE_MAPTILER_API_KEY</code> vào file{" "}
                                             <code>.env</code> để hiển thị bản đồ.
                                         </Typography>
                                     ) : (
-                                        <SchoolLocationMap school={school} apiKey={googleMapsApiKey}/>
+                                        <SchoolLocationMap
+                                            userLocation={userLocation}
+                                            fallbackCenter={fallbackCenter}
+                                            campuses={mapCampuses}
+                                            maptilerApiKey={maptilerApiKey}
+                                            onViewSchoolDetail={onOpenSchoolById}
+                                        />
                                     )}
+                                    {nearbyLoading && (
+                                        <Typography sx={{mt: 1, color: "#64748b", fontSize: "0.9rem"}}>
+                                            Đang tìm campus lân cận...
+                                        </Typography>
+                                    )}
+                                    {!!nearbyError && (
+                                        <Typography sx={{mt: 1, color: "#dc2626", fontSize: "0.9rem"}}>
+                                            {nearbyError}
+                                        </Typography>
+                                    )}
+                                    {!!nearbyNotice && (
+                                        <Typography sx={{mt: 1, color: "#64748b", fontSize: "0.9rem"}}>
+                                            {nearbyNotice}
+                                        </Typography>
+                                    )}
+                                    {!!nearbyError && (
+                                        <Button
+                                            variant="outlined"
+                                            size="small"
+                                            onClick={requestUserLocation}
+                                            sx={{mt: 1, textTransform: "none", fontWeight: 700}}
+                                        >
+                                            Thử định vị lại
+                                        </Button>
+                                    )}
+                                    {!nearbyLoading && !nearbyError && normalizedNearbyCampuses.length === 0 && userLocation ? (
+                                        <Typography sx={{mt: 1, color: "#64748b", fontSize: "0.9rem"}}>
+                                            Không có campus nào trong bán kính {NEARBY_SEARCH_RADIUS_KM}km.
+                                        </Typography>
+                                    ) : null}
                                     <Stack direction={{xs: "column", sm: "row"}} spacing={1.5} sx={{mt: 2.5}}>
                                         <Button
                                             variant="contained"

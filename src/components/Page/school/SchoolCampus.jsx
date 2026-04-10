@@ -1,4 +1,4 @@
-import React, {useState, useMemo, useEffect} from "react";
+import React, {useState, useMemo, useEffect, useCallback, useRef} from "react";
 import {
     Box,
     Button,
@@ -44,6 +44,11 @@ import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import {enqueueSnackbar} from "notistack";
 import {useSchool} from "../../../contexts/SchoolContext.jsx";
 import {extractCampusListBody, listCampuses, createCampus, exportCampusList} from "../../../services/CampusService.jsx";
+import {
+    BOARDING_TYPE_DEFAULT_VI,
+    BOARDING_TYPE_OPTIONS,
+    normalizeBoardingTypeForApi,
+} from "../../../constants/schoolBoardingType.js";
 import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
 
 const modalPaperSx = {
@@ -99,29 +104,25 @@ const initialMockCampuses = [
     },
 ];
 
-const BOARDING_TYPE_OPTIONS = [
-    { value: "NONE", label: "Không nội trú" },
-    { value: "FULL_BOARDING", label: "Nội trú toàn phần" },
-    { value: "SEMI_BOARDING", label: "Nội trú bán phần" },
-    { value: "BOTH", label: "Cả hai" },
-];
-
 const emptyForm = {
     name: "",
     address: "",
     city: "",
     district: "",
+    ward: "",
     phone: "",
     email: "",
     latitude: "",
     longitude: "",
-    boardingType: "NONE",
+    boardingType: BOARDING_TYPE_DEFAULT_VI,
     description: "",
     imagePreview: null,
     status: true,
 };
 
 const PLACEHOLDER_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60' fill='%23e2e8f0'%3E%3Crect width='80' height='60' fill='%23f1f5f9'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='10' fill='%2394a3b8'%3ECampus%3C/text%3E%3C/svg%3E";
+const HCM_CODE = 79;
+const HCM_CITY_NAME = "Ho Chi Minh City";
 
 const formatDate = (d) => {
     if (!d) return "—";
@@ -131,12 +132,21 @@ const formatDate = (d) => {
 };
 
 const getBoardingTypeLabelVi = (boardingType, boardingTypeLabel) => {
-    const match = BOARDING_TYPE_OPTIONS.find((o) => o.value === boardingType);
-    if (match) return match.label;
-    return boardingTypeLabel || "—";
+    if (boardingType != null && String(boardingType).trim() !== "") {
+        return normalizeBoardingTypeForApi(boardingType);
+    }
+    if (boardingTypeLabel != null && String(boardingTypeLabel).trim() !== "") {
+        return normalizeBoardingTypeForApi(boardingTypeLabel);
+    }
+    return "—";
 };
 
-const toCampusUiStatus = (status) => (status === "VERIFIED" ? "active" : "inactive");
+const toCampusUiStatus = (status) => {
+    const normalizedStatus = String(status ?? "").toUpperCase();
+    return normalizedStatus === "ACTIVE" || normalizedStatus === "VERIFIED"
+        ? "active"
+        : "inactive";
+};
 
 export default function SchoolCampus() {
     const { isPrimaryBranch } = useSchool();
@@ -151,6 +161,12 @@ export default function SchoolCampus() {
     const [selectedCampus, setSelectedCampus] = useState(null);
     const [formValues, setFormValues] = useState(emptyForm);
     const [formErrors, setFormErrors] = useState({});
+    const [districtOptions, setDistrictOptions] = useState([]);
+    const [wardOptions, setWardOptions] = useState([]);
+    const [selectedCreateDistrictCode, setSelectedCreateDistrictCode] = useState("");
+    const [selectedCreateWardCode, setSelectedCreateWardCode] = useState("");
+    const [geocodingCreate, setGeocodingCreate] = useState(false);
+    const geocodeCreateRequestIdRef = useRef(0);
     const [page, setPage] = useState(0);
     const rowsPerPage = 10;
     const [exporting, setExporting] = useState(false);
@@ -168,6 +184,35 @@ export default function SchoolCampus() {
     const handleStatusToggle = (e) => {
         setFormValues((prev) => ({...prev, status: e.target.checked}));
     };
+
+    const fetchDistrictsHCM = useCallback(async () => {
+        const res = await fetch(`https://provinces.open-api.vn/api/p/${HCM_CODE}?depth=2`);
+        if (!res.ok) throw new Error("Không tải được danh sách quận");
+        const data = await res.json();
+        return Array.isArray(data?.districts) ? data.districts : [];
+    }, []);
+
+    const fetchWards = useCallback(async (districtCode) => {
+        if (!districtCode) return [];
+        const res = await fetch(`https://provinces.open-api.vn/api/d/${districtCode}?depth=2`);
+        if (!res.ok) throw new Error("Không tải được danh sách phường");
+        const data = await res.json();
+        return Array.isArray(data?.wards) ? data.wards : [];
+    }, []);
+
+    const geocodeAddress = useCallback(async (address) => {
+        const res = await fetch(
+            `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`,
+            { headers: { Accept: "application/json" } }
+        );
+        if (!res.ok) throw new Error("Không tìm được tọa độ");
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length === 0) return null;
+        return {
+            lat: parseFloat(data[0].lat),
+            lng: parseFloat(data[0].lon),
+        };
+    }, []);
 
     const clearImagePreview = () => {
         if (formValues.imagePreview?.startsWith?.("blob:")) {
@@ -232,11 +277,12 @@ export default function SchoolCampus() {
         address: dto.address,
         city: dto.city ?? "",
         district: dto.district ?? "",
+        ward: dto.ward ?? "",
         latitude: dto.latitude,
         longitude: dto.longitude,
-        boardingType: dto.boardingType ?? "NONE",
+        boardingType: normalizeBoardingTypeForApi(dto.boardingType ?? dto.boardingTypeLabel),
         boardingTypeLabel: dto.boardingTypeLabel ?? "",
-        phone: dto.phoneNumber,
+        phone: dto.phoneNumber ?? dto.phone ?? "",
         email: account?.email ?? "",
         description: dto.policyDetail ?? "",
         imageUrl: dto.imageJson?.coverUrl ?? dto.imageUrl ?? null,
@@ -268,17 +314,107 @@ export default function SchoolCampus() {
         loadCampuses();
     }, []);
 
+    useEffect(() => {
+        const loadDistricts = async () => {
+            try {
+                const data = await fetchDistrictsHCM();
+                setDistrictOptions(data);
+            } catch (error) {
+                enqueueSnackbar(error?.message || "Không tải được danh sách quận TP.HCM", {variant: "error"});
+            }
+        };
+        loadDistricts();
+    }, [fetchDistrictsHCM]);
+
     const handleOpenCreate = () => {
         setSelectedCampus(null);
-        setFormValues(emptyForm);
+        setFormValues({...emptyForm, city: HCM_CITY_NAME});
         setFormErrors({});
+        setSelectedCreateDistrictCode("");
+        setSelectedCreateWardCode("");
+        setWardOptions([]);
         setCreateModalOpen(true);
     };
 
     const handleCloseCreate = () => {
         clearImagePreview();
+        setSelectedCreateDistrictCode("");
+        setSelectedCreateWardCode("");
+        setWardOptions([]);
+        setGeocodingCreate(false);
         setCreateModalOpen(false);
     };
+
+    const handleCreateDistrictChange = async (districtCode) => {
+        setSelectedCreateDistrictCode(districtCode ? String(districtCode) : "");
+        setSelectedCreateWardCode("");
+        setWardOptions([]);
+        const district = districtOptions.find((d) => String(d.code) === String(districtCode));
+        setFormValues((prev) => ({
+            ...prev,
+            city: HCM_CITY_NAME,
+            district: district?.name || "",
+            ward: "",
+            latitude: "",
+            longitude: "",
+        }));
+        if (!districtCode) return;
+        try {
+            const wards = await fetchWards(districtCode);
+            setWardOptions(wards);
+        } catch (error) {
+            enqueueSnackbar(error?.message || "Không tải được danh sách phường", {variant: "error"});
+        }
+    };
+
+    const handleCreateWardChange = (wardCode) => {
+        setSelectedCreateWardCode(wardCode ? String(wardCode) : "");
+        const w = wardOptions.find((x) => String(x.code) === String(wardCode));
+        setFormValues((prev) => ({
+            ...prev,
+            ward: w?.name || "",
+            latitude: "",
+            longitude: "",
+        }));
+    };
+
+    useEffect(() => {
+        if (!createModalOpen || !selectedCreateDistrictCode || !selectedCreateWardCode) return;
+        const district = districtOptions.find((d) => String(d.code) === String(selectedCreateDistrictCode));
+        const ward = wardOptions.find((w) => String(w.code) === String(selectedCreateWardCode));
+        if (!district || !ward) return;
+
+        const requestId = geocodeCreateRequestIdRef.current + 1;
+        geocodeCreateRequestIdRef.current = requestId;
+        const address = `${ward.name}, ${district.name}, ${HCM_CITY_NAME}, Vietnam`;
+
+        const runGeocode = async () => {
+            setGeocodingCreate(true);
+            try {
+                const location = await geocodeAddress(address);
+                if (requestId !== geocodeCreateRequestIdRef.current) return;
+                if (!location) {
+                    enqueueSnackbar("Không tìm thấy tọa độ cho địa chỉ đã chọn", {variant: "warning"});
+                    return;
+                }
+                setFormValues((prev) => ({
+                    ...prev,
+                    city: HCM_CITY_NAME,
+                    district: district.name,
+                    ward: ward.name,
+                    latitude: String(location.lat),
+                    longitude: String(location.lng),
+                }));
+            } catch (error) {
+                enqueueSnackbar(error?.message || "Không lấy được tọa độ", {variant: "error"});
+            } finally {
+                if (requestId === geocodeCreateRequestIdRef.current) {
+                    setGeocodingCreate(false);
+                }
+            }
+        };
+        runGeocode();
+    }, [createModalOpen, selectedCreateDistrictCode, selectedCreateWardCode, districtOptions, wardOptions, geocodeAddress]);
 
     const handleCreateSubmit = async () => {
         if (!validateForm()) return;
@@ -289,11 +425,12 @@ export default function SchoolCampus() {
                 name: formValues.name.trim(),
                 address: formValues.address?.trim() || "",
                 phone: formValues.phone?.trim() || "",
-                city: formValues.city?.trim() || undefined,
+                city: HCM_CITY_NAME,
                 district: formValues.district?.trim() || undefined,
+                ward: formValues.ward?.trim() || undefined,
                 latitude: formValues.latitude !== "" ? formValues.latitude : undefined,
                 longitude: formValues.longitude !== "" ? formValues.longitude : undefined,
-                boardingType: formValues.boardingType || "NONE",
+                boardingType: normalizeBoardingTypeForApi(formValues.boardingType),
             });
 
             const body = res?.data?.body;
@@ -324,11 +461,12 @@ export default function SchoolCampus() {
             address: campus.address || "",
             city: campus.city || "",
             district: campus.district || "",
+            ward: campus.ward || "",
             phone: campus.phone || "",
             email: campus.email || "",
             latitude: campus.latitude ?? "",
             longitude: campus.longitude ?? "",
-            boardingType: campus.boardingType || "NONE",
+            boardingType: normalizeBoardingTypeForApi(campus.boardingType ?? campus.boardingTypeLabel),
             description: campus.description || "",
             imagePreview: campus.imageUrl || null,
             status: campus.status === "active",
@@ -346,11 +484,12 @@ export default function SchoolCampus() {
             address: formValues.address?.trim() || "",
             city: formValues.city?.trim() || "",
             district: formValues.district?.trim() || "",
+            ward: formValues.ward?.trim() || "",
             phone: formValues.phone?.trim() || "",
             email: formValues.email?.trim() || "",
             latitude: latitude !== undefined && Number.isNaN(latitude) ? undefined : latitude,
             longitude: longitude !== undefined && Number.isNaN(longitude) ? undefined : longitude,
-            boardingType: formValues.boardingType || "NONE",
+            boardingType: normalizeBoardingTypeForApi(formValues.boardingType),
             description: formValues.description?.trim() || "",
             imageUrl: formValues.imagePreview ?? selectedCampus?.imageUrl ?? null,
             status: formValues.status ? "active" : "inactive",
@@ -718,7 +857,7 @@ export default function SchoolCampus() {
                                                             : "#64748b",
                                                 }}
                                             >
-                                                {row.status === "active" ? "Xác thực" : "Chưa xác thực"}
+                                                {row.status === "active" ? "Hoạt động" : "Ngưng hoạt động"}
                                             </Box>
                                         </TableCell>
                                         <TableCell align="right">
@@ -854,21 +993,48 @@ export default function SchoolCampus() {
                         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                             <TextField
                                 label="Thành phố"
-                                name="city"
                                 fullWidth
-                                value={formValues.city}
-                                onChange={handleChange}
-                                placeholder="TP Hồ Chí Minh"
+                                value={HCM_CITY_NAME}
+                                disabled
                             />
-                            <TextField
-                                label="Quận / Huyện"
-                                name="district"
-                                fullWidth
-                                value={formValues.district}
-                                onChange={handleChange}
-                                placeholder="Tân Phú"
-                            />
+                            <FormControl fullWidth>
+                                <InputLabel id="create-campus-district">Quận / Huyện</InputLabel>
+                                <Select
+                                    labelId="create-campus-district"
+                                    label="Quận / Huyện"
+                                    value={selectedCreateDistrictCode}
+                                    onChange={(e) => handleCreateDistrictChange(e.target.value)}
+                                >
+                                    <MenuItem value="">Chọn quận</MenuItem>
+                                    {districtOptions.map((d) => (
+                                        <MenuItem key={d.code} value={String(d.code)}>
+                                            {d.name}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
                         </Stack>
+                        <FormControl fullWidth disabled={!selectedCreateDistrictCode}>
+                            <InputLabel id="create-campus-ward">Phường / Xã</InputLabel>
+                            <Select
+                                labelId="create-campus-ward"
+                                label="Phường / Xã"
+                                value={selectedCreateWardCode}
+                                onChange={(e) => handleCreateWardChange(e.target.value)}
+                            >
+                                <MenuItem value="">Chọn phường</MenuItem>
+                                {wardOptions.map((w) => (
+                                    <MenuItem key={w.code} value={String(w.code)}>
+                                        {w.name}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+                        {geocodingCreate && (
+                            <Typography variant="caption" color="text.secondary">
+                                Đang tự động lấy kinh độ / vĩ độ...
+                            </Typography>
+                        )}
                         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                             <TextField
                                 label="Vĩ độ"
@@ -1032,42 +1198,9 @@ export default function SchoolCampus() {
                                                 <WarningAmberOutlinedIcon sx={{fontSize: 16, color: "inherit"}}/>
                                             )}
                                         </Box>
-                                        {selectedCampus.status === "active" ? "Xác thực" : "Chưa xác thực"}
+                                        {selectedCampus.status === "active" ? "Hoạt động" : "Ngưng hoạt động"}
                                     </Box>
 
-                                    <Box
-                                        component="span"
-                                        sx={{
-                                            px: 1.25,
-                                            py: 0.75,
-                                            borderRadius: 999,
-                                            fontSize: 13,
-                                            fontWeight: 900,
-                                            bgcolor:
-                                                selectedCampus.accountStatus === "ACCOUNT_ACTIVE"
-                                                    ? "rgba(22, 163, 74, 0.12)"
-                                                    : "rgba(239, 68, 68, 0.10)",
-                                            color:
-                                                selectedCampus.accountStatus === "ACCOUNT_ACTIVE"
-                                                    ? "#16a34a"
-                                                    : "#ef4444",
-                                            display: "inline-flex",
-                                            alignItems: "center",
-                                            gap: 0.75,
-                                            whiteSpace: "nowrap",
-                                        }}
-                                    >
-                                        <Box component="span" sx={{display: "inline-flex", alignItems: "center"}}>
-                                            {selectedCampus.accountStatus === "ACCOUNT_ACTIVE" ? (
-                                                <CheckCircleIcon sx={{fontSize: 16, color: "inherit"}}/>
-                                            ) : (
-                                                <WarningAmberOutlinedIcon sx={{fontSize: 16, color: "inherit"}}/>
-                                            )}
-                                        </Box>
-                                        {selectedCampus.accountStatus === "ACCOUNT_ACTIVE"
-                                            ? "Hoạt động"
-                                            : "Ngưng hoạt động"}
-                                    </Box>
                                 </>
                             )}
 
@@ -1224,7 +1357,7 @@ export default function SchoolCampus() {
                                     }}
                                 >
                                     <Typography sx={{fontSize: 12, color: "#94a3b8", fontWeight: 700}}>
-                                        Thành phố / Quận
+                                        Thành phố / Quận / Phường
                                     </Typography>
                                     <Typography
                                         sx={{
@@ -1235,7 +1368,7 @@ export default function SchoolCampus() {
                                             wordBreak: "break-word",
                                         }}
                                     >
-                                        {[selectedCampus.city, selectedCampus.district].filter(Boolean).join(" / ") || "—"}
+                                        {[selectedCampus.city, selectedCampus.district, selectedCampus.ward].filter(Boolean).join(" / ") || "—"}
                                     </Typography>
                                 </Card>
 
@@ -1565,6 +1698,13 @@ export default function SchoolCampus() {
                             name="city"
                             fullWidth
                             value={formValues.city}
+                            onChange={handleChange}
+                        />
+                        <TextField
+                            label="Phường / Xã"
+                            name="ward"
+                            fullWidth
+                            value={formValues.ward}
                             onChange={handleChange}
                         />
                         <TextField

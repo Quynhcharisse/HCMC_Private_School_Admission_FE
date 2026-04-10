@@ -64,13 +64,9 @@ function mapFavouriteSchoolRow(item) {
                 : school?.id ?? item.id ?? null;
     const campusList = Array.isArray(school?.campusList)
         ? school.campusList
-        : Array.isArray(school?.campustList)
-            ? school.campustList
-            : Array.isArray(item?.campusList)
-                ? item.campusList
-                : Array.isArray(item?.campustList)
-                    ? item.campustList
-                    : [];
+        : Array.isArray(item?.campusList)
+            ? item.campusList
+            : [];
     const firstCampus = campusList[0] ?? null;
     const name = school?.name || item?.name || item?.schoolName || "Trường đang cập nhật";
     const ward = (firstCampus?.district || "").trim() || LOCATION_FALLBACK_WARD;
@@ -286,11 +282,7 @@ export default function SavedSchoolsPage() {
         try {
             setDetailLoading(true);
             const detail = await getPublicSchoolDetail(id);
-            const campusList = Array.isArray(detail?.campusList)
-                ? detail.campusList
-                : Array.isArray(detail?.campustList)
-                    ? detail.campustList
-                    : [];
+            const campusList = Array.isArray(detail?.campusList) ? detail.campusList : [];
             const firstCampus = campusList[0] ?? null;
             setDetailSchool({
                 schoolName: detail?.name || schoolRecord?.schoolName || "Trường",

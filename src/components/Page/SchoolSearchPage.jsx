@@ -16,6 +16,7 @@ import {
     Rating,
     Stack,
     TextField,
+    Tooltip,
     Typography,
     CircularProgress
 } from "@mui/material";
@@ -28,7 +29,9 @@ import {
     Language as LanguageIcon,
     LocationOn as LocationOnIcon,
     Phone as PhoneIcon,
-    Search as SearchIcon
+    Search as SearchIcon,
+    Sort as SortIcon,
+    Tune as TuneIcon
 } from "@mui/icons-material";
 import {useLocation, useNavigate} from "react-router-dom";
 import {
@@ -38,7 +41,6 @@ import {
     BRAND_NAVY,
     BRAND_SKY,
     BRAND_SKY_LIGHT,
-    HOME_PAGE_HERO_BACKDROP,
     HOME_PAGE_SURFACE_GRADIENT,
     landingSectionShadow
 } from "../../constants/homeLandingTheme";
@@ -53,20 +55,17 @@ import {
     getSchoolStorageKey,
     getUserIdentity
 } from "../../utils/savedSchoolsStorage";
-import {getPublicSchoolDetail, getPublicSchoolList} from "../../services/SchoolPublicService.jsx";
+import {getPublicSchoolDetail, getPublicSchoolList, searchNearbyCampuses} from "../../services/SchoolPublicService.jsx";
 import {postParentFavouriteSchool} from "../../services/ParentService.jsx";
-import SchoolSearchDetailView, {DEFAULT_SCHOOL_IMAGE, mapPublicSchoolDetailToRow} from "./SchoolSearchDetailView.jsx";
+import SchoolSearchDetailView from "./SchoolSearchDetailView.jsx";
+import {DEFAULT_SCHOOL_IMAGE, mapPublicSchoolDetailToRow} from "../../utils/schoolPublicMapper.js";
 
 const LOCATION_FALLBACK_PROVINCE = "Tất cả";
 const LOCATION_FALLBACK_WARD = "Tất cả";
 
 function mapPublicSchoolToRow(api) {
     if (!api || typeof api !== "object") return null;
-    const campusList = Array.isArray(api.campusList)
-        ? api.campusList
-        : Array.isArray(api.campustList)
-            ? api.campustList
-            : [];
+    const campusList = Array.isArray(api.campusList) ? api.campusList : [];
     const firstCampus = campusList[0] ?? null;
     return {
         id: api.id,
@@ -243,7 +242,7 @@ export default function SchoolSearchPage() {
     const shownSchools = filteredSchools.slice(0, 20);
     const totalCount = filteredSchools.length;
     const paginationCount = Math.max(1, Math.ceil(totalCount / 20));
-    const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY ?? "";
+    const maptilerApiKey = import.meta.env.VITE_MAPTILER_API_KEY ?? "";
 
     const detailKeyRaw = React.useMemo(() => {
         const p = new URLSearchParams(location.search);
@@ -457,81 +456,104 @@ export default function SchoolSearchPage() {
             }}
         >
             <Container maxWidth={false} sx={{maxWidth: '1400px', px: {xs: 2, md: 4}, pt: 1, pb: 6, position: 'relative', zIndex: 1}}>
-                <Box
+                <Card
                     sx={{
                         mb: 3,
-                        p: {xs: 2.25, md: 2.75},
-                        borderRadius: 4,
-                        background: `linear-gradient(145deg, ${HOME_PAGE_HERO_BACKDROP}e8 0%, rgba(255,255,255,0.78) 52%, rgba(255,255,255,0.65) 100%)`,
-                        backdropFilter: 'blur(14px)',
-                        WebkitBackdropFilter: 'blur(14px)',
-                        border: '1px solid rgba(85,179,217,0.28)',
-                        boxShadow: '0 16px 48px rgba(59,130,246,0.06)'
+                        p: 0,
+                        overflow: 'hidden',
+                        borderRadius: 3,
+                        border: '1px solid rgba(203,213,225,0.95)',
+                        boxShadow: '0 10px 40px rgba(15,23,42,0.07), 0 2px 8px rgba(15,23,42,0.04)',
+                        bgcolor: '#fff'
                     }}
                 >
-                    <Box sx={{display: 'inline-flex', alignItems: 'center', gap: 1, mb: 1.5}}>
-                        <Box
-                            sx={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 0.75,
-                                px: 1.75,
-                                py: 0.65,
-                                borderRadius: 999,
-                                bgcolor: 'rgba(255,255,255,0.72)',
-                                backdropFilter: 'blur(10px)',
-                                border: '1px solid rgba(85,179,217,0.45)',
-                                boxShadow: '0 8px 28px rgba(59,130,246,0.08)'
-                            }}
-                        >
-                            <SparkleIcon sx={{fontSize: 18, color: BRAND_SKY}}/>
-                            <Typography sx={{fontSize: '0.8125rem', fontWeight: 700, letterSpacing: '0.06em', color: BRAND_NAVY}}>
-                                TÌM TRƯỜNG PHÙ HỢP
-                            </Typography>
-                        </Box>
-                    </Box>
-                    <Typography
+                    <Box
                         sx={{
-                            fontWeight: 800,
-                            fontSize: {xs: '1.65rem', md: '2rem'},
-                            lineHeight: 1.15,
-                            letterSpacing: '-0.03em',
-                            mb: 1,
-                            background: `linear-gradient(120deg, #1e293b 0%, ${BRAND_NAVY} 28%, ${APP_PRIMARY_MAIN} 62%, ${BRAND_SKY_LIGHT} 100%)`,
-                            WebkitBackgroundClip: 'text',
-                            WebkitTextFillColor: 'transparent',
-                            backgroundClip: 'text'
+                            px: 2,
+                            py: 1.35,
+                            bgcolor: BRAND_NAVY,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 1
                         }}
                     >
-                        Khám phá và so sánh trường học
-                    </Typography>
-                    <Typography sx={{color: '#64748b', fontSize: {xs: '0.95rem', md: '1.02rem'}, lineHeight: 1.65, maxWidth: 720}}>
-                        Lọc theo khu vực, học phí và nhu cầu nội trú — giao diện đồng bộ với trang chủ EduBridge HCM.
-                    </Typography>
-                </Box>
+                        <SparkleIcon sx={{fontSize: 20, color: '#fff'}}/>
+                        <Typography
+                            sx={{
+                                fontSize: '0.8125rem',
+                                fontWeight: 800,
+                                letterSpacing: '0.08em',
+                                color: '#fff'
+                            }}
+                        >
+                            TÌM TRƯỜNG PHÙ HỢP
+                        </Typography>
+                    </Box>
+                    <Box sx={{p: {xs: 2.25, md: 2.75}, bgcolor: '#fff'}}>
+                        <Typography
+                            sx={{
+                                fontWeight: 800,
+                                fontSize: {xs: '1.65rem', md: '2rem'},
+                                lineHeight: 1.2,
+                                letterSpacing: '-0.02em',
+                                mb: 1.25,
+                                color: BRAND_NAVY
+                            }}
+                        >
+                            Khám phá và so sánh trường học
+                        </Typography>
+                        <Typography
+                            sx={{
+                                color: '#64748b',
+                                fontSize: {xs: '0.95rem', md: '1.02rem'},
+                                lineHeight: 1.65,
+                                maxWidth: 720
+                            }}
+                        >
+                            Lọc theo khu vực, học phí và nhu cầu nội trú — giao diện đồng bộ với trang chủ EduBridge HCM.
+                        </Typography>
+                    </Box>
+                </Card>
 
-                <Box sx={{display: 'grid', gridTemplateColumns: {xs: '1fr', md: '300px 1fr'}, gap: 3}}>
+                <Box sx={{display: 'grid', gridTemplateColumns: {xs: '1fr', md: 'minmax(0, 3fr) minmax(0, 7fr)'}, gap: 3}}>
                     <Card
                         sx={{
-                            p: 2,
-                            borderRadius: 4,
-                            border: '1px solid rgba(51,65,85,0.08)',
-                            bgcolor: 'rgba(255,255,255,0.88)',
-                            backdropFilter: 'blur(12px)',
-                            WebkitBackdropFilter: 'blur(12px)',
-                            boxShadow: landingSectionShadow(3),
+                            p: 0,
+                            borderRadius: 3,
+                            overflow: 'hidden',
+                            border: '1px solid rgba(203,213,225,0.95)',
+                            bgcolor: '#fff',
+                            boxShadow: '0 10px 40px rgba(15,23,42,0.07), 0 2px 8px rgba(15,23,42,0.04)',
                             height: 'fit-content',
                             position: {md: 'sticky'},
                             top: {md: 96}
                         }}
                     >
-                        <Typography sx={{fontWeight: 800, color: BRAND_NAVY, mb: 1.5, fontSize: '1.05rem'}}>
-                            Bộ lọc tìm trường
-                        </Typography>
-                        <Divider sx={{mb: 2, borderColor: 'rgba(51,65,85,0.08)'}}/>
-                        <Stack spacing={2}>
+                        <Box
+                            sx={{
+                                px: 2,
+                                py: 1.35,
+                                bgcolor: BRAND_NAVY,
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 1.1
+                            }}
+                        >
+                            <TuneIcon sx={{fontSize: 22, color: '#fff'}}/>
+                            <Typography
+                                sx={{
+                                    fontWeight: 800,
+                                    color: '#fff',
+                                    fontSize: '1.02rem',
+                                    letterSpacing: '0.02em'
+                                }}
+                            >
+                                Bộ lọc tìm trường
+                            </Typography>
+                        </Box>
+                        <Stack spacing={2} sx={{p: 2, pt: 2}}>
                             <Box>
-                                <Typography sx={{fontWeight: 700, fontSize: 13, mb: 1, color: '#64748b', letterSpacing: '0.02em'}}>Tỉnh, Thành phố</Typography>
+                                <Typography sx={{fontWeight: 700, fontSize: 13, mb: 1, color: BRAND_NAVY, letterSpacing: '0.02em'}}>Tỉnh, Thành phố</Typography>
                                 <Box sx={{display: 'flex', gap: 1, flexWrap: 'wrap'}}>
                                     {provinces.map((province) => (
                                         <Chip
@@ -544,9 +566,9 @@ export default function SchoolSearchPage() {
                                     ))}
                                 </Box>
                             </Box>
-                            <Divider />
+                            <Divider sx={{borderColor: 'rgba(226,232,240,0.95)'}}/>
                             <Box>
-                                <Typography sx={{fontWeight: 700, fontSize: 13, mb: 1, color: '#64748b', letterSpacing: '0.02em'}}>Khu vực (Phường/Xã)</Typography>
+                                <Typography sx={{fontWeight: 700, fontSize: 13, mb: 1, color: BRAND_NAVY, letterSpacing: '0.02em'}}>Khu vực (Phường/Xã)</Typography>
                                 <TextField
                                     select
                                     size="small"
@@ -617,9 +639,9 @@ export default function SchoolSearchPage() {
                                     ))}
                                 </TextField>
                             </Box>
-                            <Divider />
+                            <Divider sx={{borderColor: 'rgba(226,232,240,0.95)'}}/>
                             <Box>
-                                <Typography sx={{fontWeight: 700, fontSize: 13, mb: 1, color: '#64748b', letterSpacing: '0.02em'}}>Nội trú/Bán trú</Typography>
+                                <Typography sx={{fontWeight: 700, fontSize: 13, mb: 1, color: BRAND_NAVY, letterSpacing: '0.02em'}}>Nội trú/Bán trú</Typography>
                                 <Box sx={{display: 'flex', gap: 1, flexWrap: 'wrap'}}>
                                     {['Nội trú', 'Bán trú'].map((boardingType) => (
                                         <Chip
@@ -632,7 +654,7 @@ export default function SchoolSearchPage() {
                                     ))}
                                 </Box>
                             </Box>
-                            <Divider />
+                            <Divider sx={{borderColor: 'rgba(226,232,240,0.95)'}}/>
                             <Box>
                                 <TuitionFilter
                                     tuitionMin={tuitionMin}
@@ -647,119 +669,173 @@ export default function SchoolSearchPage() {
                     </Card>
 
                     <Box>
-                        <Box
+                        <Card
                             sx={{
-                                display: 'flex',
-                                flexDirection: {xs: 'column', lg: 'row'},
-                                alignItems: {xs: 'stretch', lg: 'center'},
-                                gap: 1.5,
-                                mb: 2
+                                mb: 2,
+                                p: 0,
+                                overflow: 'hidden',
+                                borderRadius: 3,
+                                border: '1px solid rgba(203,213,225,0.95)',
+                                bgcolor: '#fff',
+                                boxShadow: '0 10px 40px rgba(15,23,42,0.07), 0 2px 8px rgba(15,23,42,0.04)'
                             }}
                         >
-                            <TextField
-                                placeholder="Tìm kiếm trường học..."
-                                size="small"
-                                value={searchKeyword}
-                                onChange={(e) => setSearchKeyword(e.target.value)}
-                                InputProps={{
-                                    endAdornment: (
-                                        <InputAdornment position="end">
-                                            <IconButton
-                                                size="small"
-                                                sx={{
-                                                    background: `linear-gradient(90deg, ${BRAND_NAVY}, ${BRAND_SKY})`,
-                                                    color: '#ffffff',
-                                                    width: 34,
-                                                    height: 34,
-                                                    borderRadius: 999,
-                                                    boxShadow: '0 8px 22px rgba(45, 95, 115, 0.28)',
-                                                    '&:hover': {
-                                                        background: `linear-gradient(90deg, ${APP_PRIMARY_DARK}, ${BRAND_NAVY})`,
-                                                        boxShadow: '0 10px 28px rgba(45, 95, 115, 0.35)'
-                                                    }
-                                                }}
-                                            >
-                                                <SearchIcon sx={{fontSize: 18}}/>
-                                            </IconButton>
-                                        </InputAdornment>
-                                    )
-                                }}
+                            <Box
                                 sx={{
-                                    bgcolor: 'rgba(255,255,255,0.92)',
-                                    borderRadius: 999,
-                                    width: '100%',
-                                    minWidth: '100%',
-                                    maxWidth: '100%',
-                                    boxShadow: landingSectionShadow(2),
-                                    '& .MuiOutlinedInput-root': {
-                                        borderRadius: 999,
-                                        pr: 0.5,
-                                        '& fieldset': {
-                                            border: '1px solid rgba(59,130,246,0.2)',
-                                        },
-                                        '&:hover fieldset': {
-                                            border: '1px solid rgba(59,130,246,0.38)',
-                                        },
-                                        '&.Mui-focused fieldset': {
-                                            border: `2px solid ${BRAND_NAVY}`,
-                                        }
-                                    },
-                                    '& .MuiInputBase-input': {
-                                        py: 1.2,
-                                        pl: 1.25,
-                                        color: '#1e293b',
-                                        fontSize: '0.9rem',
-                                        fontWeight: 500
-                                    },
-                                    '& .MuiInputBase-input::placeholder': {
-                                        fontSize: '0.88rem',
-                                        color: '#94a3b8'
-                                    },
+                                    px: 2,
+                                    py: 1.35,
+                                    bgcolor: BRAND_NAVY,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1.1
                                 }}
-                            />
-                        </Box>
-
-                        <Box sx={{display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mb: 2, gap: 2, flexWrap: 'wrap'}}>
-                            <Box sx={{display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap'}}>
-                                {compareCount > 0 && (
-                                    <Button
-                                        size="small"
-                                        variant="contained"
-                                        onClick={() => navigate("/compare-schools")}
-                                        sx={{
-                                            textTransform: "none",
-                                            fontWeight: 700,
-                                            borderRadius: 999,
-                                            px: 2,
-                                            bgcolor: BRAND_NAVY,
-                                            "&:hover": {bgcolor: APP_PRIMARY_DARK}
-                                        }}
-                                    >
-                                        So sánh ({compareCount})
-                                    </Button>
-                                )}
-                                <Typography sx={{fontSize: 14, color: '#64748b', fontWeight: 600}}>Sắp xếp theo</Typography>
-                                <TextField
-                                    select
-                                    size="small"
-                                    defaultValue="fit"
+                            >
+                                <SearchIcon sx={{fontSize: 22, color: '#fff'}}/>
+                                <Typography
                                     sx={{
-                                        minWidth: 178,
-                                        '& .MuiOutlinedInput-root': {
-                                            borderRadius: 999,
-                                            bgcolor: 'rgba(255,255,255,0.92)',
-                                            '& fieldset': {borderColor: 'rgba(59,130,246,0.2)'},
-                                            '&:hover fieldset': {borderColor: 'rgba(59,130,246,0.38)'},
-                                            '&.Mui-focused fieldset': {borderColor: BRAND_NAVY, borderWidth: 2}
-                                        }
+                                        fontWeight: 800,
+                                        color: '#fff',
+                                        fontSize: '1.02rem',
+                                        letterSpacing: '0.02em'
                                     }}
                                 >
-                                    <MenuItem value="fit">Phù hợp nhất</MenuItem>
-                                    <MenuItem value="tuitionAsc">Học phí tăng dần</MenuItem>
-                                    <MenuItem value="tuitionDesc">Học phí giảm dần</MenuItem>
-                                </TextField>
+                                    Tìm kiếm & sắp xếp
+                                </Typography>
                             </Box>
-                        </Box>
+                            <Box
+                                sx={{
+                                    p: {xs: 1.75, sm: 2},
+                                    pt: {xs: 1.75, sm: 2},
+                                    display: 'grid',
+                                    gridTemplateColumns: {xs: '1fr', md: 'minmax(0, 7fr) minmax(0, 3fr)'},
+                                    gap: {xs: 1.75, md: 2},
+                                    alignItems: 'center'
+                                }}
+                            >
+                                <TextField
+                                    placeholder="Tìm kiếm trường học..."
+                                    size="small"
+                                    value={searchKeyword}
+                                    onChange={(e) => setSearchKeyword(e.target.value)}
+                                    InputProps={{
+                                        endAdornment: (
+                                            <InputAdornment position="end">
+                                                <IconButton
+                                                    size="small"
+                                                    sx={{
+                                                        background: `linear-gradient(90deg, ${BRAND_NAVY}, ${BRAND_SKY})`,
+                                                        color: '#ffffff',
+                                                        width: 34,
+                                                        height: 34,
+                                                        borderRadius: 999,
+                                                        boxShadow: '0 8px 22px rgba(45, 95, 115, 0.28)',
+                                                        '&:hover': {
+                                                            background: `linear-gradient(90deg, ${APP_PRIMARY_DARK}, ${BRAND_NAVY})`,
+                                                            boxShadow: '0 10px 28px rgba(45, 95, 115, 0.35)'
+                                                        }
+                                                    }}
+                                                >
+                                                    <SearchIcon sx={{fontSize: 18}}/>
+                                                </IconButton>
+                                            </InputAdornment>
+                                        )
+                                    }}
+                                    sx={{
+                                        bgcolor: 'rgba(255,255,255,0.92)',
+                                        borderRadius: 999,
+                                        width: '100%',
+                                        minWidth: 0,
+                                        boxShadow: landingSectionShadow(2),
+                                        '& .MuiOutlinedInput-root': {
+                                            borderRadius: 999,
+                                            pr: 0.5,
+                                            '& fieldset': {
+                                                border: '1px solid rgba(59,130,246,0.2)',
+                                            },
+                                            '&:hover fieldset': {
+                                                border: '1px solid rgba(59,130,246,0.38)',
+                                            },
+                                            '&.Mui-focused fieldset': {
+                                                border: `2px solid ${BRAND_NAVY}`,
+                                            }
+                                        },
+                                        '& .MuiInputBase-input': {
+                                            py: 1.05,
+                                            pl: 1.25,
+                                            color: '#1e293b',
+                                            fontSize: '0.9rem',
+                                            fontWeight: 500
+                                        },
+                                        '& .MuiInputBase-input::placeholder': {
+                                            fontSize: '0.88rem',
+                                            color: '#94a3b8'
+                                        },
+                                    }}
+                                />
+                                <Box
+                                    sx={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: {xs: 'flex-start', md: 'flex-end'},
+                                        gap: 1.5,
+                                        flexWrap: 'wrap',
+                                        minWidth: 0
+                                    }}
+                                >
+                                    {compareCount > 0 && (
+                                        <Button
+                                            size="small"
+                                            variant="contained"
+                                            onClick={() => navigate("/compare-schools")}
+                                            sx={{
+                                                textTransform: "none",
+                                                fontWeight: 700,
+                                                borderRadius: 999,
+                                                px: 2,
+                                                bgcolor: BRAND_NAVY,
+                                                "&:hover": {bgcolor: APP_PRIMARY_DARK}
+                                            }}
+                                        >
+                                            So sánh ({compareCount})
+                                        </Button>
+                                    )}
+                                    <Tooltip title="Sắp xếp theo" enterTouchDelay={0}>
+                                        <Box
+                                            component="span"
+                                            sx={{
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                flexShrink: 0,
+                                                color: BRAND_NAVY
+                                            }}
+                                        >
+                                            <SortIcon sx={{fontSize: 22}} aria-label="Sắp xếp theo"/>
+                                        </Box>
+                                    </Tooltip>
+                                    <TextField
+                                        select
+                                        size="small"
+                                        defaultValue="fit"
+                                        sx={{
+                                            minWidth: {xs: 160, sm: 178},
+                                            flex: {xs: '1 1 160px', md: '0 1 auto'},
+                                            '& .MuiOutlinedInput-root': {
+                                                borderRadius: 999,
+                                                bgcolor: 'rgba(255,255,255,0.92)',
+                                                '& fieldset': {borderColor: 'rgba(59,130,246,0.2)'},
+                                                '&:hover fieldset': {borderColor: 'rgba(59,130,246,0.38)'},
+                                                '&.Mui-focused fieldset': {borderColor: BRAND_NAVY, borderWidth: 2}
+                                            }
+                                        }}
+                                    >
+                                        <MenuItem value="fit">Phù hợp nhất</MenuItem>
+                                        <MenuItem value="tuitionAsc">Học phí tăng dần</MenuItem>
+                                        <MenuItem value="tuitionDesc">Học phí giảm dần</MenuItem>
+                                    </TextField>
+                                </Box>
+                            </Box>
+                        </Card>
 
                         {listError && (
                             <Typography sx={{color: "#b45309", fontSize: "0.95rem", mb: 2, fontWeight: 600}}>
@@ -784,21 +860,20 @@ export default function SchoolSearchPage() {
                                         sx={{
                                             position: "relative",
                                             display: 'grid',
-                                            gridTemplateColumns: {xs: '1fr', sm: '220px 1fr'},
-                                            gap: 1.5,
-                                            p: 1.5,
-                                            borderRadius: 4,
-                                            border: '1px solid rgba(51,65,85,0.07)',
-                                            bgcolor: 'rgba(255,255,255,0.85)',
-                                            backdropFilter: 'blur(8px)',
-                                            boxShadow: landingSectionShadow(3),
+                                            gridTemplateColumns: {xs: '1fr', sm: 'minmax(0, 2fr) minmax(0, 8fr)'},
+                                            gap: {xs: 1.25, sm: 1.75},
+                                            p: {xs: 1.25, sm: 1.35},
+                                            borderRadius: 3,
+                                            border: '1px solid rgba(203,213,225,0.95)',
+                                            bgcolor: '#fff',
+                                            boxShadow: '0 8px 28px rgba(15,23,42,0.06), 0 2px 10px rgba(15,23,42,0.04)',
                                             transition:
                                                 'transform 0.32s cubic-bezier(0.2, 0, 0.2, 1), box-shadow 0.32s cubic-bezier(0.2, 0, 0.2, 1), border-color 0.32s cubic-bezier(0.2, 0, 0.2, 1), background-color 0.32s ease',
                                             '&:hover': {
-                                                transform: 'translateY(-7px)',
-                                                bgcolor: 'rgba(255,255,255,0.98)',
-                                                boxShadow: `0 12px 40px rgba(59, 130, 246, 0.14), 0 24px 56px rgba(51, 65, 85, 0.12), ${landingSectionShadow(6)}`,
-                                                borderColor: 'rgba(59,130,246,0.45)'
+                                                transform: 'translateY(-4px)',
+                                                bgcolor: '#fff',
+                                                borderColor: 'rgba(148,163,184,0.65)',
+                                                boxShadow: '0 14px 40px rgba(15,23,42,0.1), 0 4px 14px rgba(59,130,246,0.08)'
                                             }
                                         }}
                                     >
@@ -808,9 +883,11 @@ export default function SchoolSearchPage() {
                                             alignItems: 'center',
                                             justifyContent: 'center',
                                             width: '100%',
-                                            alignSelf: 'center',
-                                            minHeight: {xs: 132, sm: 120},
-                                            py: {xs: 0.5, sm: 0.5}
+                                            maxWidth: {xs: '100%', sm: 104},
+                                            justifySelf: {sm: 'center'},
+                                            alignSelf: 'stretch',
+                                            minHeight: {xs: 100, sm: 92},
+                                            py: {xs: 0.35, sm: 0.25}
                                         }}
                                     >
                                         <CardMedia
@@ -818,26 +895,27 @@ export default function SchoolSearchPage() {
                                             image={school.logoUrl || DEFAULT_SCHOOL_IMAGE}
                                             alt={`${school.school} logo`}
                                             sx={{
-                                                height: {xs: 132, sm: 120},
-                                                width: '100%',
+                                                height: {xs: 100, sm: 88},
+                                                width: {xs: '100%', sm: 88},
                                                 maxWidth: '100%',
-                                                borderRadius: 3,
+                                                borderRadius: {xs: 2.5, sm: '50%'},
                                                 objectFit: 'contain',
                                                 objectPosition: 'center',
                                                 display: 'block',
-                                                p: 0,
+                                                bgcolor: {sm: 'rgba(248,250,252,0.95)'},
+                                                p: {sm: 0.5},
                                                 m: 0
                                             }}
                                         />
                                     </Box>
-                                    <Box sx={{display: 'flex', flexDirection: 'column', minHeight: 132}}>
+                                    <Box sx={{display: 'flex', flexDirection: 'column', minHeight: 0, justifyContent: 'center'}}>
                                         <Typography
                                             sx={{
                                                 fontWeight: 700,
-                                                fontSize: {xs: '1.15rem', sm: '1.35rem'},
-                                                color: '#1e293b',
-                                                lineHeight: 1.25,
-                                                mb: 1.25
+                                                fontSize: {xs: '1.05rem', sm: '1.2rem'},
+                                                color: BRAND_NAVY,
+                                                lineHeight: 1.2,
+                                                mb: 0.75
                                             }}
                                         >
                                             {school.school}
@@ -889,16 +967,17 @@ export default function SchoolSearchPage() {
                                         {school.description ? (
                                             <Typography
                                                 sx={{
-                                                    mt: 1,
+                                                    mt: 0.5,
                                                     color: '#64748b',
-                                                    fontSize: '0.875rem',
+                                                    fontSize: '0.8125rem',
                                                     fontWeight: 400,
                                                     lineHeight: 1.45,
                                                     display: '-webkit-box',
                                                     WebkitLineClamp: 2,
                                                     WebkitBoxOrient: 'vertical',
                                                     overflow: 'hidden',
-                                                    wordBreak: 'break-word'
+                                                    wordBreak: 'break-word',
+                                                    minHeight: '2.9em'
                                                 }}
                                             >
                                                 {String(school.description)}
@@ -906,14 +985,14 @@ export default function SchoolSearchPage() {
                                         ) : null}
                                         <Box
                                             sx={{
-                                                mt: 1.25,
+                                                mt: 0.75,
                                                 display: 'flex',
                                                 flexDirection: {xs: 'column', sm: 'row'},
                                                 flexWrap: {sm: 'wrap'},
                                                 alignItems: {sm: 'flex-start'},
                                                 justifyContent: 'flex-start',
                                                 width: '100%',
-                                                gap: {xs: 1.1, sm: 7},
+                                                gap: {xs: 0.65, sm: 3},
                                                 alignSelf: 'stretch'
                                             }}
                                         >
@@ -1018,9 +1097,9 @@ export default function SchoolSearchPage() {
                                                 flexWrap: 'wrap',
                                                 alignItems: 'center',
                                                 justifyContent: 'flex-end',
-                                                gap: 0.75,
+                                                gap: 0.65,
                                                 mt: 'auto',
-                                                pt: 1.75
+                                                pt: 1
                                             }}
                                         >
                                             <ButtonBase
@@ -1141,7 +1220,16 @@ export default function SchoolSearchPage() {
                     detailKeyRaw={detailKeyRaw}
                     detailLoading={detailLoading}
                     detailError={detailError}
-                    googleMapsApiKey={googleMapsApiKey}
+                    maptilerApiKey={maptilerApiKey}
+                    onSearchNearbyCampuses={searchNearbyCampuses}
+                    onOpenSchoolById={(schoolId) => {
+                        const target = schools.find((s) => Number(s?.id) === Number(schoolId));
+                        if (target) {
+                            openSchoolDetail(target);
+                        } else {
+                            navigate("/search-schools");
+                        }
+                    }}
                     onClose={closeSchoolDetail}
                     navigate={navigate}
                     isParent={isParent}
