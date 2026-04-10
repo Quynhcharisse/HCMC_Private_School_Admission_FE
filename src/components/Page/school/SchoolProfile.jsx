@@ -47,7 +47,10 @@ const BOARDING_TYPE_OPTIONS = [
 
 const BOARDING_TYPE_DEFAULT = "NONE";
 const HCM_CODE = 79;
+/** Dùng cho geocoding (Nominatim) */
 const HCM_CITY_NAME = "Ho Chi Minh City";
+/** Giá trị `city` gửi/nhận từ API profile (GET/PUT) */
+const API_CITY_DEFAULT = "Ho Chi Minh";
 const DEFAULT_MAP_CENTER = [10.7769, 106.7009];
 const BOARDING_VI_TO_ENUM = {
     "Không có": "NONE",
@@ -149,17 +152,6 @@ function MiniInfoCard({ label, value }) {
     );
 }
 
-function normalizeDateForInput(raw) {
-    if (raw == null) return "";
-    if (typeof raw === "string") {
-        // If backend returns ISO datetime, keep only YYYY-MM-DD for `<TextField type="date" />`
-        if (raw.length >= 10) return raw.slice(0, 10);
-        return raw;
-    }
-    if (raw instanceof Date && !Number.isNaN(raw.getTime())) return raw.toISOString().slice(0, 10);
-    return "";
-}
-
 function imageItemIsUsage(item) {
     if (item == null) return true;
     if (typeof item.isUsage === "boolean") return item.isUsage;
@@ -196,7 +188,7 @@ export default function SchoolProfile() {
         phoneNumber: "",
         policyDetail: "",
         address: "",
-        city: "",
+        city: API_CITY_DEFAULT,
         district: "",
         ward: "",
         latitude: "",
@@ -206,10 +198,7 @@ export default function SchoolProfile() {
         schoolDescription: "",
         logoUrl: "",
         websiteUrl: "",
-        representativeName: "",
         hotline: "",
-        businessLicenseUrl: "",
-        foundingDate: "",
         coverUrl: "",
         itemList: [],
         facilityOverview: "",
@@ -267,7 +256,7 @@ export default function SchoolProfile() {
             phoneNumber: campus.phoneNumber || "",
             policyDetail: campus.policyDetail || "",
             address: campus.address || "",
-            city: campus.city || "",
+            city: (campus.city && String(campus.city).trim()) || API_CITY_DEFAULT,
             district: campus.district || "",
             ward: campus.ward || "",
             latitude: campus.latitude != null ? String(campus.latitude) : "",
@@ -277,10 +266,7 @@ export default function SchoolProfile() {
             schoolDescription: campus.schoolDescription ?? legacySchoolData.description ?? "",
             logoUrl: campus.logoUrl ?? legacySchoolData.logoUrl ?? "",
             websiteUrl: campus.websiteUrl ?? legacySchoolData.websiteUrl ?? "",
-            representativeName: campus.representativeName ?? legacySchoolData.representativeName ?? "",
             hotline: campus.hotline ?? legacySchoolData.hotline ?? "",
-            businessLicenseUrl: campus.businessLicenseUrl ?? legacySchoolData.businessLicenseUrl ?? "",
-            foundingDate: normalizeDateForInput(campus.foundingDate ?? legacySchoolData.foundingDate ?? ""),
             coverUrl: imageJson.coverUrl || "",
             itemList: list.map((item) => ({
                 name: item.name || "",
@@ -380,37 +366,28 @@ export default function SchoolProfile() {
             const latitudeNumber = formValues.latitude === "" ? undefined : Number(formValues.latitude);
             const longitudeNumber = formValues.longitude === "" ? undefined : Number(formValues.longitude);
             const isBranchCampusPayload = profile?.campus?.isPrimaryBranch === false;
+            const cityPayload = (formValues.city && String(formValues.city).trim()) || API_CITY_DEFAULT;
+            const campusBase = {
+                name: formValues.campusName?.trim() || "",
+                phoneNumber: (formValues.phoneNumber || "").replace(/[^\d+]/g, "").trim(),
+                address: formValues.address?.trim() || "",
+                city: cityPayload,
+                district: formValues.district?.trim() || "",
+                ward: formValues.ward?.trim() || "",
+                boardingType: normalizeBoardingTypeEnum(formValues.boardingType),
+                latitude: Number.isFinite(latitudeNumber) ? latitudeNumber : undefined,
+                longitude: Number.isFinite(longitudeNumber) ? longitudeNumber : undefined,
+            };
             const payload = {
                 campusData: isBranchCampusPayload
-                    ? {
-                          name: formValues.campusName?.trim() || "",
-                          phoneNumber: (formValues.phoneNumber || "").replace(/[^\d+]/g, "").trim(),
-                          address: formValues.address?.trim() || "",
-                          city: HCM_CITY_NAME,
-                          district: formValues.district?.trim() || "",
-                          ward: formValues.ward?.trim() || "",
-                          boardingType: normalizeBoardingTypeEnum(formValues.boardingType),
-                          latitude: Number.isFinite(latitudeNumber) ? latitudeNumber : undefined,
-                          longitude: Number.isFinite(longitudeNumber) ? longitudeNumber : undefined,
-                      }
+                    ? campusBase
                     : {
-                          name: formValues.campusName?.trim() || "",
-                          phoneNumber: (formValues.phoneNumber || "").replace(/[^\d+]/g, "").trim(),
-                          address: formValues.address?.trim() || "",
-                          city: HCM_CITY_NAME,
-                          district: formValues.district?.trim() || "",
-                          ward: formValues.ward?.trim() || "",
-                          boardingType: normalizeBoardingTypeEnum(formValues.boardingType),
-                          latitude: Number.isFinite(latitudeNumber) ? latitudeNumber : undefined,
-                          longitude: Number.isFinite(longitudeNumber) ? longitudeNumber : undefined,
+                          ...campusBase,
                           schoolData: {
                               description: formValues.schoolDescription?.trim() || "",
                               logoUrl: formValues.logoUrl?.trim() || "",
                               websiteUrl: formValues.websiteUrl?.trim() || "",
-                              representativeName: formValues.representativeName?.trim() || "",
                               hotline: formValues.hotline?.trim() || "",
-                              businessLicenseUrl: formValues.businessLicenseUrl?.trim() || "",
-                              foundingDate: normalizeDateForInput(formValues.foundingDate?.trim() || ""),
                           },
                       },
             };
@@ -465,7 +442,7 @@ export default function SchoolProfile() {
         const district = districts.find((d) => String(d.code) === String(districtCode));
         setFormValues((p) => ({
             ...p,
-            city: HCM_CITY_NAME,
+            city: (p.city && String(p.city).trim()) || API_CITY_DEFAULT,
             district: district?.name || "",
             ward: "",
         }));
@@ -497,7 +474,7 @@ export default function SchoolProfile() {
             }
             setFormValues((p) => ({
                 ...p,
-                city: HCM_CITY_NAME,
+                city: (p.city && String(p.city).trim()) || API_CITY_DEFAULT,
                 district: district?.name || p.district,
                 ward: ward?.name || p.ward,
                 latitude: String(location.lat),
@@ -556,7 +533,6 @@ export default function SchoolProfile() {
     const isFormDirty = useMemo(() => {
         const currentSnapshot = JSON.stringify({
             ...formValues,
-            city: HCM_CITY_NAME,
             selectedDistrictCode,
             selectedWardCode,
         });
@@ -567,7 +543,6 @@ export default function SchoolProfile() {
         if (!editOpen) return;
         initialEditSnapshotRef.current = JSON.stringify({
             ...formValues,
-            city: HCM_CITY_NAME,
             selectedDistrictCode,
             selectedWardCode,
         });
@@ -1013,7 +988,7 @@ export default function SchoolProfile() {
                                     <CardContent sx={{ p: 3 }}>
                                         <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>Địa điểm</Typography>
                                         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" }, gap: 2 }}>
-                                            <TextField label="Thành phố" value={HCM_CITY_NAME} fullWidth size="small" disabled />
+                                            <TextField label="Thành phố" value={formValues.city || API_CITY_DEFAULT} fullWidth size="small" disabled />
                                             <FormControl fullWidth size="small">
                                                 <InputLabel id="school-profile-district">Quận</InputLabel>
                                                 <Select labelId="school-profile-district" label="Quận" value={selectedDistrictCode} onChange={(e) => handleDistrictChange(e.target.value)}>
@@ -1062,25 +1037,35 @@ export default function SchoolProfile() {
                                     <>
                                         <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid #e2e8f0", boxShadow: "0 8px 24px rgba(15,23,42,0.04)" }}>
                                             <CardContent sx={{ p: 3 }}>
-                                                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>Thông tin trường</Typography>
+                                                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>Thông tin hiển thị trường</Typography>
                                                 <Stack spacing={2}>
-                                                    <TextField label="Mô tả trường" value={formValues.schoolDescription} onChange={(e) => setFormValues((p) => ({ ...p, schoolDescription: e.target.value }))} fullWidth size="small" multiline rows={4} />
+                                                    <TextField
+                                                        label="Mô tả trường"
+                                                        value={formValues.schoolDescription}
+                                                        onChange={(e) => setFormValues((p) => ({ ...p, schoolDescription: e.target.value }))}
+                                                        fullWidth
+                                                        size="small"
+                                                        multiline
+                                                        rows={4}
+                                                    />
                                                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-                                                        <TextField id="school-profile-websiteUrl" label="Website" value={formValues.websiteUrl} onChange={(e) => setFormValues((p) => ({ ...p, websiteUrl: e.target.value }))} error={!!formErrors.websiteUrl} helperText={formErrors.websiteUrl || ""} fullWidth size="small" placeholder="https://..." />
-                                                        <TextField label="Đại diện" value={formValues.representativeName} onChange={(e) => setFormValues((p) => ({ ...p, representativeName: e.target.value }))} fullWidth size="small" />
+                                                        <TextField
+                                                            id="school-profile-websiteUrl"
+                                                            label="Website"
+                                                            value={formValues.websiteUrl}
+                                                            onChange={(e) => setFormValues((p) => ({ ...p, websiteUrl: e.target.value }))}
+                                                            error={!!formErrors.websiteUrl}
+                                                            helperText={formErrors.websiteUrl || ""}
+                                                            fullWidth
+                                                            size="small"
+                                                            placeholder="https://..."
+                                                        />
                                                         <TextField label="Hotline" value={formValues.hotline} onChange={(e) => setFormValues((p) => ({ ...p, hotline: e.target.value }))} fullWidth size="small" />
-                                                        <TextField label="Ngày thành lập" type="date" InputLabelProps={{ shrink: true }} value={formValues.foundingDate} onChange={(e) => setFormValues((p) => ({ ...p, foundingDate: e.target.value }))} fullWidth size="small" />
                                                     </Box>
-                                                </Stack>
-                                            </CardContent>
-                                        </Card>
-
-                                        <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid #e2e8f0", boxShadow: "0 8px 24px rgba(15,23,42,0.04)" }}>
-                                            <CardContent sx={{ p: 3 }}>
-                                                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>Tệp phương tiện</Typography>
-                                                <Stack spacing={2}>
                                                     <Box>
-                                                        <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600, display: "block", mb: 1 }}>Logo</Typography>
+                                                        <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600, display: "block", mb: 1 }}>
+                                                            Logo (logoUrl)
+                                                        </Typography>
                                                         <Box sx={{ width: 72, height: 72, borderRadius: "50%", overflow: "hidden", border: "1px solid #e2e8f0", bgcolor: "#f8fafc", mb: 1.5 }}>
                                                             {formValues.logoUrl ? <Box component="img" src={formValues.logoUrl} alt="Logo" sx={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <SchoolIcon sx={{ fontSize: 30, m: 2.5, color: "#94a3b8" }} />}
                                                         </Box>

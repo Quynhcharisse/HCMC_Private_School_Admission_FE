@@ -1394,7 +1394,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
     return <Navigate to="/school/campus-facility-config" replace />;
   }
 
-  const pageTitle = isCampusVariant ? "Cấu hình theo mỗi cơ sở" : "Cấu hình chung cho các cơ sở";
+  const pageTitle = isCampusVariant ? "Cấu hình của cơ sở" : "Cấu hình chung cho các cơ sở";
   const pageSubtitle = isCampusVariant
     ? isPrimaryBranch
       ? "Chỉnh vận hành và CSVC của cơ sở chính. Mỗi cơ sở chỉ sửa được cấu hình của chính mình."
@@ -2340,7 +2340,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                     />
                     <Stack direction={{xs: "column", sm: "row"}} spacing={2} useFlexGap sx={{flexWrap: "wrap"}}>
                       <TextField
-                        label="Số khách tối đa mỗi ca"
+                        label="Số phụ huynh tối đa trong 1 ca"
                         type="number"
                         value={config.operationSettingsData.maxBookingPerSlot ?? 0}
                         onChange={(e) =>
@@ -2357,7 +2357,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                         sx={{minWidth: 200, flex: 1}}
                       />
                       <TextField
-                        label="Tư vấn viên tối thiểu / ca"
+                        label="Tư vấn viên tối thiểu trong 1 ca"
                         type="number"
                         value={config.operationSettingsData.minCounsellorPerSlot ?? 0}
                         onChange={(e) =>
@@ -2374,7 +2374,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                         sx={{minWidth: 200, flex: 1}}
                       />
                       <TextField
-                        label="Thời lượng ca (phút)"
+                        label="Thời lượng 1 ca (phút)"
                         type="number"
                         value={config.operationSettingsData.slotDurationInMinutes ?? 0}
                         onChange={(e) =>
@@ -2727,6 +2727,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
               loading={loading}
               saving={saving}
               readOnly={fieldDisabled}
+              perCampus={useCampusConfigFlow}
             />
           )}
 
