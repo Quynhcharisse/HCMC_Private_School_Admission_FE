@@ -49,7 +49,7 @@ axiosClient.interceptors.response.use(
                 if (refreshRes && refreshRes.status === 200) {
                     return axiosClient(originalRequest);
                 } else {
-                    const publicPaths = ['/home', '/register', '/login', '/schools', '/search-schools', '/compare-schools', '/about', '/policy/privacy', '/tos', '/faq', '/'];
+                    const publicPaths = ['/home', '/register', '/login', '/schools', '/search-schools', '/compare-schools', '/about', '/policy/privacy', '/tos', '/faq', '/payment', '/'];
                     const isPublicPath = publicPaths.some(path => window.location.pathname === path || window.location.pathname.startsWith(path + '/'));
                     if (!isPublicPath && !window.location.pathname.includes('/login')) {
                         window.location.href = "/login";
@@ -58,7 +58,7 @@ axiosClient.interceptors.response.use(
                 }
             } catch (refreshError) {
                 console.error("Token refresh failed:", refreshError);
-                const publicPaths = ['/home', '/register', '/login', '/schools', '/search-schools', '/compare-schools', '/about', '/policy/privacy', '/tos', '/faq', '/'];
+                const publicPaths = ['/home', '/register', '/login', '/schools', '/search-schools', '/compare-schools', '/about', '/policy/privacy', '/tos', '/faq', '/payment', '/'];
                 const isPublicPath = publicPaths.some(path => window.location.pathname === path || window.location.pathname.startsWith(path + '/'));
                 if (!isPublicPath && !window.location.pathname.includes('/login')) {
                     window.location.href = "/login";

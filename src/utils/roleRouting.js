@@ -31,6 +31,7 @@ export const isRouteAllowedForRole = (path, role) => {
             '/search-schools',
             '/compare-schools',
             '/package-fees',
+            '/payment',
         ];
         return schoolAllowedPrefixes.some((allowedPrefix) => path.startsWith(allowedPrefix));
     }

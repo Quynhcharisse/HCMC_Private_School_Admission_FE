@@ -29,7 +29,9 @@ export default function WebAppLayout() {
             path === '/login' ||
             path === '/register' ||
             path === '/saved-schools' ||
-            path === '/compare-schools'
+            path === '/compare-schools' ||
+            path === '/payment/vnpay-result' ||
+            path.startsWith('/payment/')
         );
     };
 

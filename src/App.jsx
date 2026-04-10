@@ -48,6 +48,7 @@ const SavedSchoolsPage = lazy(() => import("./components/Page/SavedSchoolsPage.j
 const CompareSchoolsPage = lazy(() => import("./components/Page/CompareSchoolsPage.jsx"));
 const ChildrenInfoPage = lazy(() => import("./components/Page/ChildrenInfoPage.jsx"));
 const PackageFeesPage = lazy(() => import("./components/Page/PackageFeesPage.jsx"));
+const VnpayPaymentResultPage = lazy(() => import("./components/Page/payment/VnpayPaymentResultPage.jsx"));
 
 const LoadingFallback = () => {
     return null;
@@ -196,6 +197,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <PackageFeesPage/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'payment/vnpay-result',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <VnpayPaymentResultPage/>
                     </Suspense>
                 )
             },

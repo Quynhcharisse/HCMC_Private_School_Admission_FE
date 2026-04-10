@@ -60,6 +60,7 @@ import topPromoBanner1 from "../../assets/1.png";
 import topPromoBanner2 from "../../assets/2.png";
 import {getPublicSchoolList} from "../../services/SchoolPublicService.jsx";
 import {getAdminPackageFees} from "../../services/AdminService.jsx";
+import {createSchoolSubscriptionPayment} from "../../services/SchoolSubscriptionService.jsx";
 
 const ADMISSION_CAROUSEL_INTERVAL_MS = 7000;
 const ADMISSION_ANIM_MS = 1400;
@@ -999,6 +1000,7 @@ export default function HomePage() {
     const [isSchoolRole, setIsSchoolRole] = React.useState(false);
     const [schoolServicePackages, setSchoolServicePackages] = React.useState([]);
     const [servicePackagesLoading, setServicePackagesLoading] = React.useState(false);
+    const [buyNowLoadingPackageId, setBuyNowLoadingPackageId] = React.useState(null);
     const [showParentFormModal, setShowParentFormModal] = React.useState(false);
     const [isSubmittingParentForm, setIsSubmittingParentForm] = React.useState(false);
     const submitRef = React.useRef(false);
@@ -1246,6 +1248,52 @@ export default function HomePage() {
     const handleRegisterClick = () => {
         window.location.href = '/register';
     };
+
+    const handleSchoolPackageBuyNow = React.useCallback(async (pkg) => {
+        const packageId = Number(pkg?.id);
+        if (!Number.isFinite(packageId) || packageId <= 0) {
+            enqueueSnackbar("Không xác định được gói dịch vụ.", {variant: "error"});
+            return;
+        }
+        const description = pkg?.name?.trim()
+            ? `Thanh toán gói ${pkg.name.trim()}`
+            : "Thanh toán gói dịch vụ";
+        setBuyNowLoadingPackageId(packageId);
+        try {
+            const res = await createSchoolSubscriptionPayment({packageId, description});
+            const paymentUrl = res?.data?.body;
+            if (typeof paymentUrl === "string" && /^https?:\/\//i.test(paymentUrl.trim())) {
+                const url = paymentUrl.trim();
+                // Không truyền "noopener" trong tham số thứ 3: nhiều trình duyệt vẫn mở tab mới nhưng trả về null,
+                // khiến nhánh fallback assign() chạy và tab hiện tại cũng nhảy sang VNPay.
+                const w = window.open(url, "_blank");
+                if (w) {
+                    try {
+                        w.opener = null;
+                    } catch {
+                        /* cross-origin */
+                    }
+                } else {
+                    enqueueSnackbar("Không mở được tab mới. Đang chuyển trong tab hiện tại.", {variant: "warning"});
+                    window.location.assign(url);
+                }
+                return;
+            }
+            enqueueSnackbar(
+                typeof res?.data?.message === "string" ? res.data.message : "Không nhận được liên kết thanh toán.",
+                {variant: "warning"}
+            );
+        } catch (error) {
+            const raw =
+                error?.response?.data?.message ??
+                error?.response?.data?.body ??
+                error?.message;
+            const msg = typeof raw === "string" ? raw : "Không thể tạo liên kết thanh toán.";
+            enqueueSnackbar(msg, {variant: "error"});
+        } finally {
+            setBuyNowLoadingPackageId(null);
+        }
+    }, []);
 
     const handleParentFormChange = (field) => (event) => {
         setParentFormData({
@@ -2004,7 +2052,8 @@ export default function HomePage() {
 
                                                 <Button
                                                     variant={isHighlighted ? "contained" : "outlined"}
-                                                    onClick={() => navigate('/package-fees')}
+                                                    disabled={buyNowLoadingPackageId != null}
+                                                    onClick={() => handleSchoolPackageBuyNow(pkg)}
                                                     sx={{
                                                         mt: 2.75,
                                                         borderRadius: 999,
@@ -2020,7 +2069,11 @@ export default function HomePage() {
                                                         }
                                                     }}
                                                 >
-                                                    Mua ngay
+                                                    {buyNowLoadingPackageId === pkg?.id ? (
+                                                        <CircularProgress size={22} color="inherit" />
+                                                    ) : (
+                                                        "Mua ngay"
+                                                    )}
                                                 </Button>
                                             </Card>
                                         );
