@@ -368,20 +368,27 @@ export default function AdminDocumentTemplateManagement() {
                                                 alignItems: "center",
                                                 justifyContent: "space-between",
                                                 gap: 1,
-                                                bgcolor: "#fb923c",
+                                                bgcolor: alpha("#1d4ed8", 0.82),
+                                                border: "1px solid",
+                                                borderColor: alpha("#93c5fd", 0.75),
+                                                boxShadow: "0 8px 20px rgba(37, 99, 235, 0.28)",
                                                 borderRadius: 2.5,
                                                 px: 1.5,
                                                 py: 1,
                                             }}
                                         >
-                                            <Typography sx={{ fontWeight: 700, color: "#0f172a", wordBreak: "break-word" }}>
+                                            <Typography sx={{ fontWeight: 700, color: "#f8fafc", wordBreak: "break-word" }}>
                                                 {doc.fileName}
                                             </Typography>
                                             <IconButton
                                                 size="small"
                                                 onClick={() => onDelete(doc)}
                                                 disabled={deletingId === doc.id}
-                                                sx={{ color: "#0f172a" }}
+                                                sx={{
+                                                    color: "#f8fafc",
+                                                    bgcolor: alpha("#ffffff", 0.14),
+                                                    "&:hover": { bgcolor: alpha("#ffffff", 0.24) },
+                                                }}
                                                 aria-label="Xóa tài liệu"
                                             >
                                                 {deletingId === doc.id ? (
