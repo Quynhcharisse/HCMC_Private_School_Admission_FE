@@ -176,21 +176,23 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
                             </Typography>
                         </Tooltip>
                     ) : null}
-                    <Box sx={labelWrapperStyle}>
-                        <Typography
-                            variant="subtitle1"
-                            sx={{
-                                fontWeight: 700,
-                                color: "#2563eb",
-                                letterSpacing: "-0.01em",
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
-                            }}
-                        >
-                            Quản trị viên
-                        </Typography>
-                    </Box>
+                    {!collapsed ? (
+                        <Box sx={labelWrapperStyle}>
+                            <Typography
+                                variant="subtitle1"
+                                sx={{
+                                    fontWeight: 700,
+                                    color: "#2563eb",
+                                    letterSpacing: "-0.01em",
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                }}
+                            >
+                                Quản trị viên
+                            </Typography>
+                        </Box>
+                    ) : null}
                 </Box>
                 {onToggleCollapse && (
                     <Tooltip title={collapsed ? "Mở rộng" : "Thu gọn"} placement="right">
@@ -324,19 +326,22 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
                                         >
                                             {item.icon}
                                         </ListItemIcon>
-                                        <Box sx={labelWrapperStyle}>
-                                            <ListItemText
-                                                primary={item.text}
-                                                sx={{ my: 0 }}
-                                                primaryTypographyProps={{
-                                                    fontSize: 14,
-                                                    fontWeight: isActive ? 600 : 500,
-                                                    whiteSpace: "normal",
-                                                    lineHeight: 1.35,
-                                                    wordBreak: "break-word",
-                                                }}
-                                            />
-                                        </Box>
+                                        {!collapsed ? (
+                                            <Box sx={labelWrapperStyle}>
+                                                <ListItemText
+                                                    primary={item.text}
+                                                    sx={{ my: 0 }}
+                                                    primaryTypographyProps={{
+                                                        fontSize: 14,
+                                                        fontWeight: isActive ? 600 : 500,
+                                                        whiteSpace: "nowrap",
+                                                        lineHeight: 1.35,
+                                                        overflow: "hidden",
+                                                        textOverflow: "ellipsis",
+                                                    }}
+                                                />
+                                            </Box>
+                                        ) : null}
                                     </ListItemButton>
                                 </ListItem>
                             );
@@ -387,34 +392,36 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
                         >
                             {!avatarUrl && displayName.charAt(0).toUpperCase()}
                         </Avatar>
-                        <Box sx={{ ...labelWrapperStyle, ml: collapsed ? 0 : 0.875 }}>
-                            <Box sx={{ minWidth: 0, overflow: "hidden" }}>
-                                <Typography
-                                    variant="body2"
-                                    sx={{
-                                        fontWeight: 600,
-                                        color: "#1e293b",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                        whiteSpace: "nowrap",
-                                    }}
-                                >
-                                    {displayName}
-                                </Typography>
-                                <Typography
-                                    variant="caption"
-                                    sx={{
-                                        color: "#64748b",
-                                        display: "block",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                        whiteSpace: "nowrap",
-                                    }}
-                                >
-                                    {roleLabel}
-                                </Typography>
+                        {!collapsed ? (
+                            <Box sx={{ ...labelWrapperStyle, ml: 0.875 }}>
+                                <Box sx={{ minWidth: 0, overflow: "hidden" }}>
+                                    <Typography
+                                        variant="body2"
+                                        sx={{
+                                            fontWeight: 600,
+                                            color: "#1e293b",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                            whiteSpace: "nowrap",
+                                        }}
+                                    >
+                                        {displayName}
+                                    </Typography>
+                                    <Typography
+                                        variant="caption"
+                                        sx={{
+                                            color: "#64748b",
+                                            display: "block",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                            whiteSpace: "nowrap",
+                                        }}
+                                    >
+                                        {roleLabel}
+                                    </Typography>
+                                </Box>
                             </Box>
-                        </Box>
+                        ) : null}
                     </ListItemButton>
                 </Tooltip>
             </Box>

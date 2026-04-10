@@ -44,7 +44,6 @@ export default function AdminPlatformSettings() {
             { label: "Cài đặt Phương tiện", key: "media" },
             { label: "Cài đặt Hạn mức Tuyển sinh", key: "limits" },
             { label: "Cài đặt Chính sách Đăng ký", key: "policies" },
-            { label: "Cài đặt Báo cáo", key: "report" },
         ],
         []
     );
@@ -2480,7 +2479,6 @@ export default function AdminPlatformSettings() {
                             {activeTabKey === "media" ? renderMediaTab() : null}
                             {activeTabKey === "limits" ? renderLimitsTab() : null}
                             {activeTabKey === "policies" ? renderSubscriptionTab() : null}
-                            {activeTabKey === "report" ? renderReportTab() : null}
 
                             {activeTabKey === "business" ? (
                                 <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
