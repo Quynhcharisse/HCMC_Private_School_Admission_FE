@@ -124,3 +124,15 @@ export const upsertAdminPackageFee = async (payload) => {
     const response = await axiosClient.post("/admin/service/package/fee", payload);
     return response || null;
 };
+
+export const publishAdminPackageFee = async (packageId) => {
+    const id = Number(packageId);
+    const response = await axiosClient.put(`/admin/${id}/service/package/fee/publish`);
+    return response || null;
+};
+
+export const deactiveAdminPackageFee = async (packageId) => {
+    const id = Number(packageId);
+    const response = await axiosClient.put(`/admin/${id}/service/package/fee/deactive`);
+    return response || null;
+};
