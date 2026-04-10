@@ -46,6 +46,7 @@ const ParentProfile = lazy(() => import("./components/auth/ParentProfile.jsx"));
 const SavedSchoolsPage = lazy(() => import("./components/Page/SavedSchoolsPage.jsx"));
 const CompareSchoolsPage = lazy(() => import("./components/Page/CompareSchoolsPage.jsx"));
 const ChildrenInfoPage = lazy(() => import("./components/Page/ChildrenInfoPage.jsx"));
+const PackageFeesPage = lazy(() => import("./components/Page/PackageFeesPage.jsx"));
 
 const LoadingFallback = () => {
     return null;
@@ -186,6 +187,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <CompareSchoolsPage/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'package-fees',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <PackageFeesPage/>
                     </Suspense>
                 )
             },
