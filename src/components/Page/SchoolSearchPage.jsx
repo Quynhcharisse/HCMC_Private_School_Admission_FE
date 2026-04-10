@@ -58,7 +58,7 @@ import {
 import {getPublicSchoolDetail, getPublicSchoolList, searchNearbyCampuses} from "../../services/SchoolPublicService.jsx";
 import {postParentFavouriteSchool} from "../../services/ParentService.jsx";
 import SchoolSearchDetailView from "./SchoolSearchDetailView.jsx";
-import {DEFAULT_SCHOOL_IMAGE, mapPublicSchoolDetailToRow} from "../../utils/schoolPublicMapper.js";
+import {DEFAULT_SCHOOL_IMAGE, mapPublicSchoolDetailToRow, normalizeProvinceName} from "../../utils/schoolPublicMapper.js";
 
 const LOCATION_FALLBACK_PROVINCE = "Tất cả";
 const LOCATION_FALLBACK_WARD = "Tất cả";
@@ -121,20 +121,39 @@ export default function SchoolSearchPage() {
     const [selectedBoardingType, setSelectedBoardingType] = React.useState(null);
 
     const provinces = React.useMemo(
-        () => Array.from(new Set(schools.map((s) => s.province).filter(Boolean))),
+        () =>
+            Array.from(
+                new Set(
+                    schools
+                        .map((s) => normalizeProvinceName(s.province))
+                        .filter((value) => Boolean(value) && value !== LOCATION_FALLBACK_PROVINCE)
+                )
+            ),
         [schools]
     );
     const wardsByProvince = React.useMemo(() => {
         const acc = {};
         for (const s of schools) {
-            const p = s.province;
+            const p = normalizeProvinceName(s.province);
             if (!p) continue;
             if (!acc[p]) acc[p] = new Set();
-            acc[p].add(s.ward);
+            if (s.ward && s.ward !== LOCATION_FALLBACK_WARD) {
+                acc[p].add(s.ward);
+            }
         }
         return Object.fromEntries(Object.entries(acc).map(([k, v]) => [k, Array.from(v)]));
     }, [schools]);
-    const allWards = React.useMemo(() => Array.from(new Set(schools.map((s) => s.ward).filter(Boolean))), [schools]);
+    const allWards = React.useMemo(
+        () =>
+            Array.from(
+                new Set(
+                    schools
+                        .map((s) => s.ward)
+                        .filter((value) => Boolean(value) && value !== LOCATION_FALLBACK_WARD)
+                )
+            ),
+        [schools]
+    );
 
     React.useEffect(() => {
         let cancelled = false;
@@ -182,11 +201,6 @@ export default function SchoolSearchPage() {
     }, []);
 
     React.useEffect(() => {
-        if (!schools.length || !provinces.length) return;
-        setSelectedProvince((prev) => (prev && provinces.includes(prev) ? prev : provinces[0]));
-    }, [schools, provinces]);
-
-    React.useEffect(() => {
         window.scrollTo({top: 0, left: 0, behavior: 'auto'});
     }, []);
 
@@ -223,7 +237,7 @@ export default function SchoolSearchPage() {
 
     React.useEffect(() => {
         const wards = selectedProvince ? (wardsByProvince[selectedProvince] ?? []) : allWards;
-        setSelectedDistrict((prev) => (wards.includes(prev) ? prev : (wards[0] ?? "")));
+        setSelectedDistrict((prev) => (wards.includes(prev) ? prev : ""));
     }, [selectedProvince, wardsByProvince, allWards]);
 
     React.useEffect(() => {
@@ -234,7 +248,7 @@ export default function SchoolSearchPage() {
     const availableDistricts = selectedProvince ? (wardsByProvince[selectedProvince] ?? []) : allWards;
     const normalizedKeyword = searchKeyword.trim().toLowerCase();
     const filteredSchools = schools.filter((s) => {
-        const matchProvince = selectedProvince ? s.province === selectedProvince : true;
+        const matchProvince = selectedProvince ? normalizeProvinceName(s.province) === selectedProvince : true;
         const matchWard = selectedDistrict ? s.ward === selectedDistrict : true;
         const matchKeyword = normalizedKeyword ? s.school.toLowerCase().includes(normalizedKeyword) : true;
         return matchProvince && matchWard && matchKeyword;
@@ -555,6 +569,12 @@ export default function SchoolSearchPage() {
                             <Box>
                                 <Typography sx={{fontWeight: 700, fontSize: 13, mb: 1, color: BRAND_NAVY, letterSpacing: '0.02em'}}>Tỉnh, Thành phố</Typography>
                                 <Box sx={{display: 'flex', gap: 1, flexWrap: 'wrap'}}>
+                                    <Chip
+                                        label="Tất cả"
+                                        size="small"
+                                        onClick={() => setSelectedProvince("")}
+                                        sx={filterChipSx(!selectedProvince)}
+                                    />
                                     {provinces.map((province) => (
                                         <Chip
                                             key={province}
