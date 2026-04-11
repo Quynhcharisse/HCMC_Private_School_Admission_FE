@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useRef, useState} from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {
     Avatar,
     Box,
@@ -70,6 +70,10 @@ const resolveAccountId = (u) => {
 
 const accountIdSetKey = (id) => (id === null || id === undefined ? "" : String(id));
 
+/** Phân trang hiển thị; tải một lần nhiều bản ghi để search theo tên hoàn toàn phía FE */
+const TABLE_PAGE_SIZE = 10;
+const FETCH_PAGE_SIZE = 5000;
+
 export default function AdminUsersManagement() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -102,20 +106,18 @@ export default function AdminUsersManagement() {
 
     const fetchUsers = useCallback(async (opts = {}) => {
         const role = opts.role || roleTab;
-        const page = opts.page ?? pagination.page ?? 0;
-        const pageSize = opts.pageSize ?? pagination.pageSize ?? 10;
-        const keyword = opts.search ?? search;
 
         setLoading(true);
         try {
-            const res = await getUsersByRole({role, page, pageSize, search: keyword});
+            const res = await getUsersByRole({role, page: 0, pageSize: FETCH_PAGE_SIZE});
             const body = res?.data?.body;
-            setUsers(body?.items || []);
+            const items = body?.items || [];
+            setUsers(items);
             setPagination({
-                page: body?.currentPage ?? page,
-                pageSize: body?.pageSize ?? pageSize,
-                totalItems: body?.totalItems ?? 0,
-                totalPages: body?.totalPages ?? 0,
+                page: 0,
+                pageSize: TABLE_PAGE_SIZE,
+                totalItems: body?.totalItems ?? items.length,
+                totalPages: Math.max(1, Math.ceil(items.length / TABLE_PAGE_SIZE)),
                 hasNext: body?.hasNext ?? false,
                 hasPrevious: body?.hasPrevious ?? false,
             });
@@ -125,10 +127,40 @@ export default function AdminUsersManagement() {
         } finally {
             setLoading(false);
         }
-    }, [roleTab, search, pagination.page, pagination.pageSize]);
+    }, [roleTab]);
 
     const fetchUsersRef = useRef(fetchUsers);
     fetchUsersRef.current = fetchUsers;
+
+    const nameSearchQuery = search.trim().toLowerCase();
+
+    const filteredUsers = useMemo(() => {
+        if (!nameSearchQuery) return users;
+        return users.filter((u) => {
+            if (roleTab === "PARENT") {
+                const name = String(u.name ?? u.fullName ?? u.account?.name ?? "").toLowerCase();
+                return name.includes(nameSearchQuery);
+            }
+            const school = String(u.schoolName ?? "").toLowerCase();
+            return school.includes(nameSearchQuery);
+        });
+    }, [users, nameSearchQuery, roleTab]);
+
+    const totalListPages = Math.max(1, Math.ceil(filteredUsers.length / TABLE_PAGE_SIZE) || 1);
+
+    const displayedUsers = useMemo(() => {
+        const start = pagination.page * TABLE_PAGE_SIZE;
+        return filteredUsers.slice(start, start + TABLE_PAGE_SIZE);
+    }, [filteredUsers, pagination.page]);
+
+    useEffect(() => {
+        setPagination((prev) => ({...prev, page: 0}));
+    }, [search]);
+
+    useEffect(() => {
+        const maxPage = Math.max(0, Math.ceil(filteredUsers.length / TABLE_PAGE_SIZE) - 1);
+        setPagination((prev) => (prev.page > maxPage ? {...prev, page: maxPage} : prev));
+    }, [filteredUsers.length]);
 
     useEffect(() => {
         fetchUsersRef.current({page: 0});
@@ -146,11 +178,10 @@ export default function AdminUsersManagement() {
 
     const handleSearchSubmit = (e) => {
         e.preventDefault();
-        fetchUsers({page: 0});
     };
 
     const handlePageChange = (_, page) => {
-        fetchUsers({page: page - 1});
+        setPagination((prev) => ({...prev, page: page - 1}));
     };
 
     const handleOpenCampuses = (schoolId) => {
@@ -524,13 +555,13 @@ export default function AdminUsersManagement() {
     };
 
     const activeCount = users.filter((u) => (u.overallStatus || u.status || u.primaryCampus?.status) === "ACCOUNT_ACTIVE").length;
-    const parentCount = pagination.totalItems || 0;
-    const schoolCount = pagination.totalItems || 0;
+    const parentCount = users.length;
+    const schoolCount = users.length;
     const statCards = [
         {
             label: "Tổng người dùng",
-            value: pagination.totalItems || 0,
-            trend: `Trang ${pagination.page + 1}/${Math.max(1, pagination.totalPages || 1)}`,
+            value: users.length,
+            trend: `Trang ${pagination.page + 1}/${totalListPages}`,
             icon: <PeopleIcon sx={{fontSize: 22}}/>,
             iconColor: "#2563eb",
             iconBg: "#dbeafe",
@@ -758,7 +789,7 @@ export default function AdminUsersManagement() {
                         >
                             <TextField
                                 size="small"
-                                placeholder="Tìm theo tên hoặc địa chỉ..."
+                                placeholder="Tìm theo tên..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 sx={{
@@ -863,16 +894,18 @@ export default function AdminUsersManagement() {
                                             </Typography>
                                         </TableCell>
                                     </TableRow>
-                                ) : users.length === 0 ? (
+                                ) : displayedUsers.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={roleTab === "SCHOOL" ? 10 : 7} align="center" sx={{py: 4}}>
                                             <Typography variant="body1" sx={{color: '#64748b'}}>
-                                                Chưa có dữ liệu người dùng
+                                                {users.length === 0
+                                                    ? "Chưa có dữ liệu người dùng"
+                                                    : "Không tìm thấy người dùng phù hợp"}
                                             </Typography>
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    users.map((user, index) => (
+                                    displayedUsers.map((user, index) => (
                                         <TableRow
                                             key={resolveAccountId(user) || user.schoolId || index}
                                             hover
@@ -1029,7 +1062,7 @@ export default function AdminUsersManagement() {
                     >
                         <Pagination
                             page={pagination.page + 1}
-                            count={Math.max(1, pagination.totalPages || 1)}
+                            count={totalListPages}
                             onChange={handlePageChange}
                             shape="rounded"
                             disabled={loading}
