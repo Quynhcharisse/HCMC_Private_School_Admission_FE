@@ -3,7 +3,6 @@ export function isRichTextEmpty(html) {
         .replace(/<[^>]+>/g, " ")
         .replace(/&nbsp;/gi, " ")
         .replace(/\s+/g, " ")
-        
         .trim();
     return t.length === 0;
 }
@@ -35,6 +34,7 @@ export function buildCreatePostPayload({
     hashTagsRaw,
     categoryPost,
     imageUrlList,
+    documentItems,
     thumbnail,
     typeFile,
     publishedDate
@@ -54,6 +54,18 @@ export function buildCreatePostPayload({
         .filter(Boolean)
         .map((url, i) => ({url, position: i + 1}));
 
+    const rawDocs = Array.isArray(documentItems) ? documentItems : [];
+    const documentItemList = rawDocs
+        .filter((d) => d && typeof d === "object")
+        .map((d, i) => ({
+            position: i + 1,
+            fileName: String(d.fileName ?? "").trim(),
+            fileUrl: d.fileUrl == null || d.fileUrl === "" ? null : String(d.fileUrl).trim(),
+            storagePath: String(d.storagePath ?? "").trim(),
+            category: String(d.category ?? "").trim()
+        }))
+        .filter((d) => d.fileName || d.storagePath);
+
     return {
         hashTagList,
         totalPosition,
@@ -63,6 +75,7 @@ export function buildCreatePostPayload({
             contentDataList
         },
         image: {imageItemList},
+        document: {documentItemList},
         thumbnail: String(thumbnail || "").trim(),
         typeFile: String(typeFile || "").trim(),
         categoryPost: String(categoryPost || "").trim(),

@@ -53,16 +53,12 @@ import {
 } from "../../constants/homeLandingTheme";
 import SectionWaveEdge from "../ui/SectionWaveEdge.jsx";
 import HomeCreatePostBar from "../ui/HomeCreatePostBar.jsx";
-import admissionCard1Image from "../../assets/Nguyên tắc công bố tuyển sinh (từ Bộ GD&ĐT).jpg";
-import admissionCard2Image from "../../assets/Nhiều trường THPT công bố chỉ tiêu tuyển sinh 2026.jpg";
-import admissionCard3Image from "../../assets/TPHCM chốt 3 môn thi tuyển sinh lớp 10 năm 2026.jpeg";
-import admissionCard4Image from "../../assets/Đề thi lớp 10 2026 thay đổi theo hướng đánh giá năng lựcwebp.webp";
-import admissionCard5Image from "../../assets/TP.HCM tiếp tục kết hợp thi tuyển và xét tuyển.jpg.webp";
 import topPromoBanner1 from "../../assets/1.png";
 import topPromoBanner2 from "../../assets/2.png";
 import {getPublicSchoolList} from "../../services/SchoolPublicService.jsx";
 import {getAdminPackageFees} from "../../services/AdminService.jsx";
 import {createSchoolSubscriptionPayment} from "../../services/SchoolSubscriptionService.jsx";
+import {getPostList} from "../../services/PostService.jsx";
 
 const ADMISSION_CAROUSEL_INTERVAL_MS = 7000;
 const ADMISSION_ANIM_MS = 1400;
@@ -74,49 +70,6 @@ const TOP_PROMO_SLIDE_EASE = 'cubic-bezier(0.25, 0.46, 0.45, 0.94)';
 const TOP_PROMO_SLIDES = [
     {src: topPromoBanner1, alt: 'Hỗ trợ tư vấn tuyển sinh — EduBridgeHCM'},
     {src: topPromoBanner2, alt: 'Hỗ trợ tư vấn tuyển sinh — EduBridgeHCM'}
-];
-
-const ADMISSION_POSTS = [
-    {
-        title: 'Công bố chỉ tiêu trường ngoài công lập',
-        date: '02/06/2025',
-        description: 'TP HCM: Công bố chi tiết chỉ tiêu tuyển sinh lớp 10 của 64 trường ngoài công lập',
-        image: admissionCard1Image,
-        url: 'https://ttbc-hcm.gov.vn/tp-hcm-cong-bo-chi-tiet-chi-tieu-tuyen-sinh-lop-10-cua-64-truong-ngoai-cong-lap-1018826.html',
-        tags: ['Ngoài công lập', 'Chỉ tiêu', 'Lớp 10']
-    },
-    {
-        title: 'Nhiều trường THPT công bố chỉ tiêu tuyển sinh 2026',
-        date: '28/02/2026',
-        description: 'TPHCM: Thêm nhiều trường công bố chỉ tiêu tuyển sinh lớp 10 năm 2026',
-        image: admissionCard2Image,
-        url: 'https://nld.com.vn/tphcm-them-nhieu-truong-cong-bo-chi-tieu-tuyen-sinh-lop-10-nam-2026-196260228095241168.htm',
-        tags: ['THPT', 'Chỉ tiêu', '2026']
-    },
-    {
-        title: 'TP.HCM chốt phương thức thi tuyển lớp 10',
-        date: '18/10/2025',
-        description: 'TPHCM chốt 3 môn thi tuyển sinh lớp 10 năm 2026',
-        image: admissionCard3Image,
-        url: 'https://tphcm.chinhphu.vn/tphcm-chot-3-mon-thi-tuyen-sinh-lop-10-nam-2026-101251018144656866.htm',
-        tags: ['Phương thức thi', '3 môn thi', '2026']
-    },
-    {
-        title: 'Đề thi lớp 10 2026 thay đổi theo hướng đánh giá năng lực',
-        date: '01/12/2025',
-        description: 'Kỳ thi tuyển sinh lớp 10 công lập năm học 2026-2027 tại TPHCM: Giúp học sinh thích ứng tốt với điểm mới trong đề thi',
-        image: admissionCard4Image,
-        url: 'https://www.sggp.org.vn/ky-thi-tuyen-sinh-lop-10-cong-lap-nam-hoc-2026-2027-tai-tphcm-giup-hoc-sinh-thich-ung-tot-voi-diem-moi-trong-de-thi-post826311.html',
-        tags: ['Đề thi mới', 'Đánh giá năng lực', '2026-2027']
-    },
-    {
-        title: 'TP.HCM tiếp tục kết hợp thi tuyển và xét tuyển',
-        date: '16/07/2025',
-        description: 'TPHCM: Dự kiến Ngoại ngữ là môn thi thứ 3 tại kỳ thi tuyển sinh lớp 10 năm 2026',
-        image: admissionCard5Image,
-        url: 'https://www.sggp.org.vn/tphcm-du-kien-ngoai-ngu-la-mon-thi-thu-3-tai-ky-thi-tuyen-sinh-lop-10-nam-2026-post803971.html',
-        tags: ['Thi tuyển + xét tuyển', 'Ngoại ngữ', '2026']
-    }
 ];
 
 const DEFAULT_SCHOOL_IMAGE =
@@ -273,8 +226,55 @@ function ConsultGraphicCluster({variant = 1, mirror = false}) {
     );
 }
 
-function BlogCard({title, description, image, date, tags, url, variant = 'featured'}) {
+function stripHtmlToPlain(html) {
+    if (html == null) return "";
+    return String(html)
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+function formatPublishedDateVi(iso) {
+    if (!iso) return "";
+    try {
+        const d = new Date(iso);
+        if (Number.isNaN(d.getTime())) return String(iso);
+        return d.toLocaleString("vi-VN", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit"
+        });
+    } catch {
+        return String(iso);
+    }
+}
+
+function mapApiPostToBlogCard(raw) {
+    const title = String(raw?.content?.shortDescription ?? "").trim() || "Không có tiêu đề";
+    const list = raw?.content?.contentDataList;
+    let description = "";
+    if (Array.isArray(list) && list.length) {
+        const sorted = [...list].sort((a, b) => (Number(a?.position) || 0) - (Number(b?.position) || 0));
+        description = stripHtmlToPlain(sorted[0]?.text);
+    }
+    const image = String(raw?.thumbnail ?? "").trim() || DEFAULT_SCHOOL_IMAGE;
+    const date = formatPublishedDateVi(raw?.publishedDate);
+    let tags = raw?.hashTag;
+    if (!Array.isArray(tags)) {
+        tags = Array.isArray(raw?.hashTagList) ? raw.hashTagList : [];
+    }
+    tags = tags.map((t) => String(t).trim()).filter(Boolean);
+    const id = raw?.id;
+    const url = id != null ? `#post-${id}` : "#";
+    return {title, description, image, date, tags, url, id};
+}
+
+function BlogCard({title, description, image, date, tags = [], url, variant = 'featured'}) {
     const isFeatured = variant === 'featured';
+    const isExternal = typeof url === "string" && /^https?:\/\//i.test(url);
     return (
         <Card
             sx={{
@@ -311,6 +311,14 @@ function BlogCard({title, description, image, date, tags, url, variant = 'featur
                     height={isFeatured ? 240 : 168}
                     image={image}
                     alt={title}
+                    imgProps={{
+                        referrerPolicy: "no-referrer",
+                        onError: (e) => {
+                            if (e?.currentTarget?.src !== DEFAULT_SCHOOL_IMAGE) {
+                                e.currentTarget.src = DEFAULT_SCHOOL_IMAGE;
+                            }
+                        }
+                    }}
                     sx={{
                         objectFit: 'cover',
                         transition: `transform ${ADMISSION_ANIM_MS}ms ${admissionEase}`,
@@ -401,9 +409,9 @@ function BlogCard({title, description, image, date, tags, url, variant = 'featur
                 </Box>
                 <Button
                     size="small"
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    href={url || "#"}
+                    target={isExternal ? "_blank" : undefined}
+                    rel={isExternal ? "noopener noreferrer" : undefined}
                     sx={{
                         alignSelf: 'flex-start',
                         mt: 2,
@@ -533,10 +541,45 @@ function SchoolCard({school}) {
 function LatestAdmissionNewsSection() {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-    const posts = ADMISSION_POSTS;
+    const [posts, setPosts] = React.useState([]);
+    const [loading, setLoading] = React.useState(true);
+    const [fetchError, setFetchError] = React.useState(false);
     const n = posts.length;
     const [active, setActive] = React.useState(0);
     const timerRef = React.useRef(null);
+
+    React.useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            setLoading(true);
+            setFetchError(false);
+            try {
+                const res = await getPostList();
+                let body = res?.data?.body;
+                if (typeof body === "string") {
+                    try {
+                        body = JSON.parse(body);
+                    } catch {
+                        body = [];
+                    }
+                }
+                const list = Array.isArray(body) ? body : [];
+                const activeOnly = list.filter((p) => !p?.status || p.status === "POST_ACTIVE");
+                const mapped = activeOnly.map(mapApiPostToBlogCard);
+                if (!cancelled) setPosts(mapped);
+            } catch {
+                if (!cancelled) {
+                    setFetchError(true);
+                    setPosts([]);
+                }
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     const clearTimer = () => {
         if (timerRef.current) {
@@ -545,25 +588,34 @@ function LatestAdmissionNewsSection() {
         }
     };
 
-    const goToSlide = React.useCallback((index) => {
-        clearTimer();
-        setActive(((index % n) + n) % n);
-        timerRef.current = setInterval(() => {
-            setActive((prev) => (prev + 1) % n);
-        }, ADMISSION_CAROUSEL_INTERVAL_MS);
-    }, [n]);
+    const goToSlide = React.useCallback(
+        (index) => {
+            if (n === 0) return;
+            clearTimer();
+            setActive(((index % n) + n) % n);
+            timerRef.current = setInterval(() => {
+                setActive((prev) => (prev + 1) % n);
+            }, ADMISSION_CAROUSEL_INTERVAL_MS);
+        },
+        [n]
+    );
 
     React.useEffect(() => {
+        if (n === 0) {
+            clearTimer();
+            return undefined;
+        }
+        setActive((prev) => (prev >= n ? 0 : prev));
         goToSlide(0);
         return () => clearTimer();
-    }, [goToSlide]);
+    }, [goToSlide, n]);
 
-    const prevIndex = (active - 1 + n) % n;
-    const nextIndex = (active + 1) % n;
+    const prevIndex = n === 0 ? 0 : (active - 1 + n) % n;
+    const nextIndex = n === 0 ? 0 : (active + 1) % n;
 
     return (
         <Box
-            id="tin-tuyen-sinh"
+            id="thong-tin-thong-bao"
             sx={{
                 pt: {xs: 8, md: 10},
                 pb: {xs: 3, md: 4},
@@ -593,7 +645,7 @@ function LatestAdmissionNewsSection() {
                             letterSpacing: '-0.02em'
                         }}
                     >
-                        Tin tuyển sinh mới nhất
+                        Thông tin thông báo
                     </Typography>
                     <Typography
                         variant="body1"
@@ -609,7 +661,19 @@ function LatestAdmissionNewsSection() {
                     </Typography>
                 </Box>
 
-                {isMobile ? (
+                {loading ? (
+                    <Box sx={{display: 'flex', justifyContent: 'center', py: 6}}>
+                        <CircularProgress sx={{color: APP_PRIMARY_MAIN}} />
+                    </Box>
+                ) : fetchError ? (
+                    <Typography align="center" sx={{color: '#64748b', py: 4}}>
+                        Không tải được danh sách thông báo. Vui lòng thử lại sau.
+                    </Typography>
+                ) : n === 0 ? (
+                    <Typography align="center" sx={{color: '#64748b', py: 4}}>
+                        Chưa có thông báo nào.
+                    </Typography>
+                ) : isMobile ? (
                     <Box sx={{position: 'relative', maxWidth: 400, mx: 'auto'}}>
                         <Box
                             sx={{
@@ -617,7 +681,7 @@ function LatestAdmissionNewsSection() {
                                 opacity: 1,
                                 transform: 'translateY(0) scale(1)'
                             }}
-                            key={active}
+                            key={posts[active]?.id ?? active}
                         >
                             <BlogCard {...posts[active]} variant="featured" />
                         </Box>
@@ -679,7 +743,7 @@ function LatestAdmissionNewsSection() {
                             <BlogCard {...posts[prevIndex]} variant="side" />
                         </Box>
                         <Box
-                            key={active}
+                            key={posts[active]?.id ?? active}
                             sx={{
                                 flex: '0 1 43%',
                                 maxWidth: 390,
@@ -720,22 +784,24 @@ function LatestAdmissionNewsSection() {
                     </Box>
                 )}
 
-                <Stack direction="row" spacing={1} justifyContent="center" sx={{mt: {xs: 3, md: 3.5}}}>
-                    {posts.map((_, i) => (
-                        <Box
-                            key={i}
-                            onClick={() => goToSlide(i)}
-                            sx={{
-                                width: i === active ? 28 : 9,
-                                height: 9,
-                                borderRadius: 999,
-                                bgcolor: i === active ? APP_PRIMARY_MAIN : 'rgba(51,65,85,0.18)',
-                                cursor: 'pointer',
-                                transition: `all ${ADMISSION_ANIM_MS * 0.5}ms ${admissionEase}`
-                            }}
-                        />
-                    ))}
-                </Stack>
+                {!loading && !fetchError && n > 0 ? (
+                    <Stack direction="row" spacing={1} justifyContent="center" sx={{mt: {xs: 3, md: 3.5}}}>
+                        {posts.map((p, i) => (
+                            <Box
+                                key={p.id ?? i}
+                                onClick={() => goToSlide(i)}
+                                sx={{
+                                    width: i === active ? 28 : 9,
+                                    height: 9,
+                                    borderRadius: 999,
+                                    bgcolor: i === active ? APP_PRIMARY_MAIN : 'rgba(51,65,85,0.18)',
+                                    cursor: 'pointer',
+                                    transition: `all ${ADMISSION_ANIM_MS * 0.5}ms ${admissionEase}`
+                                }}
+                            />
+                        ))}
+                    </Stack>
+                ) : null}
                 </Box>
             </Container>
         </Box>
@@ -1175,7 +1241,7 @@ export default function HomePage() {
                 }
             }
         } catch {
-            /* ignore */
+            void 0;
         }
 
         const smoothScrollToElement = (element, headerHeight) => {
