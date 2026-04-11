@@ -20,6 +20,16 @@ const axiosClient = axios.create({
     withCredentials: true
 })
 
+axiosClient.interceptors.request.use((config) => {
+    const m = config.method?.toLowerCase();
+    if (m === "get" || m === "head") {
+        if (config.headers && "Content-Type" in config.headers) {
+            delete config.headers["Content-Type"];
+        }
+    }
+    return config;
+});
+
 axiosClient.interceptors.response.use(
     response => response,
     async error => {
