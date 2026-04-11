@@ -284,6 +284,7 @@ function MainHeader() {
     const userInfo = getUserInfo();
     const isParent = userInfo?.role === 'PARENT';
     const isSchool = userInfo?.role === 'SCHOOL';
+    const isAdmin = userInfo?.role === 'ADMIN';
     const userIdentitySet = React.useMemo(() => {
         return new Set(
             [
@@ -1309,6 +1310,18 @@ function MainHeader() {
                             </Button>
                             <Button color="inherit" sx={navButtonSx('/package-fees')} onClick={() => goTo('/package-fees')}>
                                 Gói dịch vụ
+                            </Button>
+                        </Box>
+                    ) : isSignedIn && isAdmin ? (
+                        <Box sx={{display: {xs: 'none', md: 'flex'}, gap: 1}}>
+                            <Button color="inherit" sx={navButtonSx('/home')} onClick={() => goTo('/home')}>
+                                Trang chủ
+                            </Button>
+                            <Button color="inherit" sx={navButtonSx('/search-schools')} onClick={() => goTo('/search-schools')}>
+                                Tìm trường
+                            </Button>
+                            <Button color="inherit" sx={navButtonSx('/compare-schools')} onClick={() => goTo('/compare-schools')}>
+                                So sánh trường
                             </Button>
                         </Box>
                     ) : !isSignedIn ? (
@@ -2359,6 +2372,18 @@ function MainHeader() {
                                     </ListItem>
                                     <ListItem onClick={() => goTo('/package-fees')} sx={navMobileItemSx('/package-fees')}>
                                         <ListItemText primary="Gói dịch vụ" sx={navMobileTextSx('/package-fees')}/>
+                                    </ListItem>
+                                </>
+                            ) : isSignedIn && isAdmin ? (
+                                <>
+                                    <ListItem onClick={() => goTo('/home')} sx={navMobileItemSx('/home')}>
+                                        <ListItemText primary="Trang chủ" sx={navMobileTextSx('/home')}/>
+                                    </ListItem>
+                                    <ListItem onClick={() => goTo('/search-schools')} sx={navMobileItemSx('/search-schools')}>
+                                        <ListItemText primary="Tìm trường" sx={navMobileTextSx('/search-schools')}/>
+                                    </ListItem>
+                                    <ListItem onClick={() => goTo('/compare-schools')} sx={navMobileItemSx('/compare-schools')}>
+                                        <ListItemText primary="So sánh trường" sx={navMobileTextSx('/compare-schools')}/>
                                     </ListItem>
                                 </>
                             ) : !isSignedIn ? (

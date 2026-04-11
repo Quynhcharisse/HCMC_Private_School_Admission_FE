@@ -103,7 +103,7 @@ export default function AuthHeader({showSidebarToggle = false, onToggleSidebar, 
     const displayEmail = profileBody?.email || userInfo?.email || '';
     const avatarUrl = profileBody?.picture || userInfo?.picture || null;
     const isLogoHomeNavigationDisabled =
-        userInfo?.role === 'ADMIN' || userInfo?.role === 'COUNSELLOR' || userInfo?.role === 'SCHOOL';
+        userInfo?.role === 'COUNSELLOR' || userInfo?.role === 'SCHOOL';
 
     const handleGoHome = () => {
         if (isLogoHomeNavigationDisabled) return;

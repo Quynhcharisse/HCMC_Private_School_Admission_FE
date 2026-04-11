@@ -5,7 +5,11 @@ import Header, {ScrollTopButton} from "../partials/Header.jsx";
 import Footer from "../partials/Footer.jsx";
 import AuthHeader from "../partials/AuthHeader.jsx";
 import Chatbot from "./Chatbot.jsx";
-import {getRoleDashboardRoute, isRouteAllowedForRole} from "../../utils/roleRouting";
+import {
+    getRoleDashboardRoute,
+    isRouteAllowedForRole,
+    shouldPreferCurrentPathOverLastRoute
+} from "../../utils/roleRouting";
 
 export default function WebAppLayout() {
     const location = useLocation();
@@ -95,9 +99,12 @@ export default function WebAppLayout() {
         const lastRoute = localStorage.getItem('lastRoute');
         const currentPath = location.pathname;
 
-        // Nếu có lastRoute và hợp lệ với role → vào lastRoute
+        // Nếu có lastRoute và hợp lệ với role → vào lastRoute (trừ khi đang vào /home, tìm trường, so sánh có chủ đích)
         if (lastRoute && isRouteAllowedForRole(lastRoute, role)) {
-            if (currentPath !== lastRoute) {
+            if (
+                currentPath !== lastRoute &&
+                !shouldPreferCurrentPathOverLastRoute(currentPath, role)
+            ) {
                 navigate(lastRoute, {replace: true});
             }
             return;
