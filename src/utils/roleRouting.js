@@ -1,5 +1,7 @@
+import {normalizeUserRole} from "./userRole.js";
+
 export const getRoleDashboardRoute = (role) => {
-    const normalizedRole = role?.toUpperCase();
+    const normalizedRole = normalizeUserRole(role ?? "");
 
     switch (normalizedRole) {
         case 'ADMIN':
@@ -15,7 +17,6 @@ export const getRoleDashboardRoute = (role) => {
     }
 };
 
-/** Pathname (+ optional search) — dùng cho lastRoute */
 const stripHash = (path) => {
     if (!path || typeof path !== 'string') return '';
     const i = path.indexOf('#');
@@ -25,7 +26,7 @@ const stripHash = (path) => {
 export const isRouteAllowedForRole = (path, role) => {
     if (!role) return false;
 
-    const normalizedRole = role.toUpperCase();
+    const normalizedRole = normalizeUserRole(role);
 
     if (normalizedRole === 'ADMIN') {
         const p = stripHash(path).split('?')[0] || '';
@@ -67,10 +68,6 @@ export const isRouteAllowedForRole = (path, role) => {
     return false;
 };
 
-/**
- * Khi user mở thẳng /home, /search-schools, /compare-schools (bookmark / link),
- * không ép quay lại lastRoute (ví dụ /admin/dashboard).
- */
 export const shouldPreferCurrentPathOverLastRoute = (path, role) => {
     const base = stripHash(path).split('?')[0] || '';
     const mainPrefixes = ['/home', '/search-schools', '/compare-schools'];

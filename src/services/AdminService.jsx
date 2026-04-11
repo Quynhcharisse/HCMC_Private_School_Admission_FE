@@ -144,11 +144,7 @@ export const getAdminTemplateDocuments = async (categoryTemplate) => {
 export const uploadAdminTemplateDocument = async (categoryTemplate, file) => {
     const formData = new FormData();
     formData.append("file", file);
-    const response = await axiosClient.post(`/admin/${categoryTemplate}/upload`, formData, {
-        headers: {
-            "Content-Type": "multipart/form-data",
-        },
-    });
+    const response = await axiosClient.post(`/admin/${categoryTemplate}/upload`, formData);
     return response || null;
 };
 

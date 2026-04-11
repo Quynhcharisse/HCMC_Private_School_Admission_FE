@@ -3,6 +3,7 @@ import {refreshToken} from "../services/AuthService.jsx";
 import {getAccess, signout} from "../services/AccountService.jsx";
 import {useLoading} from "../contexts/LoadingContext.jsx";
 import {getRoleDashboardRoute} from "../utils/roleRouting";
+import {normalizeUserRole, pickRoleFromAccessBody} from "../utils/userRole.js";
 
 async function GetAccessData() {
     try {
@@ -42,7 +43,6 @@ async function Logout() {
         }
     } catch (error) {
         console.error("Logout error:", error);
-        // Vẫn clear storage và redirect dù có lỗi
         if (localStorage.length > 0) {
             localStorage.clear();
         }
@@ -55,8 +55,8 @@ async function Logout() {
 
 async function CheckIfRoleValid(allowRoles, role) {
     if (!role) return false;
-    const normalizedRole = role.toUpperCase();
-    const normalizedAllowRoles = allowRoles.map(r => r.toUpperCase());
+    const normalizedRole = normalizeUserRole(role);
+    const normalizedAllowRoles = allowRoles.map((r) => normalizeUserRole(r));
     return normalizedAllowRoles.includes(normalizedRole);
 }
 
@@ -80,8 +80,9 @@ export default function ProtectedRoute({children, allowRoles = []}) {
 
                 const data = await GetAccessData();
 
-                if (data != null && data.role) {
-                    const isValidRole = await CheckIfRoleValid(allowRoles, data.role);
+                const roleFromData = data != null ? pickRoleFromAccessBody(data) ?? data.role : null;
+                if (data != null && roleFromData) {
+                    const isValidRole = await CheckIfRoleValid(allowRoles, roleFromData);
                     if (isValidRole) {
                         setIsAuthenticated(true);
                         setHasValidRole(true);
@@ -89,8 +90,8 @@ export default function ProtectedRoute({children, allowRoles = []}) {
                         setAuthLoading(false);
                         return;
                     } else {
-                        console.warn(`User has role ${data.role} but route requires:`, allowRoles);
-                        const redirect = getRoleDashboardRoute(data.role);
+                        console.warn(`User has role ${roleFromData} but route requires:`, allowRoles);
+                        const redirect = getRoleDashboardRoute(normalizeUserRole(roleFromData));
                         window.location.href = redirect;
                         return;
                     }
@@ -100,8 +101,9 @@ export default function ProtectedRoute({children, allowRoles = []}) {
                     const refreshResponse = await refreshToken();
                     if (refreshResponse && refreshResponse.status === 200) {
                         const retryData = await GetAccessData();
-                        if (retryData != null && retryData.role) {
-                            const isValidRole = await CheckIfRoleValid(allowRoles, retryData.role);
+                        const retryRole = retryData != null ? pickRoleFromAccessBody(retryData) ?? retryData.role : null;
+                        if (retryData != null && retryRole) {
+                            const isValidRole = await CheckIfRoleValid(allowRoles, retryRole);
                             if (isValidRole) {
                                 setIsAuthenticated(true);
                                 setHasValidRole(true);
@@ -109,8 +111,8 @@ export default function ProtectedRoute({children, allowRoles = []}) {
                                 setAuthLoading(false);
                                 return;
                             } else {
-                                console.warn(`User has role ${retryData.role} but route requires:`, allowRoles);
-                                const redirect = getRoleDashboardRoute(retryData.role);
+                                console.warn(`User has role ${retryRole} but route requires:`, allowRoles);
+                                const redirect = getRoleDashboardRoute(normalizeUserRole(retryRole));
                                 window.location.href = redirect;
                                 return;
                             }
