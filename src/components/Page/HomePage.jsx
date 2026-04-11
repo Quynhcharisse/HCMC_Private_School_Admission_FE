@@ -23,7 +23,8 @@ import {
     useMediaQuery
 } from "@mui/material";
 import {useTheme} from "@mui/material/styles";
-import {updateProfile} from "../../services/AccountService";
+import {syncLocalUserWithAccess, updateProfile} from "../../services/AccountService";
+import {normalizeUserRole} from "../../utils/userRole.js";
 import {enqueueSnackbar} from "notistack";
 import {
     ArrowForward as ArrowForwardIcon,
@@ -990,16 +991,30 @@ function HomeTopPromoCarousel({isSignedIn, onRegisterClick, navigate}) {
     );
 }
 
+function readSignedInRoleFlags() {
+    try {
+        if (typeof window === "undefined") {
+            return {signedIn: false, admin: false, school: false};
+        }
+        const raw = localStorage.getItem("user");
+        if (!raw) return {signedIn: false, admin: false, school: false};
+        const user = JSON.parse(raw);
+        const r = normalizeUserRole(user.role ?? "");
+        return {signedIn: true, admin: r === "ADMIN", school: r === "SCHOOL"};
+    } catch {
+        return {signedIn: false, admin: false, school: false};
+    }
+}
+
 export default function HomePage() {
     const navigate = useNavigate();
     const location = useLocation();
     const [homeSchools, setHomeSchools] = React.useState([]);
     const [schoolLoading, setSchoolLoading] = React.useState(true);
-    const [isSignedIn, setIsSignedIn] = React.useState(() =>
-        typeof window !== "undefined" && Boolean(localStorage.getItem("user"))
-    );
-    const [isAdminRole, setIsAdminRole] = React.useState(false);
-    const [isSchoolRole, setIsSchoolRole] = React.useState(false);
+    const [authSnapshot] = React.useState(() => readSignedInRoleFlags());
+    const [isSignedIn, setIsSignedIn] = React.useState(authSnapshot.signedIn);
+    const [isAdminRole, setIsAdminRole] = React.useState(authSnapshot.admin);
+    const [isSchoolRole, setIsSchoolRole] = React.useState(authSnapshot.school);
     const [schoolServicePackages, setSchoolServicePackages] = React.useState([]);
     const [servicePackagesLoading, setServicePackagesLoading] = React.useState(false);
     const [buyNowLoadingPackageId, setBuyNowLoadingPackageId] = React.useState(null);
@@ -1123,9 +1138,9 @@ export default function HomePage() {
         if (userData) {
             try {
                 const user = JSON.parse(userData);
-                const r = String(user.role ?? '').toUpperCase();
-                setIsAdminRole(r === 'ADMIN');
-                setIsSchoolRole(r === 'SCHOOL');
+                const r = normalizeUserRole(user.role ?? "");
+                setIsAdminRole(r === "ADMIN");
+                setIsSchoolRole(r === "SCHOOL");
             } catch (e) {
                 console.error('Error parsing user data:', e);
                 setIsAdminRole(false);
@@ -1138,12 +1153,24 @@ export default function HomePage() {
     }, []);
 
     React.useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            if (!localStorage.getItem('user')) return;
+            await syncLocalUserWithAccess();
+            if (!cancelled) syncUserRoleFlags();
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [syncUserRoleFlags]);
+
+    React.useEffect(() => {
         syncUserRoleFlags();
         try {
             const raw = localStorage.getItem('user');
             if (raw) {
                 const user = JSON.parse(raw);
-                if (String(user.role ?? '').toUpperCase() === 'PARENT' && user.firstLogin === true) {
+                if (normalizeUserRole(user.role ?? "") === "PARENT" && user.firstLogin === true) {
                     setShowParentFormModal(true);
                 }
             }
@@ -1296,14 +1323,11 @@ export default function HomePage() {
             const paymentUrl = res?.data?.body;
             if (typeof paymentUrl === "string" && /^https?:\/\//i.test(paymentUrl.trim())) {
                 const url = paymentUrl.trim();
-                // Không truyền "noopener" trong tham số thứ 3: nhiều trình duyệt vẫn mở tab mới nhưng trả về null,
-                // khiến nhánh fallback assign() chạy và tab hiện tại cũng nhảy sang VNPay.
                 const w = window.open(url, "_blank");
                 if (w) {
                     try {
                         w.opener = null;
                     } catch {
-                        /* cross-origin */
                     }
                 } else {
                     enqueueSnackbar("Không mở được tab mới. Đang chuyển trong tab hiện tại.", {variant: "warning"});

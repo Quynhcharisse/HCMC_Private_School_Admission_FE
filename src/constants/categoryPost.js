@@ -1,4 +1,3 @@
-/** Giá trị gửi BE — `categoryPost` (CreatePostRequest) */
 export const CATEGORY_POST_ADMIN = Object.freeze([
     {value: "SYSTEM_NOTIFICATIONS", label: "Thông báo hệ thống"},
     {value: "GENERAL_EDUCATION_NEWS", label: "Tin tức giáo dục chung"},

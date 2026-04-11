@@ -1,7 +1,7 @@
 import axiosClient from "../configs/APIConfig.jsx";
+import {normalizeUserRole, pickRoleFromAccessBody} from "../utils/userRole.js";
 
 const normalizeProfileResponse = (response) => {
-    // Backend đôi khi trả `body` dưới dạng string JSON; normalize để UI dùng thống nhất.
     const body = response?.data?.body;
     if (typeof body === "string") {
         try {
@@ -23,8 +23,50 @@ export const signout = async () => {
 }
 
 export const getAccess = async () => {
-    const response = await axiosClient.post("/account/access")
-    return response || null;
+    const response = await axiosClient.post("/account/access");
+    return normalizeProfileResponse(response) || null;
+};
+
+export async function syncLocalUserWithAccess() {
+    try {
+        const res = await getAccess();
+        if (!res || res.status !== 200) return null;
+
+        let body = res.data?.body;
+        if (typeof body === "string") {
+            try {
+                body = JSON.parse(body);
+            } catch {
+                return null;
+            }
+        }
+        if (!body || typeof body !== "object") return null;
+
+        const roleRaw = pickRoleFromAccessBody(body);
+        if (roleRaw == null || String(roleRaw).trim() === "") return null;
+
+        const normalizedRole = normalizeUserRole(roleRaw);
+        if (!normalizedRole) return null;
+        let prev = {};
+        try {
+            const raw = localStorage.getItem("user");
+            if (raw) prev = JSON.parse(raw);
+        } catch {
+            prev = {};
+        }
+
+        const merged = {
+            ...prev,
+            role: normalizedRole,
+            ...(body.email != null ? {email: body.email} : {}),
+            ...(body.firstLogin !== undefined ? {firstLogin: body.firstLogin} : {}),
+            ...(body.name != null ? {name: body.name} : {})
+        };
+        localStorage.setItem("user", JSON.stringify(merged));
+        return merged;
+    } catch {
+        return null;
+    }
 }
 
 export const getProfile = async () => {
@@ -32,7 +74,6 @@ export const getProfile = async () => {
     return normalizeProfileResponse(response) || null;
 }
 
-/** Role SCHOOL: PUT chỉ cần `campusData` theo contract (gồm `schoolData` + các trường campus). */
 export const updateProfile = async (profileData) => {
     const response = await axiosClient.put("/account/profile", profileData, {
         headers: {

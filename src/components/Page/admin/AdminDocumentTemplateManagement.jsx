@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
     Avatar,
     Box,
@@ -6,9 +6,12 @@ import {
     Card,
     CardContent,
     CircularProgress,
+    FormControl,
     IconButton,
-    Tab,
-    Tabs,
+    InputLabel,
+    Link,
+    MenuItem,
+    Select,
     Typography,
     alpha,
 } from "@mui/material";
@@ -23,11 +26,11 @@ import {
     uploadAdminTemplateDocument,
 } from "../../../services/AdminService.jsx";
 import { adminDataCardBorderSx } from "../../../constants/adminTableStyles.js";
-                
-const CATEGORY_TABS = [
-    { key: "CAMPUS_INFO_TEMPLATE", label: "CAMPUS_INFO_TEMPLATE" },
-    { key: "SCHOOL_INFO_TEMPLATE", label: "SCHOOL_INFO_TEMPLATE" },
-];
+
+const TEMPLATE_CATEGORY_OPTIONS = Object.freeze([
+    {value: "SCHOOL_INFO_TEMPLATE", label: "Mẫu thông tin trường"},
+    {value: "CAMPUS_INFO_TEMPLATE", label: "Mẫu thông tin cơ sở"}
+]);
 
 const MAX_FILE_BYTES = 50 * 1024 * 1024;
 const ACCEPTED_EXTENSIONS = [".doc", ".docx"];
@@ -49,17 +52,16 @@ function extractDocuments(response) {
     return [];
 }
 
-function extractUploadedFilename(response, fallbackName) {
-    const body = response?.data?.body;
-    const value =
-        body?.fileName ??
-        body?.filename ??
-        body?.name ??
-        body?.originalFileName ??
-        response?.data?.fileName ??
-        response?.data?.filename;
-    if (typeof value === "string" && value.trim()) return value.trim();
-    return fallbackName;
+function extractUploadResult(response, fallbackName) {
+    const body = response?.data?.body ?? {};
+    const fileName =
+        (typeof body.fileName === "string" && body.fileName.trim()) ||
+        (typeof body.filename === "string" && body.filename.trim()) ||
+        (typeof body.name === "string" && body.name.trim()) ||
+        (typeof response?.data?.fileName === "string" && response.data.fileName.trim()) ||
+        fallbackName;
+    const fileUrl = typeof body.fileUrl === "string" && body.fileUrl.trim() ? body.fileUrl.trim() : "";
+    return {fileName, fileUrl};
 }
 
 function mapDocument(item, index) {
@@ -74,22 +76,33 @@ function isDocFile(file) {
     return ACCEPTED_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
 }
 
+const selectSx = {
+    "& .MuiInputLabel-root": {color: "rgba(30, 41, 59, 0.65)"},
+    "& .MuiOutlinedInput-root": {
+        bgcolor: "#ffffff",
+        color: APP_PRIMARY_MAIN,
+        fontWeight: 600,
+        "& fieldset": {borderColor: "rgba(59, 130, 246, 0.35)"},
+        "&:hover fieldset": {borderColor: "rgba(59, 130, 246, 0.55)"},
+        "&.Mui-focused fieldset": {borderColor: APP_PRIMARY_MAIN}
+    }
+};
+
 export default function AdminDocumentTemplateManagement() {
     const fileInputRef = useRef(null);
-    const [tabIndex, setTabIndex] = useState(0);
+    const [categoryTemplate, setCategoryTemplate] = useState(TEMPLATE_CATEGORY_OPTIONS[0].value);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const [deletingId, setDeletingId] = useState(null);
     const [documents, setDocuments] = useState([]);
     const [uploadedFileName, setUploadedFileName] = useState("");
-
-    const activeCategory = useMemo(() => CATEGORY_TABS[tabIndex]?.key ?? CATEGORY_TABS[0].key, [tabIndex]);
+    const [uploadedFileUrl, setUploadedFileUrl] = useState("");
 
     const loadDocuments = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await getAdminTemplateDocuments(activeCategory);
+            const res = await getAdminTemplateDocuments(categoryTemplate);
             const list = extractDocuments(res).map(mapDocument);
             setDocuments(list);
         } catch (e) {
@@ -99,10 +112,11 @@ export default function AdminDocumentTemplateManagement() {
         } finally {
             setLoading(false);
         }
-    }, [activeCategory]);
+    }, [categoryTemplate]);
 
     useEffect(() => {
         setUploadedFileName("");
+        setUploadedFileUrl("");
         loadDocuments();
     }, [loadDocuments]);
 
@@ -123,13 +137,15 @@ export default function AdminDocumentTemplateManagement() {
         }
         setUploading(true);
         try {
-            const res = await uploadAdminTemplateDocument(activeCategory, file);
-            setUploadedFileName(extractUploadedFilename(res, file.name));
-            enqueueSnackbar("Upload tài liệu mẫu thành công.", { variant: "success" });
+            const res = await uploadAdminTemplateDocument(categoryTemplate, file);
+            const {fileName, fileUrl} = extractUploadResult(res, file.name);
+            setUploadedFileName(fileName);
+            setUploadedFileUrl(fileUrl);
+            enqueueSnackbar("Đã tải lên tài liệu mẫu thành công.", { variant: "success" });
             await loadDocuments();
         } catch (e) {
             console.error(e);
-            enqueueSnackbar(pickHttpErrorMessage(e, "Upload thất bại. Vui lòng thử lại."), { variant: "error" });
+            enqueueSnackbar(pickHttpErrorMessage(e, "Tải lên không thành công. Vui lòng thử lại."), { variant: "error" });
         } finally {
             setUploading(false);
         }
@@ -209,30 +225,35 @@ export default function AdminDocumentTemplateManagement() {
 
             <Card elevation={0} sx={{ ...adminDataCardBorderSx, borderRadius: 2 }}>
                 <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
-                    <Tabs
-                        value={tabIndex}
-                        onChange={(_, next) => setTabIndex(next)}
-                        variant="scrollable"
-                        scrollButtons="auto"
-                        sx={{
-                            mb: 2,
-                            minHeight: 44,
-                            borderBottom: "1px solid #bfdbfe",
-                            "& .MuiTab-root": {
-                                textTransform: "none",
-                                fontWeight: 700,
-                                fontSize: "0.95rem",
-                                minHeight: 44,
-                                color: "#64748b",
-                            },
-                            "& .Mui-selected": { color: APP_PRIMARY_MAIN },
-                            "& .MuiTabs-indicator": { height: 3, borderRadius: "3px 3px 0 0", bgcolor: APP_PRIMARY_MAIN },
-                        }}
-                    >
-                        {CATEGORY_TABS.map((tab, idx) => (
-                            <Tab key={tab.key} value={idx} label={tab.label} />
-                        ))}
-                    </Tabs>
+                    <FormControl fullWidth size="small" sx={{mb: 2, maxWidth: {sm: 420}, ...selectSx}}>
+                        <InputLabel id="template-category-label">Định dạng tệp đính kèm</InputLabel>
+                        <Select
+                            labelId="template-category-label"
+                            label="Định dạng tệp đính kèm"
+                            value={categoryTemplate}
+                            onChange={(e) => setCategoryTemplate(e.target.value)}
+                            disabled={uploading}
+                            renderValue={(val) => {
+                                const o = TEMPLATE_CATEGORY_OPTIONS.find((x) => x.value === val);
+                                return o?.label ?? "";
+                            }}
+                            MenuProps={{
+                                PaperProps: {
+                                    sx: {
+                                        bgcolor: "#ffffff",
+                                        border: "1px solid rgba(59, 130, 246, 0.22)",
+                                        "& .MuiMenuItem-root": {fontSize: "0.9rem"}
+                                    }
+                                }
+                            }}
+                        >
+                            {TEMPLATE_CATEGORY_OPTIONS.map((opt) => (
+                                <MenuItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                </MenuItem>
+                            ))}
+                        </Select>
+                    </FormControl>
 
                     <Box
                         sx={{
@@ -274,12 +295,19 @@ export default function AdminDocumentTemplateManagement() {
                             >
                                 <UploadFileOutlinedIcon sx={{ fontSize: 44, color: "#60a5fa", mb: 1 }} />
                                 <Typography sx={{ color: "#334155", mb: 1, fontWeight: 600 }}>
-                                    Kéo thả file vào đây hoặc bấm Upload
+                                    Kéo thả file vào đây hoặc bấm tải lên
                                 </Typography>
                                 <Button
                                     variant="outlined"
                                     onClick={onChooseFile}
                                     disabled={uploading}
+                                    startIcon={
+                                        uploading ? (
+                                            <CircularProgress size={18} color="inherit" />
+                                        ) : (
+                                            <UploadFileOutlinedIcon sx={{ fontSize: 20 }} />
+                                        )
+                                    }
                                     sx={{
                                         textTransform: "none",
                                         fontWeight: 600,
@@ -293,7 +321,7 @@ export default function AdminDocumentTemplateManagement() {
                                         },
                                     }}
                                 >
-                                    {uploading ? <CircularProgress size={20} color="inherit" /> : "Upload"}
+                                    {uploading ? "Đang tải…" : "Tải lên"}
                                 </Button>
                                 <Typography
                                     variant="caption"
@@ -316,15 +344,26 @@ export default function AdminDocumentTemplateManagement() {
                                     borderRadius: 2,
                                     bgcolor: "#e0f2fe",
                                     px: 1.5,
-                                    py: 1,
+                                    py: 1.25,
                                     minHeight: 44,
                                     display: "flex",
-                                    alignItems: "center",
+                                    flexDirection: "column",
+                                    gap: 0.75,
                                 }}
                             >
-                                <Typography sx={{ color: "#0f172a", fontWeight: 600 }}>
-                                    {uploadedFileName || "file_name"}
+                                <Typography sx={{ color: "#0f172a", fontWeight: 600, wordBreak: "break-word" }}>
+                                    {uploadedFileName || "Chưa có tệp vừa tải"}
                                 </Typography>
+                                {uploadedFileUrl ? (
+                                    <Link
+                                        href={uploadedFileUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        sx={{ fontSize: "0.8rem", fontWeight: 600, wordBreak: "break-all" }}
+                                    >
+                                        Mở liên kết tệp đã lưu
+                                    </Link>
+                                ) : null}
                             </Box>
                         </Box>
 

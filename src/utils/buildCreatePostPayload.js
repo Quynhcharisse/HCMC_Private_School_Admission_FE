@@ -1,15 +1,34 @@
-/**
- * Dựng body POST /api/v1/post đúng CreatePostRequest (BE).
- * @param {object} p
- * @param {string} p.shortDescription — content.shortDescription
- * @param {string} p.contentBody — tách thành content.contentDataList (mỗi khối non-empty = 1 đoạn, position 1..n)
- * @param {string} p.hashTagsRaw — hashtag, cách nhau bởi dấu phẩy hoặc khoảng trắng
- * @param {string} p.categoryPost — enum name
- * @param {string[]} p.imageUrlList — URL ảnh trong bài (http/https)
- * @param {string} p.thumbnail
- * @param {string} p.typeFile — MIME, ví dụ image/jpeg
- * @param {string} p.publishedDate — ISO-friendly, ví dụ 2026-04-11T19:00:00
- */
+export function isRichTextEmpty(html) {
+    const t = String(html || "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/\s+/g, " ")
+        
+        .trim();
+    return t.length === 0;
+}
+
+function buildContentDataList(contentBody) {
+    const raw = String(contentBody || "").trim();
+    if (!raw) return [];
+
+    const looksLikeHtml = /<[a-z][\s\S]*>/i.test(raw);
+    if (looksLikeHtml) {
+        if (isRichTextEmpty(raw)) return [];
+        return [{text: raw, position: 1}];
+    }
+
+    const paragraphs = raw
+        .split(/\n\s*\n/)
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+    return paragraphs.map((text, i) => ({
+        text,
+        position: i + 1
+    }));
+}
+
 export function buildCreatePostPayload({
     shortDescription,
     contentBody,
@@ -25,15 +44,7 @@ export function buildCreatePostPayload({
         .map((s) => s.trim().toLowerCase().replace(/^#/, ""))
         .filter(Boolean);
 
-    const paragraphs = String(contentBody || "")
-        .split(/\n\s*\n/)
-        .map((t) => t.trim())
-        .filter(Boolean);
-
-    const contentDataList = paragraphs.map((text, i) => ({
-        text,
-        position: i + 1
-    }));
+    const contentDataList = buildContentDataList(contentBody);
 
     const positions = contentDataList.map((c) => c.position);
     const totalPosition = positions.length ? Math.max(...positions) : 0;

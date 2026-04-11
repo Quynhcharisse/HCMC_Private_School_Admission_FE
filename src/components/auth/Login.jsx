@@ -7,6 +7,7 @@ import {getAccess} from '../../services/AccountService';
 import {showSuccessSnackbar} from '../ui/AppSnackbar.jsx';
 import {BRAND_NAVY, BRAND_SKY, landingSectionShadow} from '../../constants/homeLandingTheme';
 import {getRoleDashboardRoute} from '../../utils/roleRouting';
+import {normalizeUserRole, pickRoleFromAccessBody} from '../../utils/userRole.js';
 
 const LOGIN_MUTED = 'rgba(30, 58, 138, 0.82)';
 
@@ -25,9 +26,17 @@ export default function Login() {
         let firstLogin = false;
         
         if (response && response.data) {
-            if (response.data.body && response.data.body.role) {
-                role = response.data.body.role;
-                firstLogin = response.data.body.firstLogin || false;
+            let b = response.data.body;
+            if (typeof b === 'string') {
+                try {
+                    b = JSON.parse(b);
+                } catch {
+                    b = null;
+                }
+            }
+            if (b && typeof b === 'object') {
+                role = pickRoleFromAccessBody(b) ?? b.role;
+                firstLogin = b.firstLogin || false;
             } else if (response.data.role) {
                 role = response.data.role;
                 firstLogin = response.data.firstLogin || false;
@@ -38,8 +47,16 @@ export default function Login() {
             try {
                 const accessResponse = await getAccess();
                 if (accessResponse && accessResponse.status === 200 && accessResponse.data.body) {
-                    role = accessResponse.data.body.role;
-                    firstLogin = accessResponse.data.body.firstLogin || false;
+                    let body = accessResponse.data.body;
+                    if (typeof body === 'string') {
+                        try {
+                            body = JSON.parse(body);
+                        } catch {
+                            body = {};
+                        }
+                    }
+                    role = pickRoleFromAccessBody(body) ?? body?.role;
+                    firstLogin = body?.firstLogin || false;
                 }
             } catch (error) {
                 console.error('Error getting user role:', error);
@@ -47,7 +64,7 @@ export default function Login() {
         }
 
         if (role) {
-            const normalizedRole = role.toUpperCase();
+            const normalizedRole = normalizeUserRole(role);
             const userData = {
                 email: email,
                 name: name,
@@ -58,7 +75,7 @@ export default function Login() {
             localStorage.setItem('user', JSON.stringify(userData));
         }
 
-        const normalizedForRoute = role ? role.toUpperCase() : '';
+        const normalizedForRoute = role ? normalizeUserRole(role) : '';
         let targetRoute = normalizedForRoute ? getRoleDashboardRoute(normalizedForRoute) : '/';
         if (normalizedForRoute === 'SCHOOL' && firstLogin) {
             targetRoute = '/school/profile';

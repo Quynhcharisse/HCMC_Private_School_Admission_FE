@@ -10,6 +10,7 @@ import {
     isRouteAllowedForRole,
     shouldPreferCurrentPathOverLastRoute
 } from "../../utils/roleRouting";
+import {normalizeUserRole} from "../../utils/userRole.js";
 
 export default function WebAppLayout() {
     const location = useLocation();
@@ -60,7 +61,6 @@ export default function WebAppLayout() {
     }, [isAuthPage]);
 
     useEffect(() => {
-        // Lưu lastRoute mỗi khi điều hướng (trừ trang auth)
         const currentPath = location.pathname + location.search;
         if (!isAuthPage) {
             localStorage.setItem('lastRoute', currentPath);
@@ -68,7 +68,6 @@ export default function WebAppLayout() {
     }, [location.pathname, location.search, isAuthPage]);
 
     useEffect(() => {
-        // Xử lý flow khởi động lại app với user + lastRoute
         if (hasHandledInitialRoute.current) {
             return;
         }
@@ -76,7 +75,6 @@ export default function WebAppLayout() {
 
         const storedUser = localStorage.getItem('user');
 
-        // Nếu chưa đăng nhập: cho phép các route public, còn lại đưa về login
         if (!storedUser) {
             const currentPath = location.pathname;
             if (!isPublicRoute(currentPath) && currentPath !== '/parent-first-login') {
@@ -89,7 +87,6 @@ export default function WebAppLayout() {
         try {
             parsed = JSON.parse(storedUser);
         } catch {
-            // Dữ liệu hỏng thì clear và đưa về login
             localStorage.removeItem('user');
             navigate('/login', {replace: true});
             return;
@@ -99,7 +96,6 @@ export default function WebAppLayout() {
         const lastRoute = localStorage.getItem('lastRoute');
         const currentPath = location.pathname;
 
-        // Nếu có lastRoute và hợp lệ với role → vào lastRoute (trừ khi đang vào /home, tìm trường, so sánh có chủ đích)
         if (lastRoute && isRouteAllowedForRole(lastRoute, role)) {
             if (
                 currentPath !== lastRoute &&
@@ -118,7 +114,6 @@ export default function WebAppLayout() {
     }, [location.pathname, navigate]);
 
     useEffect(() => {
-        // Ngăn user đã đăng nhập truy cập các trang không thuộc role của mình
         const storedUser = localStorage.getItem('user');
         if (!storedUser) {
             return;
@@ -155,7 +150,7 @@ export default function WebAppLayout() {
 
         try {
             const parsed = JSON.parse(storedUser);
-            const isParent = parsed?.role === 'PARENT';
+            const isParent = normalizeUserRole(parsed?.role ?? "") === "PARENT";
             const isFirstLogin = toBoolean(parsed?.firstLogin);
 
             if (isParent && isFirstLogin) {
@@ -164,7 +159,6 @@ export default function WebAppLayout() {
                 }
             }
         } catch {
-            /* ignore invalid stored user JSON */
         }
     }, [location.pathname, navigate]);
 
