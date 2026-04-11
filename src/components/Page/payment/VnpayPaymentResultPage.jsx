@@ -30,6 +30,9 @@ import {useNavigate, useSearchParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {getRoleDashboardRoute} from "../../../utils/roleRouting";
 
+/** Bù chiều cao Header cố định (`AppBar position="fixed"` trong WebAppLayout), khớp scroll anchor HomePage ~80px + biên */
+const LAYOUT_HEADER_OFFSET_PX = 88;
+
 const SUCCESS = "#22c55e";
 const ERROR = "#ef4444";
 const PENDING = "#f59e0b";
@@ -340,8 +343,10 @@ export default function VnpayPaymentResultPage() {
     return (
         <Box
             sx={{
-                minHeight: "calc(100vh - 120px)",
-                py: {xs: 3, sm: 5},
+                boxSizing: "border-box",
+                minHeight: "100vh",
+                pt: `${LAYOUT_HEADER_OFFSET_PX}px`,
+                pb: {xs: 4, sm: 5},
                 px: {xs: 2, sm: 3},
                 background: "linear-gradient(180deg, #ffffff 0%, #f1f5f9 45%, #e0f2fe 100%)",
                 fontFamily: '"Inter", "Roboto", "Segoe UI", sans-serif',
