@@ -128,11 +128,16 @@ function statusLabel(status) {
     }
 }
 
-function getHomePath() {
+/** Sau thanh toán VNPAY: tài khoản trường về trang gói đã mua; các role khác về dashboard mặc định */
+function getPostPaymentRedirectPath() {
     try {
         const raw = localStorage.getItem("user");
         if (!raw) return "/home";
         const user = JSON.parse(raw);
+        const role = user?.role?.toUpperCase?.() ?? "";
+        if (role === "SCHOOL") {
+            return "/school/purchased-packages";
+        }
         return getRoleDashboardRoute(user?.role) || "/home";
     } catch {
         return "/home";
@@ -153,7 +158,7 @@ export default function VnpayPaymentResultPage() {
     const [countdown, setCountdown] = React.useState(-1);
     const failToastShownRef = React.useRef(false);
 
-    const redirectTarget = getHomePath();
+    const redirectTarget = getPostPaymentRedirectPath();
 
     React.useEffect(() => {
         if (status === "empty") {
