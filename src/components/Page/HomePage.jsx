@@ -36,7 +36,7 @@ import {
     Search as SearchIcon,
     AutoAwesome as SparkleIcon
 } from "@mui/icons-material";
-import {useNavigate} from "react-router-dom";
+import {useLocation, useNavigate} from "react-router-dom";
 import {
     APP_PRIMARY_DARK,
     APP_PRIMARY_MAIN,
@@ -51,6 +51,7 @@ import {
     landingSectionShadow
 } from "../../constants/homeLandingTheme";
 import SectionWaveEdge from "../ui/SectionWaveEdge.jsx";
+import HomeCreatePostBar from "../ui/HomeCreatePostBar.jsx";
 import admissionCard1Image from "../../assets/Nguyên tắc công bố tuyển sinh (từ Bộ GD&ĐT).jpg";
 import admissionCard2Image from "../../assets/Nhiều trường THPT công bố chỉ tiêu tuyển sinh 2026.jpg";
 import admissionCard3Image from "../../assets/TPHCM chốt 3 môn thi tuyển sinh lớp 10 năm 2026.jpeg";
@@ -814,7 +815,7 @@ function HomeTopPromoCarousel({isSignedIn, onRegisterClick, navigate}) {
                 mx: 0,
                 mt: 0,
                 position: 'relative',
-                zIndex: 3,
+                zIndex: 1,
                 isolation: 'isolate',
                 bgcolor: 'transparent',
                 backgroundImage: 'none'
@@ -991,12 +992,13 @@ function HomeTopPromoCarousel({isSignedIn, onRegisterClick, navigate}) {
 
 export default function HomePage() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [homeSchools, setHomeSchools] = React.useState([]);
     const [schoolLoading, setSchoolLoading] = React.useState(true);
     const [isSignedIn, setIsSignedIn] = React.useState(() =>
         typeof window !== "undefined" && Boolean(localStorage.getItem("user"))
     );
-    const [isParentRole, setIsParentRole] = React.useState(false);
+    const [isAdminRole, setIsAdminRole] = React.useState(false);
     const [isSchoolRole, setIsSchoolRole] = React.useState(false);
     const [schoolServicePackages, setSchoolServicePackages] = React.useState([]);
     const [servicePackagesLoading, setServicePackagesLoading] = React.useState(false);
@@ -1115,25 +1117,38 @@ export default function HomePage() {
         };
     }, []);
 
-    React.useEffect(() => {
+    const syncUserRoleFlags = React.useCallback(() => {
         const userData = localStorage.getItem('user');
         setIsSignedIn(Boolean(userData));
         if (userData) {
             try {
                 const user = JSON.parse(userData);
-                setIsParentRole(user.role === 'PARENT');
-                setIsSchoolRole(user.role === 'SCHOOL');
-                if (user.role === 'PARENT' && user.firstLogin === true) {
-                    setShowParentFormModal(true);
-                }
+                const r = String(user.role ?? '').toUpperCase();
+                setIsAdminRole(r === 'ADMIN');
+                setIsSchoolRole(r === 'SCHOOL');
             } catch (e) {
                 console.error('Error parsing user data:', e);
-                setIsParentRole(false);
+                setIsAdminRole(false);
                 setIsSchoolRole(false);
             }
         } else {
-            setIsParentRole(false);
+            setIsAdminRole(false);
             setIsSchoolRole(false);
+        }
+    }, []);
+
+    React.useEffect(() => {
+        syncUserRoleFlags();
+        try {
+            const raw = localStorage.getItem('user');
+            if (raw) {
+                const user = JSON.parse(raw);
+                if (String(user.role ?? '').toUpperCase() === 'PARENT' && user.firstLogin === true) {
+                    setShowParentFormModal(true);
+                }
+            }
+        } catch {
+            /* ignore */
         }
 
         const smoothScrollToElement = (element, headerHeight) => {
@@ -1179,7 +1194,24 @@ export default function HomePage() {
 
         window.addEventListener('hashchange', handleHashNavigation);
         return () => window.removeEventListener('hashchange', handleHashNavigation);
-    }, []);
+    }, [syncUserRoleFlags]);
+
+    React.useEffect(() => {
+        const onFocus = () => syncUserRoleFlags();
+        const onStorage = (e) => {
+            if (e.key === 'user' || e.key == null) syncUserRoleFlags();
+        };
+        window.addEventListener('focus', onFocus);
+        window.addEventListener('storage', onStorage);
+        return () => {
+            window.removeEventListener('focus', onFocus);
+            window.removeEventListener('storage', onStorage);
+        };
+    }, [syncUserRoleFlags]);
+
+    React.useEffect(() => {
+        syncUserRoleFlags();
+    }, [location.pathname, syncUserRoleFlags]);
 
     React.useEffect(() => {
         if (!isSchoolRole) {
@@ -1389,6 +1421,8 @@ export default function HomePage() {
         setShowParentFormModal(false);
     };
 
+    const showHeadCreatePost = isSignedIn && (isAdminRole || isSchoolRole);
+
     return (
         <Box
             sx={{
@@ -1537,15 +1571,32 @@ export default function HomePage() {
                 onRegisterClick={handleRegisterClick}
                 navigate={navigate}
             />
+            {showHeadCreatePost && (
+                <Box
+                    sx={{
+                        position: 'relative',
+                        zIndex: 4,
+                        bgcolor: '#f0f7ff',
+                        borderTop: '1px solid rgba(59,130,246,0.18)',
+                        pt: {xs: 2, md: 2.5},
+                        pb: {xs: 2, md: 2.5}
+                    }}
+                >
+                    <Container maxWidth="xl" sx={{px: {xs: 2, sm: 3, md: 4}}}>
+                        <HomeCreatePostBar belowHero visible />
+                    </Container>
+                </Box>
+            )}
             <Box
                 id="trường-nổi-bật"
                 sx={{
                     position: 'relative',
-                    zIndex: 1,
+                    zIndex: 2,
                     mt: 0,
                     pt: {xs: 6, md: 8},
                     pb: {xs: 11, md: 13},
                     overflow: 'visible',
+                    isolation: 'isolate',
                     background: `linear-gradient(180deg, ${HOME_SCHOOL_SECTION_SURFACE} 0%, #f0f9ff 32%, #fafcff 68%, ${HOME_CONSULT_SECTION_TOP} 100%)`,
                     scrollMarginTop: '80px'
                 }}

@@ -12,13 +12,12 @@ export const verifySchoolRegistration = async (requestId) => {
     return response || null;
 };
 
-export const getUsersByRole = async ({ role, page = 0, pageSize = 10, search = "" }) => {
+export const getUsersByRole = async ({ role, page = 0, pageSize = 10 }) => {
     const response = await axiosClient.get("/account/user/list", {
         params: {
             role,
             page,
             pageSize,
-            search: search || undefined,
         },
     });
     return response || null;
