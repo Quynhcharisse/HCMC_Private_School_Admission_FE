@@ -461,9 +461,26 @@ export default function VnpayPaymentResultPage() {
                                     fontWeight: 700,
                                     py: 1.25,
                                     fontSize: "0.95rem",
-                                    boxShadow: "none",
-                                    bgcolor: "#0f172a",
-                                    "&:hover": {bgcolor: "#1e293b", boxShadow: "0 4px 14px rgba(15,23,42,0.2)"},
+                                    color: "#fff",
+                                    ...(redirectTarget.startsWith("/school")
+                                        ? {
+                                              background:
+                                                  "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
+                                              boxShadow: "0 4px 14px rgba(13,100,222,0.4)",
+                                              "&:hover": {
+                                                  background:
+                                                      "linear-gradient(135deg, #6b9be6 0%, #0b5ad1 100%)",
+                                                  boxShadow: "0 6px 18px rgba(13,100,222,0.45)",
+                                              },
+                                          }
+                                        : {
+                                              boxShadow: "none",
+                                              bgcolor: "#0f172a",
+                                              "&:hover": {
+                                                  bgcolor: "#1e293b",
+                                                  boxShadow: "0 4px 14px rgba(15,23,42,0.2)",
+                                              },
+                                          }),
                                 }}
                             >
                                 {redirectTarget.startsWith("/school") ? "Về trang quản trị" : "Quay về trang chủ"}
