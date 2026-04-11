@@ -10,3 +10,11 @@ export const createSchoolSubscriptionPayment = async ({ packageId, description }
     });
     return response;
 };
+
+/**
+ * GET /api/v1/school/current/subscription/ — trạng thái gói đăng ký hiện tại của trường
+ */
+export const getCurrentSchoolSubscription = async () => {
+    const response = await axiosClient.get("/school/current/subscription/");
+    return response;
+};
