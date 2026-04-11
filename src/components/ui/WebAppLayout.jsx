@@ -68,6 +68,11 @@ export default function WebAppLayout() {
     }, [location.pathname, location.search, isAuthPage]);
 
     useEffect(() => {
+        if (location.hash) return;
+        window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+    }, [location.pathname, location.search, location.hash]);
+
+    useEffect(() => {
         if (hasHandledInitialRoute.current) {
             return;
         }
