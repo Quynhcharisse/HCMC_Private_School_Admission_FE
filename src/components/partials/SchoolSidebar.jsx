@@ -27,6 +27,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import CorporateFareOutlinedIcon from "@mui/icons-material/CorporateFareOutlined";
+import CardMembershipIcon from "@mui/icons-material/CardMembership";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
@@ -48,7 +49,10 @@ function buildConfigMenuItems(isPrimaryBranch, schoolCtxLoading) {
 const menuGroupsBase = [
     {
         title: "TỔNG QUAN",
-        items: [{ text: "Bảng thống kê", icon: <DashboardIcon />, path: "/school/dashboard" }],
+        items: [
+            { text: "Bảng thống kê", icon: <DashboardIcon />, path: "/school/dashboard" },
+            { text: "Gói đã mua", icon: <CardMembershipIcon />, path: "/school/purchased-packages" },
+        ],
     },
     {
         title: "QUẢN LÝ HỆ THỐNG",
