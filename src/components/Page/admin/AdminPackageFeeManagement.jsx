@@ -40,7 +40,6 @@ import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import ExtensionOutlinedIcon from "@mui/icons-material/ExtensionOutlined";
-import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import StarOutlineIcon from "@mui/icons-material/StarOutline";
 import EmojiEventsOutlinedIcon from "@mui/icons-material/EmojiEventsOutlined";
@@ -76,7 +75,6 @@ const defaultForm = {
     price: "",
     durationDays: "",
     maxCounsellors: "",
-    maxAdmissions: "",
     allowChat: false,
     parentPostPermission: "CREATE_POST",
     isFeatured: false,
@@ -142,7 +140,6 @@ function mapPackageFromApi(item) {
         status: item?.status || "",
         features: {
             maxCounsellors: Number(features?.maxCounsellors ?? 0),
-            maxAdmissions: Number(features?.maxAdmissions ?? 0),
             allowChat: Boolean(features?.allowChat),
             parentPostPermission: String(features?.parentPostPermission || "CREATE_POST"),
             isFeatured: Boolean(features?.isFeatured),
@@ -286,7 +283,6 @@ function PackageFeaturesDetailGrid({ features }) {
     const f = features || {};
     const cells = [
         { Icon: SupportAgentOutlinedIcon, label: "Tư vấn viên", value: String(f.maxCounsellors ?? 0) },
-        { Icon: SchoolOutlinedIcon, label: "Tuyển sinh", value: String(f.maxAdmissions ?? 0) },
         { Icon: PolicyOutlinedIcon, label: "Quyền nhà trường", value: displayEnum(f.parentPostPermission) },
         { Icon: ChatBubbleOutlineIcon, label: "Chat", value: f.allowChat ? "Đã bật" : "Đã tắt" },
         { Icon: StarOutlineIcon, label: "Nổi bật", value: f.isFeatured ? "Có" : "Không" },
@@ -318,7 +314,6 @@ function buildPayload(form, isEdit) {
         durationDays: Number(form.durationDays),
         featureData: {
             maxCounsellors: Number(form.maxCounsellors),
-            maxAdmissions: Number(form.maxAdmissions),
             allowChat: Boolean(form.allowChat),
             parentPostPermission: String(form.parentPostPermission || "CREATE_POST"),
             isFeatured: Boolean(form.isFeatured),
@@ -398,7 +393,6 @@ export default function AdminPackageFeeManagement() {
             price: row.price != null && !Number.isNaN(Number(row.price)) ? Number(row.price) : "",
             durationDays: row.durationDays != null && !Number.isNaN(Number(row.durationDays)) ? Number(row.durationDays) : "",
             maxCounsellors: row.features.maxCounsellors,
-            maxAdmissions: row.features.maxAdmissions,
             allowChat: row.features.allowChat,
             parentPostPermission: row.features.parentPostPermission,
             isFeatured: row.features.isFeatured,
@@ -513,7 +507,6 @@ export default function AdminPackageFeeManagement() {
             return "Thời hạn gói (ngày) phải là số nguyên dương.";
         }
         if (form.maxCounsellors === "" || Number(form.maxCounsellors) < 0) return "Số tư vấn viên tối đa không hợp lệ.";
-        if (form.maxAdmissions === "" || Number(form.maxAdmissions) < 0) return "Số tuyển sinh tối đa không hợp lệ.";
         if (form.topRanking === "" || Number(form.topRanking) < 0) return "Thứ hạng ưu tiên không hợp lệ.";
         if (form.packageId != null) {
             const pid = Number(form.packageId);
@@ -927,14 +920,6 @@ export default function AdminPackageFeeManagement() {
                                 size="small"
                                 value={form.maxCounsellors}
                                 onChange={handleChange("maxCounsellors")}
-                                fullWidth
-                            />
-                            <TextField
-                                label="Số tuyển sinh tối đa"
-                                type="number"
-                                size="small"
-                                value={form.maxAdmissions}
-                                onChange={handleChange("maxAdmissions")}
                                 fullWidth
                             />
                             <TextField
