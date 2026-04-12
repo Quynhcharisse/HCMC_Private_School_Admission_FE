@@ -1,7 +1,6 @@
 export const CATEGORY_POST_ADMIN = Object.freeze([
     {value: "SYSTEM_NOTIFICATIONS", label: "Thông báo hệ thống"},
-    {value: "GENERAL_EDUCATION_NEWS", label: "Tin tức giáo dục chung"},
-    {value: "PLATFORM_GUIDE", label: "Hướng dẫn sử dụng"}
+    {value: "GENERAL_EDUCATION_NEWS", label: "Tin tức giáo dục chung"}
 ]);
 
 export const CATEGORY_POST_SCHOOL = Object.freeze([
