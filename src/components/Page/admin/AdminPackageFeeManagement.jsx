@@ -994,9 +994,11 @@ export default function AdminPackageFeeManagement() {
                                 label="Đánh dấu nổi bật"
                             />
                         </Stack>
-                        <Typography variant="caption" color="#64748b" sx={{ wordBreak: "break-word" }}>
-                            Quyền nhà trường hiện tại: {displayEnum(form.parentPostPermission)}
-                        </Typography>
+                        {isEdit && (
+                            <Typography variant="caption" color="#64748b" sx={{ wordBreak: "break-word" }}>
+                                Quyền nhà trường hiện tại: {displayEnum(form.parentPostPermission)}
+                            </Typography>
+                        )}
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={adminDialogActionsSx}>
