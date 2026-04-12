@@ -1,4 +1,4 @@
-import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState} from "react";
+import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {
   Autocomplete,
   Box,
@@ -108,6 +108,12 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
   {value, onChange, loading = false, saving = false, readOnly = false, perCampus = false},
   ref
 ) {
+  /** Luôn merge từ props mới nhất (tránh closure `value` cũ khi sync itemList sau xoá / cập nhật hàng loạt). */
+  const valueRef = useRef(value);
+  useLayoutEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+
   const formLocked = loading || saving || readOnly;
   /** Giữ giao diện không xám khi chỉ xem — chặn tương tác bằng pointer-events thay vì disabled. */
   const blockPointerSx = formLocked ? { pointerEvents: "none", cursor: "default" } : undefined;
@@ -122,11 +128,11 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
 
   const setFacilityData = useCallback(
     (updater) => {
-      const current = normalizeFacilityData(value);
+      const current = normalizeFacilityData(valueRef.current);
       const next = typeof updater === "function" ? updater(current) : updater;
       onChange?.(next);
     },
-    [value, onChange]
+    [onChange]
   );
 
   const overview = facilityData.overview ?? "";
