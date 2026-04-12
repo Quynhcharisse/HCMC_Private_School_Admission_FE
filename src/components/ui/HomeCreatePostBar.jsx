@@ -16,6 +16,7 @@ import {
     CircularProgress
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import InsertDriveFileOutlinedIcon from "@mui/icons-material/InsertDriveFileOutlined";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
 import {enqueueSnackbar} from "notistack";
@@ -47,7 +48,6 @@ function documentItemKey(d) {
     return `${String(d?.storagePath ?? "").trim()}::${String(d?.fileName ?? "").trim()}`;
 }
 
-/** Chỉ phục vụ hiển thị UI; dữ liệu gửi BE giữ nguyên `fileName` gốc. */
 function formatUploadedFileNameForDisplay(raw) {
     const s = String(raw ?? "").trim();
     if (!s) return "(file)";
@@ -63,14 +63,6 @@ function formatUploadedFileNameForDisplay(raw) {
     }
     return s;
 }
-
-const fileNameDisplaySx = {
-    maxWidth: 200,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    display: "block"
-};
 
 function validateClientPayload(body) {
     if (!body.hashTagList?.length) return "Vui lòng nhập ít nhất một nhãn từ khóa (cách nhau bằng dấu phẩy hoặc khoảng trắng).";
@@ -123,7 +115,8 @@ export default function HomeCreatePostBar({
 }) {
     const [open, setOpen] = React.useState(false);
     const [submitting, setSubmitting] = React.useState(false);
-    const [uploadingCloudinary, setUploadingCloudinary] = React.useState(false);
+    const [cloudinaryUploadSlot, setCloudinaryUploadSlot] = React.useState(null);
+    const uploadingAnyImage = cloudinaryUploadSlot != null;
     const [uploadingDocument, setUploadingDocument] = React.useState(false);
     const [documentItems, setDocumentItems] = React.useState([]);
     const fileInputRef = React.useRef(null);
@@ -207,61 +200,12 @@ export default function HomeCreatePostBar({
     };
 
     const handleClose = () => {
-        if (submitting || uploadingCloudinary || uploadingDocument) return;
+        if (submitting || uploadingAnyImage || uploadingDocument) return;
         setOpen(false);
         resetForm();
     };
 
-    // const handleSubmit = async () => {
-    //     const imageUrlList = imageUrlsText
-    //         .split("\n")
-    //         .map((l) => l.trim())
-    //         .filter(Boolean);
-    //
-    //     let publishedDate = publishedAt.trim();
-    //     if (publishedDate.length === 16) publishedDate = `${publishedDate}:00`;
-    //
-    //     const body = buildCreatePostPayload({
-    //         shortDescription,
-    //         contentBody,
-    //         hashTagsRaw,
-    //         categoryPost,
-    //         imageUrlList,
-    //         documentItems,
-    //         thumbnail,
-    //         typeFile,
-    //         publishedDate
-    //     });
-    //
-    //     const err = validateClientPayload(body);
-    //     if (err) {
-    //         enqueueSnackbar(err, {variant: "warning"});
-    //         return;
-    //     }
-    //
-    //     setSubmitting(true);
-    //     try {
-    //         await createPost(body);
-    //         enqueueSnackbar("Đăng bài thành công.", {variant: "success"});
-    //         setOpen(false);
-    //         resetForm();
-    //     } catch (e) {
-    //         const status = e?.response?.status;
-    //         if (status === 403) {
-    //             enqueueSnackbar(
-    //                 "Bạn không có quyền đăng bài với tài khoản này. Hãy đăng nhập lại hoặc dùng tài khoản quản trị / trường.",
-    //                 {variant: "error"}
-    //             );
-    //         } else {
-    //             enqueueSnackbar(getApiErrorMessage(e, "Không thể đăng bài. Vui lòng thử lại."), {variant: "error"});
-    //         }
-    //     } finally {
-    //         setSubmitting(false);
-    //     }
-    // };
-
     const handleSubmit = async () => {
-        // 1. Kiểm tra việc xử lý chuỗi và mảng
         const imageUrlList = imageUrlsText
             .split("\n")
             .map((l) => l.trim())
@@ -270,7 +214,6 @@ export default function HomeCreatePostBar({
         let publishedDate = publishedAt.trim();
         if (publishedDate.length === 16) publishedDate = `${publishedDate}:00`;
 
-        // 2. Debug Payload trước khi gửi
         const body = buildCreatePostPayload({
             shortDescription,
             contentBody,
@@ -281,8 +224,7 @@ export default function HomeCreatePostBar({
             typeFile,
             publishedDate
         });
-        
-        // Lấy full profile để kiểm tra campus
+
         let profile = null;
         try {
             const profileRes = await getProfile();
@@ -292,12 +234,11 @@ export default function HomeCreatePostBar({
         }
         console.log("📦 Post Payload:", body);
         console.log("👤 Full Profile:", profile);
-        console.log("🏫 isPrimaryBranch:", profile?.campus?.isPrimaryBranch); // Kiểm tra cấu trúc data có đúng backend yêu cầu không
+        console.log("🏫 isPrimaryBranch:", profile?.campus?.isPrimaryBranch);
 
-        // 3. Debug Validation
         const err = validateClientPayload(body);
         if (err) {
-            console.warn("⚠️ Validation Error:", err); // Xem tại sao không qua được bước validate
+            console.warn("⚠️ Validation Error:", err);
             enqueueSnackbar(err, {variant: "warning"});
             return;
         }
@@ -316,14 +257,11 @@ export default function HomeCreatePostBar({
                 onPostCreated();
             }
         } catch (e) {
-            // 4. Debug Error chi tiết
             console.error("❌ Lỗi API:");
             if (e.response) {
-                // Server trả về lỗi (4xx, 5xx)
                 console.error("- Status:", e.response.status);
                 console.error("- Data từ server:", e.response.data);
             } else {
-                // Lỗi mạng hoặc lỗi code
                 console.error("- Message:", e.message);
             }
 
@@ -416,7 +354,7 @@ export default function HomeCreatePostBar({
             });
             return;
         }
-        setUploadingCloudinary(true);
+        setCloudinaryUploadSlot(mode === "thumbnail" ? "thumbnail" : "banner");
         try {
             const result = await uploadFileToCloudinary(file);
             const mime = file.type || "image/jpeg";
@@ -433,7 +371,7 @@ export default function HomeCreatePostBar({
         } catch (err) {
             enqueueSnackbar("Tải ảnh lên không thành công. Vui lòng thử lại.", {variant: "error"});
         } finally {
-            setUploadingCloudinary(false);
+            setCloudinaryUploadSlot(null);
         }
     };
 
@@ -509,12 +447,20 @@ export default function HomeCreatePostBar({
         "& .MuiMenuItem-root": {fontSize: "0.875rem"}
     };
 
-    const dropzoneInteractive = !uploadingCloudinary && !uploadingDocument && !submitting;
+    const dropzoneInteractive = !uploadingAnyImage && !uploadingDocument && !submitting;
+    const UPLOAD_ZONE_MIN_PX = 152;
     const imageDropzoneSx = {
         border: `2px dashed ${LM.border}`,
         borderRadius: 2,
-        py: 2.5,
         px: 2,
+        py: 2,
+        minHeight: UPLOAD_ZONE_MIN_PX,
+        width: "100%",
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
         textAlign: "center",
         cursor: dropzoneInteractive ? "pointer" : "default",
         bgcolor: LM.inputBg,
@@ -673,7 +619,7 @@ export default function HomeCreatePostBar({
                         aria-label="Đóng"
                         onClick={handleClose}
                         size="small"
-                        disabled={submitting || uploadingCloudinary || uploadingDocument}
+                        disabled={submitting || uploadingAnyImage || uploadingDocument}
                         sx={{
                             position: "absolute",
                             right: 8,
@@ -701,35 +647,101 @@ export default function HomeCreatePostBar({
                         color: LM.text
                     }}
                 >
-                    <Stack direction={{xs: "column", md: "row"}} spacing={2.5} alignItems="stretch">
-                        <Box sx={{flex: {md: "1 1 58%"}, minWidth: 0, display: "flex", flexDirection: "column", gap: 2}}>
-                            <TextField
-                                label="Tiêu đề"
-                                required
-                                fullWidth
-                                value={shortDescription}
-                                onChange={(e) => setShortDescription(e.target.value)}
-                                placeholder="Nhập tiêu đề hoặc mô tả ngắn..."
-                                size="small"
-                                disabled={submitting || uploadingCloudinary || uploadingDocument}
-                                sx={{
-                                    ...textFieldLightSx,
-                                    "& .MuiOutlinedInput-root": {
-                                        ...textFieldLightSx["& .MuiOutlinedInput-root"],
-                                        bgcolor: "rgba(59, 130, 246, 0.12)",
-                                        "& fieldset": {borderColor: `${APP_PRIMARY_MAIN} !important`},
-                                        "&:hover fieldset": {borderColor: `${APP_PRIMARY_MAIN} !important`}
-                                    }
-                                }}
-                            />
+                    <Box
+                        sx={{
+                            display: "grid",
+                            gridTemplateColumns: {xs: "1fr", md: "minmax(0, 7fr) minmax(0, 3fr)"},
+                            gridTemplateRows: {xs: "auto auto 1fr auto", md: "auto minmax(0, 1fr)"},
+                            gap: 3,
+                            alignItems: "stretch",
+                            minHeight: {xs: "min(64vh, 640px)", md: "min(72vh, 780px)"},
+                            width: "100%"
+                        }}
+                    >
+                        <TextField
+                            label="Tiêu đề"
+                            required
+                            fullWidth
+                            value={shortDescription}
+                            onChange={(e) => setShortDescription(e.target.value)}
+                            placeholder="Nhập tiêu đề hoặc mô tả ngắn..."
+                            size="small"
+                            disabled={submitting || uploadingAnyImage || uploadingDocument}
+                            sx={{
+                                gridColumn: 1,
+                                gridRow: {xs: 1, md: 1},
+                                ...textFieldLightSx,
+                                "& .MuiOutlinedInput-root": {
+                                    ...textFieldLightSx["& .MuiOutlinedInput-root"],
+                                    bgcolor: "rgba(59, 130, 246, 0.12)",
+                                    "& fieldset": {borderColor: `${APP_PRIMARY_MAIN} !important`},
+                                    "&:hover fieldset": {borderColor: `${APP_PRIMARY_MAIN} !important`}
+                                }
+                            }}
+                        />
 
-                            <Box>
+                        <FormControl
+                            size="small"
+                            fullWidth
+                            sx={{
+                                gridColumn: {xs: 1, md: 2},
+                                gridRow: {xs: 2, md: 1},
+                                minWidth: 0,
+                                ...textFieldLightSx
+                            }}
+                            disabled={submitting || uploadingAnyImage || uploadingDocument}
+                        >
+                            <InputLabel id="post-type-label" sx={{color: LM.textMuted}}>
+                                Loại bài viết
+                            </InputLabel>
+                            <Select
+                                labelId="post-type-label"
+                                label="Loại bài viết"
+                                value={categoryPost}
+                                onChange={(e) => setCategoryPost(e.target.value)}
+                                renderValue={(val) => {
+                                    const o = categoryOptions.find((x) => x.value === val);
+                                    return o?.label ?? "";
+                                }}
+                                sx={{color: LM.text, "& .MuiOutlinedInput-notchedOutline": {borderColor: LM.border}}}
+                                MenuProps={{
+                                    PaperProps: {sx: selectMenuPaperSx}
+                                }}
+                            >
+                                {categoryOptions.map((opt) => (
+                                    <MenuItem key={opt.value} value={opt.value}>
+                                        {opt.label}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
+
+                        <Box
+                            sx={{
+                                gridColumn: 1,
+                                gridRow: {xs: 3, md: 2},
+                                minWidth: 0,
+                                minHeight: 0,
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 2.5
+                            }}
+                        >
+                            <Box
+                                sx={{
+                                    flex: 1,
+                                    minHeight: 0,
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 0.75
+                                }}
+                            >
                                 <Typography
                                     component="label"
                                     variant="body2"
                                     sx={{
                                         display: "block",
-                                        mb: 0.75,
+                                        flexShrink: 0,
                                         fontWeight: 700,
                                         color: LM.textMuted,
                                         "& .req": {color: "#d32f2f", ml: 0.25}
@@ -741,10 +753,115 @@ export default function HomeCreatePostBar({
                                     key={richTextKey}
                                     initialHtml={contentBody}
                                     onChange={setContentBody}
-                                    disabled={submitting || uploadingCloudinary || uploadingDocument}
+                                    disabled={submitting || uploadingAnyImage || uploadingDocument}
+                                    minEditorHeight={260}
+                                    maxEditorHeight={480}
+                                    fillHeight
                                 />
                             </Box>
 
+                            <Box sx={{flexShrink: 0}}>
+                                <Button
+                                    type="button"
+                                    variant="outlined"
+                                    size="small"
+                                    startIcon={
+                                        uploadingDocument ? (
+                                            <CircularProgress size={14} sx={{color: LM.accent}} />
+                                        ) : (
+                                            <UploadFileOutlinedIcon sx={{fontSize: 18}} />
+                                        )
+                                    }
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={submitting || uploadingAnyImage || uploadingDocument}
+                                    sx={{
+                                        textTransform: "none",
+                                        fontWeight: 600,
+                                        borderColor: LM.border,
+                                        color: LM.textMuted,
+                                        mb: documentItems.length > 0 ? 0.75 : 0
+                                    }}
+                                >
+                                    Đính kèm tài liệu (PDF, Word…)
+                                </Button>
+                                {documentItems.length > 0 ? (
+                                    <Stack spacing={0.75} sx={{mt: 0.25}}>
+                                        {documentItems.map((doc) => {
+                                            const k = documentItemKey(doc);
+                                            const tip = [doc.fileName, doc.storagePath, doc.category, doc.fileUrl]
+                                                .filter(Boolean)
+                                                .join("\n");
+                                            return (
+                                                <Stack
+                                                    key={k}
+                                                    direction="row"
+                                                    alignItems="center"
+                                                    spacing={0.75}
+                                                    title={tip}
+                                                    sx={{
+                                                        py: 0.5,
+                                                        px: 1,
+                                                        borderRadius: 1,
+                                                        border: `1px solid ${LM.border}`,
+                                                        bgcolor: LM.inputBg,
+                                                        minHeight: 36,
+                                                        maxWidth: "100%"
+                                                    }}
+                                                >
+                                                    <InsertDriveFileOutlinedIcon
+                                                        sx={{
+                                                            fontSize: 22,
+                                                            color: APP_PRIMARY_MAIN,
+                                                            flexShrink: 0,
+                                                            opacity: 0.92
+                                                        }}
+                                                    />
+                                                    <Typography
+                                                        variant="caption"
+                                                        sx={{
+                                                            flex: 1,
+                                                            minWidth: 0,
+                                                            maxWidth: "100%",
+                                                            fontWeight: 600,
+                                                            color: LM.text,
+                                                            lineHeight: 1.35,
+                                                            whiteSpace: "nowrap",
+                                                            overflow: "hidden",
+                                                            textOverflow: "ellipsis",
+                                                            display: "block"
+                                                        }}
+                                                    >
+                                                        {formatUploadedFileNameForDisplay(doc.fileName)}
+                                                    </Typography>
+                                                    <IconButton
+                                                        type="button"
+                                                        size="small"
+                                                        aria-label="Xóa tài liệu"
+                                                        onClick={() => removeDocumentItem(k)}
+                                                        disabled={submitting || uploadingAnyImage || uploadingDocument}
+                                                        sx={{flexShrink: 0, p: 0.35}}
+                                                    >
+                                                        <CloseIcon sx={{fontSize: 16}} />
+                                                    </IconButton>
+                                                </Stack>
+                                            );
+                                        })}
+                                    </Stack>
+                                ) : null}
+                            </Box>
+                        </Box>
+
+                        <Box
+                            sx={{
+                                gridColumn: {xs: 1, md: 2},
+                                gridRow: {xs: 4, md: 2},
+                                minWidth: 0,
+                                minHeight: 0,
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 2.5
+                            }}
+                        >
                             <TextField
                                 label="Nhãn từ khóa"
                                 required
@@ -752,161 +869,10 @@ export default function HomeCreatePostBar({
                                 size="small"
                                 value={hashTagsRaw}
                                 onChange={(e) => setHashTagsRaw(e.target.value)}
-                                placeholder="ví dụ: thongbao, sukien, capnhat"
-                                disabled={submitting || uploadingCloudinary || uploadingDocument}
+                                placeholder="ví dụ: thongbao, sukien"
+                                disabled={submitting || uploadingAnyImage || uploadingDocument}
                                 sx={{...textFieldLightSx, alignSelf: "stretch"}}
                             />
-
-                            <Button
-                                type="button"
-                                variant="outlined"
-                                size="small"
-                                startIcon={
-                                    uploadingDocument ? (
-                                        <CircularProgress size={14} sx={{color: LM.accent}} />
-                                    ) : (
-                                        <UploadFileOutlinedIcon sx={{fontSize: 18}} />
-                                    )
-                                }
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={submitting || uploadingCloudinary || uploadingDocument}
-                                sx={{
-                                    alignSelf: "flex-start",
-                                    textTransform: "none",
-                                    fontWeight: 600,
-                                    borderColor: LM.border,
-                                    color: LM.textMuted
-                                }}
-                            >
-                                Đính kèm tài liệu (PDF, Word…)
-                            </Button>
-                            {documentItems.length > 0 ? (
-                                <Box sx={{mt: 1}}>
-                                    <Typography
-                                        variant="caption"
-                                        sx={{fontWeight: 700, color: LM.textMuted, display: "block", mb: 0.75}}
-                                    >
-                                        Tài liệu đính kèm
-                                    </Typography>
-                                    <Stack spacing={0.75}>
-                                        {documentItems.map((doc) => {
-                                            const k = documentItemKey(doc);
-                                            return (
-                                                <Box
-                                                    key={k}
-                                                    sx={{
-                                                        display: "flex",
-                                                        alignItems: "flex-start",
-                                                        gap: 1,
-                                                        py: 0.75,
-                                                        px: 1,
-                                                        borderRadius: 1,
-                                                        border: `1px solid ${LM.border}`,
-                                                        bgcolor: LM.inputBg
-                                                    }}
-                                                >
-                                                    <Box sx={{flex: 1, minWidth: 0}}>
-                                                        <Typography
-                                                            variant="caption"
-                                                            component="span"
-                                                            title={doc.fileName || ""}
-                                                            sx={{
-                                                                ...fileNameDisplaySx,
-                                                                fontWeight: 700,
-                                                                color: LM.text
-                                                            }}
-                                                        >
-                                                            {formatUploadedFileNameForDisplay(doc.fileName)}
-                                                        </Typography>
-                                                        <Typography
-                                                            variant="caption"
-                                                            component="span"
-                                                            title={`${doc.storagePath || ""}${doc.category ? ` · ${doc.category}` : ""}`}
-                                                            sx={{
-                                                                ...fileNameDisplaySx,
-                                                                mt: 0.25,
-                                                                color: LM.textMuted,
-                                                                fontSize: "0.7rem",
-                                                                maxWidth: 200
-                                                            }}
-                                                        >
-                                                            {doc.storagePath}
-                                                            {doc.category ? ` · ${doc.category}` : ""}
-                                                        </Typography>
-                                                        {doc.fileUrl ? (
-                                                            <Typography
-                                                                variant="caption"
-                                                                component="span"
-                                                                title={doc.fileUrl}
-                                                                sx={{
-                                                                    ...fileNameDisplaySx,
-                                                                    mt: 0.25,
-                                                                    color: LM.textMuted,
-                                                                    fontSize: "0.7rem"
-                                                                }}
-                                                            >
-                                                                {doc.fileUrl}
-                                                            </Typography>
-                                                        ) : null}
-                                                    </Box>
-                                                    <IconButton
-                                                        type="button"
-                                                        size="small"
-                                                        aria-label="Xóa tài liệu"
-                                                        onClick={() => removeDocumentItem(k)}
-                                                        disabled={submitting || uploadingCloudinary || uploadingDocument}
-                                                        sx={{flexShrink: 0}}
-                                                    >
-                                                        <CloseIcon sx={{fontSize: 16}} />
-                                                    </IconButton>
-                                                </Box>
-                                            );
-                                        })}
-                                    </Stack>
-                                </Box>
-                            ) : null}
-                        </Box>
-
-                        <Box
-                            sx={{
-                                flex: {md: "1 1 38%"},
-                                minWidth: {md: 240},
-                                maxWidth: {md: 320},
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: 2
-                            }}
-                        >
-                            <FormControl
-                                size="small"
-                                fullWidth
-                                sx={{minWidth: 0, ...textFieldLightSx}}
-                                disabled={submitting || uploadingCloudinary || uploadingDocument}
-                            >
-                                <InputLabel id="post-type-label" sx={{color: LM.textMuted}}>
-                                    Loại bài viết
-                                </InputLabel>
-                                <Select
-                                    labelId="post-type-label"
-                                    label="Loại bài viết"
-                                    value={categoryPost}
-                                    onChange={(e) => setCategoryPost(e.target.value)}
-                                    renderValue={(val) => {
-                                        const o = categoryOptions.find((x) => x.value === val);
-                                        return o?.label ?? "";
-                                    }}
-                                    sx={{color: LM.text, "& .MuiOutlinedInput-notchedOutline": {borderColor: LM.border}}}
-                                    MenuProps={{
-                                        PaperProps: {sx: selectMenuPaperSx}
-                                    }}
-                                >
-                                    {categoryOptions.map((opt) => (
-                                        <MenuItem key={opt.value} value={opt.value}>
-                                            {opt.label}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
 
                             <Box>
                                 <Typography variant="caption" sx={{color: LM.textMuted, fontWeight: 700, display: "block", mb: 0.75}}>
@@ -919,7 +885,9 @@ export default function HomeCreatePostBar({
                                             borderRadius: 2,
                                             overflow: "hidden",
                                             border: `1px solid ${LM.border}`,
-                                            bgcolor: LM.inputBg
+                                            bgcolor: LM.inputBg,
+                                            width: "100%",
+                                            height: UPLOAD_ZONE_MIN_PX
                                         }}
                                     >
                                         <Box
@@ -927,7 +895,12 @@ export default function HomeCreatePostBar({
                                             src={String(thumbnail).trim()}
                                             alt=""
                                             referrerPolicy="no-referrer"
-                                            sx={{width: "100%", maxHeight: 160, objectFit: "cover", display: "block"}}
+                                            sx={{
+                                                width: "100%",
+                                                height: "100%",
+                                                objectFit: "cover",
+                                                display: "block"
+                                            }}
                                         />
                                         <IconButton
                                             size="small"
@@ -952,12 +925,12 @@ export default function HomeCreatePostBar({
                                         }}
                                         sx={imageDropzoneSx}
                                     >
-                                        {uploadingCloudinary ? (
+                                        {cloudinaryUploadSlot === "thumbnail" ? (
                                             <CircularProgress size={28} sx={{color: LM.accent}} />
                                         ) : (
                                             <>
-                                                <CloudUploadOutlinedIcon sx={{fontSize: 36, color: LM.textMuted, mb: 0.5}} />
-                                                <Typography variant="caption" sx={{color: LM.textMuted, display: "block"}}>
+                                                <CloudUploadOutlinedIcon sx={{fontSize: 32, color: LM.textMuted, mb: 0.5}} />
+                                                <Typography variant="caption" sx={{color: LM.textMuted, display: "block", lineHeight: 1.35}}>
                                                     Chạm để chọn ảnh đại diện (một ảnh)
                                                 </Typography>
                                             </>
@@ -977,82 +950,104 @@ export default function HomeCreatePostBar({
                                     }}
                                     sx={imageDropzoneSx}
                                 >
-                                    {uploadingCloudinary ? (
+                                    {cloudinaryUploadSlot === "banner" ? (
                                         <CircularProgress size={28} sx={{color: LM.accent}} />
                                     ) : (
                                         <>
-                                            <CloudUploadOutlinedIcon sx={{fontSize: 36, color: LM.textMuted, mb: 0.5}} />
-                                            <Typography variant="caption" sx={{color: LM.textMuted, display: "block"}}>
+                                            <CloudUploadOutlinedIcon sx={{fontSize: 32, color: LM.textMuted, mb: 0.5}} />
+                                            <Typography variant="caption" sx={{color: LM.textMuted, display: "block", lineHeight: 1.35}}>
                                                 Chạm để chọn ảnh (có thể chọn nhiều ảnh)
                                             </Typography>
                                         </>
                                     )}
                                 </Box>
                                 {illustrationUrls.length > 0 ? (
-                                    <Stack direction="row" flexWrap="wrap" gap={1} sx={{mt: 1.5}} useFlexGap>
-                                        {illustrationUrls.map((url) => (
-                                            <Box
-                                                key={url}
-                                                sx={{
-                                                    position: "relative",
-                                                    width: 56,
-                                                    height: 56,
-                                                    flexShrink: 0,
-                                                    borderRadius: "8px",
-                                                    overflow: "hidden",
-                                                    border: `1px solid ${LM.border}`,
-                                                    bgcolor: "#f1f5f9"
-                                                }}
-                                            >
+                                    <Box
+                                        sx={{
+                                            mt: 1.5,
+                                            p: 1.25,
+                                            borderRadius: 2,
+                                            border: `1px solid ${LM.border}`,
+                                            bgcolor: "rgba(59, 130, 246, 0.05)"
+                                        }}
+                                    >
+                                        <Typography
+                                            variant="caption"
+                                            sx={{fontWeight: 700, color: LM.textMuted, display: "block", mb: 1}}
+                                        >
+                                            Ảnh đã chọn ({illustrationUrls.length})
+                                        </Typography>
+                                        <Box
+                                            sx={{
+                                                display: "grid",
+                                                gridTemplateColumns: "repeat(auto-fill, minmax(52px, 1fr))",
+                                                gap: 1
+                                            }}
+                                        >
+                                            {illustrationUrls.map((url) => (
                                                 <Box
-                                                    component="img"
-                                                    src={url}
-                                                    alt=""
-                                                    referrerPolicy="no-referrer"
+                                                    key={url}
                                                     sx={{
+                                                        position: "relative",
+                                                        aspectRatio: "1",
                                                         width: "100%",
-                                                        height: "100%",
-                                                        objectFit: "cover",
-                                                        display: "block"
-                                                    }}
-                                                />
-                                                <IconButton
-                                                    type="button"
-                                                    size="small"
-                                                    aria-label="Xóa ảnh minh họa"
-                                                    onClick={(ev) => {
-                                                        ev.stopPropagation();
-                                                        removeIllustrationUrl(url);
-                                                    }}
-                                                    disabled={submitting || uploadingCloudinary || uploadingDocument}
-                                                    sx={{
-                                                        position: "absolute",
-                                                        top: 2,
-                                                        right: 2,
-                                                        p: 0.25,
-                                                        minWidth: 22,
-                                                        minHeight: 22,
-                                                        bgcolor: "rgba(0,0,0,0.55)",
-                                                        color: "#fff",
-                                                        "&:hover": {bgcolor: "rgba(0,0,0,0.72)"}
+                                                        minHeight: 0,
+                                                        borderRadius: "8px",
+                                                        overflow: "hidden",
+                                                        border: `1px solid ${LM.border}`,
+                                                        bgcolor: "#f1f5f9"
                                                     }}
                                                 >
-                                                    <CloseIcon sx={{fontSize: 14}} />
-                                                </IconButton>
-                                            </Box>
-                                        ))}
-                                    </Stack>
+                                                    <Box
+                                                        component="img"
+                                                        src={url}
+                                                        alt=""
+                                                        referrerPolicy="no-referrer"
+                                                        sx={{
+                                                            width: "100%",
+                                                            height: "100%",
+                                                            objectFit: "cover",
+                                                            display: "block"
+                                                        }}
+                                                    />
+                                                    <IconButton
+                                                        type="button"
+                                                        size="small"
+                                                        aria-label="Xóa ảnh minh họa"
+                                                        onClick={(ev) => {
+                                                            ev.stopPropagation();
+                                                            removeIllustrationUrl(url);
+                                                        }}
+                                                        disabled={submitting || uploadingAnyImage || uploadingDocument}
+                                                        sx={{
+                                                            position: "absolute",
+                                                            top: 2,
+                                                            right: 2,
+                                                            p: 0.25,
+                                                            minWidth: 22,
+                                                            minHeight: 22,
+                                                            bgcolor: "rgba(0,0,0,0.55)",
+                                                            color: "#fff",
+                                                            "&:hover": {bgcolor: "rgba(0,0,0,0.72)"}
+                                                        }}
+                                                    >
+                                                        <CloseIcon sx={{fontSize: 14}} />
+                                                    </IconButton>
+                                                </Box>
+                                            ))}
+                                        </Box>
+                                    </Box>
                                 ) : null}
                             </Box>
                         </Box>
-                    </Stack>
+                    </Box>
                 </DialogContent>
 
                 <Box sx={{px: {xs: 2, sm: 2.5}, pb: 2.25, pt: 0, bgcolor: LM.bg}}>
                     <Button
                         fullWidth
                         variant="contained"
-                        disabled={!canSubmit || submitting || uploadingCloudinary || uploadingDocument}
+                        disabled={!canSubmit || submitting || uploadingAnyImage || uploadingDocument}
                         onClick={handleSubmit}
                         sx={{
                             py: 1.35,

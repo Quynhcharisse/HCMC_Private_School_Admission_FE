@@ -37,18 +37,34 @@ const menuGroups = [
         items: [{ text: "Bảng thống kê", icon: <DashboardIcon />, path: "/admin/dashboard" }],
     },
     {
-        title: "QUẢN LÝ",
+        title: "NGƯỜI DÙNG",
         items: [
             { text: "Quản lý người dùng", icon: <PeopleIcon />, path: "/admin/users" },
             {
-                text: "Quản lý loại tính cách",
+                text: "Quản lý nhóm tính cách",
                 icon: <PsychologyOutlinedIcon />,
                 path: "/admin/personality-types",
             },
+        ],
+    },
+    {
+        title: "TRƯỜNG HỌC",
+        items: [
+            { text: "Xác thực trường học", icon: <SchoolIcon />, path: "/admin/schools/verification" },
             {
                 text: "Quản lý môn học",
                 icon: <MenuBookOutlinedIcon />,
                 path: "/admin/subjects",
+            },
+        ],
+    },
+    {
+        title: "NỀN TẢNG",
+        items: [
+            {
+                text: "Cài đặt nền tảng",
+                icon: <SettingsOutlinedIcon />,
+                path: "/admin/platform-settings",
             },
             {
                 text: "Quản lý phí gói dịch vụ",
@@ -59,20 +75,6 @@ const menuGroups = [
                 text: "Quản lý tài liệu mẫu",
                 icon: <DescriptionOutlinedIcon />,
                 path: "/admin/document-templates",
-            },
-        ],
-    },
-    {
-        title: "XÁC THỰC",
-        items: [{ text: "Xác thực trường học", icon: <SchoolIcon />, path: "/admin/schools/verification" }],
-    },
-    {
-        title: "QUẢN LÝ NỀN TẢNG",
-        items: [
-            {
-                text: "Cài đặt nền tảng",
-                icon: <SettingsOutlinedIcon />,
-                path: "/admin/platform-settings",
             },
         ],
     },

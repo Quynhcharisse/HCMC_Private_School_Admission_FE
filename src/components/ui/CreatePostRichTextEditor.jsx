@@ -19,7 +19,14 @@ const toolbarBtnSx = (active) => ({
     }
 });
 
-export default function CreatePostRichTextEditor({initialHtml = "", onChange, disabled = false}) {
+export default function CreatePostRichTextEditor({
+    initialHtml = "",
+    onChange,
+    disabled = false,
+    minEditorHeight = 220,
+    maxEditorHeight = 360,
+    fillHeight = false
+}) {
     const onChangeRef = React.useRef(onChange);
     onChangeRef.current = onChange;
 
@@ -56,7 +63,16 @@ export default function CreatePostRichTextEditor({initialHtml = "", onChange, di
                 border: `1px solid rgba(59, 130, 246, 0.22)`,
                 borderRadius: "10px",
                 overflow: "hidden",
-                bgcolor: "#ffffff"
+                bgcolor: "#ffffff",
+                ...(fillHeight
+                    ? {
+                          flex: 1,
+                          minHeight: 0,
+                          display: "flex",
+                          flexDirection: "column",
+                          height: "100%"
+                      }
+                    : {})
             }}
         >
             <Box
@@ -68,7 +84,8 @@ export default function CreatePostRichTextEditor({initialHtml = "", onChange, di
                     px: 0.75,
                     py: 0.5,
                     borderBottom: `1px solid rgba(59, 130, 246, 0.15)`,
-                    bgcolor: "#f8fbff"
+                    bgcolor: "#f8fbff",
+                    flexShrink: 0
                 }}
             >
                 <Tooltip title="Chữ đậm" placement="top" enterDelay={400}>
@@ -145,9 +162,16 @@ export default function CreatePostRichTextEditor({initialHtml = "", onChange, di
             </Box>
             <Box
                 sx={{
+                    ...(fillHeight
+                        ? {
+                              flex: 1,
+                              minHeight: 0,
+                              overflowY: "auto"
+                          }
+                        : {}),
                     "& .ProseMirror": {
-                        minHeight: 220,
-                        maxHeight: 360,
+                        minHeight: minEditorHeight,
+                        maxHeight: fillHeight ? "none" : maxEditorHeight,
                         overflowY: "auto",
                         px: 1.5,
                         py: 1.25,
