@@ -45,7 +45,6 @@ const SchoolRegistrationForm = ({email, onBack}) => {
     const [formData, setFormData] = useState({
         description: '',
         schoolName: '',
-        campusName: '',
         campusAddress: '',
         campusPhone: '',
         taxCode: '',
@@ -257,9 +256,6 @@ const SchoolRegistrationForm = ({email, onBack}) => {
         if (!formData.description.trim()) {
             errors.description = 'Mô tả trường là bắt buộc';
         }
-        if (!formData.campusName.trim()) {
-            errors.campusName = 'Tên cơ sở là bắt buộc';
-        }
         if (!formData.campusAddress.trim()) {
             errors.campusAddress = 'Địa chỉ cơ sở là bắt buộc';
         }
@@ -321,7 +317,6 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                 schoolRequest: {
                     description: formData.description.trim(),
                     schoolName: formData.schoolName.trim(),
-                    campusName: formData.campusName.trim(),
                     campusAddress: formData.campusAddress.trim(),
                     campusPhone: formData.campusPhone.trim(),
                     taxCode: taxCodeValue,
@@ -648,6 +643,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         container
                                         rowSpacing={1}
                                         columnSpacing={{xs: 1, sm: 1.25, md: 2}}
+                                        alignItems="flex-start"
                                         sx={{
                                             p: {xs: 0.8, sm: 0.95},
                                             borderRadius: 2,
@@ -667,22 +663,6 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     size="small"
                                                     error={!!formErrors.schoolName}
                                                     helperText={formErrors.schoolName}
-                                                    sx={{
-                                                        '& .MuiOutlinedInput-root': {
-                                                            borderRadius: 2,
-                                                        },
-                                                    }}
-                                                />
-                                                <TextField
-                                                    label="Tên cơ sở"
-                                                    required
-                                                    name="campusName"
-                                                    value={formData.campusName}
-                                                    onChange={handleInputChange}
-                                                    fullWidth
-                                                    size="small"
-                                                    error={!!formErrors.campusName}
-                                                    helperText={formErrors.campusName}
                                                     sx={{
                                                         '& .MuiOutlinedInput-root': {
                                                             borderRadius: 2,
@@ -739,7 +719,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 />
                                             </Stack>
                                         </Grid>
-                                        <Grid size={{xs: 12, md: 6}} sx={{display: 'flex'}}>
+                                        <Grid size={{xs: 12, md: 6}} sx={{display: 'flex', alignItems: 'flex-start'}}>
                                             <TextField
                                                 label="Mô tả trường"
                                                 required
@@ -749,14 +729,14 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 fullWidth
                                                 size="small"
                                                 multiline
-                                                rows={4}
+                                                rows={2}
                                                 error={!!formErrors.description}
                                                 helperText={formErrors.description}
                                                 FormHelperTextProps={{sx: {minHeight: 20}}}
                                                 sx={{
-                                                    height: '100%',
                                                     '& .MuiOutlinedInput-root': {
                                                         borderRadius: 2,
+                                                        alignItems: 'flex-start',
                                                     },
                                                 }}
                                             />
