@@ -1,11 +1,8 @@
 /**
  * Trang kết quả thanh toán VNPAY (đọc query trên URL của SPA).
  *
- * VNPAY luôn redirect tới đúng `vnp_ReturnUrl` lúc tạo link thanh toán (thường là API backend,
- * ví dụ http://localhost:8080/api/v1/school/vnpay/callback/url?...). Trang này KHÔNG tự chạy
- * nếu URL vẫn là cổng backend — cần backend sau khi xử lý/verify giao dịch trả HTTP 302
- * chuyển trình duyệt sang: {ORIGIN_SPA}/payment/vnpay-result + giữ nguyên query string (?vnp_...).
- * Dev: ORIGIN_SPA thường là http://localhost:5173 (Vite), không phải :8080.
+ * Flow: `vnp_ReturnUrl` trỏ thẳng FE (vd. /payment/vnpay-result). Sau khi VNPAY redirect kèm ?vnp_...,
+ * trang này gọi GET /api/v1/school/vnpay-callback + cùng query string để BE verify và kích hoạt gói.
  */
 import React from "react";
 import {
@@ -16,6 +13,7 @@ import {
     CardContent,
     CircularProgress,
     Container,
+    LinearProgress,
     Divider,
     IconButton,
     Stack,
@@ -29,6 +27,8 @@ import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import {useNavigate, useSearchParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {getRoleDashboardRoute} from "../../../utils/roleRouting";
+import {forwardSchoolVnpayCallback} from "../../../services/SchoolSubscriptionService.jsx";
+import {getApiErrorMessage} from "../../../utils/getApiErrorMessage.js";
 
 /** Bù chiều cao Header cố định (`AppBar position="fixed"` trong WebAppLayout), khớp scroll anchor HomePage ~80px + biên */
 const LAYOUT_HEADER_OFFSET_PX = 88;
@@ -149,10 +149,15 @@ export default function VnpayPaymentResultPage() {
     const [searchParams] = useSearchParams();
     const parsed = React.useMemo(() => parseVnpFromSearchParams(searchParams), [searchParams]);
     const status = React.useMemo(() => resolveStatus(parsed), [parsed]);
+    const queryKey = searchParams.toString();
 
     const transactionId = parsed.transactionNo || parsed.txnRef || "";
     const amountDisplay = formatVnpAmount(parsed.amountRaw);
     const payDateDisplay = formatVnpPayDate(parsed.payDateRaw);
+
+    /** na = không gọi BE; BE xử lý xong mới bắt đầu đếm ngược (khi có tham số vnp_) */
+    const [backendVerify, setBackendVerify] = React.useState("na");
+    const [backendErrorMessage, setBackendErrorMessage] = React.useState("");
 
     /** -1 = chưa bắt đầu đếm; 0 = hết giờ (cho phép auto redirect); empty state dùng 0 và không redirect */
     const [countdown, setCountdown] = React.useState(-1);
@@ -161,8 +166,40 @@ export default function VnpayPaymentResultPage() {
     const redirectTarget = getPostPaymentRedirectPath();
 
     React.useEffect(() => {
+        if (!parsed.hasVnpParams) {
+            setBackendVerify("na");
+            setBackendErrorMessage("");
+            return undefined;
+        }
+        setBackendVerify("loading");
+        setBackendErrorMessage("");
+        const q = window.location.search;
+        let cancelled = false;
+        (async () => {
+            try {
+                await forwardSchoolVnpayCallback(q);
+                if (!cancelled) {
+                    setBackendVerify("success");
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    setBackendVerify("error");
+                    setBackendErrorMessage(getApiErrorMessage(err));
+                }
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [parsed.hasVnpParams, queryKey]);
+
+    React.useEffect(() => {
         if (status === "empty") {
             setCountdown(0);
+            return undefined;
+        }
+        if (parsed.hasVnpParams && backendVerify === "loading") {
+            setCountdown(-1);
             return undefined;
         }
         const start = status === "success" ? 8 : status === "pending" ? 12 : 10;
@@ -176,7 +213,7 @@ export default function VnpayPaymentResultPage() {
             }
         }, 1000);
         return () => window.clearInterval(id);
-    }, [status]);
+    }, [status, parsed.hasVnpParams, backendVerify]);
 
     React.useEffect(() => {
         if (status === "failed" || status === "unknown") {
@@ -361,6 +398,7 @@ export default function VnpayPaymentResultPage() {
                 <Card
                     elevation={0}
                     sx={{
+                        position: "relative",
                         width: "100%",
                         maxWidth: 440,
                         borderRadius: "20px",
@@ -375,6 +413,18 @@ export default function VnpayPaymentResultPage() {
                     }}
                 >
                     <CardContent sx={{p: {xs: 2.5, sm: 3.5}}}>
+                        {parsed.hasVnpParams && backendVerify === "loading" ? (
+                            <LinearProgress
+                                sx={{
+                                    position: "absolute",
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    height: 3,
+                                    borderRadius: 0,
+                                }}
+                            />
+                        ) : null}
                         <Stack spacing={2.5} alignItems="center" sx={{textAlign: "center", mb: 1}}>
                             {renderIcon()}
                             <Box>
@@ -401,8 +451,29 @@ export default function VnpayPaymentResultPage() {
                                 >
                                     {subtitle}
                                 </Typography>
+                                {parsed.hasVnpParams && backendVerify === "loading" ? (
+                                    <Typography
+                                        sx={{
+                                            color: "#0D64DE",
+                                            fontSize: "0.85rem",
+                                            fontWeight: 600,
+                                            mt: 1.25,
+                                            maxWidth: 360,
+                                            mx: "auto",
+                                        }}
+                                    >
+                                        Đang xác nhận giao dịch với hệ thống…
+                                    </Typography>
+                                ) : null}
                             </Box>
                         </Stack>
+
+                        {backendVerify === "error" && backendErrorMessage ? (
+                            <Alert severity="warning" sx={{mb: 2, borderRadius: 2, textAlign: "left"}}>
+                                Không xác nhận được với máy chủ. Gói có thể chưa được kích hoạt — thử tải lại
+                                trang quản trị hoặc liên hệ hỗ trợ. Chi tiết: {backendErrorMessage}
+                            </Alert>
+                        ) : null}
 
                         {status === "failed" && parsed.responseCode ? (
                             <Alert severity="error" sx={{mb: 2, borderRadius: 2, textAlign: "left"}}>
