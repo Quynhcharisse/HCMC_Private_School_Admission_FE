@@ -942,70 +942,68 @@ function normalizeFromCampusConfigApi(body) {
 
 /**
  * PUT /api/v1/campus/{campusId}/config — body phẳng (overview, itemList, imageJsonData, …)
- * @param hqOperation — baseline để tính workingOverride / admissionStepsOverride (campus phụ: hqDefault; trụ sở: snapshot load)
+ * Khi chỉ gửi một nhánh (chỉ vận hành hoặc chỉ CSVC), BE có thể ghi đè mất phần còn lại.
+ * Nếu có thay đổi bất kỳ: luôn gửi đủ CSVC + toàn bộ scalar vận hành + override so với HQ.
+ *
+ * @param hqOperation — `hqDefault.operation` từ GET; dùng để tính workingOverride / admissionStepsOverride
  */
 function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, policy) {
-  const payload = {};
   const fac = config.facilityData;
   const iFac = initial.facilityData;
+  const op = config.operationSettingsData;
+  const iOp = initial.operationSettingsData;
+  const hqOp = hqOperation && typeof hqOperation === "object" ? hqOperation : {};
+  const hqWc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
+
   const curFacPut = campusFacilityPutSlice(fac);
   const iniFacPut = campusFacilityPutSlice(iFac);
   const facilityDirty =
     curFacPut.overview !== iniFacPut.overview ||
     JSON.stringify(curFacPut.itemList) !== JSON.stringify(iniFacPut.itemList) ||
     JSON.stringify(curFacPut.imageJsonData) !== JSON.stringify(iniFacPut.imageJsonData);
-  if (facilityDirty) {
-    payload.overview = curFacPut.overview;
-    payload.itemList = curFacPut.itemList;
-    payload.imageJsonData = curFacPut.imageJsonData;
-  }
 
-  const op = config.operationSettingsData;
-  const iOp = initial.operationSettingsData;
-  const hqOp = hqOperation && typeof hqOperation === "object" ? hqOperation : {};
-  const hqWc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
+  const operationDirty = JSON.stringify(op) !== JSON.stringify(iOp);
+  const policyDirty = (policy ?? "") !== (initialPolicy ?? "");
+  const anyDirty = facilityDirty || operationDirty || policyDirty;
+  if (!anyDirty) return {};
 
-  if (op.hotline !== iOp.hotline) payload.hotline = op.hotline ?? "";
-  if (op.emailSupport !== iOp.emailSupport) payload.emailSupport = op.emailSupport ?? "";
+  const payload = {};
 
-  if (Number(op.maxBookingPerSlot) !== Number(iOp.maxBookingPerSlot))
-    payload.maxBookingPerSlot = Number(op.maxBookingPerSlot) || 0;
-  if (Number(op.minCounsellorPerSlot) !== Number(iOp.minCounsellorPerSlot))
-    payload.minCounsellorPerSlot = Number(op.minCounsellorPerSlot) || 0;
-  if (Number(op.slotDurationInMinutes) !== Number(iOp.slotDurationInMinutes))
-    payload.slotDurationInMinutes = Number(op.slotDurationInMinutes) || 0;
-  if (Number(op.allowBookingBeforeHours) !== Number(iOp.allowBookingBeforeHours))
-    payload.allowBookingBeforeHours = Number(op.allowBookingBeforeHours) || 0;
+  payload.overview = curFacPut.overview;
+  payload.itemList = curFacPut.itemList;
+  payload.imageJsonData = curFacPut.imageJsonData;
+
+  payload.hotline = op.hotline ?? "";
+  payload.emailSupport = op.emailSupport ?? "";
+  payload.maxBookingPerSlot = Number(op.maxBookingPerSlot) || 0;
+  payload.minCounsellorPerSlot = Number(op.minCounsellorPerSlot) || 0;
+  payload.slotDurationInMinutes = Number(op.slotDurationInMinutes) || 0;
+  payload.allowBookingBeforeHours = Number(op.allowBookingBeforeHours) || 0;
 
   const wc = op.workingConfig || {};
-  const iWc = iOp.workingConfig || {};
-  if (JSON.stringify(wc) !== JSON.stringify(iWc)) {
-    const wo = {};
-    if ((wc.note ?? "") !== (hqWc.note ?? "")) wo.note = wc.note ?? "";
-    if (Boolean(wc.isOpenSunday) !== Boolean(hqWc.isOpenSunday)) wo.isOpenSunday = Boolean(wc.isOpenSunday);
-    if (JSON.stringify(wc.regularDays || []) !== JSON.stringify(hqWc.regularDays || []))
-      wo.regularDays = wc.regularDays || [];
-    if (JSON.stringify(wc.weekendDays || []) !== JSON.stringify(hqWc.weekendDays || []))
-      wo.weekendDays = wc.weekendDays || [];
-    if (JSON.stringify(wc.workShifts || []) !== JSON.stringify(hqWc.workShifts || []))
-      wo.workShifts = wc.workShifts || [];
-    if (Object.keys(wo).length > 0) payload.workingOverride = wo;
-  }
+  const wo = {};
+  if ((wc.note ?? "") !== (hqWc.note ?? "")) wo.note = wc.note ?? "";
+  if (Boolean(wc.isOpenSunday) !== Boolean(hqWc.isOpenSunday)) wo.isOpenSunday = Boolean(wc.isOpenSunday);
+  if (JSON.stringify(wc.regularDays || []) !== JSON.stringify(hqWc.regularDays || []))
+    wo.regularDays = wc.regularDays || [];
+  if (JSON.stringify(wc.weekendDays || []) !== JSON.stringify(hqWc.weekendDays || []))
+    wo.weekendDays = wc.weekendDays || [];
+  if (JSON.stringify(wc.workShifts || []) !== JSON.stringify(hqWc.workShifts || []))
+    wo.workShifts = wc.workShifts || [];
+  if (Object.keys(wo).length > 0) payload.workingOverride = wo;
 
   const hqSteps = Array.isArray(hqOp.admissionSteps) ? hqOp.admissionSteps : [];
-  if (JSON.stringify(op.admissionSteps || []) !== JSON.stringify(iOp.admissionSteps || [])) {
-    const admissionStepsOverride = [];
-    (op.admissionSteps || []).forEach((step, idx) => {
-      const ord = Number(step.stepOrder) || idx + 1;
-      const hqS = hqSteps.find((s) => Number(s.stepOrder) === ord);
-      const desc = step.description ?? "";
-      const hqDesc = hqS?.description ?? "";
-      if (desc !== hqDesc) admissionStepsOverride.push({stepOrder: ord, description: desc});
-    });
-    if (admissionStepsOverride.length > 0) payload.admissionStepsOverride = admissionStepsOverride;
-  }
+  const admissionStepsOverride = [];
+  (op.admissionSteps || []).forEach((step, idx) => {
+    const ord = Number(step.stepOrder) || idx + 1;
+    const hqS = hqSteps.find((s) => Number(s.stepOrder) === ord);
+    const desc = step.description ?? "";
+    const hqDesc = hqS?.description ?? "";
+    if (desc !== hqDesc) admissionStepsOverride.push({stepOrder: ord, description: desc});
+  });
+  if (admissionStepsOverride.length > 0) payload.admissionStepsOverride = admissionStepsOverride;
 
-  if ((policy ?? "") !== (initialPolicy ?? "")) payload.policyDetail = policy ?? "";
+  payload.policyDetail = policy ?? "";
 
   return payload;
 }
