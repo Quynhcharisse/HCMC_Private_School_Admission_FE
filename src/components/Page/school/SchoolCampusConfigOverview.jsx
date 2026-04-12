@@ -33,8 +33,114 @@ import {
 
 function facilityCoverUrl(imageData) {
   if (!imageData || typeof imageData !== "object") return "";
-  const c = imageData.cover ?? imageData.coverUrl ?? "";
+  const c =
+    imageData.coverUrl ??
+    imageData.cover ??
+    imageData.thumbnailUrl ??
+    imageData.thumbnail ??
+    "";
   return typeof c === "string" && c.trim() ? c.trim() : "";
+}
+
+function normalizeFacilityMatchKey(s) {
+  return String(s ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+/** Bản ghi ảnh từ `imageData.imageList` (có thể có `facilityCode` nếu BE gửi). */
+function facilityImageRecords(imageData) {
+  if (!imageData || typeof imageData !== "object") return [];
+  const list = Array.isArray(imageData.imageList) ? imageData.imageList : [];
+  return list
+    .map((im, i) => {
+      const url = im?.url != null && String(im.url).trim() !== "" ? String(im.url).trim() : "";
+      if (!url) return null;
+      const name = im?.name != null ? String(im.name) : "";
+      const altName = im?.altName != null ? String(im.altName) : "";
+      const facilityCode = im?.facilityCode != null ? String(im.facilityCode).trim() : "";
+      const displayAlt = (altName || name || `Ảnh ${i + 1}`).trim();
+      return {url, name, altName, facilityCode, displayAlt, sourceIndex: i};
+    })
+    .filter(Boolean);
+}
+
+/** Các ảnh trong `imageData.imageList` — giữ cho tương thích / fallback ảnh chính. */
+function facilityImageEntries(imageData) {
+  return facilityImageRecords(imageData).map((r) => ({
+    url: r.url,
+    name: r.name,
+    altName: r.displayAlt,
+  }));
+}
+
+/**
+ * Mỗi phần tử `itemList` ↔ một ảnh trong `imageList`: ưu tiên facilityCode, rồi tên/altName,
+ * cuối cùng cùng chỉ số (dữ liệu song song như mẫu BE).
+ */
+function pairFacilityItemsWithImages(itemList, imageData) {
+  const items = Array.isArray(itemList) ? itemList : [];
+  const entries = facilityImageRecords(imageData);
+  const used = new Set();
+  const out = [];
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const itemCode = item?.facilityCode != null ? String(item.facilityCode).trim() : "";
+    const nameKey = normalizeFacilityMatchKey(item?.name);
+    const itemLabel = item?.name != null ? String(item.name).trim() : "";
+
+    let pick = -1;
+
+    for (let j = 0; j < entries.length; j++) {
+      if (used.has(j)) continue;
+      const e = entries[j];
+      if (
+        itemCode &&
+        e.facilityCode &&
+        normalizeFacilityMatchKey(e.facilityCode) === normalizeFacilityMatchKey(itemCode)
+      ) {
+        pick = j;
+        break;
+      }
+    }
+
+    if (pick < 0 && nameKey) {
+      for (let j = 0; j < entries.length; j++) {
+        if (used.has(j)) continue;
+        const e = entries[j];
+        const nkName = normalizeFacilityMatchKey(e.name);
+        const nkAlt = normalizeFacilityMatchKey(e.altName);
+        if (nameKey === nkName || nameKey === nkAlt) {
+          pick = j;
+          break;
+        }
+      }
+    }
+
+    if (pick < 0 && i < entries.length && !used.has(i)) {
+      pick = i;
+    }
+
+    if (pick >= 0) {
+      used.add(pick);
+      const e = entries[pick];
+      out.push({imageUrl: e.url, imageAlt: e.displayAlt});
+    } else {
+      out.push({imageUrl: "", imageAlt: itemLabel || "Hạng mục CSVC"});
+    }
+  }
+
+  return out;
+}
+
+/** Ảnh lớn phía trên: ưu tiên bìa; không có thì ảnh đầu trong danh sách. */
+function facilityPrimaryImageUrl(imageData) {
+  const cover = facilityCoverUrl(imageData);
+  if (cover) return cover;
+  const first = facilityImageEntries(imageData)[0];
+  return first?.url || "";
 }
 
 /** Chuẩn hoá tên hiển thị khi BE thiếu dấu (vd. "Campus Chinh" → "Campus chính"). */
@@ -250,7 +356,16 @@ export default function SchoolCampusConfigOverview() {
     facilityConfig?.overview != null && String(facilityConfig.overview).trim() !== ""
       ? String(facilityConfig.overview)
       : null;
-  const cover = facilityCoverUrl(facilityConfig?.imageData);
+  const facilityImageData =
+    facilityConfig?.imageData && typeof facilityConfig.imageData === "object" ? facilityConfig.imageData : null;
+  const cover = facilityPrimaryImageUrl(facilityImageData);
+  const facilityItemImages = useMemo(() => {
+    const cfg = active?.facilityConfig;
+    if (!cfg || typeof cfg !== "object") return [];
+    const items = Array.isArray(cfg.itemList) ? cfg.itemList : [];
+    const img = cfg.imageData && typeof cfg.imageData === "object" ? cfg.imageData : null;
+    return pairFacilityItemsWithImages(items, img);
+  }, [active?.facilityConfig]);
   const policyDetail = schoolCampusListRowPolicyText(active);
   const bothEmpty = !facilityConfig && !policyDetail;
 
@@ -536,7 +651,7 @@ export default function SchoolCampusConfigOverview() {
                           }}
                         >
                           <ImageNotSupportedOutlinedIcon sx={{ fontSize: 48 }} />
-                          <Typography variant="body2">Chưa có ảnh bìa</Typography>
+                          <Typography variant="body2">Chưa có ảnh bìa / thư viện ảnh</Typography>
                         </Box>
                       )}
                     </Box>
@@ -555,8 +670,11 @@ export default function SchoolCampusConfigOverview() {
                       >
                         {overviewText || "Chưa có mô tả tổng quan."}
                       </Typography>
-                      <Typography sx={{ fontSize: "0.95rem", fontWeight: 600, color: "#334155", mb: 2 }}>
+                      <Typography sx={{ fontSize: "0.95rem", fontWeight: 600, color: "#334155", mb: 0.5 }}>
                         Danh mục cơ sở vật chất
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: "#64748b", display: "block", mb: 2 }}>
+                        Mỗi hạng mục hiển thị ảnh tương ứng trong thư viện (theo mã/tên hoặc cùng thứ tự với API).
                       </Typography>
                       {itemList.length === 0 ? (
                         <Typography variant="body2" sx={{ color: "#94a3b8" }}>
@@ -576,6 +694,7 @@ export default function SchoolCampusConfigOverview() {
                             const value = item?.value;
                             const valueLabel =
                               value != null && value !== "" ? `${value}${unit ? ` ${unit}` : ""}` : unit || "—";
+                            const paired = facilityItemImages[idx] || {imageUrl: "", imageAlt: name || "Hạng mục CSVC"};
                             return (
                               <Card
                                 key={item?.facilityCode || idx}
@@ -584,6 +703,7 @@ export default function SchoolCampusConfigOverview() {
                                   borderRadius: "12px",
                                   borderColor: "#e2e8f0",
                                   bgcolor: "#fafafa",
+                                  overflow: "hidden",
                                   transition: "box-shadow 0.2s ease, border-color 0.2s ease",
                                   "&:hover": {
                                     borderColor: "rgba(13, 100, 222, 0.35)",
@@ -591,13 +711,56 @@ export default function SchoolCampusConfigOverview() {
                                   },
                                 }}
                               >
+                                <Box
+                                  sx={{
+                                    position: "relative",
+                                    width: "100%",
+                                    height: 140,
+                                    bgcolor: "#e2e8f0",
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {paired.imageUrl ? (
+                                    <Box
+                                      component="img"
+                                      src={paired.imageUrl}
+                                      alt={paired.imageAlt}
+                                      loading="lazy"
+                                      sx={{
+                                        width: "100%",
+                                        height: "100%",
+                                        objectFit: "cover",
+                                        display: "block",
+                                      }}
+                                    />
+                                  ) : (
+                                    <Box
+                                      sx={{
+                                        width: "100%",
+                                        height: "100%",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        flexDirection: "column",
+                                        gap: 0.75,
+                                        color: "#94a3b8",
+                                        px: 1,
+                                      }}
+                                    >
+                                      <CategoryFacilityIcon category={item?.category} />
+                                      <Typography variant="caption" sx={{ textAlign: "center", lineHeight: 1.35 }}>
+                                        Chưa có ảnh cho hạng mục này
+                                      </Typography>
+                                    </Box>
+                                  )}
+                                </Box>
                                 <CardContent sx={{ p: 2, "&:last-child": { pb: 2 } }}>
                                   <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-start" }}>
                                     <Box
                                       sx={{
-                                        width: 48,
-                                        height: 48,
-                                        borderRadius: "12px",
+                                        width: 40,
+                                        height: 40,
+                                        borderRadius: "10px",
                                         bgcolor: "rgba(13, 100, 222, 0.12)",
                                         display: "flex",
                                         alignItems: "center",

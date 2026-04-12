@@ -3,6 +3,7 @@ import {
   Accordion,
   AccordionDetails,
   AccordionSummary,
+  Alert,
   Box,
   Button,
   Card,
@@ -15,6 +16,7 @@ import {
   FormControlLabel,
   IconButton,
   LinearProgress,
+  MenuItem,
   Paper,
   Stack,
   Switch,
@@ -94,6 +96,28 @@ const DAY_CODES = [
   {code: "SAT", label: "T7"},
   {code: "SUN", label: "CN"},
 ];
+
+/** Khớp enum BE `ResourceType`: value JSON `counsellor` | `admission` (name COUNSELLOR | ADMISSION). */
+const RESOURCE_TYPE_OPTIONS = [
+  {value: "counsellor", label: "Tư vấn viên"},
+  {value: "admission", label: "Tuyển sinh"},
+];
+
+const RESOURCE_TYPE_VALUE_SET = new Set(RESOURCE_TYPE_OPTIONS.map((o) => o.value));
+
+function canonicalResourceType(raw) {
+  if (raw == null) return "";
+  const s = String(raw).trim();
+  if (!s) return "";
+  const lower = s.toLowerCase();
+  if (lower === "counsellor" || lower === "counselor") return "counsellor";
+  if (lower === "admission") return "admission";
+  return s;
+}
+
+function isKnownResourceTypeValue(v) {
+  return v != null && RESOURCE_TYPE_VALUE_SET.has(String(v));
+}
 
 function defaultConfig() {
   return {
@@ -210,6 +234,16 @@ function buildImageJsonDataForCampusPut(imageData) {
       }
       return row;
     }),
+  };
+}
+
+/** So sánh ổn định cho PUT campus — tránh bỏ sót khi `JSON.stringify` cả `facilityData` không đổi nhưng `itemList` đã đổi. */
+function campusFacilityPutSlice(fac) {
+  const f = fac && typeof fac === "object" ? fac : {};
+  return {
+    overview: f.overview != null ? String(f.overview) : "",
+    itemList: sanitizeCampusPutItemList(f.itemList),
+    imageJsonData: buildImageJsonDataForCampusPut(f.imageData),
   };
 }
 
@@ -471,15 +505,29 @@ function sanitizeFacilityDataForApi(f) {
   return out;
 }
 
+function normalizeResourceAllocationRow(a) {
+  if (!a || typeof a !== "object") return {resourceType: "", campusId: null, allocatedAmount: 0};
+  const rawRt =
+    a.resourceType != null && String(a.resourceType).trim() !== ""
+      ? String(a.resourceType).trim()
+      : a.resource_type != null && String(a.resource_type).trim() !== ""
+        ? String(a.resource_type).trim()
+        : "";
+  const resourceType = canonicalResourceType(rawRt);
+  const rawCampus = a.campusId != null ? a.campusId : a.campus_id;
+  const campusId =
+    rawCampus != null && rawCampus !== "" && !Number.isNaN(Number(rawCampus)) ? Number(rawCampus) : null;
+  const rawAmt = a.allocatedAmount != null ? a.allocatedAmount : a.allocated_amount;
+  const allocatedAmount = rawAmt != null && !Number.isNaN(Number(rawAmt)) ? Number(rawAmt) : 0;
+  return {resourceType, campusId, allocatedAmount};
+}
+
 function sanitizeResourceDistributionDataForApi(rd) {
   const rows = Array.isArray(rd?.allocations) ? rd.allocations : [];
-  return {
-    allocations: rows.map((a) => ({
-      resourceType: a?.resourceType != null ? String(a.resourceType).trim() : "",
-      campusId: a?.campusId != null && !Number.isNaN(Number(a.campusId)) ? Number(a.campusId) : null,
-      allocatedAmount: a?.allocatedAmount != null && !Number.isNaN(Number(a.allocatedAmount)) ? Number(a.allocatedAmount) : 0,
-    })),
-  };
+  const allocations = rows
+    .map((a) => normalizeResourceAllocationRow(a))
+    .filter((row) => isKnownResourceTypeValue(row.resourceType) && row.campusId != null);
+  return {allocations};
 }
 
 /** Gộp admission_settings (snake) với admissionSettingsData — bỏ key lạ như itemList: boolean */
@@ -507,13 +555,7 @@ function normalizeFromApi(body) {
   const rd = pickSection(body, "resourceDistributionData", "resource_distribution_data");
 
   const imageData = fac.imageData && typeof fac.imageData === "object" ? fac.imageData : {};
-  const allocations = Array.isArray(rd?.allocations)
-    ? rd.allocations.map((a) => ({
-        resourceType: a?.resourceType != null ? String(a.resourceType) : "",
-        campusId: a?.campusId != null && !Number.isNaN(Number(a.campusId)) ? Number(a.campusId) : null,
-        allocatedAmount: a?.allocatedAmount != null && !Number.isNaN(Number(a.allocatedAmount)) ? Number(a.allocatedAmount) : 0,
-      }))
-    : [];
+  const allocations = Array.isArray(rd?.allocations) ? rd.allocations.map(normalizeResourceAllocationRow) : [];
 
   return {
     admissionSettingsData: {
@@ -697,11 +739,43 @@ function parseBranchFacilityJson(raw) {
   return null;
 }
 
+/** GET /api/v1/campus/config — envelope `body` (camelCase hoặc snake_case). */
+function pickCampusConfigGetEnvelope(body) {
+  if (!body || typeof body !== "object") {
+    return {hqDefault: {}, campusCurrent: {}};
+  }
+  const hq = body.hqDefault ?? body.hq_default;
+  const cur = body.campusCurrent ?? body.campus_current;
+  return {
+    hqDefault: hq && typeof hq === "object" ? hq : {},
+    campusCurrent: cur && typeof cur === "object" ? cur : {},
+  };
+}
+
+function campusCurrentPolicyDetailRendered(cur) {
+  if (!cur || typeof cur !== "object") return null;
+  return (
+    (cur.policyDetailRendered && typeof cur.policyDetailRendered === "object" ? cur.policyDetailRendered : null) ||
+    (cur.policy_detail_rendered && typeof cur.policy_detail_rendered === "object" ? cur.policy_detail_rendered : null)
+  );
+}
+
 function policyFromCampusCurrent(cur) {
   if (!cur || typeof cur !== "object") return "";
-  const pdr = cur.policyDetailRendered && typeof cur.policyDetailRendered === "object" ? cur.policyDetailRendered : null;
+  const pdr = campusCurrentPolicyDetailRendered(cur);
   if (pdr?.rawCustomNote != null && String(pdr.rawCustomNote).trim() !== "") return String(pdr.rawCustomNote);
-  if (cur.policyDetail != null && String(cur.policyDetail).trim() !== "") return String(cur.policyDetail);
+  const flatPol = cur.policyDetail ?? cur.policy_detail;
+  if (flatPol != null && String(flatPol).trim() !== "") return String(flatPol);
+  return "";
+}
+
+/** GET campus/config — bản văn tổng hợp BE tạo sau khi lưu PUT (nguồn hiển thị “thật” cho user). */
+function policyFullTextRenderedFromCampusCurrent(cur) {
+  if (!cur || typeof cur !== "object") return "";
+  const pdr = campusCurrentPolicyDetailRendered(cur);
+  if (!pdr) return "";
+  const ft = pdr.fullTextRendered ?? pdr.full_text_rendered;
+  if (ft != null && String(ft).trim() !== "") return String(ft);
   return "";
 }
 
@@ -711,11 +785,10 @@ function policyFromCampusCurrent(cur) {
  */
 function normalizeFromCampusConfigApi(body) {
   const d = defaultConfig();
-  const hq = body && typeof body === "object" ? body.hqDefault || {} : {};
+  const {hqDefault: hq, campusCurrent: cur} = pickCampusConfigGetEnvelope(body);
   const hqFac = hq.facility && typeof hq.facility === "object" ? hq.facility : {};
   const hqOp = hq.operation && typeof hq.operation === "object" ? hq.operation : {};
-  const cur = body && typeof body === "object" ? body.campusCurrent || {} : {};
-  const fj = parseBranchFacilityJson(cur.facilityJson);
+  const fj = parseBranchFacilityJson(cur.facilityJson ?? cur.facility_json);
 
   const hqImg = hqFac.imageData && typeof hqFac.imageData === "object" ? hqFac.imageData : {};
 
@@ -743,10 +816,13 @@ function normalizeFromCampusConfigApi(body) {
       "";
     const thumbnailUrl =
       ij.thumbnailUrl != null ? String(ij.thumbnailUrl) : fjImg.thumbnailUrl != null ? String(fjImg.thumbnailUrl) : "";
+    const ijImageList = Array.isArray(ij.imageList) ? ij.imageList : [];
     const imageList =
       Array.isArray(fjImg.imageList) && fjImg.imageList.length > 0
         ? fjImg.imageList
-        : galleryStringToImageList(ij.gallery ?? fjImg.gallery);
+        : ijImageList.length > 0
+          ? ijImageList
+          : galleryStringToImageList(ij.gallery ?? fjImg.gallery);
     mergedFacility = {
       itemList: Array.isArray(fj.itemList) ? fj.itemList : [],
       overview: fj.overview != null ? String(fj.overview) : "",
@@ -788,7 +864,7 @@ function normalizeFromCampusConfigApi(body) {
     admissionSteps: Array.isArray(hqOp.admissionSteps) ? hqOp.admissionSteps.map((s) => ({...s})) : [],
   };
 
-  const pdr = cur.policyDetailRendered && typeof cur.policyDetailRendered === "object" ? cur.policyDetailRendered : null;
+  const pdr = campusCurrentPolicyDetailRendered(cur);
   if (pdr) {
     if (pdr.maxBookingPerSlot != null && !Number.isNaN(Number(pdr.maxBookingPerSlot)))
       mergedOp.maxBookingPerSlot = Number(pdr.maxBookingPerSlot);
@@ -852,10 +928,16 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
   const payload = {};
   const fac = config.facilityData;
   const iFac = initial.facilityData;
-  if (JSON.stringify(fac) !== JSON.stringify(iFac)) {
-    payload.overview = fac.overview != null ? String(fac.overview) : "";
-    payload.itemList = sanitizeCampusPutItemList(fac.itemList);
-    payload.imageJsonData = buildImageJsonDataForCampusPut(fac.imageData);
+  const curFacPut = campusFacilityPutSlice(fac);
+  const iniFacPut = campusFacilityPutSlice(iFac);
+  const facilityDirty =
+    curFacPut.overview !== iniFacPut.overview ||
+    JSON.stringify(curFacPut.itemList) !== JSON.stringify(iniFacPut.itemList) ||
+    JSON.stringify(curFacPut.imageJsonData) !== JSON.stringify(iniFacPut.imageJsonData);
+  if (facilityDirty) {
+    payload.overview = curFacPut.overview;
+    payload.itemList = curFacPut.itemList;
+    payload.imageJsonData = curFacPut.imageJsonData;
   }
 
   const op = config.operationSettingsData;
@@ -953,9 +1035,14 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
   const [schoolId, setSchoolId] = useState(null);
+  /** Danh sách cơ sở (platform): chọn campusId trong tab Phân bổ nguồn lực — đồng bộ GET/PUT /school/config/{schoolId}. */
+  const [campusList, setCampusList] = useState([]);
   const [branchPolicyDetail, setBranchPolicyDetail] = useState("");
+  /** policyDetailRendered.fullTextRendered — chỉ đọc từ GET, cập nhật sau mỗi lần load. */
+  const [branchPolicyFullTextRendered, setBranchPolicyFullTextRendered] = useState("");
   const branchHqOperationRef = useRef(null);
   const initialPolicyRef = useRef("");
+  const initialPolicyFullTextRef = useRef("");
   const [config, setConfig] = useState(() => defaultConfig());
   const initialRef = useRef(null);
   const facilityFormRef = useRef(null);
@@ -994,6 +1081,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
       if (!silent) setLoading(true);
       const resCampuses = await listCampuses();
       const campuses = extractCampusListBody(resCampuses);
+      setCampusList(Array.isArray(campuses) ? campuses : []);
 
       if (isCampusVariant) {
         let cid = null;
@@ -1007,6 +1095,8 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
             initialRef.current = JSON.parse(JSON.stringify(empty));
             setBranchPolicyDetail("");
             initialPolicyRef.current = "";
+            setBranchPolicyFullTextRendered("");
+            initialPolicyFullTextRef.current = "";
             branchHqOperationRef.current = {};
             setSchoolId(pickSchoolIdFromCampuses(campuses));
             setLastLoadedAt(new Date());
@@ -1022,6 +1112,8 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
             initialRef.current = JSON.parse(JSON.stringify(empty));
             setBranchPolicyDetail("");
             initialPolicyRef.current = "";
+            setBranchPolicyFullTextRendered("");
+            initialPolicyFullTextRef.current = "";
             branchHqOperationRef.current = {};
             setSchoolId(pickSchoolIdFromCampuses(campuses));
             setLastLoadedAt(new Date());
@@ -1030,13 +1122,20 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
         }
 
         const cfgRes = await getCampusConfig();
+        if (cfgRes?.status != null && (cfgRes.status < 200 || cfgRes.status >= 300)) {
+          throw new Error(cfgRes?.data?.message || "Yêu cầu thất bại");
+        }
         const envelope = parseSchoolConfigResponseBody(cfgRes);
-        branchHqOperationRef.current = envelope?.hqDefault?.operation
-          ? JSON.parse(JSON.stringify(envelope.hqDefault.operation))
+        const {hqDefault, campusCurrent} = pickCampusConfigGetEnvelope(envelope);
+        branchHqOperationRef.current = hqDefault?.operation
+          ? JSON.parse(JSON.stringify(hqDefault.operation))
           : {};
-        const pol = policyFromCampusCurrent(envelope?.campusCurrent);
+        const pol = policyFromCampusCurrent(campusCurrent);
         setBranchPolicyDetail(pol);
         initialPolicyRef.current = pol;
+        const fullText = policyFullTextRenderedFromCampusCurrent(campusCurrent);
+        setBranchPolicyFullTextRendered(fullText);
+        initialPolicyFullTextRef.current = fullText;
         const next = normalizeFromCampusConfigApi(envelope);
         setSchoolId(pickSchoolIdFromCampuses(campuses));
         setConfig(next);
@@ -1055,6 +1154,8 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
       /** Cơ sở chính (isPrimaryBranch): GET /api/v1/school/config/{schoolId} — toàn bộ form. */
       setBranchPolicyDetail("");
       initialPolicyRef.current = "";
+      setBranchPolicyFullTextRendered("");
+      initialPolicyFullTextRef.current = "";
       branchHqOperationRef.current = {};
 
       let next;
@@ -1118,6 +1219,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
     if (!init) return;
     setConfig(JSON.parse(JSON.stringify(init)));
     setBranchPolicyDetail(initialPolicyRef.current ?? "");
+    setBranchPolicyFullTextRendered(initialPolicyFullTextRef.current ?? "");
     setEditing(false);
     enqueueSnackbar("Đã huỷ thay đổi", {variant: "info"});
   }, []);
@@ -1213,6 +1315,25 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
       enqueueSnackbar("Ngưỡng cảnh báo phải từ 0 đến 100", {variant: "error"});
       setTabIndex(0);
       return;
+    }
+
+    if (schoolPayload.resourceDistributionData != null) {
+      const rows = config.resourceDistributionData?.allocations || [];
+      const incomplete = rows.some((r) => {
+        const hasAny =
+          (r?.resourceType != null && String(r.resourceType).trim() !== "") ||
+          r?.campusId != null ||
+          (r?.allocatedAmount != null && Number(r.allocatedAmount) !== 0);
+        if (!hasAny) return false;
+        const rt = canonicalResourceType(r?.resourceType != null ? String(r.resourceType) : "");
+        const cid = r?.campusId;
+        return !isKnownResourceTypeValue(rt) || cid == null || Number.isNaN(Number(cid));
+      });
+      if (incomplete) {
+        enqueueSnackbar("Phân bổ nguồn lực: mỗi dòng đã nhập cần có loại nguồn lực và cơ sở hợp lệ.", {variant: "error"});
+        setTabIndex(6);
+        return;
+      }
     }
 
     setSaving(true);
@@ -1322,7 +1443,10 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
       ...c,
       resourceDistributionData: {
         ...c.resourceDistributionData,
-        allocations: [...(c.resourceDistributionData?.allocations || []), {resourceType: "", campusId: null, allocatedAmount: 0}],
+        allocations: [
+          ...(c.resourceDistributionData?.allocations || []),
+          {resourceType: RESOURCE_TYPE_OPTIONS[0]?.value ?? "counsellor", campusId: null, allocatedAmount: 0},
+        ],
       },
     }));
   }, []);
@@ -1420,8 +1544,8 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
   const pageTitle = isCampusVariant ? "Cấu hình của cơ sở" : "Cấu hình chung cho các cơ sở";
   const pageSubtitle = isCampusVariant
     ? isPrimaryBranch
-      ? "Chỉnh vận hành và CSVC của cơ sở chính. Mỗi cơ sở chỉ sửa được cấu hình của chính mình."
-      : "Chỉnh vận hành và CSVC của cơ sở bạn."
+      ? "Chỉnh vận hành và CSVC của cơ sở chính. Mỗi cơ sở chỉ sửa được cấu hình của chính mình. Sau khi Lưu, nội dung được phản ánh trong Bản chỉnh sửa từ cơ sở."
+      : "Chỉnh vận hành và CSVC của cơ sở bạn. Sau khi Lưu, xem Bản chỉnh sửa từ cơ sở — bản văn thống nhất BE trả về."
     : "Quản lý tuyển sinh, chỉ tiêu, tài chính, hồ sơ, vận hành và cơ sở vật chất chung.";
 
   return (
@@ -2332,6 +2456,61 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
 
           {showOperationTab && (
             <Stack spacing={2}>
+              {useCampusConfigFlow ? (
+                <>
+                  <Alert severity="info" sx={{borderRadius: 2}}>
+                    <Typography variant="body2" component="div" sx={{fontWeight: 700, mb: 0.75}}>
+                      Cấu hình theo cơ sở
+                    </Typography>
+                    <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
+                      Các thay đổi của cơ sở sẽ được lưu lại trong <strong>Bản chỉnh sửa từ cơ sở</strong> phía dưới.
+                    </Typography>
+                  </Alert>
+                  <Card
+                    sx={{
+                      borderRadius: "12px",
+                      border: "1px solid rgba(13, 100, 222, 0.22)",
+                      boxShadow: "0 8px 24px rgba(15,23,42,0.06)",
+                      bgcolor: "rgba(13, 100, 222, 0.03)",
+                    }}
+                  >
+                    <CardContent sx={{p: 3}}>
+                      <Typography sx={{fontWeight: 800, mb: 1.5}}>Bản chỉnh sửa từ cơ sở</Typography>
+                      <Paper
+                        variant="outlined"
+                        sx={{
+                          p: 2,
+                          maxHeight: 400,
+                          overflow: "auto",
+                          bgcolor: "#ffffff",
+                          borderColor: "#e2e8f0",
+                        }}
+                      >
+                        {branchPolicyFullTextRendered ? (
+                          <Typography
+                            component="pre"
+                            sx={{
+                              m: 0,
+                              whiteSpace: "pre-wrap",
+                              wordBreak: "break-word",
+                              fontFamily: '"Inter", "Segoe UI", system-ui, sans-serif',
+                              fontSize: "0.875rem",
+                              lineHeight: 1.65,
+                              color: "#334155",
+                            }}
+                          >
+                            {branchPolicyFullTextRendered}
+                          </Typography>
+                        ) : (
+                          <Typography variant="body2" sx={{color: "#94a3b8"}}>
+                            Chưa có nội dung. Sau khi lưu cấu hình vận hành, máy chủ sẽ trả về nội dung tại đây khi tải lại trang hoặc sau khi Lưu thành công.
+                          </Typography>
+                        )}
+                      </Paper>
+                    </CardContent>
+                  </Card>
+                </>
+              ) : null}
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>
                   <Stack spacing={2}>
@@ -2728,13 +2907,15 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                   <CardContent sx={{p: 3}}>
                     <Typography sx={{fontWeight: 800, mb: 2}}>Quy định tại cơ sở</Typography>
                     <TextField
-                      label="Chi tiết quy định"
+                      label="Chi tiết quy định (ghi chú riêng)"
                       multiline
                       minRows={3}
                       fullWidth
                       value={branchPolicyDetail}
                       onChange={(e) => setBranchPolicyDetail(e.target.value)}
                       inputProps={{readOnly: fieldDisabled}}
+                      helperText="PUT field policyDetail — khi GET lại nằm trong policyDetailRendered.rawCustomNote (phần “Lưu ý riêng tại cơ sở” trong Bản chỉnh sửa từ cơ sở)."
+                      FormHelperTextProps={{sx: {maxWidth: "100%"}}}
                     />
                   </CardContent>
                 </Card>
@@ -2760,9 +2941,6 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{mb: 2}}>
                   <Box>
                     <Typography sx={{fontWeight: 800, fontSize: 18}}>Phân bổ nguồn lực</Typography>
-                    <Typography variant="body2" sx={{color: "#64748b", mt: 0.5}}>
-                      UI tạm thời cho API `resourceDistributionData.allocations` (sẽ tích hợp API hoàn chỉnh sau).
-                    </Typography>
                   </Box>
                   <Button
                     variant="outlined"
@@ -2781,37 +2959,89 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                   </Paper>
                 ) : (
                   <Stack spacing={1.25}>
-                    {(config.resourceDistributionData?.allocations || []).map((row, idx) => (
+                    {(config.resourceDistributionData?.allocations || []).map((row, idx) => {
+                      const rowCampusId =
+                        row.campusId != null && !Number.isNaN(Number(row.campusId)) ? Number(row.campusId) : null;
+                      const campusInList =
+                        rowCampusId != null &&
+                        campusList.some((c) => {
+                          const id = campusKey(c);
+                          return id != null && Number(id) === rowCampusId;
+                        });
+                      return (
                       <Card key={`resource-allocation-${idx}`} variant="outlined" sx={{borderRadius: 2}}>
                         <CardContent sx={{py: 1.5}}>
                           <Stack direction={{xs: "column", md: "row"}} spacing={1.25} alignItems={{xs: "stretch", md: "center"}}>
                             <TextField
-                              label="Resource type"
+                              select
+                              label="Loại nguồn lực"
                               size="small"
-                              value={row.resourceType ?? ""}
+                              value={
+                                isKnownResourceTypeValue(row.resourceType)
+                                  ? String(row.resourceType)
+                                  : row.resourceType
+                                    ? String(row.resourceType)
+                                    : ""
+                              }
                               onChange={(e) => updateResourceAllocationAt(idx, {resourceType: e.target.value})}
-                              sx={{flex: 1}}
+                              sx={{flex: 1, minWidth: {md: 200}}}
                               inputProps={{readOnly: fieldDisabled}}
-                            />
+                            >
+                              <MenuItem value="">
+                                <em>Chọn loại</em>
+                              </MenuItem>
+                              {row.resourceType != null &&
+                              String(row.resourceType).trim() !== "" &&
+                              !isKnownResourceTypeValue(row.resourceType) ? (
+                                <MenuItem value={String(row.resourceType)}>
+                                  {String(row.resourceType)} (không khớp enum)
+                                </MenuItem>
+                              ) : null}
+                              {RESOURCE_TYPE_OPTIONS.map((opt) => (
+                                <MenuItem key={opt.value} value={opt.value}>
+                                  {opt.label}
+                                </MenuItem>
+                              ))}
+                            </TextField>
                             <TextField
-                              label="Campus ID"
+                              select
+                              label="Cơ sở"
                               size="small"
-                              type="number"
-                              value={row.campusId ?? ""}
+                              value={row.campusId != null && !Number.isNaN(Number(row.campusId)) ? String(Number(row.campusId)) : ""}
                               onChange={(e) => {
                                 const raw = e.target.value;
                                 updateResourceAllocationAt(idx, {campusId: raw === "" ? null : Number(raw)});
                               }}
-                              sx={{width: {xs: "100%", md: 180}}}
-                              inputProps={{readOnly: fieldDisabled, min: 0}}
-                            />
+                              sx={{width: {xs: "100%", md: 220}}}
+                              inputProps={{readOnly: fieldDisabled}}
+                            >
+                              <MenuItem value="">
+                                <em>Chọn cơ sở</em>
+                              </MenuItem>
+                              {rowCampusId != null && !campusInList ? (
+                                <MenuItem value={String(rowCampusId)}>
+                                  Cơ sở #{rowCampusId} (không có trong danh sách)
+                                </MenuItem>
+                              ) : null}
+                              {campusList.map((c) => {
+                                const id = campusKey(c);
+                                if (id == null || id === "") return null;
+                                const n = Number(id);
+                                const label = c?.name ?? c?.campusName ?? `Cơ sở #${id}`;
+                                return (
+                                  <MenuItem key={String(id)} value={Number.isFinite(n) ? String(n) : String(id)}>
+                                    {label}
+                                  </MenuItem>
+                                );
+                              })}
+                            </TextField>
                             <TextField
-                              label="Allocated amount"
+                              label="Số lượng phân bổ"
                               size="small"
                               type="number"
                               value={row.allocatedAmount ?? 0}
                               onChange={(e) => updateResourceAllocationAt(idx, {allocatedAmount: Number(e.target.value) || 0})}
-                              sx={{width: {xs: "100%", md: 220}}}
+                              sx={{width: {xs: "100%", md: 200}}}
                               inputProps={{readOnly: fieldDisabled, min: 0}}
                             />
                             <IconButton
@@ -2826,7 +3056,8 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                           </Stack>
                         </CardContent>
                       </Card>
-                    ))}
+                      );
+                    })}
                   </Stack>
                 )}
               </CardContent>

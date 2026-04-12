@@ -81,6 +81,8 @@ function campusConfigPathId(campusId) {
 
 /**
  * GET /api/v1/campus/config — không path/query; campus theo phiên đăng nhập.
+ * Response: `{ message, body: { campusCurrent, hqDefault } }` (camelCase; BE có thể dùng snake_case tương ứng).
+ * `body.campusCurrent`: `facilityJson`, `policyDetailRendered`, … — xem `normalizeFromCampusConfigApi` trong SchoolFacilityOverview.
  */
 export const getCampusConfig = async () => {
   const response = await axiosClient.get("/campus/config");
@@ -89,7 +91,9 @@ export const getCampusConfig = async () => {
 
 /**
  * PUT /api/v1/campus/{campusId}/config — path `campusId`, không query params.
- * Body phẳng (partial): overview, itemList, imageJsonData { coverUrl, imageList },
+ * Body phẳng (partial), đúng contract BE, ví dụ:
+ * overview, itemList[{ facilityCode, name, value, unit, category }],
+ * imageJsonData: { coverUrl, imageList: [{ url, name, altName, … }] },
  * hotline, emailSupport, minCounsellorPerSlot, slotDurationInMinutes, maxBookingPerSlot,
  * allowBookingBeforeHours, workingOverride, admissionStepsOverride, policyDetail.
  * @param {number | string} campusId
@@ -108,15 +112,35 @@ export const getSchoolCampusConfigList = async () => {
   return response;
 };
 
+function parseFacilityConfigBlock(raw) {
+  if (raw == null) return null;
+  if (typeof raw === "string") {
+    const t = raw.trim();
+    if (!t) return null;
+    try {
+      const p = JSON.parse(t);
+      return p && typeof p === "object" ? p : null;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof raw === "object") return raw;
+  return null;
+}
+
 /** Normalize list body to an array of campus config rows */
 export function parseSchoolCampusConfigListBody(res) {
   const body = res?.data?.body ?? res?.data?.data?.body;
   if (!Array.isArray(body)) return [];
   return body.map((row) => {
     if (!row || typeof row !== "object") return row;
-    if (row.facilityConfig && typeof row.facilityConfig === "object") return row;
+    const direct =
+      parseFacilityConfigBlock(row.facilityConfig) ??
+      parseFacilityConfigBlock(row.facility_config);
+    if (direct) return {...row, facilityConfig: direct};
     const alt = row.facilityJson ?? row.facility_json;
-    if (alt && typeof alt === "object") return {...row, facilityConfig: alt};
+    const parsedAlt = parseFacilityConfigBlock(alt);
+    if (parsedAlt) return {...row, facilityConfig: parsedAlt};
     return row;
   });
 }
