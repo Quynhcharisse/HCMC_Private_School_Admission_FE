@@ -25,7 +25,6 @@ export default function CreatePostRichTextEditor({
     disabled = false,
     minEditorHeight = 220,
     maxEditorHeight = 360,
-    /** Khi true: editor chiếm hết chiều cao còn lại của khối cha (flex). */
     fillHeight = false
 }) {
     const onChangeRef = React.useRef(onChange);

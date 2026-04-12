@@ -48,7 +48,6 @@ function documentItemKey(d) {
     return `${String(d?.storagePath ?? "").trim()}::${String(d?.fileName ?? "").trim()}`;
 }
 
-/** Chỉ phục vụ hiển thị UI; dữ liệu gửi BE giữ nguyên `fileName` gốc. */
 function formatUploadedFileNameForDisplay(raw) {
     const s = String(raw ?? "").trim();
     if (!s) return "(file)";
@@ -116,7 +115,8 @@ export default function HomeCreatePostBar({
 }) {
     const [open, setOpen] = React.useState(false);
     const [submitting, setSubmitting] = React.useState(false);
-    const [uploadingCloudinary, setUploadingCloudinary] = React.useState(false);
+    const [cloudinaryUploadSlot, setCloudinaryUploadSlot] = React.useState(null);
+    const uploadingAnyImage = cloudinaryUploadSlot != null;
     const [uploadingDocument, setUploadingDocument] = React.useState(false);
     const [documentItems, setDocumentItems] = React.useState([]);
     const fileInputRef = React.useRef(null);
@@ -200,61 +200,12 @@ export default function HomeCreatePostBar({
     };
 
     const handleClose = () => {
-        if (submitting || uploadingCloudinary || uploadingDocument) return;
+        if (submitting || uploadingAnyImage || uploadingDocument) return;
         setOpen(false);
         resetForm();
     };
 
-    // const handleSubmit = async () => {
-    //     const imageUrlList = imageUrlsText
-    //         .split("\n")
-    //         .map((l) => l.trim())
-    //         .filter(Boolean);
-    //
-    //     let publishedDate = publishedAt.trim();
-    //     if (publishedDate.length === 16) publishedDate = `${publishedDate}:00`;
-    //
-    //     const body = buildCreatePostPayload({
-    //         shortDescription,
-    //         contentBody,
-    //         hashTagsRaw,
-    //         categoryPost,
-    //         imageUrlList,
-    //         documentItems,
-    //         thumbnail,
-    //         typeFile,
-    //         publishedDate
-    //     });
-    //
-    //     const err = validateClientPayload(body);
-    //     if (err) {
-    //         enqueueSnackbar(err, {variant: "warning"});
-    //         return;
-    //     }
-    //
-    //     setSubmitting(true);
-    //     try {
-    //         await createPost(body);
-    //         enqueueSnackbar("Đăng bài thành công.", {variant: "success"});
-    //         setOpen(false);
-    //         resetForm();
-    //     } catch (e) {
-    //         const status = e?.response?.status;
-    //         if (status === 403) {
-    //             enqueueSnackbar(
-    //                 "Bạn không có quyền đăng bài với tài khoản này. Hãy đăng nhập lại hoặc dùng tài khoản quản trị / trường.",
-    //                 {variant: "error"}
-    //             );
-    //         } else {
-    //             enqueueSnackbar(getApiErrorMessage(e, "Không thể đăng bài. Vui lòng thử lại."), {variant: "error"});
-    //         }
-    //     } finally {
-    //         setSubmitting(false);
-    //     }
-    // };
-
     const handleSubmit = async () => {
-        // 1. Kiểm tra việc xử lý chuỗi và mảng
         const imageUrlList = imageUrlsText
             .split("\n")
             .map((l) => l.trim())
@@ -263,7 +214,6 @@ export default function HomeCreatePostBar({
         let publishedDate = publishedAt.trim();
         if (publishedDate.length === 16) publishedDate = `${publishedDate}:00`;
 
-        // 2. Debug Payload trước khi gửi
         const body = buildCreatePostPayload({
             shortDescription,
             contentBody,
@@ -274,8 +224,7 @@ export default function HomeCreatePostBar({
             typeFile,
             publishedDate
         });
-        
-        // Lấy full profile để kiểm tra campus
+
         let profile = null;
         try {
             const profileRes = await getProfile();
@@ -285,12 +234,11 @@ export default function HomeCreatePostBar({
         }
         console.log("📦 Post Payload:", body);
         console.log("👤 Full Profile:", profile);
-        console.log("🏫 isPrimaryBranch:", profile?.campus?.isPrimaryBranch); // Kiểm tra cấu trúc data có đúng backend yêu cầu không
+        console.log("🏫 isPrimaryBranch:", profile?.campus?.isPrimaryBranch);
 
-        // 3. Debug Validation
         const err = validateClientPayload(body);
         if (err) {
-            console.warn("⚠️ Validation Error:", err); // Xem tại sao không qua được bước validate
+            console.warn("⚠️ Validation Error:", err);
             enqueueSnackbar(err, {variant: "warning"});
             return;
         }
@@ -309,14 +257,11 @@ export default function HomeCreatePostBar({
                 onPostCreated();
             }
         } catch (e) {
-            // 4. Debug Error chi tiết
             console.error("❌ Lỗi API:");
             if (e.response) {
-                // Server trả về lỗi (4xx, 5xx)
                 console.error("- Status:", e.response.status);
                 console.error("- Data từ server:", e.response.data);
             } else {
-                // Lỗi mạng hoặc lỗi code
                 console.error("- Message:", e.message);
             }
 
@@ -409,7 +354,7 @@ export default function HomeCreatePostBar({
             });
             return;
         }
-        setUploadingCloudinary(true);
+        setCloudinaryUploadSlot(mode === "thumbnail" ? "thumbnail" : "banner");
         try {
             const result = await uploadFileToCloudinary(file);
             const mime = file.type || "image/jpeg";
@@ -426,7 +371,7 @@ export default function HomeCreatePostBar({
         } catch (err) {
             enqueueSnackbar("Tải ảnh lên không thành công. Vui lòng thử lại.", {variant: "error"});
         } finally {
-            setUploadingCloudinary(false);
+            setCloudinaryUploadSlot(null);
         }
     };
 
@@ -502,7 +447,7 @@ export default function HomeCreatePostBar({
         "& .MuiMenuItem-root": {fontSize: "0.875rem"}
     };
 
-    const dropzoneInteractive = !uploadingCloudinary && !uploadingDocument && !submitting;
+    const dropzoneInteractive = !uploadingAnyImage && !uploadingDocument && !submitting;
     const UPLOAD_ZONE_MIN_PX = 152;
     const imageDropzoneSx = {
         border: `2px dashed ${LM.border}`,
@@ -674,7 +619,7 @@ export default function HomeCreatePostBar({
                         aria-label="Đóng"
                         onClick={handleClose}
                         size="small"
-                        disabled={submitting || uploadingCloudinary || uploadingDocument}
+                        disabled={submitting || uploadingAnyImage || uploadingDocument}
                         sx={{
                             position: "absolute",
                             right: 8,
@@ -721,7 +666,7 @@ export default function HomeCreatePostBar({
                             onChange={(e) => setShortDescription(e.target.value)}
                             placeholder="Nhập tiêu đề hoặc mô tả ngắn..."
                             size="small"
-                            disabled={submitting || uploadingCloudinary || uploadingDocument}
+                            disabled={submitting || uploadingAnyImage || uploadingDocument}
                             sx={{
                                 gridColumn: 1,
                                 gridRow: {xs: 1, md: 1},
@@ -744,7 +689,7 @@ export default function HomeCreatePostBar({
                                 minWidth: 0,
                                 ...textFieldLightSx
                             }}
-                            disabled={submitting || uploadingCloudinary || uploadingDocument}
+                            disabled={submitting || uploadingAnyImage || uploadingDocument}
                         >
                             <InputLabel id="post-type-label" sx={{color: LM.textMuted}}>
                                 Loại bài viết
@@ -808,7 +753,7 @@ export default function HomeCreatePostBar({
                                     key={richTextKey}
                                     initialHtml={contentBody}
                                     onChange={setContentBody}
-                                    disabled={submitting || uploadingCloudinary || uploadingDocument}
+                                    disabled={submitting || uploadingAnyImage || uploadingDocument}
                                     minEditorHeight={260}
                                     maxEditorHeight={480}
                                     fillHeight
@@ -828,7 +773,7 @@ export default function HomeCreatePostBar({
                                         )
                                     }
                                     onClick={() => fileInputRef.current?.click()}
-                                    disabled={submitting || uploadingCloudinary || uploadingDocument}
+                                    disabled={submitting || uploadingAnyImage || uploadingDocument}
                                     sx={{
                                         textTransform: "none",
                                         fontWeight: 600,
@@ -893,7 +838,7 @@ export default function HomeCreatePostBar({
                                                         size="small"
                                                         aria-label="Xóa tài liệu"
                                                         onClick={() => removeDocumentItem(k)}
-                                                        disabled={submitting || uploadingCloudinary || uploadingDocument}
+                                                        disabled={submitting || uploadingAnyImage || uploadingDocument}
                                                         sx={{flexShrink: 0, p: 0.35}}
                                                     >
                                                         <CloseIcon sx={{fontSize: 16}} />
@@ -925,7 +870,7 @@ export default function HomeCreatePostBar({
                                 value={hashTagsRaw}
                                 onChange={(e) => setHashTagsRaw(e.target.value)}
                                 placeholder="ví dụ: thongbao, sukien"
-                                disabled={submitting || uploadingCloudinary || uploadingDocument}
+                                disabled={submitting || uploadingAnyImage || uploadingDocument}
                                 sx={{...textFieldLightSx, alignSelf: "stretch"}}
                             />
 
@@ -980,7 +925,7 @@ export default function HomeCreatePostBar({
                                         }}
                                         sx={imageDropzoneSx}
                                     >
-                                        {uploadingCloudinary ? (
+                                        {cloudinaryUploadSlot === "thumbnail" ? (
                                             <CircularProgress size={28} sx={{color: LM.accent}} />
                                         ) : (
                                             <>
@@ -1005,7 +950,7 @@ export default function HomeCreatePostBar({
                                     }}
                                     sx={imageDropzoneSx}
                                 >
-                                    {uploadingCloudinary ? (
+                                    {cloudinaryUploadSlot === "banner" ? (
                                         <CircularProgress size={28} sx={{color: LM.accent}} />
                                     ) : (
                                         <>
@@ -1073,7 +1018,7 @@ export default function HomeCreatePostBar({
                                                             ev.stopPropagation();
                                                             removeIllustrationUrl(url);
                                                         }}
-                                                        disabled={submitting || uploadingCloudinary || uploadingDocument}
+                                                        disabled={submitting || uploadingAnyImage || uploadingDocument}
                                                         sx={{
                                                             position: "absolute",
                                                             top: 2,
@@ -1102,7 +1047,7 @@ export default function HomeCreatePostBar({
                     <Button
                         fullWidth
                         variant="contained"
-                        disabled={!canSubmit || submitting || uploadingCloudinary || uploadingDocument}
+                        disabled={!canSubmit || submitting || uploadingAnyImage || uploadingDocument}
                         onClick={handleSubmit}
                         sx={{
                             py: 1.35,
