@@ -25,6 +25,7 @@ import {
     TextField,
     Typography,
     Avatar,
+    CircularProgress,
 } from "@mui/material";
 import Pagination from "@mui/material/Pagination";
 import AddIcon from "@mui/icons-material/Add";
@@ -127,6 +128,36 @@ const formatDate = (d) => {
     return date.toLocaleDateString("vi-VN");
 };
 
+/** Khớp thông báo `CounsellorValidation` (BE) → tiếng Việt cho snackbar. */
+function translateCreateCounsellorBackendMessage(raw) {
+    if (raw == null) return null;
+    const msg = String(raw).trim();
+    if (!msg) return null;
+    const exact = {
+        "Email is required": "Email là bắt buộc",
+        "Email exceeds 100 characters": "Email vượt quá 100 ký tự",
+        "Email is invalid": "Email không hợp lệ",
+        "This email is already registered in the system.": "Email này đã được đăng ký trong hệ thống.",
+        "This email is already assigned to another counsellor.": "Email này đã được gán cho tư vấn viên khác.",
+        "This campus has not been allocated a quota for Counsellors.": "Cơ sở này chưa được phân bổ hạn ngạch cho tư vấn viên.",
+    };
+    if (exact[msg]) return exact[msg];
+    const quotaReached = msg.match(/^The counsellor quota for this campus has been reached \((\d+)\)\.?$/i);
+    if (quotaReached) {
+        return `Đã đạt hạn ngạch tư vấn viên của cơ sở này (${quotaReached[1]}).`;
+    }
+    return msg;
+}
+
+function messageFromApiPayload(data) {
+    if (data == null || typeof data !== "object") return null;
+    const m = data.message;
+    if (typeof m === "string" && m.trim()) return m.trim();
+    const b = data.body;
+    if (typeof b === "string" && b.trim()) return b.trim();
+    return null;
+}
+
 export default function SchoolCounselors() {
     const [counselors, setCounselors] = useState([]);
     const [search, setSearch] = useState("");
@@ -144,6 +175,7 @@ export default function SchoolCounselors() {
     const [totalPages, setTotalPages] = useState(0);
     const [_loading, setLoading] = useState(false);
     const [exporting, setExporting] = useState(false);
+    const [createSubmitting, setCreateSubmitting] = useState(false);
 
     const loadCounsellors = useCallback(async () => {
         setLoading(true);
@@ -212,15 +244,19 @@ export default function SchoolCounselors() {
     const handleOpenCreate = () => {
         setFormValues(emptyForm);
         setFormErrors({});
+        setCreateSubmitting(false);
         setCreateModalOpen(true);
     };
 
     const handleCloseCreate = () => {
+        if (createSubmitting) return;
         setCreateModalOpen(false);
+        setCreateSubmitting(false);
     };
 
     const handleCreateSubmit = async () => {
         if (!validateCreate()) return;
+        setCreateSubmitting(true);
         try {
             const res = await createCounsellor({
                 email: formValues.email.trim(),
@@ -258,11 +294,23 @@ export default function SchoolCounselors() {
                 );
                 setCreateModalOpen(false);
             } else {
-                enqueueSnackbar("Không thể tạo tư vấn viên", {variant: "error"});
+                const raw = messageFromApiPayload(res?.data);
+                enqueueSnackbar(
+                    translateCreateCounsellorBackendMessage(raw) || "Không thể tạo tư vấn viên",
+                    {variant: "error"}
+                );
             }
         } catch (error) {
             console.error("Create counsellor error:", error);
-            enqueueSnackbar("Lỗi khi tạo tư vấn viên", {variant: "error"});
+            const raw =
+                messageFromApiPayload(error?.response?.data) ||
+                (typeof error?.message === "string" ? error.message : null);
+            enqueueSnackbar(
+                translateCreateCounsellorBackendMessage(raw) || "Lỗi khi tạo tư vấn viên",
+                {variant: "error"}
+            );
+        } finally {
+            setCreateSubmitting(false);
         }
     };
 
@@ -715,7 +763,10 @@ export default function SchoolCounselors() {
             {/* Create Counselor Modal */}
             <Dialog
                 open={createModalOpen}
-                onClose={handleCloseCreate}
+                onClose={(e, reason) => {
+                    if (createSubmitting && (reason === "backdropClick" || reason === "escapeKeyDown")) return;
+                    handleCloseCreate();
+                }}
                 fullWidth
                 maxWidth="sm"
                 PaperProps={{sx: modalPaperSx}}
@@ -741,6 +792,7 @@ export default function SchoolCounselors() {
                         <IconButton
                             onClick={handleCloseCreate}
                             size="small"
+                            disabled={createSubmitting}
                             sx={{mt: -0.5, mr: -0.5}}
                             aria-label="Đóng"
                         >
@@ -760,6 +812,7 @@ export default function SchoolCounselors() {
                             error={!!formErrors.email}
                             helperText={formErrors.email}
                             required
+                            disabled={createSubmitting}
                         />
                         <Box>
                             <Typography
@@ -776,6 +829,7 @@ export default function SchoolCounselors() {
                                 }
                                 onError={(m) => enqueueSnackbar(m, {variant: "error"})}
                                 maxBytes={5 * 1024 * 1024}
+                                disabled={createSubmitting}
                             />
                         </Box>
                         <Typography variant="body2" sx={{color: "#64748b", fontSize: 13}}>
@@ -790,6 +844,7 @@ export default function SchoolCounselors() {
                         onClick={handleCloseCreate}
                         variant="text"
                         color="inherit"
+                        disabled={createSubmitting}
                         sx={{textTransform: "none", fontWeight: 500}}
                     >
                         Hủy
@@ -797,6 +852,12 @@ export default function SchoolCounselors() {
                     <Button
                         onClick={handleCreateSubmit}
                         variant="contained"
+                        disabled={createSubmitting}
+                        startIcon={
+                            createSubmitting ? (
+                                <CircularProgress size={18} color="inherit" sx={{mr: -0.5}}/>
+                            ) : null
+                        }
                         sx={{
                             textTransform: "none",
                             fontWeight: 600,
@@ -805,7 +866,7 @@ export default function SchoolCounselors() {
                             background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                         }}
                     >
-                        Tạo
+                        {createSubmitting ? "Đang tạo…" : "Tạo"}
                     </Button>
                 </DialogActions>
             </Dialog>
