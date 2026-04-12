@@ -7,7 +7,7 @@ import LayeredMountainSilhouette from "../ui/LayeredMountainSilhouette.jsx";
 
 const sectionTitleSx = {
     fontWeight: 800,
-    mb: 2,
+    mb: 1.25,
     color: '#ffffff',
     letterSpacing: '0.06em',
     fontSize: '0.95rem',
@@ -43,6 +43,13 @@ const linkSx = {
     }
 };
 
+/** Plain footer lines (no href) — same base look as links without hover/navigation */
+const footerPlainLineSx = {
+    color: 'rgba(255,255,255,0.95)',
+    textShadow: '0 1px 2px rgba(51,65,85,0.28)',
+    py: 0.25,
+};
+
 export default function Footer() {
     return (
         <Box
@@ -52,7 +59,7 @@ export default function Footer() {
                 width: '100%',
                 overflow: 'hidden',
                 bgcolor: HOME_PAGE_HERO_BACKDROP,
-                minHeight: {xs: 480, md: 520}
+                minHeight: {xs: 320, md: 360}
             }}
         >
             <LayeredMountainSilhouette variant="footer"/>
@@ -62,16 +69,18 @@ export default function Footer() {
                     position: 'relative',
                     zIndex: 1,
                     px: {xs: 2, md: 8},
-                    minHeight: {xs: 480, md: 520},
+                    minHeight: {xs: 320, md: 360},
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'flex-end',
-                    py: {xs: 4, md: 5}
+                    py: {xs: 2, md: 2.25}
                 }}
             >
                 <Box
                     sx={{
-                        p: {xs: 2.5, md: 3.5},
+                        px: {xs: 2, md: 2.75},
+                        pt: {xs: 1.75, md: 2},
+                        pb: {xs: 1.25, md: 1.5},
                         borderRadius: {xs: 2.5, md: 3},
                         bgcolor: 'rgba(30, 58, 100, 0.52)',
                         backdropFilter: 'blur(16px)',
@@ -83,7 +92,7 @@ export default function Footer() {
                 >
                 <Grid
                     container
-                    spacing={4}
+                    spacing={3}
                     alignItems="flex-start"
                     justifyContent="space-between"
                 >
@@ -96,8 +105,8 @@ export default function Footer() {
                         <Typography variant="h6" component="h2" sx={sectionTitleSx}>
                             GIỚI THIỆU
                         </Typography>
-                        <Typography variant="body2" sx={{color: 'rgba(255,255,255,0.88)', lineHeight: 1.75, mb: 2}}>
-                            EduBridgeHCM là nền tảng tư vấn tuyển sinh thông minh, kết nối phụ huynh với các trường học chất lượng tại TP.HCM. Chúng tôi giúp phụ huynh tìm trường phù hợp và hỗ trợ trường học tiếp cận học sinh tiềm năng.
+                        <Typography variant="body2" sx={{color: 'rgba(255,255,255,0.88)', lineHeight: 1.65, mb: 1}}>
+                            EduBridgeHCM là dự án học tập nhằm xây dựng nền tảng tư vấn tuyển sinh thông minh, kết nối phụ huynh với các trường học. Dự án phục vụ mục đích nghiên cứu và không đại diện cho tổ chức thương mại thực tế
                         </Typography>
                     </Grid>
 
@@ -133,7 +142,7 @@ export default function Footer() {
                             }}
                         >
                             <EmailIcon sx={{fontSize: 18, color: BRAND_AQUA}}/>
-                            <Typography variant="body2" sx={{color: 'rgba(255,255,255,0.9)'}}>admission@hcmhighschool.edu.vn</Typography>
+                            <Typography variant="body2" sx={{color: 'rgba(255,255,255,0.9)'}}>admissionhcmhighschool@gmail.com</Typography>
                         </Box>
                     </Grid>
 
@@ -144,7 +153,7 @@ export default function Footer() {
                         sx={{textAlign: {xs: 'center', md: 'left'}}}
                     >
                         <Typography variant="h6" component="h2" sx={sectionTitleSx}>
-                            CHÍNH SÁCH
+                            THÔNG TIN & HỖ TRỢ
                         </Typography>
                         <Box sx={{
                             fontSize: 15,
@@ -153,9 +162,15 @@ export default function Footer() {
                             gap: 1,
                             alignItems: {xs: 'center', md: 'flex-start'}
                         }}>
-                            <Link href="/policy/privacy" sx={linkSx}>Chính Sách Bảo Mật</Link>
-                            <Link href="/tos" sx={linkSx}>Điều Khoản Sử Dụng</Link>
-                            <Link href="/faq" sx={linkSx}>Câu Hỏi Thường Gặp</Link>
+                            <Typography component="span" variant="body2" sx={footerPlainLineSx}>
+                                Bảo Mật Thông tin (Demo)
+                            </Typography>
+                            <Typography component="span" variant="body2" sx={footerPlainLineSx}>
+                                Hướng Dẫn Sử Dụng
+                            </Typography>
+                            <Typography component="span" variant="body2" sx={footerPlainLineSx}>
+                                Câu Hỏi Thường Gặp
+                            </Typography>
                         </Box>
                     </Grid>
 
@@ -182,18 +197,29 @@ export default function Footer() {
                         </Box>
                     </Grid>
                 </Grid>
-                <Divider sx={{my: 4, borderColor: 'rgba(255,255,255,0.26)'}}/>
+                <Divider sx={{mt: 1.25, mb: 0.75, borderColor: 'rgba(255,255,255,0.26)'}}/>
                 <Box sx={{
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: 1,
-                    pt: 0.5,
-                    pb: 0.5
+                    pt: 0,
+                    pb: 0,
+                    width: '100%',
+                    overflowX: 'auto',
+                    WebkitOverflowScrolling: 'touch',
                 }}>
-                    <Typography variant="body2" align="center" sx={{color: 'rgba(255,255,255,0.72)', maxWidth: 560}}>
-                        © {new Date().getFullYear()} EduBridgeHCM - Nền Tảng Tư Vấn Tuyển Sinh. Tất cả quyền được bảo lưu.
+                    <Typography
+                        variant="body2"
+                        align="center"
+                        sx={{
+                            color: 'rgba(255,255,255,0.72)',
+                            whiteSpace: 'nowrap',
+                            m: 0,
+                            px: 0.5,
+                        }}
+                    >
+                        © {new Date().getFullYear()} EduBridgeHCM - Dự án học tập. Tất cả thông tin trên hệ thống mang tính minh họa.
                     </Typography>
                 </Box>
                 </Box>
