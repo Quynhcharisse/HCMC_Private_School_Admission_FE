@@ -11,7 +11,6 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
 import { useNavigate, useParams } from "react-router-dom";
-import { BRAND_NAVY } from "../../../constants/homeLandingTheme";
 import { getCurrentSchoolSubscription } from "../../../services/SchoolSubscriptionService.jsx";
 import { getApiErrorMessage } from "../../../utils/getApiErrorMessage.js";
 
@@ -287,19 +286,6 @@ function SubscriptionMainCard({ sub, onViewDetails, onRenewOrUpgrade }) {
                             />
                         ) : null}
                     </Box>
-                    {sub.statusMessage ? (
-                        <Typography
-                            sx={{
-                                fontSize: "0.9375rem",
-                                fontWeight: 600,
-                                color: BRAND_NAVY,
-                                mb: 1.5,
-                                lineHeight: 1.5,
-                            }}
-                        >
-                            {sub.statusMessage}
-                        </Typography>
-                    ) : null}
                     <Typography sx={{ fontSize: "0.8125rem", color: "#64748b", fontWeight: 500 }}>
                         Mã license
                     </Typography>
@@ -516,7 +502,16 @@ function SubscriptionDetailPage({ sub, onBack, onRenewOrUpgrade }) {
                 <Typography sx={{ fontSize: "1.5rem", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em" }}>
                     {sub.packageName}
                 </Typography>
-                <Typography sx={{ color: "#64748b", mt: 1, fontSize: "0.9375rem" }}>{sub.statusMessage}</Typography>
+                <Typography
+                    sx={{
+                        color: sub.isExpired ? "#64748b" : "#0D64DE",
+                        mt: 1,
+                        fontSize: "0.9375rem",
+                        fontWeight: 600,
+                    }}
+                >
+                    {sub.statusMessage}
+                </Typography>
                 <Box sx={{ mt: 3, display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" } }}>
                     {[
                         ["Mã license", sub.licenseKey],
