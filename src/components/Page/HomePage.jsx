@@ -481,7 +481,7 @@ function SchoolCard({school}) {
     );
 }
 
-function LatestAdmissionNewsSection() {
+function LatestAdmissionNewsSection({refreshTrigger = 0}) {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down('md'));
     const [posts, setPosts] = React.useState([]);
@@ -522,7 +522,7 @@ function LatestAdmissionNewsSection() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [refreshTrigger]);
 
     const clearTimer = () => {
         if (timerRef.current) {
@@ -536,6 +536,7 @@ function LatestAdmissionNewsSection() {
             if (n === 0) return;
             clearTimer();
             setActive(((index % n) + n) % n);
+            if (n <= 1) return;
             timerRef.current = setInterval(() => {
                 setActive((prev) => (prev + 1) % n);
             }, ADMISSION_CAROUSEL_INTERVAL_MS);
@@ -588,19 +589,7 @@ function LatestAdmissionNewsSection() {
                             letterSpacing: '-0.02em'
                         }}
                     >
-                        Thông tin thông báo
-                    </Typography>
-                    <Typography
-                        variant="body1"
-                        sx={{
-                            color: '#64748b',
-                            fontSize: {xs: '0.95rem', md: '1.05rem'},
-                            maxWidth: '640px',
-                            mx: 'auto',
-                            lineHeight: 1.75
-                        }}
-                    >
-                        Vuốt hoặc chọn để xem — chuyển slide chậm, rõ chuyển động để dễ theo dõi.
+                        Bảng Tin
                     </Typography>
                 </Box>
 
@@ -616,8 +605,14 @@ function LatestAdmissionNewsSection() {
                     <Typography align="center" sx={{color: '#64748b', py: 4}}>
                         Chưa có thông báo nào.
                     </Typography>
-                ) : isMobile ? (
-                    <Box sx={{position: 'relative', maxWidth: 400, mx: 'auto'}}>
+                ) : n < 3 || isMobile ? (
+                    <Box
+                        sx={{
+                            position: 'relative',
+                            maxWidth: {xs: 400, md: 520},
+                            mx: 'auto'
+                        }}
+                    >
                         <Box
                             sx={{
                                 transition: `opacity ${ADMISSION_ANIM_MS}ms ${admissionEase}, transform ${ADMISSION_ANIM_MS}ms ${admissionEase}`,
@@ -628,34 +623,38 @@ function LatestAdmissionNewsSection() {
                         >
                             <BlogCard {...posts[active]} variant="featured" />
                         </Box>
-                        <IconButton
-                            onClick={() => goToSlide(active - 1)}
-                            sx={{
-                                position: 'absolute',
-                                left: -8,
-                                top: '42%',
-                                bgcolor: 'rgba(255,255,255,0.92)',
-                                boxShadow: landingSectionShadow(3),
-                                '&:hover': {bgcolor: '#fff'}
-                            }}
-                            aria-label="Tin trước"
-                        >
-                            <ChevronLeftIcon />
-                        </IconButton>
-                        <IconButton
-                            onClick={() => goToSlide(active + 1)}
-                            sx={{
-                                position: 'absolute',
-                                right: -8,
-                                top: '42%',
-                                bgcolor: 'rgba(255,255,255,0.92)',
-                                boxShadow: landingSectionShadow(3),
-                                '&:hover': {bgcolor: '#fff'}
-                            }}
-                            aria-label="Tin sau"
-                        >
-                            <ChevronRightIcon />
-                        </IconButton>
+                        {n > 1 ? (
+                            <>
+                                <IconButton
+                                    onClick={() => goToSlide(active - 1)}
+                                    sx={{
+                                        position: 'absolute',
+                                        left: -8,
+                                        top: '42%',
+                                        bgcolor: 'rgba(255,255,255,0.92)',
+                                        boxShadow: landingSectionShadow(3),
+                                        '&:hover': {bgcolor: '#fff'}
+                                    }}
+                                    aria-label="Tin trước"
+                                >
+                                    <ChevronLeftIcon />
+                                </IconButton>
+                                <IconButton
+                                    onClick={() => goToSlide(active + 1)}
+                                    sx={{
+                                        position: 'absolute',
+                                        right: -8,
+                                        top: '42%',
+                                        bgcolor: 'rgba(255,255,255,0.92)',
+                                        boxShadow: landingSectionShadow(3),
+                                        '&:hover': {bgcolor: '#fff'}
+                                    }}
+                                    aria-label="Tin sau"
+                                >
+                                    <ChevronRightIcon />
+                                </IconButton>
+                            </>
+                        ) : null}
                     </Box>
                 ) : (
                     <Box
@@ -1049,6 +1048,7 @@ export default function HomePage() {
     const [consultVisible, setConsultVisible] = React.useState(false);
     const servicePackagesSectionRef = React.useRef(null);
     const [servicePackagesVisible, setServicePackagesVisible] = React.useState(false);
+    const [admissionNewsRefreshTrigger, setAdmissionNewsRefreshTrigger] = React.useState(0);
     const consultMotionEase = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
     const consultStaggerMs = 140;
     const consultHeadlineContentSx = {
@@ -1616,10 +1616,15 @@ export default function HomePage() {
                     }}
                 >
                     <Container maxWidth="xl" sx={{px: {xs: 2, sm: 3, md: 4}}}>
-                        <HomeCreatePostBar belowHero visible />
+                        <HomeCreatePostBar
+                            belowHero
+                            visible
+                            onPostCreated={() => setAdmissionNewsRefreshTrigger((t) => t + 1)}
+                        />
                     </Container>
                 </Box>
             )}
+            <LatestAdmissionNewsSection refreshTrigger={admissionNewsRefreshTrigger}/>
             <Box
                 id="trường-nổi-bật"
                 sx={{
@@ -2008,7 +2013,6 @@ export default function HomePage() {
                 </Box>
             )}
 
-            <LatestAdmissionNewsSection/>
         </Box>
     );
 }

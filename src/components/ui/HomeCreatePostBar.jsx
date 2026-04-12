@@ -15,7 +15,6 @@ import {
     Typography,
     CircularProgress
 } from "@mui/material";
-import AddPhotoAlternateOutlinedIcon from "@mui/icons-material/AddPhotoAlternateOutlined";
 import CloseIcon from "@mui/icons-material/Close";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
@@ -29,7 +28,7 @@ import {
 import {CATEGORY_POST_ADMIN, CATEGORY_POST_SCHOOL} from "../../constants/categoryPost";
 import {buildCreatePostPayload, isRichTextEmpty} from "../../utils/buildCreatePostPayload";
 import CreatePostRichTextEditor from "./CreatePostRichTextEditor.jsx";
-import {syncLocalUserWithAccess} from "../../services/AccountService.jsx";
+import {syncLocalUserWithAccess, getProfile} from "../../services/AccountService.jsx";
 import {createPost, uploadPostDocumentImport} from "../../services/PostService.jsx";
 import {getApiErrorMessage} from "../../utils/getApiErrorMessage";
 import {isCloudinaryConfigured, uploadFileToCloudinary} from "../../utils/cloudinaryUpload.js";
@@ -47,6 +46,31 @@ function isHttpUrl(s) {
 function documentItemKey(d) {
     return `${String(d?.storagePath ?? "").trim()}::${String(d?.fileName ?? "").trim()}`;
 }
+
+/** Chỉ phục vụ hiển thị UI; dữ liệu gửi BE giữ nguyên `fileName` gốc. */
+function formatUploadedFileNameForDisplay(raw) {
+    const s = String(raw ?? "").trim();
+    if (!s) return "(file)";
+    const parts = s.split("_");
+    if (parts.length >= 2) {
+        const head = parts[0];
+        const isUuidHyphen =
+            /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/i.test(head);
+        const isUuidCompact = /^[0-9a-fA-F]{32}$/i.test(head);
+        if (isUuidHyphen || isUuidCompact) {
+            return parts.slice(1).join("_");
+        }
+    }
+    return s;
+}
+
+const fileNameDisplaySx = {
+    maxWidth: 200,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    display: "block"
+};
 
 function validateClientPayload(body) {
     if (!body.hashTagList?.length) return "Vui lòng nhập ít nhất một nhãn từ khóa (cách nhau bằng dấu phẩy hoặc khoảng trắng).";
@@ -91,13 +115,17 @@ const LM = {
     accent: APP_PRIMARY_MAIN
 };
 
-export default function HomeCreatePostBar({visible, embedded = false, belowHero = false}) {
+export default function HomeCreatePostBar({
+    visible,
+    embedded = false,
+    belowHero = false,
+    onPostCreated
+}) {
     const [open, setOpen] = React.useState(false);
     const [submitting, setSubmitting] = React.useState(false);
     const [uploadingCloudinary, setUploadingCloudinary] = React.useState(false);
     const [uploadingDocument, setUploadingDocument] = React.useState(false);
     const [documentItems, setDocumentItems] = React.useState([]);
-    const imageInputRef = React.useRef(null);
     const fileInputRef = React.useRef(null);
     const thumbnailInputRef = React.useRef(null);
     const bannerInputRef = React.useRef(null);
@@ -184,7 +212,56 @@ export default function HomeCreatePostBar({visible, embedded = false, belowHero 
         resetForm();
     };
 
+    // const handleSubmit = async () => {
+    //     const imageUrlList = imageUrlsText
+    //         .split("\n")
+    //         .map((l) => l.trim())
+    //         .filter(Boolean);
+    //
+    //     let publishedDate = publishedAt.trim();
+    //     if (publishedDate.length === 16) publishedDate = `${publishedDate}:00`;
+    //
+    //     const body = buildCreatePostPayload({
+    //         shortDescription,
+    //         contentBody,
+    //         hashTagsRaw,
+    //         categoryPost,
+    //         imageUrlList,
+    //         documentItems,
+    //         thumbnail,
+    //         typeFile,
+    //         publishedDate
+    //     });
+    //
+    //     const err = validateClientPayload(body);
+    //     if (err) {
+    //         enqueueSnackbar(err, {variant: "warning"});
+    //         return;
+    //     }
+    //
+    //     setSubmitting(true);
+    //     try {
+    //         await createPost(body);
+    //         enqueueSnackbar("Đăng bài thành công.", {variant: "success"});
+    //         setOpen(false);
+    //         resetForm();
+    //     } catch (e) {
+    //         const status = e?.response?.status;
+    //         if (status === 403) {
+    //             enqueueSnackbar(
+    //                 "Bạn không có quyền đăng bài với tài khoản này. Hãy đăng nhập lại hoặc dùng tài khoản quản trị / trường.",
+    //                 {variant: "error"}
+    //             );
+    //         } else {
+    //             enqueueSnackbar(getApiErrorMessage(e, "Không thể đăng bài. Vui lòng thử lại."), {variant: "error"});
+    //         }
+    //     } finally {
+    //         setSubmitting(false);
+    //     }
+    // };
+
     const handleSubmit = async () => {
+        // 1. Kiểm tra việc xử lý chuỗi và mảng
         const imageUrlList = imageUrlsText
             .split("\n")
             .map((l) => l.trim())
@@ -193,35 +270,67 @@ export default function HomeCreatePostBar({visible, embedded = false, belowHero 
         let publishedDate = publishedAt.trim();
         if (publishedDate.length === 16) publishedDate = `${publishedDate}:00`;
 
+        // 2. Debug Payload trước khi gửi
         const body = buildCreatePostPayload({
             shortDescription,
             contentBody,
             hashTagsRaw,
             categoryPost,
             imageUrlList,
-            documentItems,
             thumbnail,
             typeFile,
             publishedDate
         });
+        
+        // Lấy full profile để kiểm tra campus
+        let profile = null;
+        try {
+            const profileRes = await getProfile();
+            profile = profileRes?.data?.body;
+        } catch (err) {
+            console.warn("⚠️ Lỗi lấy profile:", err.message);
+        }
+        console.log("📦 Post Payload:", body);
+        console.log("👤 Full Profile:", profile);
+        console.log("🏫 isPrimaryBranch:", profile?.campus?.isPrimaryBranch); // Kiểm tra cấu trúc data có đúng backend yêu cầu không
 
+        // 3. Debug Validation
         const err = validateClientPayload(body);
         if (err) {
+            console.warn("⚠️ Validation Error:", err); // Xem tại sao không qua được bước validate
             enqueueSnackbar(err, {variant: "warning"});
             return;
         }
 
         setSubmitting(true);
+        console.log("⏳ Đang gửi request...");
+
         try {
-            await createPost(body);
+            const response = await createPost(body);
+            console.log("✅ Đăng bài thành công!", response);
+
             enqueueSnackbar("Đăng bài thành công.", {variant: "success"});
             setOpen(false);
             resetForm();
+            if (typeof onPostCreated === "function") {
+                onPostCreated();
+            }
         } catch (e) {
+            // 4. Debug Error chi tiết
+            console.error("❌ Lỗi API:");
+            if (e.response) {
+                // Server trả về lỗi (4xx, 5xx)
+                console.error("- Status:", e.response.status);
+                console.error("- Data từ server:", e.response.data);
+            } else {
+                // Lỗi mạng hoặc lỗi code
+                console.error("- Message:", e.message);
+            }
+
             const status = e?.response?.status;
             if (status === 403) {
                 enqueueSnackbar(
-                    "Bạn không có quyền đăng bài với tài khoản này. Hãy đăng nhập lại hoặc dùng tài khoản quản trị / trường.",
+                    "Bạn không có quyền đăng bài...",
                     {variant: "error"}
                 );
             } else {
@@ -229,6 +338,7 @@ export default function HomeCreatePostBar({visible, embedded = false, belowHero 
             }
         } finally {
             setSubmitting(false);
+            console.log("🏁 Kết thúc xử lý Submit.");
         }
     };
 
@@ -399,17 +509,22 @@ export default function HomeCreatePostBar({visible, embedded = false, belowHero 
         "& .MuiMenuItem-root": {fontSize: "0.875rem"}
     };
 
+    const dropzoneInteractive = !uploadingCloudinary && !uploadingDocument && !submitting;
+    const imageDropzoneSx = {
+        border: `2px dashed ${LM.border}`,
+        borderRadius: 2,
+        py: 2.5,
+        px: 2,
+        textAlign: "center",
+        cursor: dropzoneInteractive ? "pointer" : "default",
+        bgcolor: LM.inputBg,
+        "&:hover": {
+            borderColor: dropzoneInteractive ? LM.accent : LM.border
+        }
+    };
+
     return (
         <>
-            <input
-                ref={imageInputRef}
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={(e) => {
-                    void handleCloudinaryInput(e, "append");
-                }}
-            />
             <input
                 ref={fileInputRef}
                 type="file"
@@ -518,24 +633,14 @@ export default function HomeCreatePostBar({visible, embedded = false, belowHero 
                     >
                         Đăng bài
                     </Button>
-                    <Stack direction="row" spacing={1} sx={{flexShrink: 0}}>
-                        <IconButton
-                            size="medium"
-                            aria-label="Tải hình ảnh lên"
-                            onClick={openModal}
-                            sx={iconBtnSx}
-                        >
-                            <AddPhotoAlternateOutlinedIcon />
-                        </IconButton>
-                        <IconButton
-                            size="medium"
-                            aria-label="Tải tệp từ máy"
-                            onClick={openModal}
-                            sx={iconBtnSx}
-                        >
-                            <UploadFileOutlinedIcon />
-                        </IconButton>
-                    </Stack>
+                    <IconButton
+                        size="medium"
+                        aria-label="Tải tệp từ máy"
+                        onClick={openModal}
+                        sx={{...iconBtnSx, flexShrink: 0}}
+                    >
+                        <UploadFileOutlinedIcon />
+                    </IconButton>
                 </Box>
             </Box>
 
@@ -580,47 +685,9 @@ export default function HomeCreatePostBar({visible, embedded = false, belowHero 
                         <CloseIcon fontSize="small" />
                     </IconButton>
 
-                    <Stack
-                        direction={{xs: "column", sm: "row"}}
-                        alignItems={{xs: "flex-start", sm: "center"}}
-                        justifyContent="space-between"
-                        spacing={2}
-                        sx={{pr: {sm: 5}}}
-                    >
-                        <Stack direction="row" spacing={1.5} alignItems="center">
-                            <Avatar src={avatarSrc} alt="" sx={{width: 44, height: 44}} />
-                            <Typography sx={{fontWeight: 800, color: LM.text, fontSize: "1rem"}}>{displayName}</Typography>
-                        </Stack>
-
-                        <FormControl
-                            size="small"
-                            sx={{minWidth: {xs: "100%", sm: 280}, ...textFieldLightSx}}
-                            disabled={submitting || uploadingCloudinary || uploadingDocument}
-                        >
-                            <InputLabel id="post-type-label" sx={{color: LM.textMuted}}>
-                                Loại bài viết
-                            </InputLabel>
-                            <Select
-                                labelId="post-type-label"
-                                label="Loại bài viết"
-                                value={categoryPost}
-                                onChange={(e) => setCategoryPost(e.target.value)}
-                                renderValue={(val) => {
-                                    const o = categoryOptions.find((x) => x.value === val);
-                                    return o?.label ?? "";
-                                }}
-                                sx={{color: LM.text, "& .MuiOutlinedInput-notchedOutline": {borderColor: LM.border}}}
-                                MenuProps={{
-                                    PaperProps: {sx: selectMenuPaperSx}
-                                }}
-                            >
-                                {categoryOptions.map((opt) => (
-                                    <MenuItem key={opt.value} value={opt.value}>
-                                        {opt.label}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
+                    <Stack direction="row" spacing={1.5} alignItems="center" sx={{pr: {sm: 5}}}>
+                        <Avatar src={avatarSrc} alt="" sx={{width: 44, height: 44}} />
+                        <Typography sx={{fontWeight: 800, color: LM.text, fontSize: "1rem"}}>{displayName}</Typography>
                     </Stack>
                 </Box>
 
@@ -690,56 +757,29 @@ export default function HomeCreatePostBar({visible, embedded = false, belowHero 
                                 sx={{...textFieldLightSx, alignSelf: "stretch"}}
                             />
 
-                            <Stack
-                                direction={{xs: "column", sm: "row"}}
-                                alignItems={{xs: "stretch", sm: "center"}}
-                                justifyContent="space-between"
-                                spacing={1.5}
+                            <Button
+                                type="button"
+                                variant="outlined"
+                                size="small"
+                                startIcon={
+                                    uploadingDocument ? (
+                                        <CircularProgress size={14} sx={{color: LM.accent}} />
+                                    ) : (
+                                        <UploadFileOutlinedIcon sx={{fontSize: 18}} />
+                                    )
+                                }
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={submitting || uploadingCloudinary || uploadingDocument}
                                 sx={{
-                                    p: 1.5,
-                                    borderRadius: "12px",
-                                    bgcolor: LM.bgElev,
-                                    border: `1px solid ${LM.border}`
+                                    alignSelf: "flex-start",
+                                    textTransform: "none",
+                                    fontWeight: 600,
+                                    borderColor: LM.border,
+                                    color: LM.textMuted
                                 }}
                             >
-                                <Typography sx={{fontSize: "0.8125rem", fontWeight: 700, color: LM.textMuted}}>
-                                    Thêm vào bài viết của bạn
-                                </Typography>
-                                <Stack direction="row" spacing={1} justifyContent="flex-end">
-                                    <IconButton
-                                        aria-label="Tải thêm ảnh minh họa"
-                                        onClick={() => imageInputRef.current?.click()}
-                                        disabled={submitting || uploadingCloudinary || uploadingDocument}
-                                        sx={{
-                                            color: LM.accent,
-                                            border: `1px solid ${LM.border}`,
-                                            "&:hover": {bgcolor: "rgba(59,130,246,0.15)"}
-                                        }}
-                                    >
-                                        {uploadingCloudinary ? (
-                                            <CircularProgress size={22} sx={{color: LM.accent}} />
-                                        ) : (
-                                            <AddPhotoAlternateOutlinedIcon />
-                                        )}
-                                    </IconButton>
-                                    <IconButton
-                                        aria-label="Tải tài liệu đính kèm (theo loại bài)"
-                                        onClick={() => fileInputRef.current?.click()}
-                                        disabled={submitting || uploadingCloudinary || uploadingDocument}
-                                        sx={{
-                                            color: LM.accent,
-                                            border: `1px solid ${LM.border}`,
-                                            "&:hover": {bgcolor: "rgba(59,130,246,0.15)"}
-                                        }}
-                                    >
-                                        {uploadingDocument ? (
-                                            <CircularProgress size={22} sx={{color: LM.accent}} />
-                                        ) : (
-                                            <UploadFileOutlinedIcon />
-                                        )}
-                                    </IconButton>
-                                </Stack>
-                            </Stack>
+                                Đính kèm tài liệu (PDF, Word…)
+                            </Button>
                             {documentItems.length > 0 ? (
                                 <Box sx={{mt: 1}}>
                                     <Typography
@@ -768,23 +808,26 @@ export default function HomeCreatePostBar({visible, embedded = false, belowHero 
                                                     <Box sx={{flex: 1, minWidth: 0}}>
                                                         <Typography
                                                             variant="caption"
+                                                            component="span"
+                                                            title={doc.fileName || ""}
                                                             sx={{
+                                                                ...fileNameDisplaySx,
                                                                 fontWeight: 700,
-                                                                display: "block",
-                                                                wordBreak: "break-all",
                                                                 color: LM.text
                                                             }}
                                                         >
-                                                            {doc.fileName || "(file)"}
+                                                            {formatUploadedFileNameForDisplay(doc.fileName)}
                                                         </Typography>
                                                         <Typography
                                                             variant="caption"
+                                                            component="span"
+                                                            title={`${doc.storagePath || ""}${doc.category ? ` · ${doc.category}` : ""}`}
                                                             sx={{
-                                                                display: "block",
+                                                                ...fileNameDisplaySx,
                                                                 mt: 0.25,
-                                                                wordBreak: "break-all",
                                                                 color: LM.textMuted,
-                                                                fontSize: "0.7rem"
+                                                                fontSize: "0.7rem",
+                                                                maxWidth: 200
                                                             }}
                                                         >
                                                             {doc.storagePath}
@@ -793,10 +836,11 @@ export default function HomeCreatePostBar({visible, embedded = false, belowHero 
                                                         {doc.fileUrl ? (
                                                             <Typography
                                                                 variant="caption"
+                                                                component="span"
+                                                                title={doc.fileUrl}
                                                                 sx={{
-                                                                    display: "block",
+                                                                    ...fileNameDisplaySx,
                                                                     mt: 0.25,
-                                                                    wordBreak: "break-all",
                                                                     color: LM.textMuted,
                                                                     fontSize: "0.7rem"
                                                                 }}
@@ -833,60 +877,93 @@ export default function HomeCreatePostBar({visible, embedded = false, belowHero 
                                 gap: 2
                             }}
                         >
+                            <FormControl
+                                size="small"
+                                fullWidth
+                                sx={{minWidth: 0, ...textFieldLightSx}}
+                                disabled={submitting || uploadingCloudinary || uploadingDocument}
+                            >
+                                <InputLabel id="post-type-label" sx={{color: LM.textMuted}}>
+                                    Loại bài viết
+                                </InputLabel>
+                                <Select
+                                    labelId="post-type-label"
+                                    label="Loại bài viết"
+                                    value={categoryPost}
+                                    onChange={(e) => setCategoryPost(e.target.value)}
+                                    renderValue={(val) => {
+                                        const o = categoryOptions.find((x) => x.value === val);
+                                        return o?.label ?? "";
+                                    }}
+                                    sx={{color: LM.text, "& .MuiOutlinedInput-notchedOutline": {borderColor: LM.border}}}
+                                    MenuProps={{
+                                        PaperProps: {sx: selectMenuPaperSx}
+                                    }}
+                                >
+                                    {categoryOptions.map((opt) => (
+                                        <MenuItem key={opt.value} value={opt.value}>
+                                            {opt.label}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+
                             <Box>
                                 <Typography variant="caption" sx={{color: LM.textMuted, fontWeight: 700, display: "block", mb: 0.75}}>
                                     Ảnh đại diện bài viết
                                 </Typography>
-                                <Box
-                                    sx={{
-                                        position: "relative",
-                                        borderRadius: 2,
-                                        overflow: "hidden",
-                                        border: `1px solid ${LM.border}`,
-                                        bgcolor: LM.inputBg,
-                                        minHeight: 120,
-                                        display: "flex",
-                                        alignItems: "center",
-                                        justifyContent: "center"
-                                    }}
-                                >
-                                    {isHttpUrl(thumbnail) ? (
-                                        <>
-                                            <Box
-                                                component="img"
-                                                src={String(thumbnail).trim()}
-                                                alt=""
-                                                referrerPolicy="no-referrer"
-                                                sx={{width: "100%", maxHeight: 160, objectFit: "cover", display: "block"}}
-                                            />
-                                            <IconButton
-                                                size="small"
-                                                onClick={() => setThumbnail("")}
-                                                sx={{
-                                                    position: "absolute",
-                                                    top: 4,
-                                                    right: 4,
-                                                    bgcolor: "rgba(0,0,0,0.5)",
-                                                    color: "#fff",
-                                                    "&:hover": {bgcolor: "rgba(0,0,0,0.65)"}
-                                                }}
-                                            >
-                                                <CloseIcon fontSize="small" />
-                                            </IconButton>
-                                        </>
-                                    ) : (
-                                        <Button
-                                            variant="outlined"
+                                {isHttpUrl(thumbnail) ? (
+                                    <Box
+                                        sx={{
+                                            position: "relative",
+                                            borderRadius: 2,
+                                            overflow: "hidden",
+                                            border: `1px solid ${LM.border}`,
+                                            bgcolor: LM.inputBg
+                                        }}
+                                    >
+                                        <Box
+                                            component="img"
+                                            src={String(thumbnail).trim()}
+                                            alt=""
+                                            referrerPolicy="no-referrer"
+                                            sx={{width: "100%", maxHeight: 160, objectFit: "cover", display: "block"}}
+                                        />
+                                        <IconButton
                                             size="small"
-                                            onClick={() => thumbnailInputRef.current?.click()}
-                                            disabled={uploadingCloudinary || uploadingDocument || submitting}
-                                            startIcon={<CloudUploadOutlinedIcon />}
-                                            sx={{color: LM.textMuted, borderColor: LM.border}}
+                                            onClick={() => setThumbnail("")}
+                                            sx={{
+                                                position: "absolute",
+                                                top: 4,
+                                                right: 4,
+                                                bgcolor: "rgba(0,0,0,0.5)",
+                                                color: "#fff",
+                                                "&:hover": {bgcolor: "rgba(0,0,0,0.65)"}
+                                            }}
                                         >
-                                            Tải ảnh đại diện
-                                        </Button>
-                                    )}
-                                </Box>
+                                            <CloseIcon fontSize="small" />
+                                        </IconButton>
+                                    </Box>
+                                ) : (
+                                    <Box
+                                        onClick={() => {
+                                            if (!dropzoneInteractive) return;
+                                            thumbnailInputRef.current?.click();
+                                        }}
+                                        sx={imageDropzoneSx}
+                                    >
+                                        {uploadingCloudinary ? (
+                                            <CircularProgress size={28} sx={{color: LM.accent}} />
+                                        ) : (
+                                            <>
+                                                <CloudUploadOutlinedIcon sx={{fontSize: 36, color: LM.textMuted, mb: 0.5}} />
+                                                <Typography variant="caption" sx={{color: LM.textMuted, display: "block"}}>
+                                                    Chạm để chọn ảnh đại diện (một ảnh)
+                                                </Typography>
+                                            </>
+                                        )}
+                                    </Box>
+                                )}
                             </Box>
 
                             <Box>
@@ -895,23 +972,10 @@ export default function HomeCreatePostBar({visible, embedded = false, belowHero 
                                 </Typography>
                                 <Box
                                     onClick={() => {
-                                        if (uploadingCloudinary || uploadingDocument || submitting) return;
+                                        if (!dropzoneInteractive) return;
                                         bannerInputRef.current?.click();
                                     }}
-                                    sx={{
-                                        border: `2px dashed ${LM.border}`,
-                                        borderRadius: 2,
-                                        py: 2.5,
-                                        px: 2,
-                                        textAlign: "center",
-                                        cursor:
-                                            uploadingCloudinary || uploadingDocument || submitting ? "default" : "pointer",
-                                        bgcolor: LM.inputBg,
-                                        "&:hover": {
-                                            borderColor:
-                                                uploadingCloudinary || uploadingDocument ? LM.border : LM.accent
-                                        }
-                                    }}
+                                    sx={imageDropzoneSx}
                                 >
                                     {uploadingCloudinary ? (
                                         <CircularProgress size={28} sx={{color: LM.accent}} />
@@ -980,20 +1044,6 @@ export default function HomeCreatePostBar({visible, embedded = false, belowHero 
                                     </Stack>
                                 ) : null}
                             </Box>
-
-                            <TextField
-                                label="Ngày giờ đăng"
-                                type="datetime-local"
-                                required
-                                fullWidth
-                                size="small"
-                                value={publishedAt}
-                                onChange={(e) => setPublishedAt(e.target.value)}
-                                InputLabelProps={{shrink: true}}
-                                disabled={submitting || uploadingCloudinary || uploadingDocument}
-                                inputProps={{"aria-label": "Ngày giờ đăng", lang: "vi-VN"}}
-                                sx={textFieldLightSx}
-                            />
                         </Box>
                     </Stack>
                 </DialogContent>

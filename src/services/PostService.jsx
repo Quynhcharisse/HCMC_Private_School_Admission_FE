@@ -40,7 +40,7 @@ export const createPost = async (body) => {
 };
 
 export const getPostList = async () => {
-    return axiosClient.get("/post");
+    return axiosClient.get("/post/list");
 };
 
 export async function uploadPostDocumentImport(categoryPostTemplate, file) {
