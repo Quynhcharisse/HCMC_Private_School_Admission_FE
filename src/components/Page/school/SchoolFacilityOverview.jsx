@@ -63,10 +63,27 @@ const TAB_LABELS = [
 const BRANCH_TAB_SLUGS = ["operation", "facility"];
 const BRANCH_TAB_LABELS = ["Cài đặt Vận hành", "Cài đặt Cơ sở vật chất"];
 
-const METHOD_CATALOG = [
-  {code: "ACADEMIC_RECORD", description: "Dựa trên điểm 5 học kỳ", displayName: "Xét học bạ"},
-  {code: "ENTRANCE_EXAM", description: "Kỳ thi riêng của trường", displayName: "Thi tuyển"},
-];
+/**
+ * Danh sách phương thức hiển thị checkbox: từ API, không preset FE.
+ * - `availableMethods` / `available_methods`: đủ lựa chọn (bật/tắt theo `allowedMethods`).
+ * - Chỉ có `allowedMethods`: mỗi dòng tương ứng một phương thức đang cấu hình (có thể thêm bằng nút Thêm).
+ */
+function mergeAdmissionMethodCatalogRows(availableMethods, allowedMethods) {
+  const map = new Map();
+  for (const m of availableMethods || []) {
+    const code = m?.code != null ? String(m.code).trim() : "";
+    if (!code) continue;
+    map.set(code, {...(m && typeof m === "object" ? m : {}), code});
+  }
+  for (const m of allowedMethods || []) {
+    if (m && typeof m === "object" && m.__isNewRow) continue;
+    const code = m?.code != null ? String(m.code).trim() : "";
+    if (!code) continue;
+    const prev = map.get(code) || {};
+    map.set(code, {...prev, ...m, code});
+  }
+  return Array.from(map.values());
+}
 
 const DAY_CODES = [
   {code: "MON", label: "T2"},
@@ -81,6 +98,7 @@ const DAY_CODES = [
 function defaultConfig() {
   return {
     admissionSettingsData: {
+      availableMethods: [],
       allowedMethods: [],
       autoCloseOnFull: true,
       quotaAlertThresholdPercent: 90,
@@ -193,17 +211,6 @@ function buildImageJsonDataForCampusPut(imageData) {
       return row;
     }),
   };
-}
-
-function mergeMethodCatalog(methodsFromApi) {
-  const map = new Map(METHOD_CATALOG.map((m) => [m.code, {...m}]));
-  (methodsFromApi || []).forEach((m) => {
-    const code = m?.code != null ? String(m.code).trim() : "";
-    if (!code) return;
-    const base = map.get(code) || {code, description: "", displayName: code};
-    map.set(code, {...base, ...m, code});
-  });
-  return Array.from(map.values());
 }
 
 /**
@@ -512,7 +519,16 @@ function normalizeFromApi(body) {
     admissionSettingsData: {
       ...d.admissionSettingsData,
       ...adm,
-      allowedMethods: Array.isArray(adm.allowedMethods) ? adm.allowedMethods : d.admissionSettingsData.allowedMethods,
+      availableMethods: Array.isArray(adm.availableMethods)
+        ? adm.availableMethods
+        : Array.isArray(adm.available_methods)
+          ? adm.available_methods
+          : d.admissionSettingsData.availableMethods,
+      allowedMethods: Array.isArray(adm.allowedMethods)
+        ? adm.allowedMethods
+        : Array.isArray(adm.allowed_methods)
+          ? adm.allowed_methods
+          : d.admissionSettingsData.allowedMethods,
       autoCloseOnFull:
         typeof adm.autoCloseOnFull === "boolean" ? adm.autoCloseOnFull : d.admissionSettingsData.autoCloseOnFull,
       quotaAlertThresholdPercent:
@@ -950,7 +966,14 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
     setAdmissionMethodExpanded((p) => ({...p, [key]: !p[key]}));
   }, []);
 
-  const methodCatalog = useMemo(() => mergeMethodCatalog(config.admissionSettingsData?.allowedMethods), [config.admissionSettingsData?.allowedMethods]);
+  const methodCatalog = useMemo(
+    () =>
+      mergeAdmissionMethodCatalogRows(
+        config.admissionSettingsData?.availableMethods,
+        config.admissionSettingsData?.allowedMethods
+      ),
+    [config.admissionSettingsData?.availableMethods, config.admissionSettingsData?.allowedMethods]
+  );
 
   const snapshot = useMemo(() => JSON.stringify(config), [config]);
   const isDirty = useMemo(() => {
