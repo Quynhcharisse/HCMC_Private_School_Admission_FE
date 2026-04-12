@@ -143,11 +143,10 @@ function facilityPrimaryImageUrl(imageData) {
   return first?.url || "";
 }
 
-/** Chuẩn hoá tên hiển thị khi BE thiếu dấu (vd. "Campus Chinh" → "Campus chính"). */
 function displayCampusConfigName(name, fallbackIndex) {
   const raw = name != null && String(name).trim() !== "" ? String(name).trim() : "";
   if (!raw) return `Cơ sở ${fallbackIndex + 1}`;
-  return raw.replace(/\bcampus\s+chinh\b/gi, "Campus chính");
+  return raw;
 }
 
 function CategoryFacilityIcon({ category }) {
