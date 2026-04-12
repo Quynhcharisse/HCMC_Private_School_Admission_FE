@@ -118,9 +118,12 @@ function SubscriptionEmptyState({ onBuy }) {
                     borderRadius: "10px",
                     px: 3,
                     py: 1.25,
-                    bgcolor: "#0f172a",
-                    boxShadow: "none",
-                    "&:hover": { bgcolor: "#1e293b", boxShadow: "0 4px 12px rgba(15,23,42,0.15)" },
+                    bgcolor: "#0D64DE",
+                    boxShadow: "0 4px 12px rgba(13, 100, 222, 0.25)",
+                    "&:hover": {
+                        bgcolor: "#0b5ad1",
+                        boxShadow: "0 6px 16px rgba(13, 100, 222, 0.35)",
+                    },
                 }}
             >
                 Mua gói
