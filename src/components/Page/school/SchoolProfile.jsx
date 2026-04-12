@@ -23,11 +23,9 @@ import EditIcon from "@mui/icons-material/Edit";
 import PersonIcon from "@mui/icons-material/Person";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import SettingsIcon from "@mui/icons-material/Settings";
-import TimelineIcon from "@mui/icons-material/Timeline";
 import SchoolIcon from "@mui/icons-material/School";
 import CloseIcon from "@mui/icons-material/Close";
 import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
-import LockIcon from "@mui/icons-material/Lock";
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
@@ -612,7 +610,7 @@ export default function SchoolProfile() {
                                 {isBranchCampus ? (campus.name || "Hồ sơ cơ sở") : (campus.schoolName || campus.name || "Hồ sơ trường")}
                             </Typography>
                             <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.95 }}>
-                                {isBranchCampus ? (profile?.email || "—") : "Quản lý thông tin và cài đặt tài khoản"}
+                                {isBranchCampus ? (profile?.email || "—") : "Quản lý thông tin trường học"}
                             </Typography>
                             <Stack direction="row" spacing={1} sx={{ mt: 1.5, flexWrap: "wrap", gap: 0.5 }}>
                                 <Chip label="Trường học" size="small" sx={{ bgcolor: "rgba(255,255,255,0.25)", color: "white", fontWeight: 600 }} />
@@ -905,43 +903,6 @@ export default function SchoolProfile() {
                     )}
                 </CardContent>
             </Card>
-
-            <Card
-                elevation={0}
-                sx={{
-                    borderRadius: 3,
-                    border: "1px solid #e2e8f0",
-                    boxShadow: "0 4px 20px rgba(13, 100, 222, 0.06)",
-                    bgcolor: "#F8FAFC",
-                }}
-            >
-                <CardContent sx={{ p: 3 }}>
-                    <SectionHeader icon={SettingsIcon} title="Cài đặt tài khoản" />
-                    <Button variant="outlined" startIcon={<LockIcon />} size="medium" sx={{ borderRadius: 2, textTransform: "none", fontWeight: 600 }}>
-                        Đổi mật khẩu
-                    </Button>
-                </CardContent>
-            </Card>
-
-            {!isBranchCampus && (
-                <Card
-                    elevation={0}
-                    sx={{
-                        borderRadius: 3,
-                        border: "1px solid #e2e8f0",
-                        boxShadow: "0 4px 20px rgba(13, 100, 222, 0.06)",
-                        bgcolor: "#F8FAFC",
-                    }}
-                >
-                    <CardContent sx={{ p: 3 }}>
-                        <SectionHeader icon={TimelineIcon} title="Hoạt động gần đây" />
-                        <Box sx={{ py: 4, display: "flex", flexDirection: "column", alignItems: "center", color: "#94a3b8" }}>
-                            <TimelineIcon sx={{ fontSize: 48, mb: 1, opacity: 0.6 }} />
-                            <Typography variant="body2">Chưa có hoạt động nào</Typography>
-                        </Box>
-                    </CardContent>
-                </Card>
-            )}
 
             <Dialog open={editOpen} onClose={handleRequestCloseEdit} fullWidth maxWidth="md" PaperProps={{ sx: { borderRadius: 3, bgcolor: "#f8fafc" } }}>
                 <DialogTitle sx={{ px: 3, py: 2.5, borderBottom: "1px solid #e2e8f0" }}>
