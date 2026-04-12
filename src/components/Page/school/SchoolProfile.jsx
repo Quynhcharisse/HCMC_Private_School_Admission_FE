@@ -11,7 +11,6 @@ import {
     DialogTitle,
     FormControl,
     IconButton,
-    InputAdornment,
     InputLabel,
     MenuItem,
     Select,
@@ -39,13 +38,12 @@ import { CircleMarker, MapContainer, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
 const BOARDING_TYPE_OPTIONS = [
-    { value: "NONE", label: "Không có" },
     { value: "FULL_BOARDING", label: "Nội trú" },
     { value: "SEMI_BOARDING", label: "Bán trú" },
     { value: "BOTH", label: "Cả hai (Nội trú & Bán trú)" },
 ];
 
-const BOARDING_TYPE_DEFAULT = "NONE";
+const BOARDING_TYPE_DEFAULT = "FULL_BOARDING";
 const HCM_CODE = 79;
 /** Dùng cho geocoding (Nominatim) */
 const HCM_CITY_NAME = "Ho Chi Minh City";
@@ -53,7 +51,6 @@ const HCM_CITY_NAME = "Ho Chi Minh City";
 const API_CITY_DEFAULT = "Ho Chi Minh";
 const DEFAULT_MAP_CENTER = [10.7769, 106.7009];
 const BOARDING_VI_TO_ENUM = {
-    "Không có": "NONE",
     "Nội trú": "FULL_BOARDING",
     "Bán trú": "SEMI_BOARDING",
     "Cả hai (Nội trú & Bán trú)": "BOTH",
@@ -1066,29 +1063,31 @@ export default function SchoolProfile() {
                                                         <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600, display: "block", mb: 1 }}>
                                                             Logo (logoUrl)
                                                         </Typography>
-                                                        <Box sx={{ width: 72, height: 72, borderRadius: "50%", overflow: "hidden", border: "1px solid #e2e8f0", bgcolor: "#f8fafc", mb: 1.5 }}>
-                                                            {formValues.logoUrl ? <Box component="img" src={formValues.logoUrl} alt="Logo" sx={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <SchoolIcon sx={{ fontSize: 30, m: 2.5, color: "#94a3b8" }} />}
-                                                        </Box>
-                                                        <TextField
-                                                            label="Đường dẫn logo"
-                                                            value={formValues.logoUrl}
-                                                            onChange={(e) => setFormValues((p) => ({ ...p, logoUrl: e.target.value }))}
-                                                            fullWidth
-                                                            size="small"
-                                                            InputProps={{
-                                                                endAdornment: (
-                                                                    <InputAdornment position="end">
-                                                                        <CloudinaryUpload inputId="school-profile-logo" accept="image/*" multiple={false} onSuccess={([f]) => f?.url && setFormValues((p) => ({ ...p, logoUrl: f.url }))} onError={(m) => enqueueSnackbar(m, { variant: "error" })}>
-                                                                            {({ inputId, loading }) => (
-                                                                                <IconButton component="label" htmlFor={inputId} disabled={loading} size="small">
-                                                                                    <CloudUploadIcon fontSize="small" />
-                                                                                </IconButton>
-                                                                            )}
-                                                                        </CloudinaryUpload>
-                                                                    </InputAdornment>
-                                                                ),
-                                                            }}
-                                                        />
+                                                        <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                                                            <Box sx={{ width: 72, height: 72, borderRadius: "50%", overflow: "hidden", border: "1px solid #e2e8f0", bgcolor: "#f8fafc", flexShrink: 0 }}>
+                                                                {formValues.logoUrl ? <Box component="img" src={formValues.logoUrl} alt="Logo" sx={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <SchoolIcon sx={{ fontSize: 30, m: 2.5, color: "#94a3b8" }} />}
+                                                            </Box>
+                                                            <IconButton
+                                                                type="button"
+                                                                size="small"
+                                                                aria-label="Xóa logo"
+                                                                disabled={!formValues.logoUrl}
+                                                                onClick={() => setFormValues((p) => ({ ...p, logoUrl: "" }))}
+                                                                sx={{ bgcolor: "#fef2f2", color: "#dc2626", "&:hover": { bgcolor: "#fee2e2" }, "&.Mui-disabled": { bgcolor: "#f1f5f9", color: "#94a3b8" } }}
+                                                            >
+                                                                <DeleteOutlineIcon fontSize="small" />
+                                                            </IconButton>
+                                                            <CloudinaryUpload inputId="school-profile-logo" accept="image/*" multiple={false} onSuccess={([f]) => f?.url && setFormValues((p) => ({ ...p, logoUrl: f.url }))} onError={(m) => enqueueSnackbar(m, { variant: "error" })}>
+                                                                {({ inputId, loading }) => (
+                                                                    <IconButton component="label" htmlFor={inputId} disabled={loading} size="small" sx={{ bgcolor: "#f1f5f9", color: "#334155", border: "1px solid #e2e8f0", "&:hover": { bgcolor: "#e2e8f0" } }}>
+                                                                        <CloudUploadIcon fontSize="small" />
+                                                                    </IconButton>
+                                                                )}
+                                                            </CloudinaryUpload>
+                                                        </Stack>
+                                                        <Typography variant="body2" sx={{ color: "#64748b", wordBreak: "break-all", fontFamily: "ui-monospace, monospace", fontSize: "0.8125rem", lineHeight: 1.5 }}>
+                                                            {formValues.logoUrl || "—"}
+                                                        </Typography>
                                                     </Box>
                                                 </Stack>
                                             </CardContent>

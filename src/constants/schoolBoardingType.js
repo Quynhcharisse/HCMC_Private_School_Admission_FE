@@ -2,17 +2,16 @@
  * Backend (account profile, campus) validates `boardingType` as these exact Vietnamese strings,
  * not enum names like NONE / FULL_BOARDING.
  */
-export const BOARDING_TYPE_DEFAULT_VI = "Không có";
+export const BOARDING_TYPE_DEFAULT_VI = "Nội trú";
 
 export const BOARDING_TYPE_OPTIONS = [
-    { value: "Không có", label: "Không có" },
     { value: "Nội trú", label: "Nội trú" },
     { value: "Bán trú", label: "Bán trú" },
     { value: "Cả hai (Nội trú & Bán trú)", label: "Cả hai (Nội trú & Bán trú)" },
 ];
 
 const ENUM_TO_VI = {
-    NONE: "Không có",
+    NONE: "Nội trú",
     FULL_BOARDING: "Nội trú",
     SEMI_BOARDING: "Bán trú",
     BOTH: "Cả hai (Nội trú & Bán trú)",
