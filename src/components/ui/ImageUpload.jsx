@@ -334,8 +334,18 @@ export default function ImageUpload({
                         </Box>
 
                         {fileMeta && (
-                            <Typography variant="caption" sx={{color: "#64748b", textAlign: "center", px: 1}}>
-                                {fileMeta.name} · {formatBytes(fileMeta.size)}
+                            <Typography
+                                variant="caption"
+                                component="div"
+                                sx={{textAlign: "center", px: 1, lineHeight: 1.5}}
+                            >
+                                <Box component="span" sx={{color: "#16a34a", fontWeight: 600}}>
+                                    {fileMeta.name}
+                                </Box>
+                                <Box component="span" sx={{color: "#64748b", fontWeight: 400}}>
+                                    {" · "}
+                                    {formatBytes(fileMeta.size)}
+                                </Box>
                             </Typography>
                         )}
 
