@@ -31,9 +31,6 @@ export const getSupportLevelRank = (supportLevel) => {
 
 export const buildFeatureLines = (features = {}, durationDays = 0) => {
     const lines = [];
-    if (Number(features.maxAdmissions) > 0) {
-        lines.push(`Tối đa ${Number(features.maxAdmissions).toLocaleString("vi-VN")} hồ sơ tuyển sinh`);
-    }
     if (Number(features.maxCounsellors) > 0) {
         lines.push(`Tối đa ${Number(features.maxCounsellors).toLocaleString("vi-VN")} tư vấn viên`);
     }
