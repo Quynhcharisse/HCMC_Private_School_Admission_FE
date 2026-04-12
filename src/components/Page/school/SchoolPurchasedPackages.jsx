@@ -53,8 +53,14 @@ function mapSubscription(body) {
         endDate,
         dasRemaining,
         isExpired,
-        statusMessage: typeof body.statusMessage === "string" ? body.statusMessage : "",
-        suggestion: typeof body.suggestion === "string" ? body.suggestion : "",
+        statusMessage: localizeSubscriptionStatusMessage(
+            typeof body.statusMessage === "string" ? body.statusMessage : "",
+            body
+        ),
+        suggestion: localizeSubscriptionSuggestion(
+            typeof body.suggestion === "string" ? body.suggestion : "",
+            body
+        ),
     };
 }
 
@@ -65,6 +71,64 @@ function formatDateDDMMYYYY(iso) {
     const mm = String(d.getMonth() + 1).padStart(2, "0");
     const yyyy = d.getFullYear();
     return `${dd}/${mm}/${yyyy}`;
+}
+
+/**
+ * BE có thể trả suggestion tiếng Anh; hiển thị tiếng Việt cho người dùng.
+ * Ví dụ: … from day to day2026-05-12 (thiếu khoảng trắng trước ngày).
+ */
+function localizeSubscriptionSuggestion(raw, body) {
+    const text = typeof raw === "string" ? raw.trim() : "";
+    if (!text) return "";
+
+    const re =
+        /^If you purchase the same package '([^']+)',\s*time will be accumulated continuously from day to day\s*(\d{4}-\d{2}-\d{2})\.?$/i;
+    let m = text.match(re);
+    if (!m) {
+        const reTight =
+            /^If you purchase the same package '([^']+)',\s*time will be accumulated continuously from day to day(\d{4}-\d{2}-\d{2})\.?$/i;
+        m = text.match(reTight);
+    }
+    if (m) {
+        const pkg = m[1];
+        const iso = m[2];
+        return `Nếu bạn mua lại cùng gói "${pkg}", thời hạn sử dụng sẽ được cộng dồn liên tục kể từ ngày ${formatDateDDMMYYYY(iso)}.`;
+    }
+
+    if (/^If you purchase the same package/i.test(text) && body?.packageName && body?.endDate) {
+        return `Nếu bạn mua lại cùng gói "${body.packageName}", thời hạn sử dụng sẽ được cộng dồn liên tục kể từ ngày ${formatDateDDMMYYYY(body.endDate)}.`;
+    }
+
+    return text;
+}
+
+/**
+ * BE có thể trả statusMessage tiếng Anh (vd. Active (Remaining 30 days)).
+ */
+function localizeSubscriptionStatusMessage(raw, body) {
+    const text = typeof raw === "string" ? raw.trim() : "";
+    if (!text) return "";
+
+    const activeRe = /^Active\s*\(\s*Remaining\s+(\d+)\s+days?\s*\)\s*$/i;
+    const m = text.match(activeRe);
+    if (m) {
+        const n = parseInt(m[1], 10);
+        return Number.isFinite(n) ? `Đang hoạt động (Còn ${n} ngày)` : text;
+    }
+
+    if (/^Expired\b/i.test(text)) {
+        return "Đã hết hạn";
+    }
+    if (/^Inactive\b/i.test(text)) {
+        return "Không hoạt động";
+    }
+
+    if (/Active\s*\(\s*Remaining/i.test(text) && body && typeof body.dasRemaining === "number") {
+        const n = Math.max(0, body.dasRemaining);
+        return `Đang hoạt động (Còn ${n} ngày)`;
+    }
+
+    return text;
 }
 
 /** Elapsed % through [startDate, endDate] by calendar (0–100). */
