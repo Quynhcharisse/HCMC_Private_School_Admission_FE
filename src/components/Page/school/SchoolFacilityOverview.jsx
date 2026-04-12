@@ -97,11 +97,8 @@ const DAY_CODES = [
   {code: "SUN", label: "CN"},
 ];
 
-/** Khớp enum BE `ResourceType`: value JSON `counsellor` | `admission` (name COUNSELLOR | ADMISSION). */
-const RESOURCE_TYPE_OPTIONS = [
-  {value: "counsellor", label: "Tư vấn viên"},
-  {value: "admission", label: "Tuyển sinh"},
-];
+/** Khớp enum BE `ResourceType`: value JSON `counsellor` (COUNSELLOR). */
+const RESOURCE_TYPE_OPTIONS = [{value: "counsellor", label: "Tư vấn viên"}];
 
 const RESOURCE_TYPE_VALUE_SET = new Set(RESOURCE_TYPE_OPTIONS.map((o) => o.value));
 
@@ -111,12 +108,29 @@ function canonicalResourceType(raw) {
   if (!s) return "";
   const lower = s.toLowerCase();
   if (lower === "counsellor" || lower === "counselor") return "counsellor";
-  if (lower === "admission") return "admission";
   return s;
 }
 
 function isKnownResourceTypeValue(v) {
   return v != null && RESOURCE_TYPE_VALUE_SET.has(String(v));
+}
+
+/** Snackbar sau lưu Cấu hình chung (PUT school config) — đồng bộ với thông điệp BE tiếng Anh. */
+function schoolConfigSaveSuccessMessage(apiMessage) {
+  const raw = apiMessage != null ? String(apiMessage).trim() : "";
+  if (!raw) return "Chỉnh sửa thành công";
+  const lower = raw.toLowerCase().replace(/\.$/, "");
+  if (lower === "update successfully") return "Chỉnh sửa thành công";
+  return raw;
+}
+
+/** Snackbar sau lưu Cấu hình theo cơ sở (PUT /campus/{id}/config). */
+function campusConfigSaveSuccessMessage(apiMessage) {
+  const raw = apiMessage != null ? String(apiMessage).trim() : "";
+  if (!raw) return "Chỉnh sửa cấu hình cơ sở thành công";
+  const lower = raw.toLowerCase().replace(/\.$/, "");
+  if (lower === "campus config updated successfully") return "Chỉnh sửa cấu hình cơ sở thành công";
+  return raw;
 }
 
 function defaultConfig() {
@@ -513,12 +527,18 @@ function normalizeResourceAllocationRow(a) {
       : a.resource_type != null && String(a.resource_type).trim() !== ""
         ? String(a.resource_type).trim()
         : "";
-  const resourceType = canonicalResourceType(rawRt);
+  let resourceType = canonicalResourceType(rawRt);
   const rawCampus = a.campusId != null ? a.campusId : a.campus_id;
   const campusId =
     rawCampus != null && rawCampus !== "" && !Number.isNaN(Number(rawCampus)) ? Number(rawCampus) : null;
   const rawAmt = a.allocatedAmount != null ? a.allocatedAmount : a.allocated_amount;
   const allocatedAmount = rawAmt != null && !Number.isNaN(Number(rawAmt)) ? Number(rawAmt) : 0;
+  if (resourceType !== "" && !isKnownResourceTypeValue(resourceType)) {
+    resourceType = RESOURCE_TYPE_OPTIONS[0]?.value ?? "counsellor";
+  }
+  if (campusId != null && resourceType === "") {
+    resourceType = RESOURCE_TYPE_OPTIONS[0]?.value ?? "counsellor";
+  }
   return {resourceType, campusId, allocatedAmount};
 }
 
@@ -1270,7 +1290,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
       try {
         const res = await updateCampusConfig(effectiveCampusId, payload);
         if (res?.status >= 200 && res?.status < 300) {
-          enqueueSnackbar(res?.data?.message || "Lưu thành công", {variant: "success"});
+          enqueueSnackbar(campusConfigSaveSuccessMessage(res?.data?.message), {variant: "success"});
           setEditing(false);
           await load({silent: true});
         } else {
@@ -1344,7 +1364,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
         await load({silent: true});
         return;
       }
-      enqueueSnackbar(resSchool?.data?.message || "Lưu thành công", {variant: "success"});
+      enqueueSnackbar(schoolConfigSaveSuccessMessage(resSchool?.data?.message), {variant: "success"});
       setEditing(false);
       await load({silent: true});
     } catch (e) {
@@ -1455,7 +1475,11 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
     setConfig((c) => {
       const rows = [...(c.resourceDistributionData?.allocations || [])];
       if (!rows[idx]) return c;
-      rows[idx] = {...rows[idx], ...patch};
+      rows[idx] = {
+        ...rows[idx],
+        ...patch,
+        resourceType: RESOURCE_TYPE_OPTIONS[0]?.value ?? "counsellor",
+      };
       return {
         ...c,
         resourceDistributionData: {
@@ -1546,7 +1570,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
     ? isPrimaryBranch
       ? "Chỉnh vận hành và CSVC của cơ sở chính. Mỗi cơ sở chỉ sửa được cấu hình của chính mình. Sau khi Lưu, nội dung được phản ánh trong Bản chỉnh sửa từ cơ sở."
       : "Chỉnh vận hành và CSVC của cơ sở bạn. Sau khi Lưu, xem Bản chỉnh sửa từ cơ sở — bản văn thống nhất BE trả về."
-    : "Quản lý tuyển sinh, chỉ tiêu, tài chính, hồ sơ, vận hành và cơ sở vật chất chung.";
+    : "Cấu hình chung cho tất cả các cơ sở bao gồm: Quản lý tuyển sinh, chỉ tiêu, tài chính, hồ sơ, vận hành, cơ sở vật chất chung và phân bổ nguồn lực.";
 
   return (
       <Box
@@ -2914,7 +2938,6 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                       value={branchPolicyDetail}
                       onChange={(e) => setBranchPolicyDetail(e.target.value)}
                       inputProps={{readOnly: fieldDisabled}}
-                      helperText="PUT field policyDetail — khi GET lại nằm trong policyDetailRendered.rawCustomNote (phần “Lưu ý riêng tại cơ sở” trong Bản chỉnh sửa từ cơ sở)."
                       FormHelperTextProps={{sx: {maxWidth: "100%"}}}
                     />
                   </CardContent>
@@ -2973,36 +2996,13 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                         <CardContent sx={{py: 1.5}}>
                           <Stack direction={{xs: "column", md: "row"}} spacing={1.25} alignItems={{xs: "stretch", md: "center"}}>
                             <TextField
-                              select
                               label="Loại nguồn lực"
                               size="small"
-                              value={
-                                isKnownResourceTypeValue(row.resourceType)
-                                  ? String(row.resourceType)
-                                  : row.resourceType
-                                    ? String(row.resourceType)
-                                    : ""
-                              }
-                              onChange={(e) => updateResourceAllocationAt(idx, {resourceType: e.target.value})}
+                              value={RESOURCE_TYPE_OPTIONS[0]?.label ?? ""}
                               sx={{flex: 1, minWidth: {md: 200}}}
-                              inputProps={{readOnly: fieldDisabled}}
-                            >
-                              <MenuItem value="">
-                                <em>Chọn loại</em>
-                              </MenuItem>
-                              {row.resourceType != null &&
-                              String(row.resourceType).trim() !== "" &&
-                              !isKnownResourceTypeValue(row.resourceType) ? (
-                                <MenuItem value={String(row.resourceType)}>
-                                  {String(row.resourceType)} (không khớp enum)
-                                </MenuItem>
-                              ) : null}
-                              {RESOURCE_TYPE_OPTIONS.map((opt) => (
-                                <MenuItem key={opt.value} value={opt.value}>
-                                  {opt.label}
-                                </MenuItem>
-                              ))}
-                            </TextField>
+                              InputProps={{readOnly: true}}
+                              disabled={fieldDisabled}
+                            />
                             <TextField
                               select
                               label="Cơ sở"
