@@ -43,6 +43,13 @@ export const getPostList = async () => {
     return axiosClient.get("/post/list");
 };
 
+export const disablePostStatus = async ({postId, note}) => {
+    return axiosClient.put("/post/status/disable", {
+        postId,
+        note
+    });
+};
+
 export async function uploadPostDocumentImport(categoryPostTemplate, file) {
     const template = String(categoryPostTemplate ?? "").trim();
     if (!template) {

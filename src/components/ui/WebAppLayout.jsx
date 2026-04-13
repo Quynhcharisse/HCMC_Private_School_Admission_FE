@@ -27,6 +27,7 @@ export default function WebAppLayout() {
             path === '/' ||
             path === '/home' ||
             path === '/search-schools' ||
+            path === '/posts' ||
             path === '/about' ||
             path === '/policy/privacy' ||
             path === '/tos' ||

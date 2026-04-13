@@ -1257,7 +1257,6 @@ export default function HomePage() {
     const [consultVisible, setConsultVisible] = React.useState(false);
     const servicePackagesSectionRef = React.useRef(null);
     const [servicePackagesVisible, setServicePackagesVisible] = React.useState(false);
-    const [admissionNewsRefreshTrigger, setAdmissionNewsRefreshTrigger] = React.useState(0);
     const consultMotionEase = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
     const consultStaggerMs = 140;
     const consultHeadlineContentSx = {
@@ -1825,15 +1824,10 @@ export default function HomePage() {
                     }}
                 >
                     <Container maxWidth="xl" sx={{px: {xs: 2, sm: 3, md: 4}}}>
-                        <HomeCreatePostBar
-                            belowHero
-                            visible
-                            onPostCreated={() => setAdmissionNewsRefreshTrigger((t) => t + 1)}
-                        />
+                        <HomeCreatePostBar belowHero visible />
                     </Container>
                 </Box>
             )}
-            <LatestAdmissionNewsSection refreshTrigger={admissionNewsRefreshTrigger}/>
             <Box
                 id="trường-nổi-bật"
                 sx={{

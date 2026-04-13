@@ -31,7 +31,7 @@ export const isRouteAllowedForRole = (path, role) => {
     if (normalizedRole === 'ADMIN') {
         const p = stripHash(path).split('?')[0] || '';
         if (p.startsWith('/admin')) return true;
-        const adminAlsoAllowed = ['/home', '/search-schools', '/compare-schools'];
+        const adminAlsoAllowed = ['/home', '/search-schools', '/compare-schools', '/posts'];
         return adminAlsoAllowed.some((prefix) => p === prefix || p.startsWith(`${prefix}/`));
     }
 
@@ -41,6 +41,7 @@ export const isRouteAllowedForRole = (path, role) => {
             '/home',
             '/search-schools',
             '/compare-schools',
+            '/posts',
             '/package-fees',
             '/payment',
         ];
@@ -56,6 +57,7 @@ export const isRouteAllowedForRole = (path, role) => {
             '/home',
             '/search-schools',
             '/schools',
+            '/posts',
             '/parent/profile',
             '/children-info',
             '/saved-schools',
@@ -70,7 +72,7 @@ export const isRouteAllowedForRole = (path, role) => {
 
 export const shouldPreferCurrentPathOverLastRoute = (path, role) => {
     const base = stripHash(path).split('?')[0] || '';
-    const mainPrefixes = ['/home', '/search-schools', '/compare-schools'];
+    const mainPrefixes = ['/home', '/search-schools', '/compare-schools', '/posts'];
     if (!mainPrefixes.some((p) => base === p || base.startsWith(`${p}/`))) {
         return false;
     }
