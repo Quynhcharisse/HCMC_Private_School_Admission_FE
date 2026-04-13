@@ -13,11 +13,14 @@ import {
   CircularProgress,
   Collapse,
   Divider,
+  FormControl,
   FormControlLabel,
   IconButton,
+  InputLabel,
   LinearProgress,
   MenuItem,
   Paper,
+  Select,
   Stack,
   Switch,
   Tab,
@@ -50,20 +53,20 @@ import {
 } from "../../../services/SchoolFacilityService.jsx";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
 
-const TAB_SLUGS = ["admission", "quota", "finance", "documents", "operation", "facility", "resource-distribution"];
+const TAB_SLUGS = ["admission", "documents", "operation", "quota", "finance", "facility", "resource-distribution"];
 const TAB_LABELS = [
-  "Cài đặt Tuyển sinh",
-  "Cài đặt Chỉ tiêu",
-  "Cài đặt Tài chính",
-  "Cài đặt Hồ sơ",
-  "Cài đặt Vận hành",
-  "Cài đặt Cơ sở vật chất",
-  "Phân bổ nguồn lực",
+  "Cài Đặt Tuyển Sinh",
+  "Cài Đặt Hồ Sơ",
+  "Cài Đặt Vận Hành",
+  "Cài Đặt Chỉ Tiêu",
+  "Cài Đặt Tài Chính",
+  "Cài Đặt Cơ Sở Vật Chất",
+  "Phân Bổ Nguồn Lực",
 ];
 
 /** Campus phụ: chỉ vận hành + CSVC (API GET/PUT /campus/{id}/config) */
 const BRANCH_TAB_SLUGS = ["operation", "facility"];
-const BRANCH_TAB_LABELS = ["Cài đặt Vận hành", "Cài đặt Cơ sở vật chất"];
+const BRANCH_TAB_LABELS = ["Cài Đặt Vận Hành", "Cài Đặt Cơ Sở Vật Chất"];
 
 /**
  * Danh sách phương thức hiển thị checkbox: từ API, không preset FE.
@@ -95,6 +98,14 @@ const DAY_CODES = [
   {code: "FRI", label: "T6"},
   {code: "SAT", label: "T7"},
   {code: "SUN", label: "CN"},
+];
+
+/** Luân phiên theo chỉ số nhóm — tab Vận hành / quy trình theo phương thức (tránh nhầm giữa các phương thức). */
+const METHOD_PROCESS_VISUAL_ACCENTS = [
+  {bar: "#2563eb", border: "rgba(37, 99, 235, 0.42)", headerBg: "linear-gradient(100deg, rgba(37,99,235,0.16) 0%, rgba(37,99,235,0.05) 50%, rgba(255,255,255,0) 100%)", stepsBg: "rgba(37, 99, 235, 0.06)", stepsBorder: "rgba(37, 99, 235, 0.22)"},
+  {bar: "#7c3aed", border: "rgba(124, 58, 237, 0.4)", headerBg: "linear-gradient(100deg, rgba(124,58,237,0.16) 0%, rgba(124,58,237,0.05) 50%, rgba(255,255,255,0) 100%)", stepsBg: "rgba(124, 58, 237, 0.07)", stepsBorder: "rgba(124, 58, 237, 0.22)"},
+  {bar: "#0d9488", border: "rgba(13, 148, 136, 0.42)", headerBg: "linear-gradient(100deg, rgba(13,148,136,0.15) 0%, rgba(13,148,136,0.05) 50%, rgba(255,255,255,0) 100%)", stepsBg: "rgba(13, 148, 136, 0.07)", stepsBorder: "rgba(13, 148, 136, 0.22)"},
+  {bar: "#c2410c", border: "rgba(194, 65, 12, 0.4)", headerBg: "linear-gradient(100deg, rgba(194,65,12,0.14) 0%, rgba(194,65,12,0.05) 50%, rgba(255,255,255,0) 100%)", stepsBg: "rgba(194, 65, 12, 0.06)", stepsBorder: "rgba(194, 65, 12, 0.22)"},
 ];
 
 /** Khớp enum BE `ResourceType`: value JSON `counsellor` (COUNSELLOR). */
@@ -169,7 +180,8 @@ function defaultConfig() {
         weekendDays: ["SAT"],
         isOpenSunday: false,
       },
-      admissionSteps: [],
+      /** GET `admissionProcesses` / PUT `methodAdmissionProcess` — quy trình theo từng methodCode */
+      methodAdmissionProcess: [],
     },
     facilityData: {
       itemList: [],
@@ -343,6 +355,58 @@ function normalizeByMethodGroup(g) {
   return {methodCode, documents};
 }
 
+/** Một bước trong quy trình theo phương thức (GET admissionProcesses / PUT methodAdmissionProcess). */
+function normalizeAdmissionProcessStep(s, i) {
+  if (!s || typeof s !== "object") {
+    return {stepOrder: i + 1, stepName: "", description: ""};
+  }
+  return {
+    stepOrder: s.stepOrder != null && !Number.isNaN(Number(s.stepOrder)) ? Number(s.stepOrder) : i + 1,
+    stepName: s.stepName != null ? String(s.stepName) : "",
+    description: s.description != null ? String(s.description) : "",
+  };
+}
+
+function normalizeMethodAdmissionProcessGroup(g) {
+  if (!g || typeof g !== "object") return {methodCode: "", steps: []};
+  const methodCode =
+    g.methodCode != null && String(g.methodCode).trim() !== ""
+      ? String(g.methodCode).trim()
+      : g.method_code != null && String(g.method_code).trim() !== ""
+        ? String(g.method_code).trim()
+        : "";
+  const steps = Array.isArray(g.steps) ? g.steps.map((s, idx) => normalizeAdmissionProcessStep(s, idx)) : [];
+  return {methodCode, steps};
+}
+
+/**
+ * GET: `admissionProcesses` [{ methodCode, steps }].
+ * Legacy: `admissionSteps` phẳng → một nhóm methodCode rỗng.
+ */
+function parseMethodAdmissionProcessFromOperation(op) {
+  if (!op || typeof op !== "object") return [];
+  const raw = Array.isArray(op.admissionProcesses)
+    ? op.admissionProcesses
+    : Array.isArray(op.admission_processes)
+      ? op.admission_processes
+      : Array.isArray(op.methodAdmissionProcess)
+        ? op.methodAdmissionProcess
+        : Array.isArray(op.method_admission_process)
+          ? op.method_admission_process
+          : null;
+  if (raw) return raw.map(normalizeMethodAdmissionProcessGroup);
+  const legacyFlat = Array.isArray(op.admissionSteps) ? op.admissionSteps : Array.isArray(op.admission_steps) ? op.admission_steps : null;
+  if (legacyFlat) {
+    return [
+      {
+        methodCode: "",
+        steps: legacyFlat.map((s, idx) => normalizeAdmissionProcessStep(s, idx)),
+      },
+    ];
+  }
+  return [];
+}
+
 /** Gửi PUT đúng shape, bỏ field thừa */
 function sanitizeDocumentRequirementsForApi(data) {
   if (!data || typeof data !== "object") return {mandatoryAll: [], byMethod: []};
@@ -441,15 +505,27 @@ function sanitizeOperationSettingsForApi(op) {
         endTime: s.endTime != null ? String(s.endTime) : "",
       }))
     : [];
-  const steps = Array.isArray(op.admissionSteps)
-    ? op.admissionSteps.map((s, i) => ({
-        stepName: s.stepName != null ? String(s.stepName) : "",
-        stepOrder: s.stepOrder != null ? Number(s.stepOrder) : i + 1,
-        description: s.description != null ? String(s.description) : "",
-      }))
-    : [];
   const numOr = (v, fallback) =>
     v != null && !Number.isNaN(Number(v)) ? Number(v) : fallback;
+
+  const openSunday = Boolean(wc.isOpenSunday ?? wc.openSunday);
+
+  const methodAdmissionProcess = Array.isArray(op.methodAdmissionProcess)
+    ? op.methodAdmissionProcess
+        .map((g) => {
+          const ng = normalizeMethodAdmissionProcessGroup(g);
+          const steps = ng.steps.map((s, i) => ({
+            stepName: s.stepName != null ? String(s.stepName) : "",
+            stepOrder: s.stepOrder != null ? Number(s.stepOrder) : i + 1,
+            description: s.description != null ? String(s.description) : "",
+          }));
+          return {methodCode: ng.methodCode.trim(), steps};
+        })
+        .filter(
+          (row) =>
+            String(row.methodCode ?? "").trim() !== "" || (Array.isArray(row.steps) && row.steps.length > 0)
+        )
+    : [];
 
   return {
     hotline: op.hotline != null ? String(op.hotline) : "",
@@ -463,9 +539,9 @@ function sanitizeOperationSettingsForApi(op) {
       workShifts: shifts,
       regularDays: Array.isArray(wc.regularDays) ? wc.regularDays.map(String) : [],
       weekendDays: Array.isArray(wc.weekendDays) ? wc.weekendDays.map(String) : [],
-      isOpenSunday: Boolean(wc.isOpenSunday),
+      openSunday,
     },
-    admissionSteps: steps,
+    methodAdmissionProcess,
   };
 }
 
@@ -620,7 +696,8 @@ function normalizeFromApi(body) {
     },
     operationSettingsData: {
       ...d.operationSettingsData,
-      ...op,
+      hotline: op.hotline != null ? String(op.hotline) : d.operationSettingsData.hotline,
+      emailSupport: op.emailSupport != null ? String(op.emailSupport) : d.operationSettingsData.emailSupport,
       maxBookingPerSlot:
         op.maxBookingPerSlot != null && !Number.isNaN(Number(op.maxBookingPerSlot))
           ? Number(op.maxBookingPerSlot)
@@ -639,12 +716,21 @@ function normalizeFromApi(body) {
           : d.operationSettingsData.allowBookingBeforeHours,
       workingConfig: {
         ...d.operationSettingsData.workingConfig,
-        ...(op.workingConfig || {}),
+        ...(op.workingConfig && typeof op.workingConfig === "object" ? op.workingConfig : {}),
+        note:
+          op.workingConfig?.note != null
+            ? String(op.workingConfig.note)
+            : d.operationSettingsData.workingConfig.note,
         workShifts: Array.isArray(op.workingConfig?.workShifts) ? op.workingConfig.workShifts : d.operationSettingsData.workingConfig.workShifts,
         regularDays: Array.isArray(op.workingConfig?.regularDays) ? op.workingConfig.regularDays : d.operationSettingsData.workingConfig.regularDays,
         weekendDays: Array.isArray(op.workingConfig?.weekendDays) ? op.workingConfig.weekendDays : d.operationSettingsData.workingConfig.weekendDays,
+        isOpenSunday: Boolean(
+          op.workingConfig?.isOpenSunday ??
+            op.workingConfig?.openSunday ??
+            d.operationSettingsData.workingConfig.isOpenSunday
+        ),
       },
-      admissionSteps: Array.isArray(op.admissionSteps) ? op.admissionSteps : [],
+      methodAdmissionProcess: parseMethodAdmissionProcessFromOperation(op),
     },
     facilityData: {
       itemList: Array.isArray(fac.itemList) ? fac.itemList : [],
@@ -879,9 +965,9 @@ function normalizeFromCampusConfigApi(body) {
       workShifts: Array.isArray(wc.workShifts) ? wc.workShifts : [],
       regularDays: Array.isArray(wc.regularDays) ? wc.regularDays : d.operationSettingsData.workingConfig.regularDays,
       weekendDays: Array.isArray(wc.weekendDays) ? wc.weekendDays : d.operationSettingsData.workingConfig.weekendDays,
-      isOpenSunday: Boolean(wc.isOpenSunday),
+      isOpenSunday: Boolean(wc.isOpenSunday ?? wc.openSunday),
     },
-    admissionSteps: Array.isArray(hqOp.admissionSteps) ? hqOp.admissionSteps.map((s) => ({...s})) : [],
+    methodAdmissionProcess: parseMethodAdmissionProcessFromOperation(hqOp),
   };
 
   const pdr = campusCurrentPolicyDetailRendered(cur);
@@ -914,22 +1000,29 @@ function normalizeFromCampusConfigApi(body) {
         ...(Array.isArray(wo.workShifts) ? {workShifts: wo.workShifts} : {}),
       };
     }
-    if (Array.isArray(fj.admissionStepsOverride)) {
-      const steps = [...mergedOp.admissionSteps];
-      fj.admissionStepsOverride.forEach((ov) => {
-        const ord = Number(ov.stepOrder);
-        const idx = steps.findIndex((s) => Number(s.stepOrder) === ord);
-        if (idx >= 0) {
-          steps[idx] = {...steps[idx], ...ov};
-        } else {
-          steps.push({
-            stepName: ov.stepName != null ? String(ov.stepName) : "",
-            stepOrder: ord,
-            description: ov.description != null ? String(ov.description) : "",
-          });
-        }
-      });
-      mergedOp.admissionSteps = steps.sort((a, b) => Number(a.stepOrder) - Number(b.stepOrder));
+    const hqHasAdmissionProcesses =
+      Array.isArray(hqOp.admissionProcesses) && hqOp.admissionProcesses.length > 0;
+    if (Array.isArray(fj.admissionStepsOverride) && !hqHasAdmissionProcesses) {
+      const proc = [...(mergedOp.methodAdmissionProcess || [])];
+      const first = proc[0] || {methodCode: "", steps: []};
+      if (!first.methodCode || proc.length <= 1) {
+        let steps = [...(first.steps || [])];
+        fj.admissionStepsOverride.forEach((ov) => {
+          const ord = Number(ov.stepOrder);
+          const idx = steps.findIndex((s) => Number(s.stepOrder) === ord);
+          if (idx >= 0) {
+            steps[idx] = {...steps[idx], ...ov};
+          } else {
+            steps.push({
+              stepName: ov.stepName != null ? String(ov.stepName) : "",
+              stepOrder: ord,
+              description: ov.description != null ? String(ov.description) : "",
+            });
+          }
+        });
+        steps = steps.sort((a, b) => Number(a.stepOrder) - Number(b.stepOrder));
+        mergedOp.methodAdmissionProcess = [{...first, steps}];
+      }
     }
   }
 
@@ -992,15 +1085,28 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
     wo.workShifts = wc.workShifts || [];
   if (Object.keys(wo).length > 0) payload.workingOverride = wo;
 
-  const hqSteps = Array.isArray(hqOp.admissionSteps) ? hqOp.admissionSteps : [];
+  const hqHasAdmissionProcesses =
+    Array.isArray(hqOp.admissionProcesses) && hqOp.admissionProcesses.length > 0;
+  const hqProc = parseMethodAdmissionProcessFromOperation(hqOp);
+  const curProc = op.methodAdmissionProcess || [];
   const admissionStepsOverride = [];
-  (op.admissionSteps || []).forEach((step, idx) => {
-    const ord = Number(step.stepOrder) || idx + 1;
-    const hqS = hqSteps.find((s) => Number(s.stepOrder) === ord);
-    const desc = step.description ?? "";
-    const hqDesc = hqS?.description ?? "";
-    if (desc !== hqDesc) admissionStepsOverride.push({stepOrder: ord, description: desc});
-  });
+  if (!hqHasAdmissionProcesses) {
+    const hqSteps =
+      hqProc.length === 1 && !String(hqProc[0]?.methodCode ?? "").trim()
+        ? hqProc[0].steps || []
+        : Array.isArray(hqOp.admissionSteps)
+          ? hqOp.admissionSteps
+          : [];
+    const curSteps =
+      curProc.length === 1 && !String(curProc[0]?.methodCode ?? "").trim() ? curProc[0].steps || [] : [];
+    curSteps.forEach((step, idx) => {
+      const ord = Number(step.stepOrder) || idx + 1;
+      const hqS = hqSteps.find((s) => Number(s.stepOrder) === ord);
+      const desc = step.description ?? "";
+      const hqDesc = hqS?.description ?? "";
+      if (desc !== hqDesc) admissionStepsOverride.push({stepOrder: ord, description: desc});
+    });
+  }
   if (admissionStepsOverride.length > 0) payload.admissionStepsOverride = admissionStepsOverride;
 
   payload.policyDetail = policy ?? "";
@@ -1064,6 +1170,8 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
   const [config, setConfig] = useState(() => defaultConfig());
   const initialRef = useRef(null);
   const facilityFormRef = useRef(null);
+  const methodAdmissionProcessGroupRefs = useRef({});
+  const [pendingScrollToProcessIdx, setPendingScrollToProcessIdx] = useState(null);
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
   const [admissionMethodExpanded, setAdmissionMethodExpanded] = useState({});
 
@@ -1079,6 +1187,44 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
       ),
     [config.admissionSettingsData?.availableMethods, config.admissionSettingsData?.allowedMethods]
   );
+
+  /** Tab Hồ sơ — nhóm theo phương thức: chỉ chọn methodCode từ allowedMethods (Cài đặt Tuyển sinh). */
+  const allowedMethodsDocumentDropdown = useMemo(
+    () =>
+      (config.admissionSettingsData?.allowedMethods || [])
+        .map((m) => {
+          const value = String(m?.code ?? "").trim();
+          if (!value) return null;
+          const display = String(m?.displayName ?? "").trim() || value;
+          return {value, label: `${display} (${value})`};
+        })
+        .filter(Boolean),
+    [config.admissionSettingsData?.allowedMethods]
+  );
+
+  /** Mã phương thức gợi ý: đã bật tuyển sinh + nhóm hồ sơ theo phương thức + đang cấu hình quy trình */
+  const admissionMethodCodeOptions = useMemo(() => {
+    const codes = new Map();
+    (config.admissionSettingsData?.allowedMethods || []).forEach((m) => {
+      const c = String(m?.code ?? "").trim();
+      if (c) codes.set(c, String(m?.displayName ?? m?.code ?? c).trim() || c);
+    });
+    (config.documentRequirementsData?.byMethod || []).forEach((g) => {
+      const c = String(g?.methodCode ?? "").trim();
+      if (c && !codes.has(c)) codes.set(c, c);
+    });
+    (config.operationSettingsData?.methodAdmissionProcess || []).forEach((g) => {
+      const c = String(g?.methodCode ?? "").trim();
+      if (c && !codes.has(c)) codes.set(c, c);
+    });
+    return Array.from(codes.entries())
+      .map(([value, label]) => ({value, label}))
+      .sort((a, b) => a.value.localeCompare(b.value));
+  }, [
+    config.admissionSettingsData?.allowedMethods,
+    config.documentRequirementsData?.byMethod,
+    config.operationSettingsData?.methodAdmissionProcess,
+  ]);
 
   const snapshot = useMemo(() => JSON.stringify(config), [config]);
   const isDirty = useMemo(() => {
@@ -1231,6 +1377,18 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
     if (schoolCtxLoading) return;
     load();
   }, [load, schoolCtxLoading]);
+
+  useEffect(() => {
+    if (pendingScrollToProcessIdx == null) return;
+    const id = requestAnimationFrame(() => {
+      const el = methodAdmissionProcessGroupRefs.current[pendingScrollToProcessIdx];
+      if (el?.scrollIntoView) {
+        el.scrollIntoView({behavior: "smooth", block: "start", inline: "nearest"});
+      }
+      setPendingScrollToProcessIdx(null);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [pendingScrollToProcessIdx]);
 
   const handleReset = useCallback(() => {
     const init = initialRef.current;
@@ -1434,25 +1592,71 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
     });
   }, []);
 
-  const addAdmissionStep = useCallback(() => {
+  const addMethodAdmissionProcess = useCallback(() => {
+    let newIndex = 0;
     setConfig((c) => {
-      const steps = [...(c.operationSettingsData.admissionSteps || [])];
+      const prev = [...(c.operationSettingsData.methodAdmissionProcess || [])];
+      newIndex = prev.length;
+      prev.push({methodCode: "", steps: [{stepName: "", stepOrder: 1, description: ""}]});
+      return {
+        ...c,
+        operationSettingsData: {
+          ...c.operationSettingsData,
+          methodAdmissionProcess: prev,
+        },
+      };
+    });
+    setTimeout(() => setPendingScrollToProcessIdx(newIndex), 0);
+  }, []);
+
+  const removeMethodAdmissionProcessAt = useCallback((groupIdx) => {
+    setConfig((c) => {
+      const arr = [...(c.operationSettingsData.methodAdmissionProcess || [])];
+      arr.splice(groupIdx, 1);
+      return {...c, operationSettingsData: {...c.operationSettingsData, methodAdmissionProcess: arr}};
+    });
+  }, []);
+
+  const updateMethodAdmissionProcessCode = useCallback((groupIdx, methodCode) => {
+    setConfig((c) => {
+      const arr = [...(c.operationSettingsData.methodAdmissionProcess || [])];
+      if (!arr[groupIdx]) return c;
+      arr[groupIdx] = {...arr[groupIdx], methodCode};
+      return {...c, operationSettingsData: {...c.operationSettingsData, methodAdmissionProcess: arr}};
+    });
+  }, []);
+
+  const addAdmissionStepToMethod = useCallback((groupIdx) => {
+    setConfig((c) => {
+      const arr = [...(c.operationSettingsData.methodAdmissionProcess || [])];
+      const g = arr[groupIdx];
+      if (!g) return c;
+      const steps = [...(g.steps || [])];
       steps.push({stepName: "", stepOrder: steps.length + 1, description: ""});
-      return {...c, operationSettingsData: {...c.operationSettingsData, admissionSteps: steps}};
+      arr[groupIdx] = {...g, steps};
+      return {...c, operationSettingsData: {...c.operationSettingsData, methodAdmissionProcess: arr}};
     });
   }, []);
 
-  const updateStep = useCallback((index, field, value) => {
+  const updateAdmissionStepInMethod = useCallback((groupIdx, stepIdx, field, value) => {
     setConfig((c) => {
-      const steps = (c.operationSettingsData.admissionSteps || []).map((s, i) => (i === index ? {...s, [field]: value} : s));
-      return {...c, operationSettingsData: {...c.operationSettingsData, admissionSteps: steps}};
+      const arr = [...(c.operationSettingsData.methodAdmissionProcess || [])];
+      const g = arr[groupIdx];
+      if (!g) return c;
+      const steps = (g.steps || []).map((s, i) => (i === stepIdx ? {...s, [field]: value} : s));
+      arr[groupIdx] = {...g, steps};
+      return {...c, operationSettingsData: {...c.operationSettingsData, methodAdmissionProcess: arr}};
     });
   }, []);
 
-  const removeStep = useCallback((index) => {
+  const removeAdmissionStepInMethod = useCallback((groupIdx, stepIdx) => {
     setConfig((c) => {
-      const steps = (c.operationSettingsData.admissionSteps || []).filter((_, i) => i !== index).map((s, i) => ({...s, stepOrder: i + 1}));
-      return {...c, operationSettingsData: {...c.operationSettingsData, admissionSteps: steps}};
+      const arr = [...(c.operationSettingsData.methodAdmissionProcess || [])];
+      const g = arr[groupIdx];
+      if (!g) return c;
+      const steps = (g.steps || []).filter((_, i) => i !== stepIdx).map((s, i) => ({...s, stepOrder: i + 1}));
+      arr[groupIdx] = {...g, steps};
+      return {...c, operationSettingsData: {...c.operationSettingsData, methodAdmissionProcess: arr}};
     });
   }, []);
 
@@ -1552,10 +1756,10 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
   };
 
   const showAdmissionTab = !useCampusConfigFlow && tabIndex === 0;
-  const showQuotaTab = !useCampusConfigFlow && tabIndex === 1;
-  const showFinanceTab = !useCampusConfigFlow && tabIndex === 2;
-  const showDocumentsTab = !useCampusConfigFlow && tabIndex === 3;
-  const showOperationTab = (!useCampusConfigFlow && tabIndex === 4) || (useCampusConfigFlow && tabIndex === 0);
+  const showDocumentsTab = !useCampusConfigFlow && tabIndex === 1;
+  const showOperationTab = (!useCampusConfigFlow && tabIndex === 2) || (useCampusConfigFlow && tabIndex === 0);
+  const showQuotaTab = !useCampusConfigFlow && tabIndex === 3;
+  const showFinanceTab = !useCampusConfigFlow && tabIndex === 4;
   const showFacilityTab = (!useCampusConfigFlow && tabIndex === 5) || (useCampusConfigFlow && tabIndex === 1);
   const showResourceDistributionTab = !useCampusConfigFlow && tabIndex === 6;
 
@@ -1568,7 +1772,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
     ? isPrimaryBranch
       ? "Chỉnh vận hành và CSVC của cơ sở chính. Mỗi cơ sở chỉ sửa được cấu hình của chính mình. Sau khi Lưu, nội dung được phản ánh trong Bản chỉnh sửa từ cơ sở."
       : "Chỉnh vận hành và CSVC của cơ sở bạn. Sau khi Lưu, xem Bản chỉnh sửa từ cơ sở — bản văn thống nhất BE trả về."
-    : "Cấu hình chung cho tất cả các cơ sở bao gồm: Quản lý tuyển sinh, chỉ tiêu, tài chính, hồ sơ, vận hành, cơ sở vật chất chung và phân bổ nguồn lực.";
+    : "Cấu hình chung cho tất cả các cơ sở bao gồm: Quản lý tuyển sinh, hồ sơ, vận hành, chỉ tiêu, tài chính, cơ sở vật chất chung và phân bổ nguồn lực.";
 
   return (
       <Box
@@ -1660,7 +1864,11 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
               ))}
             </Tabs>
 
-            <Typography variant="body2" sx={{color: "#2563eb", fontWeight: 700, mb: 2}}>
+            <Typography
+              variant="subtitle1"
+              component="h2"
+              sx={{color: "#2563eb", fontWeight: 800, mb: 2, fontSize: "1.25rem", lineHeight: 1.35}}
+            >
               {tabLabels[tabIndex]}
             </Typography>
           </>
@@ -1790,12 +1998,24 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                               <Typography variant="caption" sx={{color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em"}}>
                                 Mã
                               </Typography>
-                              <Typography
-                                variant="body2"
-                                sx={{fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace", wordBreak: "break-all", fontWeight: 600}}
-                              >
-                                {m.code || "—"}
-                              </Typography>
+                              <Box sx={{mt: 0.5}}>
+                                <Chip
+                                  label={m.code?.trim() ? String(m.code) : "—"}
+                                  size="small"
+                                  sx={{
+                                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                                    fontWeight: 700,
+                                    fontSize: "0.8125rem",
+                                    height: "auto",
+                                    py: 0.4,
+                                    bgcolor: "rgba(37, 99, 235, 0.1)",
+                                    color: "#1e40af",
+                                    border: "1px solid rgba(37, 99, 235, 0.35)",
+                                    borderRadius: 2,
+                                    "& .MuiChip-label": {px: 1.25, py: 0.25, wordBreak: "break-all", whiteSpace: "normal", textAlign: "left"},
+                                  }}
+                                />
+                              </Box>
                             </Box>
                             <Box>
                               <Typography variant="caption" sx={{color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em"}}>
@@ -1920,16 +2140,24 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                                   <Typography variant="caption" sx={{color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em"}}>
                                     Mã
                                   </Typography>
-                                  <Typography
-                                    variant="body2"
-                                    sx={{
-                                      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                                      wordBreak: "break-all",
-                                      fontWeight: 600,
-                                    }}
-                                  >
-                                    {(m.code && String(m.code).trim()) || "—"}
-                                  </Typography>
+                                  <Box sx={{mt: 0.5}}>
+                                    <Chip
+                                      label={(m.code && String(m.code).trim()) || "—"}
+                                      size="small"
+                                      sx={{
+                                        fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                                        fontWeight: 700,
+                                        fontSize: "0.8125rem",
+                                        height: "auto",
+                                        py: 0.4,
+                                        bgcolor: "rgba(37, 99, 235, 0.1)",
+                                        color: "#1e40af",
+                                        border: "1px solid rgba(37, 99, 235, 0.35)",
+                                        borderRadius: 2,
+                                        "& .MuiChip-label": {px: 1.25, py: 0.25, wordBreak: "break-all", whiteSpace: "normal", textAlign: "left"},
+                                      }}
+                                    />
+                                  </Box>
                                 </Box>
                                 <Box>
                                   <Typography variant="caption" sx={{color: "#94a3b8", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em"}}>
@@ -2252,17 +2480,26 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
           {showDocumentsTab && (
             <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
               <CardContent sx={{p: 3}}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{mb: 2}}>
-                  <Typography sx={{fontWeight: 800}}>Hồ sơ bắt buộc chung</Typography>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<AddIcon/>}
-                    onClick={addMandatoryDocument}
-                    sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
-                  >
-                    Thêm
-                  </Button>
+                <Stack spacing={1.25} sx={{mb: 2}}>
+                  <Stack direction="row" justifyContent="space-between" alignItems="center">
+                    <Typography sx={{fontWeight: 800}}>Hồ sơ bắt buộc chung</Typography>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<AddIcon/>}
+                      onClick={addMandatoryDocument}
+                      sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
+                    >
+                      Thêm
+                    </Button>
+                  </Stack>
+                  <Typography variant="body2" sx={{color: "red", lineHeight: 1.65, maxWidth: 900}}>
+                    *Lưu ý: Đây là danh sách hồ sơ bắt buộc cho{" "}
+                    <Box component="span" sx={{fontWeight: 800, color: "red"}}>
+                      TẤT CẢ
+                    </Box>{" "}
+                    thí sinh, dù chọn bất kỳ phương thức xét tuyển nào.
+                  </Typography>
                 </Stack>
                 <Stack spacing={1}>
                   {(config.documentRequirementsData.mandatoryAll || []).map((doc, idx) => (
@@ -2347,9 +2584,19 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                     Thêm nhóm phương thức
                   </Button>
                 </Stack>
-               
+                <Typography variant="body2" sx={{color: "red", lineHeight: 1.65, maxWidth: 900, mb: 2.5}}>
+                    *Lưu ý: Đây là các hồ sơ bổ sung riêng biệt cho {" "}
+                    <Box component="span" sx={{fontWeight: 800, color: "red"}}>
+                      TỪNG PHƯƠNG THỨC
+                    </Box>{" "}
+                    để phục vụ việc chấm điểm và xét duyệt.
+                  </Typography>
+
                 {(config.documentRequirementsData.byMethod || []).map((group, gIdx) => {
                   const summaryLabel = group.methodCode?.trim() ? group.methodCode : `Nhóm ${gIdx + 1}`;
+                  const currentMc = String(group.methodCode ?? "").trim();
+                  const allowedCodes = new Set(allowedMethodsDocumentDropdown.map((o) => o.value));
+                  const orphanMethodCode = currentMc && !allowedCodes.has(currentMc) ? currentMc : "";
                             return (
                   <Accordion
                     key={`by-method-acc-${gIdx}`}
@@ -2370,10 +2617,12 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                     <AccordionDetails>
                       <Stack spacing={1.5}>
                         <TextField
+                          select
                           size="small"
-                          label="Mã phương thức"
-                          value={group.methodCode ?? ""}
+                          label="Phương thức"
+                          value={currentMc || ""}
                           fullWidth
+                          disabled={fieldDisabled}
                           onChange={(e) => {
                             const v = e.target.value;
                             setConfig((c) => {
@@ -2382,8 +2631,26 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                               return {...c, documentRequirementsData: {...c.documentRequirementsData, byMethod: by}};
                             });
                           }}
-                          inputProps={{readOnly: fieldDisabled}}
-                        />
+                          helperText={
+                            allowedMethodsDocumentDropdown.length === 0
+                              ? "Thêm và bật phương thức trong tab Cài đặt Tuyển sinh (allowedMethods) để chọn tại đây."
+                              : "Chọn một phương thức đã cấu hình ở tab Cài đặt Tuyển sinh."
+                          }
+                        >
+                          <MenuItem value="">
+                            <em>Chọn phương thức</em>
+                          </MenuItem>
+                          {orphanMethodCode ? (
+                            <MenuItem value={orphanMethodCode}>
+                              {orphanMethodCode} — không còn trong Tuyển sinh (nên chọn lại)
+                            </MenuItem>
+                          ) : null}
+                          {allowedMethodsDocumentDropdown.map((o) => (
+                            <MenuItem key={o.value} value={o.value}>
+                              {o.label}
+                            </MenuItem>
+                          ))}
+                        </TextField>
                         <Box sx={{display: "flex", justifyContent: "flex-end"}}>
                           <Button
                             variant="outlined"
@@ -2865,55 +3132,242 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
 
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-                    <Typography sx={{fontWeight: 800}}>Quy trình tuyển sinh</Typography>
-                    <Button startIcon={<AddIcon/>} onClick={addAdmissionStep} sx={{textTransform: "none", ...blockPointerSx}}>
-                      Thêm bước
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2} mb={2} flexWrap="wrap">
+                    <Box sx={{flex: 1, minWidth: 220}}>
+                      <Typography sx={{fontWeight: 800}}>Quy trình tuyển sinh theo phương thức</Typography>
+                    </Box>
+                    <Button startIcon={<AddIcon/>} onClick={addMethodAdmissionProcess} sx={{textTransform: "none", flexShrink: 0, ...blockPointerSx}}>
+                      Thêm phương thức
                     </Button>
                   </Stack>
-                  <Stack spacing={2}>
-                    {(config.operationSettingsData.admissionSteps || []).map((step, idx) => (
-                      <Card key={idx} variant="outlined" sx={{borderRadius: 2}}>
-                        <CardContent sx={{py: 1.5}}>
-                          <Stack direction="row" spacing={1} alignItems="flex-start">
-                            <Box sx={{flex: 1}}>
-                              <Stack spacing={2}>
-                                <Chip size="small" label={`Bước ${step.stepOrder ?? idx + 1}`} sx={{alignSelf: "flex-start"}}/>
+                  <Stack spacing={2.5}>
+                    {(config.operationSettingsData.methodAdmissionProcess || []).length === 0 ? (
+                      <Paper variant="outlined" sx={{p: 2, borderStyle: "dashed", color: "#64748b", borderRadius: 2}}>
+                        Chưa có quy trình theo phương thức. Nhấn &quot;Thêm phương thức&quot; và chọn đúng mã (vd. ACADEMIC_RECORD,
+                        INTERNAL_TEST).
+                      </Paper>
+                    ) : null}
+                    {(config.operationSettingsData.methodAdmissionProcess || []).map((group, gi) => {
+                      const accent = METHOD_PROCESS_VISUAL_ACCENTS[gi % METHOD_PROCESS_VISUAL_ACCENTS.length];
+                      const codeTrim = (group.methodCode || "").trim();
+                      const optMatch = admissionMethodCodeOptions.find((o) => o.value === codeTrim);
+                      const methodSuggestionReadonlyDisplay = optMatch ? `${optMatch.label} (${codeTrim})` : codeTrim || "—";
+                      return (
+                      <Accordion
+                        key={`adm-proc-${gi}`}
+                        ref={(el) => {
+                          if (el) methodAdmissionProcessGroupRefs.current[gi] = el;
+                          else delete methodAdmissionProcessGroupRefs.current[gi];
+                        }}
+                        defaultExpanded
+                        elevation={0}
+                        disableGutters
+                        sx={{
+                          scrollMarginTop: "96px",
+                          borderRadius: 2,
+                          overflow: "hidden",
+                          border: "1px solid",
+                          borderColor: accent.border,
+                          boxShadow: "none",
+                          bgcolor: "#ffffff",
+                          "&:before": {display: "none"},
+                          "&.Mui-expanded": {margin: 0},
+                        }}
+                      >
+                        <AccordionSummary
+                          expandIcon={<ExpandMoreIcon sx={{color: accent.bar}}/>}
+                          sx={{
+                            px: 0,
+                            minHeight: 0,
+                            background: accent.headerBg,
+                            borderBottom: "2px solid",
+                            borderBottomColor: accent.bar,
+                            "& .MuiAccordionSummary-content": {
+                              margin: "0 !important",
+                              flexGrow: 1,
+                              minWidth: 0,
+                            },
+                          }}
+                        >
+                          <Box sx={{width: "100%", px: 2, py: 1.5, pr: {xs: 1, sm: 2}}}>
+                            <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
+                              <Chip
+                                label={`Phương thức ${gi + 1}`}
+                                size="small"
+                                sx={{bgcolor: accent.bar, color: "#fff", fontWeight: 800, letterSpacing: "0.02em"}}
+                              />
+                              {group.methodCode?.trim() ? (
+                                <Chip
+                                  label={group.methodCode.trim()}
+                                  size="small"
+                                  variant="outlined"
+                                  sx={{
+                                    borderWidth: 2,
+                                    borderColor: accent.bar,
+                                    color: "#0f172a",
+                                    fontWeight: 800,
+                                    bgcolor: "rgba(255,255,255,0.85)",
+                                  }}
+                                />
+                              ) : (
+                                <Chip label="Chưa chọn phương thức" size="small" sx={{bgcolor: "#e2e8f0", color: "#475569", fontWeight: 700}} />
+                              )}
+                            </Stack>
+                          </Box>
+                        </AccordionSummary>
+                        <AccordionDetails sx={{p: 0, display: "block"}}>
+                        <CardContent sx={{py: 2, px: 2, bgcolor: "rgba(248, 250, 252, 0.9)"}}>
+                          <Stack spacing={2}>
+                            <Stack direction={{xs: "column", sm: "row"}} spacing={1.5} alignItems={{sm: "flex-start"}} justifyContent="space-between">
+                              <Box sx={{flex: 1, minWidth: 0, width: "100%"}}>
                                 <Stack spacing={1}>
+                                  {fieldDisabled ? (
+                                    <TextField
+                                      label="Phương thức"
+                                      size="small"
+                                      fullWidth
+                                      value={methodSuggestionReadonlyDisplay}
+                                      InputProps={{readOnly: true}}
+                                    />
+                                  ) : (
+                                    <TextField
+                                      select
+                                      label="Phương thức"
+                                      size="small"
+                                      fullWidth
+                                      value={
+                                        admissionMethodCodeOptions.some((o) => o.value === (group.methodCode || "").trim())
+                                          ? (group.methodCode || "").trim()
+                                          : "__custom__"
+                                      }
+                                      onChange={(e) => {
+                                        const v = e.target.value;
+                                        if (v === "__custom__") updateMethodAdmissionProcessCode(gi, "");
+                                        else updateMethodAdmissionProcessCode(gi, v);
+                                      }}
+                                    >
+                                      <MenuItem value="__custom__">
+                                        <em>Chọn Phương Thức</em>
+                                      </MenuItem>
+                                      {admissionMethodCodeOptions.map((o) => (
+                                        <MenuItem key={o.value} value={o.value}>
+                                          {o.label} ({o.value})
+                                        </MenuItem>
+                                      ))}
+                                    </TextField>
+                                  )}
                                   <TextField
-                                    label="Tên bước"
-                                    size="small"
-        fullWidth
-                                    value={step.stepName ?? ""}
-                                    onChange={(e) => updateStep(idx, "stepName", e.target.value)}
-                                    inputProps={{readOnly: fieldDisabled}}
-                                  />
-                                  <TextField
-                                    label="Mô tả"
+                                    label="Mã Phương Thức"
                                     size="small"
                                     fullWidth
-                                    multiline
-                                    minRows={2}
-                                    value={step.description ?? ""}
-                                    onChange={(e) => updateStep(idx, "description", e.target.value)}
+                                    value={group.methodCode ?? ""}
+                                    onChange={(e) => updateMethodAdmissionProcessCode(gi, e.target.value.trim())}
+                                    placeholder="VD: ACADEMIC_RECORD"
+                                    helperText="Phải trùng code phương thức đã cấu hình tuyển sinh / hồ sơ."
                                     inputProps={{readOnly: fieldDisabled}}
                                   />
                                 </Stack>
-                              </Stack>
-                            </Box>
-          <IconButton
-                              size="small"
-                              color="error"
-                              onClick={() => removeStep(idx)}
-                              aria-label="Xoá bước"
-                              sx={{alignSelf: "flex-start", mt: 0.25, ...blockPointerSx}}
-                            >
-                              <DeleteOutlineIcon fontSize="small"/>
-          </IconButton>
+                              </Box>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                aria-label="Xoá nhóm phương thức"
+                                onClick={() => removeMethodAdmissionProcessAt(gi)}
+                                sx={{...blockPointerSx}}
+                              >
+                                <DeleteOutlineIcon fontSize="small"/>
+                              </IconButton>
+                            </Stack>
+                            <Divider sx={{borderColor: accent.stepsBorder, opacity: 1}}/>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
+                              <Typography
+                                variant="subtitle2"
+                                sx={{
+                                  fontWeight: 800,
+                                  color: "#0f172a",
+                                  pl: 1,
+                                  borderLeft: "4px solid",
+                                  borderLeftColor: accent.bar,
+                                }}
+                              >
+                                Các bước
+                              </Typography>
+                              <Button
+                                size="small"
+                                startIcon={<AddIcon/>}
+                                onClick={() => addAdmissionStepToMethod(gi)}
+                                sx={{textTransform: "none", ...blockPointerSx}}
+                              >
+                                Thêm bước
+                              </Button>
+                            </Stack>
+                            <Stack spacing={1.5}>
+                              {(group.steps || []).map((step, si) => (
+                                <Card
+                                  key={`step-${gi}-${si}`}
+                                  variant="outlined"
+                                  sx={{
+                                    borderRadius: 2,
+                                    bgcolor: accent.stepsBg,
+                                    borderColor: accent.stepsBorder,
+                                    borderWidth: 1,
+                                  }}
+                                >
+                                  <CardContent sx={{py: 1.5, "&:last-child": {pb: 1.5}}}>
+                                    <Stack direction="row" spacing={1} alignItems="flex-start">
+                                      <Box sx={{flex: 1}}>
+                                        <Stack spacing={1.5}>
+                                          <Chip
+                                            size="small"
+                                            label={`Bước ${step.stepOrder ?? si + 1}`}
+                                            sx={{
+                                              alignSelf: "flex-start",
+                                              fontWeight: 700,
+                                              bgcolor: "rgba(255,255,255,0.92)",
+                                              border: `1px solid ${accent.stepsBorder}`,
+                                              color: "#0f172a",
+                                            }}
+                                          />
+                                          <TextField
+                                            label="Tên bước"
+                                            size="small"
+                                            fullWidth
+                                            value={step.stepName ?? ""}
+                                            onChange={(e) => updateAdmissionStepInMethod(gi, si, "stepName", e.target.value)}
+                                            inputProps={{readOnly: fieldDisabled}}
+                                          />
+                                          <TextField
+                                            label="Mô tả"
+                                            size="small"
+                                            fullWidth
+                                            multiline
+                                            minRows={2}
+                                            value={step.description ?? ""}
+                                            onChange={(e) => updateAdmissionStepInMethod(gi, si, "description", e.target.value)}
+                                            inputProps={{readOnly: fieldDisabled}}
+                                          />
+                                        </Stack>
+                                      </Box>
+                                      <IconButton
+                                        size="small"
+                                        color="error"
+                                        onClick={() => removeAdmissionStepInMethod(gi, si)}
+                                        aria-label="Xoá bước"
+                                        sx={{alignSelf: "flex-start", mt: 0.25, ...blockPointerSx}}
+                                      >
+                                        <DeleteOutlineIcon fontSize="small"/>
+                                      </IconButton>
+                                    </Stack>
+                                  </CardContent>
+                                </Card>
+                              ))}
+                            </Stack>
                           </Stack>
                         </CardContent>
-                      </Card>
-                    ))}
+                        </AccordionDetails>
+                      </Accordion>
+                      );
+                    })}
                   </Stack>
                 </CardContent>
               </Card>

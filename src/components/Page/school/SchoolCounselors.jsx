@@ -26,6 +26,7 @@ import {
     Typography,
     Avatar,
     CircularProgress,
+    LinearProgress,
 } from "@mui/material";
 import Pagination from "@mui/material/Pagination";
 import AddIcon from "@mui/icons-material/Add";
@@ -280,9 +281,15 @@ export default function SchoolCounselors() {
                     welcomeMailOk = true;
                 } catch (emailErr) {
                     console.error("Welcome email error:", emailErr);
+                    const apiText =
+                        typeof emailErr?.text === "string" && emailErr.text.trim()
+                            ? emailErr.text.trim()
+                            : null;
                     const mailMsg = emailErr?.message?.includes("Thiếu cấu hình EmailJS")
                         ? emailErr.message
-                        : "Không gửi được email chào mừng.";
+                        : apiText
+                          ? `Không gửi được email chào mừng: ${apiText}`
+                          : "Không gửi được email chào mừng.";
                     enqueueSnackbar(mailMsg, {variant: "warning"});
                 }
 
@@ -770,9 +777,28 @@ export default function SchoolCounselors() {
                 }}
                 fullWidth
                 maxWidth="sm"
-                PaperProps={{sx: modalPaperSx}}
+                aria-busy={createSubmitting}
+                PaperProps={{
+                    sx: {
+                        ...modalPaperSx,
+                        position: "relative",
+                    },
+                }}
                 slotProps={{backdrop: {sx: modalBackdropSx}}}
             >
+                {createSubmitting && (
+                    <LinearProgress
+                        sx={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 3,
+                            zIndex: 2,
+                            borderRadius: "16px 16px 0 0",
+                        }}
+                    />
+                )}
                 <Box sx={{px: 3, pt: 3, pb: 0}}>
                     <Box
                         sx={{
@@ -838,6 +864,22 @@ export default function SchoolCounselors() {
                             email. Các thông tin khác (họ tên, mật khẩu, chuyên môn) sẽ được cập nhật sau khi
                             tư vấn viên đăng nhập lần đầu hoặc qua trang quản trị.
                         </Typography>
+                        {createSubmitting && (
+                            <Typography
+                                variant="body2"
+                                sx={{
+                                    color: "#1d4ed8",
+                                    fontWeight: 500,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 1,
+                                    py: 0.5,
+                                }}
+                            >
+                                <CircularProgress size={18} thickness={5} sx={{color: "#2563eb"}}/>
+                                Đang xử lý, vui lòng đợi trong giây lát…
+                            </Typography>
+                        )}
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
@@ -856,7 +898,11 @@ export default function SchoolCounselors() {
                         disabled={createSubmitting}
                         startIcon={
                             createSubmitting ? (
-                                <CircularProgress size={18} color="inherit" sx={{mr: -0.5}}/>
+                                <CircularProgress
+                                    size={20}
+                                    thickness={4}
+                                    sx={{color: "#fff"}}
+                                />
                             ) : null
                         }
                         sx={{
