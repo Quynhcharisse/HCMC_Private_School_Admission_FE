@@ -937,7 +937,10 @@ export default function SchoolCampus() {
             {/* Create Campus Modal */}
             <Dialog
                 open={createModalOpen}
-                onClose={handleCloseCreate}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    handleCloseCreate();
+                }}
                 fullWidth
                 maxWidth="sm"
                 PaperProps={{sx: modalPaperSx}}
@@ -1126,7 +1129,10 @@ export default function SchoolCampus() {
             {/* View Details Modal */}
             <Dialog
                 open={viewModalOpen}
-                onClose={() => setViewModalOpen(false)}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    setViewModalOpen(false);
+                }}
                 maxWidth="md"
                 fullWidth
                 PaperProps={{
@@ -1642,7 +1648,10 @@ export default function SchoolCampus() {
             {/* Edit Campus Modal */}
             <Dialog
                 open={editModalOpen}
-                onClose={() => setEditModalOpen(false)}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    setEditModalOpen(false);
+                }}
                 fullWidth
                 maxWidth="sm"
                 PaperProps={{sx: modalPaperSx}}
@@ -1826,7 +1835,10 @@ export default function SchoolCampus() {
             {/* Disable confirmation dialog */}
             <Dialog
                 open={disableConfirmOpen}
-                onClose={() => setDisableConfirmOpen(false)}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    setDisableConfirmOpen(false);
+                }}
                 PaperProps={{sx: {borderRadius: 3, p: 1}}}
             >
                 <DialogTitle sx={{display: "flex", alignItems: "center", gap: 1}}>

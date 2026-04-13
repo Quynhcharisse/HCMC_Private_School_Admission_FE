@@ -920,7 +920,15 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
         }}
         onConfirm={handleDeleteImage}
       />
-      <Dialog open={imagePreviewOpen} onClose={() => setImagePreviewOpen(false)} maxWidth="sm" fullWidth>
+      <Dialog
+        open={imagePreviewOpen}
+        onClose={(event, reason) => {
+          if (reason === "backdropClick") return;
+          setImagePreviewOpen(false);
+        }}
+        maxWidth="sm"
+        fullWidth
+      >
         <DialogTitle sx={{display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2}}>
           <Typography sx={{fontWeight: 900, color: "#0f172a"}}>Xem trước ảnh</Typography>
           <IconButton size="small" onClick={() => setImagePreviewOpen(false)}>

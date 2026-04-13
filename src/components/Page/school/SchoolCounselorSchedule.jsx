@@ -1765,7 +1765,10 @@ export default function SchoolCounselorSchedule() {
 
       <Dialog
         open={dialogOpen}
-        onClose={() => !submitting && setDialogOpen(false)}
+        onClose={(event, reason) => {
+          if (reason === "backdropClick") return;
+          if (!submitting) setDialogOpen(false);
+        }}
         fullWidth
         maxWidth="md"
         PaperProps={{ sx: { borderRadius: "12px" } }}
@@ -2053,7 +2056,10 @@ export default function SchoolCounselorSchedule() {
 
       <Dialog
         open={unassignDialog.open}
-        onClose={() => !unassignSubmitting && setUnassignDialog({ open: false, row: null })}
+        onClose={(event, reason) => {
+          if (reason === "backdropClick") return;
+          if (!unassignSubmitting) setUnassignDialog({ open: false, row: null });
+        }}
         PaperProps={{ sx: { borderRadius: "12px", maxWidth: 440 } }}
       >
         <DialogTitle sx={{ fontWeight: 700 }}>Gỡ tư vấn viên?</DialogTitle>
@@ -2087,7 +2093,10 @@ export default function SchoolCounselorSchedule() {
 
       <Dialog
         open={deleteDialog.open}
-        onClose={() => !submitting && setDeleteDialog({ open: false, slot: null, day: null })}
+        onClose={(event, reason) => {
+          if (reason === "backdropClick") return;
+          if (!submitting) setDeleteDialog({ open: false, slot: null, day: null });
+        }}
         PaperProps={{ sx: { borderRadius: "12px" } }}
       >
         <DialogTitle sx={{ fontWeight: 700 }}>Vô hiệu hóa khung giờ?</DialogTitle>

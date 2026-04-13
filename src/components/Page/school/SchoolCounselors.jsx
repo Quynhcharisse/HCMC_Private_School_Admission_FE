@@ -764,7 +764,8 @@ export default function SchoolCounselors() {
             <Dialog
                 open={createModalOpen}
                 onClose={(e, reason) => {
-                    if (createSubmitting && (reason === "backdropClick" || reason === "escapeKeyDown")) return;
+                    if (reason === "backdropClick") return;
+                    if (createSubmitting && reason === "escapeKeyDown") return;
                     handleCloseCreate();
                 }}
                 fullWidth
@@ -874,7 +875,10 @@ export default function SchoolCounselors() {
             {/* View Detail Modal */}
 <Dialog
     open={viewModalOpen}
-    onClose={() => setViewModalOpen(false)}
+    onClose={(event, reason) => {
+        if (reason === "backdropClick") return;
+        setViewModalOpen(false);
+    }}
     maxWidth="sm"
     fullWidth
     PaperProps={{
@@ -1065,7 +1069,10 @@ export default function SchoolCounselors() {
             {/* Edit Modal */}
             <Dialog
                 open={editModalOpen}
-                onClose={() => setEditModalOpen(false)}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    setEditModalOpen(false);
+                }}
                 fullWidth
                 maxWidth="sm"
                 PaperProps={{sx: modalPaperSx}}
@@ -1208,7 +1215,10 @@ export default function SchoolCounselors() {
             {/* Disable confirmation dialog */}
             <Dialog
                 open={disableConfirmOpen}
-                onClose={() => setDisableConfirmOpen(false)}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    setDisableConfirmOpen(false);
+                }}
                 PaperProps={{sx: {borderRadius: 3, p: 1}}}
             >
                 <DialogTitle sx={{display: "flex", alignItems: "center", gap: 1}}>

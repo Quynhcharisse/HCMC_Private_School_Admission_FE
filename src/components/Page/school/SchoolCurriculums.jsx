@@ -1077,7 +1077,8 @@ export default function SchoolCurriculums() {
             {/* Confirm Edit Active (Evolve) Dialog */}
             <Dialog
                 open={confirmEvolveOpen}
-                onClose={() => {
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
                     if (evolveLoading) return;
                     setConfirmEvolveOpen(false);
                     setCurriculumToEditAfterConfirm(null);
@@ -1118,7 +1119,8 @@ export default function SchoolCurriculums() {
             {/* View Curriculum Dialog */}
             <Dialog
                 open={viewModalOpen}
-                onClose={() => {
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
                     if (publishLoading) return;
                     setViewModalOpen(false);
                     setConfirmPublishOpen(false);
@@ -1446,7 +1448,8 @@ export default function SchoolCurriculums() {
             {/* Confirm Publish Dialog */}
             <Dialog
                 open={confirmPublishOpen}
-                onClose={() => {
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
                     if (publishLoading) return;
                     setConfirmPublishOpen(false);
                 }}
@@ -1490,7 +1493,10 @@ export default function SchoolCurriculums() {
             {/* Create Curriculum Dialog */}
             <Dialog
                 open={createModalOpen}
-                onClose={handleCloseCreate}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    handleCloseCreate();
+                }}
                 fullWidth
                 maxWidth="md"
                 PaperProps={{ sx: modalPaperSx }}
@@ -1710,7 +1716,10 @@ export default function SchoolCurriculums() {
             {/* Edit Curriculum Dialog */}
             <Dialog
                 open={editModalOpen}
-                onClose={handleCloseEdit}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    handleCloseEdit();
+                }}
                 fullWidth
                 maxWidth="md"
                 PaperProps={{ sx: modalPaperSx }}
