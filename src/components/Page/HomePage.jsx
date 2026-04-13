@@ -195,15 +195,116 @@ function formatPublishedDateVi(iso) {
     }
 }
 
+function parseJsonMaybe(value) {
+    if (typeof value !== "string") return value;
+    const t = value.trim();
+    if (!t) return value;
+    if (!(t.startsWith("{") || t.startsWith("["))) return value;
+    try {
+        return JSON.parse(t);
+    } catch {
+        return value;
+    }
+}
+
+function looksLikeHttpUrl(value) {
+    return /^https?:\/\//i.test(String(value || "").trim());
+}
+
+function looksLikeImageUrl(value) {
+    const url = String(value || "").trim().toLowerCase();
+    if (!looksLikeHttpUrl(url)) return false;
+    if (/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip|rar)(\?|#|$)/i.test(url)) return false;
+    return true;
+}
+
+function collectImageUrlsDeep(input, bag, seen, depth = 0) {
+    if (input == null || depth > 6) return;
+    const parsed = parseJsonMaybe(input);
+
+    if (typeof parsed === "string") {
+        const s = parsed.trim();
+        if (looksLikeImageUrl(s) && !seen.has(s)) {
+            seen.add(s);
+            bag.push(s);
+        }
+        return;
+    }
+
+    if (Array.isArray(parsed)) {
+        for (const item of parsed) {
+            collectImageUrlsDeep(item, bag, seen, depth + 1);
+        }
+        return;
+    }
+
+    if (typeof parsed === "object") {
+        for (const [key, value] of Object.entries(parsed)) {
+            const keyLower = String(key || "").toLowerCase();
+            if (typeof value === "string" && (keyLower.includes("image") || keyLower.includes("url"))) {
+                const v = value.trim();
+                if (looksLikeImageUrl(v) && !seen.has(v)) {
+                    seen.add(v);
+                    bag.push(v);
+                }
+            }
+            collectImageUrlsDeep(value, bag, seen, depth + 1);
+        }
+    }
+}
+
+function extractPostImageUrls(raw) {
+    const sources = [
+        raw?.image,
+        raw?.images,
+        raw?.content?.image,
+        raw?.content?.images
+    ].map(parseJsonMaybe);
+
+    for (const src of sources) {
+        if (!src || typeof src !== "object") continue;
+
+        if (Array.isArray(src?.imageItemList)) {
+            return [...src.imageItemList]
+                .sort((a, b) => (Number(a?.position) || 0) - (Number(b?.position) || 0))
+                .map((item) => String(item?.url ?? item?.imageUrl ?? "").trim())
+                .filter(Boolean);
+        }
+
+        if (Array.isArray(src?.imageList)) {
+            return src.imageList
+                .map((item) =>
+                    typeof item === "string"
+                        ? item.trim()
+                        : String(item?.url ?? item?.imageUrl ?? "").trim()
+                )
+                .filter(Boolean);
+        }
+    }
+
+    const deepUrls = [];
+    const seen = new Set();
+    collectImageUrlsDeep(raw, deepUrls, seen);
+    const thumbnail = String(raw?.thumbnail ?? "").trim();
+    return deepUrls.filter((u) => u !== thumbnail);
+}
+
 function mapApiPostToBlogCard(raw) {
     const title = String(raw?.content?.shortDescription ?? "").trim() || "Không có tiêu đề";
     const list = raw?.content?.contentDataList;
+    let contentBlocks = [];
+    let descriptionHtml = "";
     let description = "";
     if (Array.isArray(list) && list.length) {
         const sorted = [...list].sort((a, b) => (Number(a?.position) || 0) - (Number(b?.position) || 0));
-        description = stripHtmlToPlain(sorted[0]?.text);
+        contentBlocks = sorted
+            .map((item) => String(item?.text ?? "").trim())
+            .filter(Boolean);
+        descriptionHtml = String(sorted[0]?.text ?? "").trim();
+        description = stripHtmlToPlain(descriptionHtml);
     }
     const image = String(raw?.thumbnail ?? "").trim() || DEFAULT_SCHOOL_IMAGE;
+    const detailImages = extractPostImageUrls(raw);
     const date = formatPublishedDateVi(raw?.publishedDate);
     let tags = raw?.hashTag;
     if (!Array.isArray(tags)) {
@@ -212,10 +313,10 @@ function mapApiPostToBlogCard(raw) {
     tags = tags.map((t) => String(t).trim()).filter(Boolean);
     const id = raw?.id;
     const url = id != null ? `#post-${id}` : "#";
-    return {title, description, image, date, tags, url, id};
+    return {title, description, descriptionHtml, contentBlocks, image, detailImages, date, tags, url, id};
 }
 
-function BlogCard({title, description, image, date, tags = [], url, variant = 'featured'}) {
+function BlogCard({title, description, descriptionHtml, image, date, tags = [], url, variant = 'featured', onOpenDetail}) {
     const isFeatured = variant === 'featured';
     const isExternal = typeof url === "string" && /^https?:\/\//i.test(url);
     return (
@@ -320,6 +421,7 @@ function BlogCard({title, description, image, date, tags = [], url, variant = 'f
                     {title}
                 </Typography>
                 <Typography
+                    component="div"
                     sx={{
                         color: '#64748b',
                         fontSize: isFeatured ? '0.95rem' : '0.88rem',
@@ -331,9 +433,8 @@ function BlogCard({title, description, image, date, tags = [], url, variant = 'f
                         WebkitBoxOrient: 'vertical',
                         overflow: 'hidden'
                     }}
-                >
-                    {description}
-                </Typography>
+                    dangerouslySetInnerHTML={{__html: descriptionHtml || description}}
+                />
                 <Box sx={{display: 'flex', flexWrap: 'wrap', gap: 0.6}}>
                     {tags.map((tag) => (
                         <Chip
@@ -352,9 +453,10 @@ function BlogCard({title, description, image, date, tags = [], url, variant = 'f
                 </Box>
                 <Button
                     size="small"
-                    href={url || "#"}
-                    target={isExternal ? "_blank" : undefined}
-                    rel={isExternal ? "noopener noreferrer" : undefined}
+                    href={onOpenDetail ? undefined : url || "#"}
+                    target={onOpenDetail ? undefined : isExternal ? "_blank" : undefined}
+                    rel={onOpenDetail ? undefined : isExternal ? "noopener noreferrer" : undefined}
+                    onClick={onOpenDetail}
                     sx={{
                         alignSelf: 'flex-start',
                         mt: 2,
@@ -487,6 +589,7 @@ function LatestAdmissionNewsSection({refreshTrigger = 0}) {
     const [posts, setPosts] = React.useState([]);
     const [loading, setLoading] = React.useState(true);
     const [fetchError, setFetchError] = React.useState(false);
+    const [detailPost, setDetailPost] = React.useState(null);
     const n = posts.length;
     const [active, setActive] = React.useState(0);
     const timerRef = React.useRef(null);
@@ -621,7 +724,11 @@ function LatestAdmissionNewsSection({refreshTrigger = 0}) {
                             }}
                             key={posts[active]?.id ?? active}
                         >
-                            <BlogCard {...posts[active]} variant="featured" />
+                            <BlogCard
+                                {...posts[active]}
+                                variant="featured"
+                                onOpenDetail={() => setDetailPost(posts[active])}
+                            />
                         </Box>
                         {n > 1 ? (
                             <>
@@ -682,7 +789,11 @@ function LatestAdmissionNewsSection({refreshTrigger = 0}) {
                                 '&:hover': {opacity: 0.75}
                             }}
                         >
-                            <BlogCard {...posts[prevIndex]} variant="side" />
+                            <BlogCard
+                                {...posts[prevIndex]}
+                                variant="side"
+                                onOpenDetail={() => setDetailPost(posts[prevIndex])}
+                            />
                         </Box>
                         <Box
                             key={posts[active]?.id ?? active}
@@ -705,7 +816,11 @@ function LatestAdmissionNewsSection({refreshTrigger = 0}) {
                                 animation: `admissionCenterIn ${ADMISSION_ANIM_MS}ms ${admissionEase} both`
                             }}
                         >
-                            <BlogCard {...posts[active]} variant="featured" />
+                            <BlogCard
+                                {...posts[active]}
+                                variant="featured"
+                                onOpenDetail={() => setDetailPost(posts[active])}
+                            />
                         </Box>
                         <Box
                             onClick={() => goToSlide(nextIndex)}
@@ -721,7 +836,11 @@ function LatestAdmissionNewsSection({refreshTrigger = 0}) {
                                 '&:hover': {opacity: 0.75}
                             }}
                         >
-                            <BlogCard {...posts[nextIndex]} variant="side" />
+                            <BlogCard
+                                {...posts[nextIndex]}
+                                variant="side"
+                                onOpenDetail={() => setDetailPost(posts[nextIndex])}
+                            />
                         </Box>
                     </Box>
                 )}
@@ -744,6 +863,96 @@ function LatestAdmissionNewsSection({refreshTrigger = 0}) {
                         ))}
                     </Stack>
                 ) : null}
+                <Dialog
+                    open={Boolean(detailPost)}
+                    onClose={() => setDetailPost(null)}
+                    fullWidth
+                    maxWidth="md"
+                >
+                    <DialogTitle sx={{fontWeight: 800}}>
+                        {detailPost?.title || "Chi tiết bài viết"}
+                    </DialogTitle>
+                    <DialogContent dividers sx={{pt: 2}}>
+                        {detailPost?.image ? (
+                            <Box
+                                component="img"
+                                src={detailPost.image}
+                                alt={detailPost.title || ""}
+                                referrerPolicy="no-referrer"
+                                sx={{
+                                    width: "100%",
+                                    maxHeight: 320,
+                                    objectFit: "cover",
+                                    borderRadius: 2,
+                                    mb: 2
+                                }}
+                            />
+                        ) : null}
+                        <Typography sx={{fontSize: "0.85rem", color: "#64748b", mb: 1.5}}>
+                            {detailPost?.date}
+                        </Typography>
+                        {Array.isArray(detailPost?.contentBlocks) && detailPost.contentBlocks.length > 0 ? (
+                            detailPost.contentBlocks.map((block, idx) => (
+                                <Box
+                                    key={`${detailPost?.id ?? "post"}-${idx}`}
+                                    sx={{
+                                        color: "#334155",
+                                        fontSize: "1rem",
+                                        lineHeight: 1.75,
+                                        mb: 1.5,
+                                        "& p": {my: 1},
+                                        "& ul, & ol": {pl: 2.5, my: 1},
+                                        "& li": {my: 0.35}
+                                    }}
+                                    dangerouslySetInnerHTML={{__html: block}}
+                                />
+                            ))
+                        ) : (
+                            <Typography sx={{color: "#64748b"}}>
+                                {detailPost?.description || "Bài viết chưa có nội dung chi tiết."}
+                            </Typography>
+                        )}
+                        {Array.isArray(detailPost?.detailImages) && detailPost.detailImages.length > 0 ? (
+                            <Box
+                                sx={{
+                                    mt: 1,
+                                    display: "grid",
+                                    gridTemplateColumns: {xs: "1fr", sm: "repeat(2, minmax(0, 1fr))"},
+                                    gap: 1.25
+                                }}
+                            >
+                                {detailPost.detailImages.map((imgUrl, idx) => (
+                                    <Box
+                                        key={`${detailPost?.id ?? "post"}-detail-image-${idx}`}
+                                        component="img"
+                                        src={imgUrl}
+                                        alt=""
+                                        referrerPolicy="no-referrer"
+                                        sx={{
+                                            width: "100%",
+                                            borderRadius: 2,
+                                            maxHeight: 300,
+                                            objectFit: "cover",
+                                            border: "1px solid rgba(148, 163, 184, 0.3)"
+                                        }}
+                                    />
+                                ))}
+                            </Box>
+                        ) : null}
+                        {Array.isArray(detailPost?.tags) && detailPost.tags.length > 0 ? (
+                            <Box sx={{display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1}}>
+                                {detailPost.tags.map((tag) => (
+                                    <Chip key={tag} size="small" label={tag} />
+                                ))}
+                            </Box>
+                        ) : null}
+                    </DialogContent>
+                    <DialogActions>
+                        <Button onClick={() => setDetailPost(null)} sx={{textTransform: "none", fontWeight: 700}}>
+                            Đóng
+                        </Button>
+                    </DialogActions>
+                </Dialog>
                 </Box>
             </Container>
         </Box>
