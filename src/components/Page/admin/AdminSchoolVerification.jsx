@@ -43,6 +43,7 @@ import {enqueueSnackbar} from "notistack";
 import {showSuccessSnackbar} from "../../ui/AppSnackbar.jsx";
 import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
 import {getPendingSchoolRegistrations, verifySchoolRegistration} from "../../../services/AdminService.jsx";
+import {sendSchoolVerifiedEmail} from "../../../services/emailService.jsx";
 import {APP_PRIMARY_MAIN} from "../../../constants/homeLandingTheme";
 import {
     adminTableBodyRowSx,
@@ -66,6 +67,19 @@ export default function AdminSchoolVerification() {
         if (rawId === undefined || rawId === null || rawId === "") return null;
         const parsed = Number(rawId);
         return Number.isNaN(parsed) ? null : parsed;
+    };
+
+    const getRegistrationEmail = (registration) => {
+        const possibleFields = [
+            registration?.email,
+            registration?.schoolEmail,
+            registration?.accountEmail,
+            registration?.ownerEmail,
+            registration?.userEmail,
+            registration?.representativeEmail,
+        ];
+        const found = possibleFields.find((value) => typeof value === "string" && value.trim());
+        return found ? found.trim() : "";
     };
 
     const fetchRegistrations = async () => {
@@ -118,6 +132,9 @@ export default function AdminSchoolVerification() {
     };
 
     const handleVerify = async () => {
+        const currentRegistration = selectedRegistration;
+        const schoolName = currentRegistration?.schoolName || "quý nhà trường";
+        const schoolEmail = getRegistrationEmail(currentRegistration);
         const requestId = getVerifyRequestId(selectedRegistration);
         if (verifyingId) return;
         if (requestId === null) {
@@ -129,6 +146,23 @@ export default function AdminSchoolVerification() {
             const res = await verifySchoolRegistration(requestId);
             if (res && res.status === 200) {
                 showSuccessSnackbar("Xác thực trường học thành công!");
+                if (schoolEmail) {
+                    try {
+                        await sendSchoolVerifiedEmail({schoolName, email: schoolEmail});
+                        enqueueSnackbar(`Đã gửi email kích hoạt cho "${schoolName}".`, {variant: "success"});
+                    } catch (emailError) {
+                        console.error("Send school verified notification email failed", emailError);
+                        enqueueSnackbar(
+                            "Đã xác thực trường học nhưng gửi email thông báo thất bại. Vui lòng kiểm tra cấu hình EmailJS.",
+                            {variant: "warning"}
+                        );
+                    }
+                } else {
+                    enqueueSnackbar(
+                        "Đã xác thực trường học nhưng chưa tìm thấy email đăng ký để gửi thông báo.",
+                        {variant: "warning"}
+                    );
+                }
                 await fetchRegistrations();
             }
         } catch (error) {
