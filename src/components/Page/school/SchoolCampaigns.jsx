@@ -44,6 +44,7 @@ import {
     createCampaignTemplate,
     exportAdmissionCampaignList,
 } from "../../../services/CampaignService.jsx";
+import CreatePostRichTextEditor from "../../ui/CreatePostRichTextEditor.jsx";
 
 const modalPaperSx = {
     borderRadius: "16px",
@@ -164,6 +165,26 @@ function addLocalDays(date, delta) {
     return d;
 }
 
+function campaignDescriptionPlainText(html) {
+    if (html == null || html === "") return "";
+    const s = String(html);
+    if (typeof document !== "undefined") {
+        const el = document.createElement("div");
+        el.innerHTML = s;
+        return (el.textContent || "").trim();
+    }
+    return s.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim();
+}
+
+function campaignDescriptionToInitialHtml(stored) {
+    const raw = stored ?? "";
+    const s = String(raw).trim();
+    if (!s) return "";
+    if (/<[a-z][\s/>]/i.test(s)) return String(raw);
+    const esc = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return `<p>${esc}</p>`;
+}
+
 /** Map BE validation messages (EN) → hiển thị tiếng Việt (Create + Update) */
 const CAMPAIGN_ERROR_VI = {
     "Request is required": "Yêu cầu không được để trống",
@@ -239,6 +260,7 @@ export default function SchoolCampaigns() {
     const [statusFilter, setStatusFilter] = useState("all");
     const [campaignCountByTab, setCampaignCountByTab] = useState({});
     const [createModalOpen, setCreateModalOpen] = useState(false);
+    const [createDescriptionFieldKey, setCreateDescriptionFieldKey] = useState(0);
     const [formValues, setFormValues] = useState(emptyForm);
     const [formErrors, setFormErrors] = useState({});
     const [page, setPage] = useState(0);
@@ -351,14 +373,14 @@ export default function SchoolCampaigns() {
     const validateForm = () => {
         const errors = {};
         const name = formValues.name?.trim() ?? "";
-        const description = formValues.description?.trim() ?? "";
+        const descriptionPlain = campaignDescriptionPlainText(formValues.description ?? "");
         const yearRaw = formValues.year;
         const yearNum = typeof yearRaw === "number" ? yearRaw : parseInt(String(yearRaw), 10);
 
         if (!name) errors.name = "Tên chiến dịch là bắt buộc";
         else if (name.length > 100) errors.name = "Tên chiến dịch quá dài. Tối đa 100 ký tự";
 
-        if (!description) errors.description = "Mô tả là bắt buộc";
+        if (!descriptionPlain) errors.description = "Mô tả là bắt buộc";
 
         if (!Number.isFinite(yearNum) || yearNum <= 0) {
             errors.year = "Năm học là bắt buộc";
@@ -438,6 +460,7 @@ export default function SchoolCampaigns() {
             year: new Date().getFullYear(),
         });
         setFormErrors({});
+        setCreateDescriptionFieldKey((k) => k + 1);
         setCreateModalOpen(true);
     };
 
@@ -448,6 +471,7 @@ export default function SchoolCampaigns() {
             year: new Date().getFullYear(),
         });
         setFormErrors({});
+        setCreateDescriptionFieldKey((k) => k + 1);
         setCreateModalOpen(true);
         navigate(location.pathname, { replace: true, state: null });
     }, [isPastYearView, isPrimaryBranch, location.pathname, location.state, navigate]);
@@ -1081,7 +1105,7 @@ export default function SchoolCampaigns() {
                     setCreateModalOpen(false);
                 }}
                 fullWidth
-                maxWidth="sm"
+                maxWidth="md"
                 PaperProps={{sx: modalPaperSx}}
                 slotProps={{backdrop: {sx: modalBackdropSx}}}
             >
@@ -1143,19 +1167,38 @@ export default function SchoolCampaigns() {
                                 }}
                             />
                         </Stack>
-                        <TextField
-                            label="Mô tả"
-                            name="description"
-                            fullWidth
-                            multiline
-                            rows={3}
-                            value={formValues.description}
-                            onChange={handleChange}
-                            error={!!formErrors.description}
-                            helperText={formErrors.description}
-                            required
-                            sx={{"& .MuiOutlinedInput-root": {borderRadius: "12px"}}}
-                        />
+                        <Box>
+                            <Typography
+                                component="label"
+                                variant="body2"
+                                sx={{
+                                    display: "block",
+                                    mb: 0.75,
+                                    fontWeight: 700,
+                                    color: "#64748b",
+                                }}
+                            >
+                                Mô tả
+                            </Typography>
+                            <CreatePostRichTextEditor
+                                key={createDescriptionFieldKey}
+                                initialHtml={campaignDescriptionToInitialHtml(formValues.description)}
+                                onChange={(html) =>
+                                    setFormValues((prev) => ({...prev, description: html}))
+                                }
+                                disabled={submitLoading}
+                                minEditorHeight={220}
+                                maxEditorHeight={400}
+                            />
+                            {formErrors.description ? (
+                                <Typography
+                                    variant="caption"
+                                    sx={{mt: 0.75, display: "block", color: "error.main"}}
+                                >
+                                    {formErrors.description}
+                                </Typography>
+                            ) : null}
+                        </Box>
                         <Stack direction={{xs: "column", sm: "row"}} spacing={2}>
                             <TextField
                                 label="Ngày bắt đầu"

@@ -27,8 +27,30 @@ import {
     updateCampaignTemplateStatus,
 } from "../../../services/CampaignService.jsx";
 import CampaignOfferingsSection from "./CampaignOfferingsSection.jsx";
+import CreatePostRichTextEditor from "../../ui/CreatePostRichTextEditor.jsx";
 
 const HEADER_ACCENT = "#0D64DE";
+
+function campaignDescriptionPlainText(html) {
+    if (html == null || html === "") return "";
+    const s = String(html);
+    if (typeof document !== "undefined") {
+        const el = document.createElement("div");
+        el.innerHTML = s;
+        return (el.textContent || "").trim();
+    }
+    return s.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").trim();
+}
+
+/** Chuẩn hoá mô tả từ API (plain hoặc HTML) để đưa vào editor TipTap. */
+function campaignDescriptionToInitialHtml(stored) {
+    const raw = stored ?? "";
+    const s = String(raw).trim();
+    if (!s) return "";
+    if (/<[a-z][\s/>]/i.test(s)) return String(raw);
+    const esc = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    return `<p>${esc}</p>`;
+}
 
 /** Đổi sang route quản lý hồ sơ đăng ký / tuyển sinh khi có trang riêng. */
 const SCHOOL_REGISTRATION_PROFILES_PATH = "/school/dashboard";
@@ -239,8 +261,13 @@ export default function SchoolCampaignDetail() {
     const [isInfoEditing, setIsInfoEditing] = useState(false);
     /** Tăng sau khi lưu template để remount phần chỉ tiêu và gọi lại API */
     const [offeringsRemountKey, setOfferingsRemountKey] = useState(0);
+    const [descriptionFieldKey, setDescriptionFieldKey] = useState(0);
 
     const idNum = campaignId ? parseInt(campaignId, 10) : NaN;
+
+    useEffect(() => {
+        setDescriptionFieldKey((k) => k + 1);
+    }, [campaign?.admissionCampaignTemplateId, campaign?.description]);
 
     const resolveCampaignFromApi = useCallback(async () => {
         if (!Number.isFinite(idNum)) return null;
@@ -264,7 +291,7 @@ export default function SchoolCampaignDetail() {
             setCampaign(m);
             setFormValues({
                 name: m.name || "",
-                description: m.description || "",
+                description: campaignDescriptionToInitialHtml(m.description),
                 startDate: m.startDate?.slice(0, 10) || "",
                 endDate: m.endDate?.slice(0, 10) || "",
             });
@@ -279,7 +306,7 @@ export default function SchoolCampaignDetail() {
                 setCampaign(c);
                 setFormValues({
                     name: c.name || "",
-                    description: c.description || "",
+                    description: campaignDescriptionToInitialHtml(c.description),
                     startDate: c.startDate?.slice(0, 10) || "",
                     endDate: c.endDate?.slice(0, 10) || "",
                 });
@@ -313,13 +340,13 @@ export default function SchoolCampaignDetail() {
     const publishBlockedByPastEndDate = !!(endDateObj && endDateObj.getTime() < today.getTime());
     const isFormDirty = useMemo(() => {
         const originalName = String(campaign?.name ?? "").trim();
-        const originalDescription = String(campaign?.description ?? "").trim();
+        const originalDescriptionPlain = campaignDescriptionPlainText(campaign?.description ?? "");
         const originalStartDate = String(campaign?.startDate ?? "").slice(0, 10);
         const originalEndDate = String(campaign?.endDate ?? "").slice(0, 10);
 
         return (
             String(formValues.name ?? "").trim() !== originalName ||
-            String(formValues.description ?? "").trim() !== originalDescription ||
+            campaignDescriptionPlainText(formValues.description ?? "") !== originalDescriptionPlain ||
             String(formValues.startDate ?? "").trim() !== originalStartDate ||
             String(formValues.endDate ?? "").trim() !== originalEndDate
         );
@@ -338,7 +365,7 @@ export default function SchoolCampaignDetail() {
     const validateForm = () => {
         const errors = {};
         const name = formValues.name?.trim() ?? "";
-        const description = formValues.description?.trim() ?? "";
+        const descriptionPlain = campaignDescriptionPlainText(formValues.description ?? "");
         const yearNum = Number(campaign?.year);
         const startIso = formValues.startDate?.trim() ?? "";
         const endIso = formValues.endDate?.trim() ?? "";
@@ -346,7 +373,7 @@ export default function SchoolCampaignDetail() {
         if (!name) errors.name = "Tên chiến dịch là bắt buộc";
         else if (name.length > 100) errors.name = "Tên chiến dịch quá dài. Tối đa 100 ký tự";
 
-        if (!description) errors.description = "Mô tả là bắt buộc";
+        if (!descriptionPlain) errors.description = "Mô tả là bắt buộc";
 
         if (!Number.isFinite(yearNum) || yearNum <= 0) {
             errors.year = "Năm học là bắt buộc";
@@ -400,7 +427,7 @@ export default function SchoolCampaignDetail() {
             setCampaign(c);
             setFormValues({
                 name: c.name || "",
-                description: c.description || "",
+                description: campaignDescriptionToInitialHtml(c.description),
                 startDate: c.startDate?.slice(0, 10) || "",
                 endDate: c.endDate?.slice(0, 10) || "",
             });
@@ -773,19 +800,38 @@ export default function SchoolCampaignDetail() {
                             sx={{ flex: 1, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                         />
                     </Stack>
-                    <TextField
-                        label="Mô tả"
-                        name="description"
-                        fullWidth
-                        multiline
-                        rows={3}
-                        value={formValues.description}
-                        onChange={handleFormChange}
-                        InputProps={{ readOnly: !isCampaignInfoEditable }}
-                        error={!!formErrors.description}
-                        helperText={formErrors.description}
-                        sx={{ mb: 2, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
-                    />
+                    <Box sx={{ mb: 2 }}>
+                        <Typography
+                            component="label"
+                            variant="body2"
+                            sx={{
+                                display: "block",
+                                mb: 0.75,
+                                fontWeight: 700,
+                                color: "#64748b",
+                            }}
+                        >
+                            Mô tả
+                        </Typography>
+                        <CreatePostRichTextEditor
+                            key={descriptionFieldKey}
+                            initialHtml={campaignDescriptionToInitialHtml(formValues.description)}
+                            onChange={(html) =>
+                                setFormValues((prev) => ({ ...prev, description: html }))
+                            }
+                            disabled={!isCampaignInfoEditable || submitLoading}
+                            minEditorHeight={220}
+                            maxEditorHeight={400}
+                        />
+                        {formErrors.description ? (
+                            <Typography
+                                variant="caption"
+                                sx={{ mt: 0.75, display: "block", color: "error.main" }}
+                            >
+                                {formErrors.description}
+                            </Typography>
+                        ) : null}
+                    </Box>
                     <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
                         <TextField
                             label="Ngày bắt đầu"

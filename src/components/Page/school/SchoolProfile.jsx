@@ -129,6 +129,45 @@ function InfoRow({ label, value }) {
     );
 }
 
+function facilityOverviewLooksLikeHtml(s) {
+    return typeof s === "string" && /<[a-z][\s/>]/i.test(s.trim());
+}
+
+function FacilityOverviewRow({ overview }) {
+    if (!overview) return null;
+    const asHtml = facilityOverviewLooksLikeHtml(overview);
+    return (
+        <Box sx={{ py: 1.25, borderBottom: "1px solid #f1f5f9", "&:last-of-type": { borderBottom: 0 } }}>
+            <Typography variant="caption" sx={{ color: "#64748b", display: "block", mb: 0.25 }}>
+                Tổng quan
+            </Typography>
+            {asHtml ? (
+                <Box
+                    className="facility-overview-html"
+                    sx={{
+                        fontSize: "0.875rem",
+                        fontWeight: 500,
+                        color: "#1e293b",
+                        lineHeight: 1.6,
+                        "& p": { margin: "0.35em 0" },
+                        "& p:first-of-type": { marginTop: 0 },
+                        "& p:last-of-type": { marginBottom: 0 },
+                        "& ul, & ol": { pl: "1.25rem", my: 0.5 },
+                        "& strong": { fontWeight: 700 },
+                        "& em": { fontStyle: "italic" },
+                        "& u": { textDecoration: "underline" },
+                    }}
+                    dangerouslySetInnerHTML={{ __html: overview }}
+                />
+            ) : (
+                <Typography variant="body2" fontWeight={500} sx={{ color: "#1e293b" }}>
+                    {overview}
+                </Typography>
+            )}
+        </Box>
+    );
+}
+
 function MiniInfoCard({ label, value }) {
     return (
         <Box
@@ -992,7 +1031,7 @@ export default function SchoolProfile() {
                 >
                     <CardContent sx={{ p: 3 }}>
                         <SectionHeader icon={SettingsIcon} title="Cơ sở vật chất" />
-                        {facility?.overview && <InfoRow label="Tổng quan" value={facility.overview} />}
+                        <FacilityOverviewRow overview={facility?.overview} />
                         {facilityItemList.length > 0 ? (
                             <Box sx={{ mt: 2, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 2 }}>
                                 {facilityItemList.map((item, index) => (

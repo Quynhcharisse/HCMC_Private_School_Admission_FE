@@ -37,8 +37,30 @@ import {useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
 import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
+import CreatePostRichTextEditor from "../../ui/CreatePostRichTextEditor.jsx";
 
 const MAX_OVERVIEW_CHARS = 500;
+
+function plainTextLengthFromHtml(html) {
+  if (html == null || html === "") return 0;
+  const s = String(html);
+  if (typeof document !== "undefined") {
+    const el = document.createElement("div");
+    el.innerHTML = s;
+    return (el.textContent || "").length;
+  }
+  return s.replace(/<[^>]*>/g, "").replace(/&nbsp;/gi, " ").length;
+}
+
+/** Dữ liệu cũ (thuần text) → bọc thẻ p; đã là HTML từ editor thì giữ nguyên. */
+function overviewToInitialEditorHtml(stored) {
+  const raw = stored ?? "";
+  const s = String(raw).trim();
+  if (!s) return "";
+  if (/<[a-z][\s/>]/i.test(s)) return String(raw);
+  const esc = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `<p>${esc}</p>`;
+}
 
 function formatIsoLocalDateTime(date) {
   const pad = (n) => String(n).padStart(2, "0");
@@ -136,6 +158,7 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
   );
 
   const overview = facilityData.overview ?? "";
+  const overviewPlainLen = useMemo(() => plainTextLengthFromHtml(overview), [overview]);
   const coverUrl = facilityData.imageData?.coverUrl ?? "";
   const imageItems = facilityData.imageData?.imageList ?? [];
 
@@ -432,19 +455,33 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
             </Stack>
           ) : (
             <Box>
-              <TextField
-                multiline
-                minRows={5}
-                value={overview}
-                placeholder="Mô tả cơ sở vật chất của trường..."
-                onChange={(e) => setOverview(e.target.value.slice(0, MAX_OVERVIEW_CHARS))}
-                inputProps={{maxLength: MAX_OVERVIEW_CHARS, readOnly: formLocked}}
-                fullWidth
-                variant="outlined"
-              />
+              <Box sx={{display: "flex", flexDirection: "column", gap: 0.75}}>
+                <Typography
+                  component="label"
+                  variant="body2"
+                  sx={{
+                    display: "block",
+                    flexShrink: 0,
+                    fontWeight: 700,
+                    color: "#64748b",
+                  }}
+                >
+                  Nội dung tổng quan
+                </Typography>
+                <CreatePostRichTextEditor
+                  initialHtml={overviewToInitialEditorHtml(overview)}
+                  onChange={setOverview}
+                  disabled={formLocked}
+                  minEditorHeight={260}
+                  maxEditorHeight={480}
+                />
+              </Box>
               <Box sx={{display: "flex", justifyContent: "space-between", mt: 1}}>
-                <Typography variant="caption" sx={{color: overview.length >= MAX_OVERVIEW_CHARS ? "#ef4444" : "#94a3b8"}}>
-                  {overview.length}/{MAX_OVERVIEW_CHARS}
+                <Typography
+                  variant="caption"
+                  sx={{color: overviewPlainLen >= MAX_OVERVIEW_CHARS ? "#ef4444" : "#94a3b8"}}
+                >
+                  {overviewPlainLen}/{MAX_OVERVIEW_CHARS}
                 </Typography>
               </Box>
             </Box>
