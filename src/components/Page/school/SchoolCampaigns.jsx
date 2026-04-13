@@ -1076,7 +1076,10 @@ export default function SchoolCampaigns() {
             {/* Create Campaign Modal */}
             <Dialog
                 open={createModalOpen}
-                onClose={() => setCreateModalOpen(false)}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    setCreateModalOpen(false);
+                }}
                 fullWidth
                 maxWidth="sm"
                 PaperProps={{sx: modalPaperSx}}

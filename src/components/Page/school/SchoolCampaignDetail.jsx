@@ -933,7 +933,10 @@ export default function SchoolCampaignDetail() {
 
             <Dialog
                 open={confirmPublishOpen}
-                onClose={() => !submitLoading && setConfirmPublishOpen(false)}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    if (!submitLoading) setConfirmPublishOpen(false);
+                }}
                 PaperProps={{ sx: { borderRadius: "16px" } }}
             >
                 <DialogContent>
@@ -967,7 +970,8 @@ export default function SchoolCampaignDetail() {
             <Dialog
                 open={cancelFlowOpen}
                 disableEscapeKeyDown={false}
-                onClose={() => {
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
                     if (submitLoading) return;
                     resetCancelFlow();
                 }}
@@ -1121,7 +1125,8 @@ export default function SchoolCampaignDetail() {
 
             <Dialog
                 open={postCancelChoiceOpen}
-                onClose={() => {
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
                     if (submitLoading) return;
                     setPostCancelChoiceOpen(false);
                     setSelectedPostCancelOption("");
@@ -1230,7 +1235,10 @@ export default function SchoolCampaignDetail() {
 
             <Dialog
                 open={confirmCloneOpen}
-                onClose={() => !submitLoading && setConfirmCloneOpen(false)}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    if (!submitLoading) setConfirmCloneOpen(false);
+                }}
                 fullWidth
                 maxWidth="sm"
                 PaperProps={{ sx: { borderRadius: "16px" } }}

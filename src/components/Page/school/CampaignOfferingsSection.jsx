@@ -789,7 +789,8 @@ export default function CampaignOfferingsSection({
 
             <Dialog
                 open={detailOpen}
-                onClose={() => {
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
                     setDetailOpen(false);
                     setDetailRow(null);
                 }}
@@ -935,7 +936,10 @@ export default function CampaignOfferingsSection({
 
             <Dialog
                 open={modalOpen}
-                onClose={() => setModalOpen(false)}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    setModalOpen(false);
+                }}
                 fullWidth
                 maxWidth="sm"
                 PaperProps={{
@@ -1141,7 +1145,8 @@ export default function CampaignOfferingsSection({
 
             <Dialog
                 open={confirmActionOpen}
-                onClose={() => {
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
                     if (!confirmActionLoading) setConfirmActionOpen(false);
                 }}
                 fullWidth

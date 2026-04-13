@@ -228,7 +228,10 @@ export default function CounsellorAssignModal({
   return (
     <Dialog
       open={open}
-      onClose={() => !submitting && onClose()}
+      onClose={(event, reason) => {
+        if (reason === "backdropClick") return;
+        if (!submitting) onClose();
+      }}
       maxWidth="md"
       fullWidth
       PaperProps={{ sx: { borderRadius: "16px" } }}

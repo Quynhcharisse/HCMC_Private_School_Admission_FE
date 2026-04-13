@@ -79,7 +79,10 @@ export default function ScheduleSlotDetailModal({
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={(event, reason) => {
+        if (reason === "backdropClick") return;
+        onClose();
+      }}
       maxWidth="md"
       fullWidth
       scroll="paper"

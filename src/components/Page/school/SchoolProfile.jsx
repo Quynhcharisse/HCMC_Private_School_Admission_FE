@@ -904,7 +904,16 @@ export default function SchoolProfile() {
                 </CardContent>
             </Card>
 
-            <Dialog open={editOpen} onClose={handleRequestCloseEdit} fullWidth maxWidth="md" PaperProps={{ sx: { borderRadius: 3, bgcolor: "#f8fafc" } }}>
+            <Dialog
+                open={editOpen}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    handleRequestCloseEdit();
+                }}
+                fullWidth
+                maxWidth="md"
+                PaperProps={{ sx: { borderRadius: 3, bgcolor: "#f8fafc" } }}
+            >
                 <DialogTitle sx={{ px: 3, py: 2.5, borderBottom: "1px solid #e2e8f0" }}>
                     <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
                         <Box>
@@ -1069,7 +1078,10 @@ export default function SchoolProfile() {
 
             <Dialog
                 open={unsavedConfirmOpen}
-                onClose={() => setUnsavedConfirmOpen(false)}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    setUnsavedConfirmOpen(false);
+                }}
                 maxWidth="xs"
                 fullWidth
                 PaperProps={{ sx: { borderRadius: 3 } }}

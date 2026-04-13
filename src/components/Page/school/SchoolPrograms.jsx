@@ -1153,7 +1153,10 @@ export default function SchoolPrograms() {
             {/* Create/Edit Program Dialog */}
             <Dialog
                 open={programModalOpen}
-                onClose={handleCloseProgramModal}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    handleCloseProgramModal();
+                }}
                 fullWidth
                 maxWidth="md"
                 PaperProps={{ sx: modalPaperSx }}
@@ -1892,7 +1895,10 @@ export default function SchoolPrograms() {
             {/* Clone Program Dialog */}
             <Dialog
                 open={cloneConfirmOpen}
-                onClose={() => !cloneLoading && setCloneConfirmOpen(false)}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    if (!cloneLoading) setCloneConfirmOpen(false);
+                }}
                 fullWidth
                 maxWidth="sm"
                 PaperProps={{ sx: { borderRadius: "16px" } }}
@@ -1972,7 +1978,10 @@ export default function SchoolPrograms() {
             {/* Activate/Deactivate Dialog */}
             <Dialog
                 open={actionConfirmOpen}
-                onClose={() => !actionLoading && setActionConfirmOpen(false)}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    if (!actionLoading) setActionConfirmOpen(false);
+                }}
                 fullWidth
                 maxWidth="sm"
                 PaperProps={{ sx: { borderRadius: "16px" } }}
