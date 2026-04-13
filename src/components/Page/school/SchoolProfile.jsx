@@ -17,6 +17,7 @@ import {
     Skeleton,
     Stack,
     TextField,
+    Tooltip,
     Typography,
 } from "@mui/material";
 import EditIcon from "@mui/icons-material/Edit";
@@ -29,6 +30,8 @@ import VerifiedUserIcon from "@mui/icons-material/VerifiedUser";
 import AddPhotoAlternateIcon from "@mui/icons-material/AddPhotoAlternate";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
+import ZoomInIcon from "@mui/icons-material/ZoomIn";
+import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import { enqueueSnackbar } from "notistack";
 import { getProfile, updateProfile } from "../../../services/AccountService.jsx";
 import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
@@ -137,7 +140,17 @@ function MiniInfoCard({ label, value }) {
                 minHeight: 92,
             }}
         >
-            <Typography variant="caption" sx={{ color: "#64748b", display: "block", mb: 0.5 }}>
+            <Typography
+                variant="caption"
+                sx={{
+                    display: "block",
+                    mb: 0.5,
+                    fontWeight: 700,
+                    fontSize: "0.75rem",
+                    letterSpacing: "0.03em",
+                    color: "#1d4ed8",
+                }}
+            >
                 {label}
             </Typography>
             <Typography variant="body2" fontWeight={600} sx={{ color: "#1e293b" }}>
@@ -165,6 +178,134 @@ function RecenterMap({ center, zoom = 15 }) {
     return null;
 }
 
+const LOGO_ZOOM_MIN = 0.5;
+const LOGO_ZOOM_MAX = 4;
+const LOGO_ZOOM_STEP = 0.25;
+
+function LogoLightboxDialog({ open, imageUrl, onClose }) {
+    const [zoom, setZoom] = useState(1);
+
+    useEffect(() => {
+        if (open) setZoom(1);
+    }, [open, imageUrl]);
+
+    const handleWheel = useCallback((e) => {
+        if (!open) return;
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? -LOGO_ZOOM_STEP : LOGO_ZOOM_STEP;
+        setZoom((z) => Math.min(LOGO_ZOOM_MAX, Math.max(LOGO_ZOOM_MIN, Math.round((z + delta) * 100) / 100)));
+    }, [open]);
+
+    const effectiveOpen = open && Boolean(imageUrl?.trim());
+
+    return (
+        <Dialog
+            open={effectiveOpen}
+            onClose={onClose}
+            maxWidth={false}
+            PaperProps={{
+                sx: {
+                    bgcolor: "rgba(15, 23, 42, 0.94)",
+                    m: 2,
+                    maxWidth: "min(960px, 96vw)",
+                    width: "100%",
+                    borderRadius: 3,
+                    border: "1px solid rgba(255,255,255,0.12)",
+                },
+            }}
+        >
+            <DialogTitle
+                sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 2,
+                    color: "#f8fafc",
+                    fontWeight: 700,
+                    py: 1.5,
+                }}
+            >
+                Logo
+                <IconButton onClick={onClose} aria-label="Đóng" sx={{ color: "#e2e8f0" }}>
+                    <CloseIcon />
+                </IconButton>
+            </DialogTitle>
+            <DialogContent
+                onWheel={handleWheel}
+                sx={{
+                    overflow: "auto",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    minHeight: { xs: 280, sm: 360 },
+                    maxHeight: "70vh",
+                    py: 2,
+                    px: 1,
+                }}
+            >
+                <Box
+                    sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        minWidth: "100%",
+                        minHeight: "100%",
+                    }}
+                >
+                    <Box
+                        component="img"
+                        src={imageUrl}
+                        alt="Logo"
+                        sx={{
+                            maxWidth: "100%",
+                            height: "auto",
+                            objectFit: "contain",
+                            transform: `scale(${zoom})`,
+                            transformOrigin: "center center",
+                            transition: "transform 0.15s ease-out",
+                        }}
+                    />
+                </Box>
+            </DialogContent>
+            <DialogActions
+                sx={{
+                    px: 2,
+                    py: 1.5,
+                    borderTop: "1px solid rgba(255,255,255,0.1)",
+                    flexDirection: "column",
+                    alignItems: "stretch",
+                    gap: 1,
+                }}
+            >
+                <Stack direction="row" justifyContent="center" alignItems="center" spacing={1}>
+                    <IconButton
+                        aria-label="Thu nhỏ"
+                        onClick={() => setZoom((z) => Math.max(LOGO_ZOOM_MIN, Math.round((z - LOGO_ZOOM_STEP) * 100) / 100))}
+                        disabled={zoom <= LOGO_ZOOM_MIN}
+                        sx={{ color: "#e2e8f0", border: "1px solid rgba(255,255,255,0.2)", "&.Mui-disabled": { color: "#64748b", borderColor: "rgba(255,255,255,0.08)" } }}
+                    >
+                        <ZoomOutIcon />
+                    </IconButton>
+                    <Typography variant="body2" sx={{ color: "#94a3b8", minWidth: 56, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
+                        {Math.round(zoom * 100)}%
+                    </Typography>
+                    <IconButton
+                        aria-label="Phóng to"
+                        onClick={() => setZoom((z) => Math.min(LOGO_ZOOM_MAX, Math.round((z + LOGO_ZOOM_STEP) * 100) / 100))}
+                        disabled={zoom >= LOGO_ZOOM_MAX}
+                        sx={{ color: "#e2e8f0", border: "1px solid rgba(255,255,255,0.2)", "&.Mui-disabled": { color: "#64748b", borderColor: "rgba(255,255,255,0.08)" } }}
+                    >
+                        <ZoomInIcon />
+                    </IconButton>
+                </Stack>
+                <Typography variant="caption" sx={{ color: "#64748b", textAlign: "center" }}>
+                    Cuộn chuột hoặc dùng nút để zoom
+                </Typography>
+            </DialogActions>
+        </Dialog>
+    );
+}
+
 export default function SchoolProfile() {
     const [loading, setLoading] = useState(true);
     const [profile, setProfile] = useState(null);
@@ -176,6 +317,7 @@ export default function SchoolProfile() {
     const [selectedDistrictCode, setSelectedDistrictCode] = useState("");
     const [selectedWardCode, setSelectedWardCode] = useState("");
     const [geocoding, setGeocoding] = useState(false);
+    const [logoLightboxOpen, setLogoLightboxOpen] = useState(false);
     const firstLoginPromptedRef = useRef(false);
     const geocodeRequestIdRef = useRef(0);
     const [formValues, setFormValues] = useState({
@@ -347,6 +489,10 @@ export default function SchoolProfile() {
             /* ignore */
         }
     }, [loading]);
+
+    useEffect(() => {
+        if (!formValues.logoUrl?.trim() && logoLightboxOpen) setLogoLightboxOpen(false);
+    }, [formValues.logoUrl, logoLightboxOpen]);
 
     const handleSaveProfile = async () => {
         const firstErrorField = Object.keys(formErrors)[0];
@@ -587,24 +733,45 @@ export default function SchoolProfile() {
                     }}
                 >
                     <Stack direction="row" alignItems="center" spacing={2} sx={{ flex: 1, minWidth: 0 }}>
-                        <Box
-                            sx={{
-                                width: 72,
-                                height: 72,
-                                borderRadius: "50%",
-                                bgcolor: "rgba(255,255,255,0.25)",
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                                flexShrink: 0,
-                                overflow: "hidden",
-                            }}
-                        >
-                            {formValues.logoUrl ? (
-                                <Box component="img" src={formValues.logoUrl} alt="" sx={{ width: "100%", height: "100%", objectFit: "cover" }} onError={(e) => { e.target.style.display = "none"; }} />
-                            ) : null}
-                            {!formValues.logoUrl && <SchoolIcon sx={{ fontSize: 36 }} />}
-                        </Box>
+                        <Tooltip title="Nhấn để xem phóng to" disableHoverListener={!formValues.logoUrl?.trim()}>
+                            <Box
+                                role={formValues.logoUrl?.trim() ? "button" : undefined}
+                                tabIndex={formValues.logoUrl?.trim() ? 0 : -1}
+                                onClick={() => {
+                                    if (formValues.logoUrl?.trim()) setLogoLightboxOpen(true);
+                                }}
+                                onKeyDown={(e) => {
+                                    if (!formValues.logoUrl?.trim()) return;
+                                    if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        setLogoLightboxOpen(true);
+                                    }
+                                }}
+                                sx={{
+                                    width: 72,
+                                    height: 72,
+                                    borderRadius: "50%",
+                                    bgcolor: "rgba(255,255,255,0.25)",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    flexShrink: 0,
+                                    overflow: "hidden",
+                                    ...(formValues.logoUrl?.trim()
+                                        ? {
+                                              cursor: "pointer",
+                                              "&:hover": { bgcolor: "rgba(255,255,255,0.35)" },
+                                              "&:focus-visible": { outline: "2px solid #fff", outlineOffset: 2 },
+                                          }
+                                        : {}),
+                                }}
+                            >
+                                {formValues.logoUrl ? (
+                                    <Box component="img" src={formValues.logoUrl} alt="" sx={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} onError={(e) => { e.target.style.display = "none"; }} />
+                                ) : null}
+                                {!formValues.logoUrl && <SchoolIcon sx={{ fontSize: 36 }} />}
+                            </Box>
+                        </Tooltip>
                         <Box sx={{ minWidth: 0 }}>
                             <Typography variant="h5" sx={{ fontWeight: 700, letterSpacing: "-0.02em" }}>
                                 {isBranchCampus ? (campus.name || "Hồ sơ cơ sở") : (campus.schoolName || campus.name || "Hồ sơ trường")}
@@ -1031,12 +1198,47 @@ export default function SchoolProfile() {
                                                     </Box>
                                                     <Box>
                                                         <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600, display: "block", mb: 1 }}>
-                                                            Logo (logoUrl)
+                                                            Logo
                                                         </Typography>
                                                         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-                                                            <Box sx={{ width: 72, height: 72, borderRadius: "50%", overflow: "hidden", border: "1px solid #e2e8f0", bgcolor: "#f8fafc", flexShrink: 0 }}>
-                                                                {formValues.logoUrl ? <Box component="img" src={formValues.logoUrl} alt="Logo" sx={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <SchoolIcon sx={{ fontSize: 30, m: 2.5, color: "#94a3b8" }} />}
-                                                            </Box>
+                                                            <Tooltip title="Nhấn để xem phóng to" disableHoverListener={!formValues.logoUrl?.trim()}>
+                                                                <Box
+                                                                    role={formValues.logoUrl?.trim() ? "button" : undefined}
+                                                                    tabIndex={formValues.logoUrl?.trim() ? 0 : -1}
+                                                                    onClick={() => {
+                                                                        if (formValues.logoUrl?.trim()) setLogoLightboxOpen(true);
+                                                                    }}
+                                                                    onKeyDown={(e) => {
+                                                                        if (!formValues.logoUrl?.trim()) return;
+                                                                        if (e.key === "Enter" || e.key === " ") {
+                                                                            e.preventDefault();
+                                                                            setLogoLightboxOpen(true);
+                                                                        }
+                                                                    }}
+                                                                    sx={{
+                                                                        width: 72,
+                                                                        height: 72,
+                                                                        borderRadius: "50%",
+                                                                        overflow: "hidden",
+                                                                        border: "1px solid #e2e8f0",
+                                                                        bgcolor: "#f8fafc",
+                                                                        flexShrink: 0,
+                                                                        ...(formValues.logoUrl?.trim()
+                                                                            ? {
+                                                                                  cursor: "pointer",
+                                                                                  "&:hover": { borderColor: "#2563eb", bgcolor: "#eff6ff" },
+                                                                                  "&:focus-visible": { outline: "2px solid #2563eb", outlineOffset: 2 },
+                                                                              }
+                                                                            : {}),
+                                                                    }}
+                                                                >
+                                                                    {formValues.logoUrl ? (
+                                                                        <Box component="img" src={formValues.logoUrl} alt="Logo" sx={{ width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }} />
+                                                                    ) : (
+                                                                        <SchoolIcon sx={{ fontSize: 30, m: 2.5, color: "#94a3b8" }} />
+                                                                    )}
+                                                                </Box>
+                                                            </Tooltip>
                                                             <IconButton
                                                                 type="button"
                                                                 size="small"
@@ -1055,8 +1257,18 @@ export default function SchoolProfile() {
                                                                 )}
                                                             </CloudinaryUpload>
                                                         </Stack>
-                                                        <Typography variant="body2" sx={{ color: "#64748b", wordBreak: "break-all", fontFamily: "ui-monospace, monospace", fontSize: "0.8125rem", lineHeight: 1.5 }}>
-                                                            {formValues.logoUrl || "—"}
+                                                        <Typography
+                                                            variant="body2"
+                                                            sx={{
+                                                                color: formValues.logoUrl?.trim() ? "#16a34a" : "#64748b",
+                                                                fontWeight: formValues.logoUrl?.trim() ? 600 : 400,
+                                                                wordBreak: "break-all",
+                                                                fontFamily: "ui-monospace, monospace",
+                                                                fontSize: "0.8125rem",
+                                                                lineHeight: 1.5,
+                                                            }}
+                                                        >
+                                                            {formValues.logoUrl?.trim() || "—"}
                                                         </Typography>
                                                     </Box>
                                                 </Stack>
@@ -1075,6 +1287,12 @@ export default function SchoolProfile() {
                     </Button>
                 </DialogActions>
             </Dialog>
+
+            <LogoLightboxDialog
+                open={logoLightboxOpen}
+                imageUrl={formValues.logoUrl?.trim() || ""}
+                onClose={() => setLogoLightboxOpen(false)}
+            />
 
             <Dialog
                 open={unsavedConfirmOpen}

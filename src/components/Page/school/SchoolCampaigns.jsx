@@ -662,7 +662,7 @@ export default function SchoolCampaigns() {
                         <Typography variant="body2" sx={{color: "#64748b", mt: 0.5}}>
                             {isPastYearView
                                 ? "Năm học đã qua — chỉ xem lại dữ liệu, không tạo hay chỉnh sửa."
-                                : "Xem và quản lý chiến dịch tuyển sinh cho năm học hiện tại."}
+                                : "Xem và quản lý chiến dịch tuyển sinh cho năm học hiện tại"}
                         </Typography>
                     </Box>
                 </Box>

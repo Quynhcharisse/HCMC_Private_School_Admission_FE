@@ -40,8 +40,8 @@ function buildConfigMenuItems(isPrimaryBranch, schoolCtxLoading) {
         items.push({ text: "Cấu hình chung", icon: <SettingsOutlinedIcon />, path: "/school/facility-config" });
     }
     items.push(
-        { text: "Cấu hình theo cơ sở", icon: <ApartmentIcon />, path: "/school/campus-facility-config" },
         { text: "Danh sách cấu hình", icon: <CorporateFareOutlinedIcon />, path: "/school/campus-config" },
+        { text: "Cấu hình của tôi", icon: <ApartmentIcon />, path: "/school/campus-facility-config" },
     );
     return items;
 }
