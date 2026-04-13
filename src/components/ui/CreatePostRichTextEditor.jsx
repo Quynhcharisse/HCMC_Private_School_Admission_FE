@@ -2,7 +2,7 @@ import React from "react";
 import {useEditor, EditorContent} from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
-import {Box, Divider, IconButton, Tooltip} from "@mui/material";
+import {Box, Divider, IconButton, Popover, Tooltip} from "@mui/material";
 import FormatBoldIcon from "@mui/icons-material/FormatBold";
 import FormatItalicIcon from "@mui/icons-material/FormatItalic";
 import FormatUnderlinedIcon from "@mui/icons-material/FormatUnderlined";
@@ -17,16 +17,48 @@ const COMMON_EMOJIS = [
     "⚠️",
     "🛠️",
     "📅",
-    "🎓",
-    "🏫",
-    "📝",
-    "📖",
-    "🌟",
     "📍",
     "👉",
     "✅",
     "📩",
-    "🔗"
+    "🔗",
+    "🎉",
+    "🥳",
+    "🎆",
+    "✨",
+    "🌟",
+    "🏆",
+    "🏅",
+    "🎓",
+    "📜",
+    "❤️",
+    "🔥",
+    "📁",
+    "📄",
+    "📰",
+    "📚",
+    "📖",
+    "📝",
+    "🖊️",
+    "✏️",
+    "📊",
+    "📋",
+    "📲",
+    "💻",
+    "🌐",
+    "📧",
+    "📞",
+    "🤝",
+    "⚙️",
+    "🎨",
+    "🎬",
+    "🎤",
+    "⚽",
+    "🏀",
+    "🧑‍🏫",
+    "🧑‍🎓",
+    "🏫",
+    "🌟"
 ];
 
 const toolbarBtnSx = (active) => ({
@@ -191,7 +223,7 @@ export default function CreatePostRichTextEditor({
                             disabled={disabled}
                             aria-label="Chèn emoji"
                             aria-describedby={emojiPickerId}
-                            onClick={(e) => setEmojiAnchorEl(e.currentTarget)}
+                            onClick={(e) => setEmojiAnchorEl((prev) => (prev ? null : e.currentTarget))}
                             sx={toolbarBtnSx(emojiPickerOpen)}
                         >
                             <EmojiEmotionsOutlinedIcon fontSize="small" />
@@ -199,49 +231,60 @@ export default function CreatePostRichTextEditor({
                     </span>
                 </Tooltip>
             </Box>
-            {emojiPickerOpen ? (
+            <Popover
+                id={emojiPickerId}
+                open={emojiPickerOpen}
+                anchorEl={emojiAnchorEl}
+                onClose={() => setEmojiAnchorEl(null)}
+                anchorOrigin={{vertical: "top", horizontal: "right"}}
+                transformOrigin={{vertical: "top", horizontal: "left"}}
+                slotProps={{
+                    paper: {
+                        sx: {
+                            ml: 1,
+                            p: 1,
+                            borderRadius: "10px",
+                            border: "1px solid rgba(59, 130, 246, 0.24)",
+                            bgcolor: "#ffffff",
+                            boxShadow: "0 14px 34px rgba(15, 23, 42, 0.16)",
+                            maxHeight: 320,
+                            overflowY: "auto"
+                        }
+                    }
+                }}
+            >
                 <Box
                     id={emojiPickerId}
                     sx={{
-                        position: "absolute",
-                        mt: 0.5,
-                        ml: 1,
-                        zIndex: 10,
-                        p: 1,
-                        borderRadius: "10px",
-                        border: "1px solid rgba(59, 130, 246, 0.2)",
-                        bgcolor: "#ffffff",
-                        boxShadow: "0 12px 28px rgba(15, 23, 42, 0.12)"
+                        display: "grid",
+                        gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
+                        gap: 0.5,
+                        width: 240
                     }}
-                    onMouseLeave={() => setEmojiAnchorEl(null)}
                 >
-                    <Box
-                        sx={{
-                            display: "grid",
-                            gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
-                            gap: 0.5
-                        }}
-                    >
-                        {COMMON_EMOJIS.map((emoji) => (
-                            <IconButton
-                                key={emoji}
-                                size="small"
-                                onClick={() => {
-                                    editor.chain().focus().insertContent(emoji).run();
-                                    setEmojiAnchorEl(null);
-                                }}
-                                sx={{
-                                    borderRadius: "8px",
-                                    fontSize: "1.1rem",
-                                    "&:hover": {bgcolor: "rgba(59, 130, 246, 0.1)"}
-                                }}
-                            >
-                                {emoji}
-                            </IconButton>
-                        ))}
-                    </Box>
+                    {COMMON_EMOJIS.map((emoji, idx) => (
+                        <IconButton
+                            key={`${emoji}-${idx}`}
+                            size="small"
+                            onClick={() => {
+                                editor.chain().focus().insertContent(emoji).run();
+                                setEmojiAnchorEl(null);
+                            }}
+                            sx={{
+                                borderRadius: "8px",
+                                fontSize: "1.2rem",
+                                opacity: 1,
+                                color: "#0f172a",
+                                fontFamily: '"Segoe UI Emoji","Noto Color Emoji","Apple Color Emoji",sans-serif',
+                                filter: "saturate(1.2) contrast(1.08)",
+                                "&:hover": {bgcolor: "rgba(59, 130, 246, 0.1)"}
+                            }}
+                        >
+                            {emoji}
+                        </IconButton>
+                    ))}
                 </Box>
-            ) : null}
+            </Popover>
             <Box
                 sx={{
                     ...(fillHeight
