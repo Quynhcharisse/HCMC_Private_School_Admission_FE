@@ -1154,7 +1154,7 @@ function MainHeader() {
             color: active ? activeColor : inactiveColor,
             fontSize: 15,
             textTransform: 'none',
-            px: 2,
+            px: 1.4,
             py: 1,
             borderRadius: 0,
             minWidth: 'auto',
