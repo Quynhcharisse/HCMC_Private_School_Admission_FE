@@ -1287,6 +1287,9 @@ function MainHeader() {
                             >
                                 Tìm trường
                             </Button>
+                            <Button color="inherit" sx={navButtonSx('/posts')} onClick={() => goTo('/posts')}>
+                                Bảng tin
+                            </Button>
                             <Button color="inherit" sx={navButtonSx('/saved-schools')} onClick={() => goTo('/saved-schools')}>
                                 Trường yêu thích
                             </Button>
@@ -1305,6 +1308,9 @@ function MainHeader() {
                             <Button color="inherit" sx={navButtonSx('/search-schools')} onClick={() => goTo('/search-schools')}>
                                 Tìm trường
                             </Button>
+                            <Button color="inherit" sx={navButtonSx('/posts')} onClick={() => goTo('/posts')}>
+                                Bảng tin
+                            </Button>
                             <Button color="inherit" sx={navButtonSx('/compare-schools')} onClick={() => goTo('/compare-schools')}>
                                 So sánh trường
                             </Button>
@@ -1319,6 +1325,9 @@ function MainHeader() {
                             </Button>
                             <Button color="inherit" sx={navButtonSx('/search-schools')} onClick={() => goTo('/search-schools')}>
                                 Tìm trường
+                            </Button>
+                            <Button color="inherit" sx={navButtonSx('/posts')} onClick={() => goTo('/posts')}>
+                                Bảng tin
                             </Button>
                             <Button color="inherit" sx={navButtonSx('/compare-schools')} onClick={() => goTo('/compare-schools')}>
                                 So sánh trường
@@ -1339,6 +1348,9 @@ function MainHeader() {
                                 onClick={() => goTo('/search-schools')}
                             >
                                 Tìm trường
+                            </Button>
+                            <Button color="inherit" sx={navButtonSx('/posts')} onClick={() => goTo('/posts')}>
+                                Bảng tin
                             </Button>
                             <Button color="inherit" sx={navButtonSx('/saved-schools')} onClick={() => goTo('/saved-schools')}>
                                 Trường yêu thích
@@ -1365,6 +1377,13 @@ function MainHeader() {
                                 onClick={() => goTo('/search-schools')}
                             >
                                 Danh Sách Trường
+                            </Button>
+                            <Button
+                                color="inherit"
+                                sx={navButtonSx('/posts')}
+                                onClick={() => goTo('/posts')}
+                            >
+                                Bảng tin
                             </Button>
                             <Button
                                 color="inherit"
@@ -2349,6 +2368,9 @@ function MainHeader() {
                                     <ListItem onClick={() => goTo('/search-schools')} sx={navMobileItemSx('/search-schools')}>
                                         <ListItemText primary="Tìm trường" sx={navMobileTextSx('/search-schools')}/>
                                     </ListItem>
+                                    <ListItem onClick={() => goTo('/posts')} sx={navMobileItemSx('/posts')}>
+                                        <ListItemText primary="Bảng tin" sx={navMobileTextSx('/posts')}/>
+                                    </ListItem>
                                     <ListItem onClick={() => goTo('/saved-schools')}>
                                         <ListItemText primary="Trường yêu thích" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
@@ -2367,6 +2389,9 @@ function MainHeader() {
                                     <ListItem onClick={() => goTo('/search-schools')} sx={navMobileItemSx('/search-schools')}>
                                         <ListItemText primary="Tìm trường" sx={navMobileTextSx('/search-schools')}/>
                                     </ListItem>
+                                    <ListItem onClick={() => goTo('/posts')} sx={navMobileItemSx('/posts')}>
+                                        <ListItemText primary="Bảng tin" sx={navMobileTextSx('/posts')}/>
+                                    </ListItem>
                                     <ListItem onClick={() => goTo('/compare-schools')} sx={navMobileItemSx('/compare-schools')}>
                                         <ListItemText primary="So sánh trường" sx={navMobileTextSx('/compare-schools')}/>
                                     </ListItem>
@@ -2382,6 +2407,9 @@ function MainHeader() {
                                     <ListItem onClick={() => goTo('/search-schools')} sx={navMobileItemSx('/search-schools')}>
                                         <ListItemText primary="Tìm trường" sx={navMobileTextSx('/search-schools')}/>
                                     </ListItem>
+                                    <ListItem onClick={() => goTo('/posts')} sx={navMobileItemSx('/posts')}>
+                                        <ListItemText primary="Bảng tin" sx={navMobileTextSx('/posts')}/>
+                                    </ListItem>
                                     <ListItem onClick={() => goTo('/compare-schools')} sx={navMobileItemSx('/compare-schools')}>
                                         <ListItemText primary="So sánh trường" sx={navMobileTextSx('/compare-schools')}/>
                                     </ListItem>
@@ -2393,6 +2421,9 @@ function MainHeader() {
                                     </ListItem>
                                     <ListItem onClick={() => goTo('/search-schools')} sx={navMobileItemSx('/search-schools')}>
                                         <ListItemText primary="Tìm trường" sx={navMobileTextSx('/search-schools')}/>
+                                    </ListItem>
+                                    <ListItem onClick={() => goTo('/posts')} sx={navMobileItemSx('/posts')}>
+                                        <ListItemText primary="Bảng tin" sx={navMobileTextSx('/posts')}/>
                                     </ListItem>
                                     <ListItem onClick={() => goTo('/saved-schools')}>
                                         <ListItemText primary="Trường yêu thích" sx={{color: '#333', fontWeight: 600}}/>
@@ -2411,6 +2442,9 @@ function MainHeader() {
                                     </ListItem>
                                     <ListItem onClick={() => goTo('/search-schools')} sx={navMobileItemSx('/search-schools')}>
                                         <ListItemText primary="Danh Sách Trường" sx={navMobileTextSx('/search-schools')}/>
+                                    </ListItem>
+                                    <ListItem onClick={() => goTo('/posts')} sx={navMobileItemSx('/posts')}>
+                                        <ListItemText primary="Bảng tin" sx={navMobileTextSx('/posts')}/>
                                     </ListItem>
                                     <ListItem onClick={() => goTo('/compare-schools')} sx={navMobileItemSx('/compare-schools')}>
                                         <ListItemText primary="So sánh trường" sx={navMobileTextSx('/compare-schools')}/>

@@ -8,6 +8,7 @@ import {APP_PRIMARY_DARK, APP_PRIMARY_LIGHT, APP_PRIMARY_MAIN} from './constants
 
 const WebAppLayout = lazy(() => import("./components/ui/WebAppLayout.jsx"));
 const HomePage = lazy(() => import("./components/Page/HomePage.jsx"));
+const PostFeedPage = lazy(() => import("./components/Page/PostFeedPage.jsx"));
 const SchoolSearchPage = lazy(() => import("./components/Page/SchoolSearchPage.jsx"));
 const Login = lazy(() => import("./components/auth/Login.jsx"));
 const Register = lazy(() => import("./components/auth/Register.jsx"));
@@ -122,6 +123,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <HomePage/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'posts',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <PostFeedPage/>
                     </Suspense>
                 )
             },
