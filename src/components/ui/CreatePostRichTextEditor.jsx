@@ -8,7 +8,26 @@ import FormatItalicIcon from "@mui/icons-material/FormatItalic";
 import FormatUnderlinedIcon from "@mui/icons-material/FormatUnderlined";
 import FormatListBulletedIcon from "@mui/icons-material/FormatListBulleted";
 import FormatListNumberedIcon from "@mui/icons-material/FormatListNumbered";
+import EmojiEmotionsOutlinedIcon from "@mui/icons-material/EmojiEmotionsOutlined";
 import {APP_PRIMARY_MAIN} from "../../constants/homeLandingTheme";
+
+const COMMON_EMOJIS = [
+    "📢",
+    "🔔",
+    "⚠️",
+    "🛠️",
+    "📅",
+    "🎓",
+    "🏫",
+    "📝",
+    "📖",
+    "🌟",
+    "📍",
+    "👉",
+    "✅",
+    "📩",
+    "🔗"
+];
 
 const toolbarBtnSx = (active) => ({
     borderRadius: "8px",
@@ -29,6 +48,7 @@ export default function CreatePostRichTextEditor({
 }) {
     const onChangeRef = React.useRef(onChange);
     onChangeRef.current = onChange;
+    const [emojiAnchorEl, setEmojiAnchorEl] = React.useState(null);
 
     const editor = useEditor({
         extensions: [
@@ -56,6 +76,9 @@ export default function CreatePostRichTextEditor({
     if (!editor) {
         return null;
     }
+
+    const emojiPickerOpen = Boolean(emojiAnchorEl);
+    const emojiPickerId = emojiPickerOpen ? "create-post-emoji-picker" : undefined;
 
     return (
         <Box
@@ -159,7 +182,66 @@ export default function CreatePostRichTextEditor({
                         </IconButton>
                     </span>
                 </Tooltip>
+                <Divider orientation="vertical" flexItem sx={{mx: 0.5, borderColor: "rgba(59, 130, 246, 0.2)"}} />
+                <Tooltip title="Chèn emoji" placement="top" enterDelay={400}>
+                    <span>
+                        <IconButton
+                            type="button"
+                            size="small"
+                            disabled={disabled}
+                            aria-label="Chèn emoji"
+                            aria-describedby={emojiPickerId}
+                            onClick={(e) => setEmojiAnchorEl(e.currentTarget)}
+                            sx={toolbarBtnSx(emojiPickerOpen)}
+                        >
+                            <EmojiEmotionsOutlinedIcon fontSize="small" />
+                        </IconButton>
+                    </span>
+                </Tooltip>
             </Box>
+            {emojiPickerOpen ? (
+                <Box
+                    id={emojiPickerId}
+                    sx={{
+                        position: "absolute",
+                        mt: 0.5,
+                        ml: 1,
+                        zIndex: 10,
+                        p: 1,
+                        borderRadius: "10px",
+                        border: "1px solid rgba(59, 130, 246, 0.2)",
+                        bgcolor: "#ffffff",
+                        boxShadow: "0 12px 28px rgba(15, 23, 42, 0.12)"
+                    }}
+                    onMouseLeave={() => setEmojiAnchorEl(null)}
+                >
+                    <Box
+                        sx={{
+                            display: "grid",
+                            gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+                            gap: 0.5
+                        }}
+                    >
+                        {COMMON_EMOJIS.map((emoji) => (
+                            <IconButton
+                                key={emoji}
+                                size="small"
+                                onClick={() => {
+                                    editor.chain().focus().insertContent(emoji).run();
+                                    setEmojiAnchorEl(null);
+                                }}
+                                sx={{
+                                    borderRadius: "8px",
+                                    fontSize: "1.1rem",
+                                    "&:hover": {bgcolor: "rgba(59, 130, 246, 0.1)"}
+                                }}
+                            >
+                                {emoji}
+                            </IconButton>
+                        ))}
+                    </Box>
+                </Box>
+            ) : null}
             <Box
                 sx={{
                     ...(fillHeight
