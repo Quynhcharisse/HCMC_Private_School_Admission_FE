@@ -382,7 +382,7 @@ export default function AdminDocumentTemplateManagement() {
                             <Box
                                 sx={{
                                     borderRadius: 2.5,
-                                    bgcolor: "#e0f2fe",
+                                    bgcolor: "#f0f7ff",
                                     p: 1.5,
                                     minHeight: 252,
                                     display: "flex",
@@ -407,16 +407,16 @@ export default function AdminDocumentTemplateManagement() {
                                                 alignItems: "center",
                                                 justifyContent: "space-between",
                                                 gap: 1,
-                                                bgcolor: alpha("#1d4ed8", 0.82),
+                                                bgcolor: alpha("#3b82f6", 0.28),
                                                 border: "1px solid",
-                                                borderColor: alpha("#93c5fd", 0.75),
-                                                boxShadow: "0 8px 20px rgba(37, 99, 235, 0.28)",
+                                                borderColor: alpha("#60a5fa", 0.45),
+                                                boxShadow: "0 6px 14px rgba(59, 130, 246, 0.14)",
                                                 borderRadius: 2.5,
                                                 px: 1.5,
                                                 py: 1,
                                             }}
                                         >
-                                            <Typography sx={{ fontWeight: 700, color: "#f8fafc", wordBreak: "break-word" }}>
+                                            <Typography sx={{ fontWeight: 700, color: "#1e3a8a", wordBreak: "break-word" }}>
                                                 {doc.fileName}
                                             </Typography>
                                             <IconButton
@@ -424,9 +424,9 @@ export default function AdminDocumentTemplateManagement() {
                                                 onClick={() => onDelete(doc)}
                                                 disabled={deletingId === doc.id}
                                                 sx={{
-                                                    color: "#f8fafc",
-                                                    bgcolor: alpha("#ffffff", 0.14),
-                                                    "&:hover": { bgcolor: alpha("#ffffff", 0.24) },
+                                                    color: "#2563eb",
+                                                    p: 0.25,
+                                                    "&:hover": { bgcolor: "transparent", color: "#1d4ed8" },
                                                 }}
                                                 aria-label="Xóa tài liệu"
                                             >

@@ -47,3 +47,32 @@ body::-webkit-scrollbar {
         transform: scale(1.05);
     }
 }
+
+/* Keep tables usable on small screens */
+.MuiTableContainer-root {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+}
+
+.MuiTableContainer-root .MuiTable-root {
+    min-width: max-content;
+}
+
+@media (max-width: 900px) {
+    .MuiTableContainer-root .MuiTableCell-root {
+        white-space: nowrap;
+    }
+}
+
+/* Override global hidden scrollbar for tables only */
+.MuiTableContainer-root::-webkit-scrollbar {
+    display: block !important;
+    height: 8px;
+    width: 8px;
+}
+
+.MuiTableContainer-root::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.7);
+    border-radius: 999px;
+}
