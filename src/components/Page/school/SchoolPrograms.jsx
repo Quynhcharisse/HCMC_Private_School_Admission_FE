@@ -54,6 +54,7 @@ const modalPaperSx = {
     boxShadow: "0 24px 48px rgba(0, 0, 0, 0.12)",
     bgcolor: "white",
     overflow: "hidden",
+    position: "relative",
 };
 
 const modalBackdropSx = {
@@ -1163,8 +1164,8 @@ export default function SchoolPrograms() {
                 slotProps={{ backdrop: { sx: modalBackdropSx } }}
             >
                 <DialogTitle sx={{ fontWeight: 900, color: "#1e293b", px: 3, pt: 2.6, pb: 0 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 2 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap" }}>
+                    <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", width: "100%", gap: 2 }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap", flex: 1, minWidth: 0 }}>
                             {modalMode === "create"
                                 ? "Tạo Program"
                                 : modalMode === "edit"
@@ -1173,17 +1174,28 @@ export default function SchoolPrograms() {
                                       : "Chỉnh sửa Program"
                                   : "Chi tiết Program"}
                         </Box>
-                        {modalMode === "edit" && isClonedDraftEdit ? (
-                            <Chip
-                                label="BẢN NHÁP"
-                                sx={{
-                                    bgcolor: "rgba(234, 179, 8, 0.14)",
-                                    color: "#b45309",
-                                    fontWeight: 900,
-                                    borderRadius: 999,
-                                }}
-                            />
-                        ) : null}
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
+                            {modalMode === "edit" && isClonedDraftEdit ? (
+                                <Chip
+                                    label="BẢN NHÁP"
+                                    sx={{
+                                        bgcolor: "rgba(234, 179, 8, 0.14)",
+                                        color: "#b45309",
+                                        fontWeight: 900,
+                                        borderRadius: 999,
+                                    }}
+                                />
+                            ) : null}
+                            <IconButton
+                                aria-label="Đóng"
+                                onClick={handleCloseProgramModal}
+                                disabled={submitLoading}
+                                size="small"
+                                sx={{ mt: -0.5, mr: -0.5, color: "#64748b" }}
+                            >
+                                <CloseIcon fontSize="small" />
+                            </IconButton>
+                        </Box>
                     </Box>
                 </DialogTitle>
 
@@ -1901,9 +1913,17 @@ export default function SchoolPrograms() {
                 }}
                 fullWidth
                 maxWidth="sm"
-                PaperProps={{ sx: { borderRadius: "16px" } }}
+                PaperProps={{ sx: { borderRadius: "16px", position: "relative" } }}
             >
-                <DialogContent sx={{ pt: 2.5 }}>
+                <IconButton
+                    aria-label="Đóng"
+                    onClick={() => !cloneLoading && !actionLoading && setCloneConfirmOpen(false)}
+                    disabled={cloneLoading || actionLoading}
+                    sx={{ position: "absolute", right: 8, top: 8, zIndex: 1, color: "#64748b" }}
+                >
+                    <CloseIcon fontSize="small" />
+                </IconButton>
+                <DialogContent sx={{ pt: 3, px: 3, pr: 6 }}>
                     <Typography variant="h6" sx={{ fontWeight: 900 }}>
                         Nhân bản chương trình đào tạo?
                     </Typography>
@@ -1984,9 +2004,17 @@ export default function SchoolPrograms() {
                 }}
                 fullWidth
                 maxWidth="sm"
-                PaperProps={{ sx: { borderRadius: "16px" } }}
+                PaperProps={{ sx: { borderRadius: "16px", position: "relative" } }}
             >
-                <DialogContent sx={{ pt: 2.5 }}>
+                <IconButton
+                    aria-label="Đóng"
+                    onClick={() => !actionLoading && !cloneLoading && setActionConfirmOpen(false)}
+                    disabled={actionLoading || cloneLoading}
+                    sx={{ position: "absolute", right: 8, top: 8, zIndex: 1, color: "#64748b" }}
+                >
+                    <CloseIcon fontSize="small" />
+                </IconButton>
+                <DialogContent sx={{ pt: 3, px: 3, pr: 6 }}>
                     <Typography variant="h6" sx={{ fontWeight: 900 }}>
                         {actionType === "DEACTIVATE" ? "Xác nhận tạm dừng chương trình?" : "Xác nhận kích hoạt chương trình này?"}
                     </Typography>

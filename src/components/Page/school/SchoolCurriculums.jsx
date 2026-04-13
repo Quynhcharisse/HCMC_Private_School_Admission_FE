@@ -50,6 +50,7 @@ const modalPaperSx = {
     boxShadow: "0 24px 48px rgba(0, 0, 0, 0.12)",
     bgcolor: "white",
     overflow: "hidden",
+    position: "relative",
 };
 
 const modalBackdropSx = {
@@ -1085,9 +1086,21 @@ export default function SchoolCurriculums() {
                 }}
                 maxWidth="xs"
                 fullWidth
-                PaperProps={{ sx: { borderRadius: 3 } }}
+                PaperProps={{ sx: { borderRadius: 3, position: "relative" } }}
             >
-                <DialogTitle sx={{ fontWeight: 700 }}>Chỉnh sửa chương trình đã công bố</DialogTitle>
+                <IconButton
+                    aria-label="Đóng"
+                    onClick={() => {
+                        if (evolveLoading) return;
+                        setConfirmEvolveOpen(false);
+                        setCurriculumToEditAfterConfirm(null);
+                    }}
+                    disabled={evolveLoading}
+                    sx={{ position: "absolute", right: 8, top: 8, zIndex: 1, color: "#64748b" }}
+                >
+                    <CloseIcon fontSize="small" />
+                </IconButton>
+                <DialogTitle sx={{ fontWeight: 700, pr: 6 }}>Chỉnh sửa chương trình đã công bố</DialogTitle>
                 <DialogContent>
                     <Typography>
                         Bạn đang chỉnh sửa chương trình đang hoạt động. Hệ thống sẽ tạo một bản nháp mới để bạn chỉnh sửa và giữ nguyên bản đang hoạt động hiện tại. Bạn có muốn tiếp tục?
@@ -1127,36 +1140,35 @@ export default function SchoolCurriculums() {
                 }}
                 maxWidth="md"
                 fullWidth
-                PaperProps={{ sx: { borderRadius: 3, overflow: "hidden" } }}
+                PaperProps={{ sx: { borderRadius: 3, overflow: "hidden", position: "relative" } }}
                 slotProps={{ backdrop: { sx: modalBackdropSx } }}
             >
-                <DialogTitle sx={{ px: 3, pt: 2.5, pb: 1.5 }}>
+                <IconButton
+                    aria-label="Đóng"
+                    onClick={() => {
+                        if (publishLoading) return;
+                        setViewModalOpen(false);
+                        setConfirmPublishOpen(false);
+                    }}
+                    disabled={publishLoading}
+                    sx={{
+                        position: "absolute",
+                        right: 8,
+                        top: 8,
+                        zIndex: 2,
+                        bgcolor: "#f1f5f9",
+                        "&:hover": { bgcolor: "#e2e8f0", boxShadow: "0 8px 16px rgba(2, 6, 23, 0.06)" },
+                    }}
+                    size="small"
+                >
+                    <CloseIcon fontSize="small" />
+                </IconButton>
+                <DialogTitle sx={{ px: 3, pt: 2.5, pb: 1.5, pr: 6 }}>
                     {viewCurriculum && (() => {
                         return (
-                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 2 }}>
-                                <Box>
-                                    <Typography sx={{ fontWeight: 900, color: "#1e293b", fontSize: 22, lineHeight: 1.2 }}>
-                                        Chi tiết chương trình
-                                    </Typography>
-                                </Box>
-
-                                <Box sx={{ display: "flex", alignItems: "center", gap: 1.2 }}>
-                                    <IconButton
-                                        size="small"
-                                        onClick={() => {
-                                            if (publishLoading) return;
-                                            setViewModalOpen(false);
-                                            setConfirmPublishOpen(false);
-                                        }}
-                                        sx={{
-                                            bgcolor: "#f1f5f9",
-                                            "&:hover": { bgcolor: "#e2e8f0", boxShadow: "0 8px 16px rgba(2, 6, 23, 0.06)" },
-                                        }}
-                                    >
-                                        <CloseIcon fontSize="small" />
-                                    </IconButton>
-                                </Box>
-                            </Box>
+                            <Typography sx={{ fontWeight: 900, color: "#1e293b", fontSize: 22, lineHeight: 1.2 }}>
+                                Chi tiết chương trình
+                            </Typography>
                         );
                     })()}
                 </DialogTitle>
@@ -1455,9 +1467,20 @@ export default function SchoolCurriculums() {
                 }}
                 maxWidth="xs"
                 fullWidth
-                PaperProps={{ sx: { borderRadius: 3 } }}
+                PaperProps={{ sx: { borderRadius: 3, position: "relative" } }}
             >
-                <DialogTitle sx={{ fontWeight: 700 }}>Xác nhận công bố</DialogTitle>
+                <IconButton
+                    aria-label="Đóng"
+                    onClick={() => {
+                        if (publishLoading) return;
+                        setConfirmPublishOpen(false);
+                    }}
+                    disabled={publishLoading}
+                    sx={{ position: "absolute", right: 8, top: 8, zIndex: 1, color: "#64748b" }}
+                >
+                    <CloseIcon fontSize="small" />
+                </IconButton>
+                <DialogTitle sx={{ fontWeight: 700, pr: 6 }}>Xác nhận công bố</DialogTitle>
                 <DialogContent>
                     <Typography>
                         Bạn có chắc chắn muốn công bố chương trình này không?
@@ -1502,8 +1525,29 @@ export default function SchoolCurriculums() {
                 PaperProps={{ sx: modalPaperSx }}
                 slotProps={{ backdrop: { sx: modalBackdropSx } }}
             >
-                <DialogTitle sx={{ fontWeight: 850, color: "#1e293b", px: 3, pt: 2.6, pb: 0 }}>
+                <DialogTitle
+                    sx={{
+                        fontWeight: 850,
+                        color: "#1e293b",
+                        px: 3,
+                        pt: 2.6,
+                        pb: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 2,
+                    }}
+                >
                     Tạo chương trình
+                    <IconButton
+                        aria-label="Đóng"
+                        onClick={handleCloseCreate}
+                        disabled={submitLoading}
+                        size="small"
+                        sx={{ mr: -0.5, color: "#64748b" }}
+                    >
+                        <CloseIcon fontSize="small" />
+                    </IconButton>
                 </DialogTitle>
                 <DialogContent dividers={false} sx={{ px: 3, pt: 2, pb: 1 }}>
                     <Stack spacing={2.4}>
@@ -1725,8 +1769,29 @@ export default function SchoolCurriculums() {
                 PaperProps={{ sx: modalPaperSx }}
                 slotProps={{ backdrop: { sx: modalBackdropSx } }}
             >
-                <DialogTitle sx={{ fontWeight: 850, color: "#1e293b", px: 3, pt: 2.6, pb: 0 }}>
+                <DialogTitle
+                    sx={{
+                        fontWeight: 850,
+                        color: "#1e293b",
+                        px: 3,
+                        pt: 2.6,
+                        pb: 0,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 2,
+                    }}
+                >
                     Chỉnh sửa chương trình
+                    <IconButton
+                        aria-label="Đóng"
+                        onClick={handleCloseEdit}
+                        disabled={submitLoading}
+                        size="small"
+                        sx={{ mr: -0.5, color: "#64748b" }}
+                    >
+                        <CloseIcon fontSize="small" />
+                    </IconButton>
                 </DialogTitle>
                 <DialogContent dividers={false} sx={{ px: 3, pt: 2, pb: 1 }}>
                     {/* reuse same form as create */}
