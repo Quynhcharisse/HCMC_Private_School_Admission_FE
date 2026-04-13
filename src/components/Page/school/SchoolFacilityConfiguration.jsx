@@ -1,5 +1,6 @@
 import React, {forwardRef, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {
+  Alert,
   Autocomplete,
   Box,
   Button,
@@ -141,9 +142,9 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
   const blockPointerSx = formLocked ? { pointerEvents: "none", cursor: "default" } : undefined;
   const facilityData = useMemo(() => normalizeFacilityData(value), [value]);
 
-  const overviewNoteText = perCampus
-    ? "Lưu ý: Tổng quan về cơ sở vật chất là một đoạn văn mô tả chung về cơ sở vật chất của mỗi cơ sở"
-    : "* Lưu ý: Tổng quan về cơ sở vật chất là một đoạn văn mô tả chung về cơ sở vật chất của trường";
+  const overviewNoteBody = perCampus
+    ? "Tổng quan về cơ sở vật chất là một đoạn văn mô tả chung về cơ sở vật chất của mỗi cơ sở"
+    : "Tổng quan về cơ sở vật chất là một đoạn văn mô tả chung về cơ sở vật chất của trường";
   const coverNoteText = perCampus
     ? "* Lưu ý: Ảnh bìa là ảnh bao quát nhất về cơ sở vật chất (thường là ảnh chụp toàn cảnh trường từ trên cao hoặc cổng trường của mỗi cơ sở)"
     : "* Lưu ý: Ảnh bìa là ảnh bao quát nhất về cơ sở vật chất (thường là ảnh chụp toàn cảnh trường từ trên cao hoặc cổng trường)";
@@ -445,9 +446,14 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
       <Card sx={{borderRadius: "12px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)", border: "1px solid rgba(226,232,240,1)"}}>
         <CardContent sx={{p: 3}}>
           <Typography sx={{fontWeight: 900, color: "#0f172a", mb: 1.25, fontSize: 18}}>Tổng quan cơ sở vật chất</Typography>
-          <Typography variant="caption" sx={{display: "block", color: "#dc2626", fontWeight: 700, mb: 1.5}}>
-            {overviewNoteText}
-          </Typography>
+          <Alert severity="info" sx={{borderRadius: 2, maxWidth: 1200, mb: 1.5}}>
+            <Typography variant="body2" component="div" sx={{fontWeight: 700, mb: 0.75}}>
+              Lưu ý:
+            </Typography>
+            <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
+              {overviewNoteBody}
+            </Typography>
+          </Alert>
           {loading ? (
             <Stack spacing={1.5}>
               <Skeleton variant="rounded" height={120} sx={{borderRadius: "12px"}}/>
@@ -456,18 +462,6 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
           ) : (
             <Box>
               <Box sx={{display: "flex", flexDirection: "column", gap: 0.75}}>
-                <Typography
-                  component="label"
-                  variant="body2"
-                  sx={{
-                    display: "block",
-                    flexShrink: 0,
-                    fontWeight: 700,
-                    color: "#64748b",
-                  }}
-                >
-                  Nội dung tổng quan
-                </Typography>
                 <CreatePostRichTextEditor
                   initialHtml={overviewToInitialEditorHtml(overview)}
                   onChange={setOverview}
