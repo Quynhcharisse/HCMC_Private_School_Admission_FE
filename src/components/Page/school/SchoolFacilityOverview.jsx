@@ -100,7 +100,7 @@ const DAY_CODES = [
   {code: "SUN", label: "CN"},
 ];
 
-/** Luân phiên theo chỉ số nhóm — tab Vận hành / quy trình theo phương thức (tránh nhầm giữa các phương thức). */
+/** Luân phiên theo chỉ số nhóm — tab Vận hành (quy trình theo phương thức) & tab Tài chính (các khoản phí). */
 const METHOD_PROCESS_VISUAL_ACCENTS = [
   {bar: "#2563eb", border: "rgba(37, 99, 235, 0.42)", headerBg: "linear-gradient(100deg, rgba(37,99,235,0.16) 0%, rgba(37,99,235,0.05) 50%, rgba(255,255,255,0) 100%)", stepsBg: "rgba(37, 99, 235, 0.06)", stepsBorder: "rgba(37, 99, 235, 0.22)"},
   {bar: "#7c3aed", border: "rgba(124, 58, 237, 0.4)", headerBg: "linear-gradient(100deg, rgba(124,58,237,0.16) 0%, rgba(124,58,237,0.05) 50%, rgba(255,255,255,0) 100%)", stepsBg: "rgba(124, 58, 237, 0.07)", stepsBorder: "rgba(124, 58, 237, 0.22)"},
@@ -159,6 +159,7 @@ function defaultConfig() {
     },
     financePolicyData: {
       paymentNotes: "",
+      feeItems: [],
       reservationFee: {amount: 0, display: "", currency: "VND"},
       priceAdjustment: {minPercent: 0, maxPercent: 0},
     },
@@ -477,22 +478,208 @@ function sanitizeQuotaConfigForApi(q) {
   };
 }
 
-function sanitizeFinancePolicyForApi(f) {
-  if (!f || typeof f !== "object") return f;
-  const rf = f.reservationFee && typeof f.reservationFee === "object" ? f.reservationFee : {};
-  const pa = f.priceAdjustment && typeof f.priceAdjustment === "object" ? f.priceAdjustment : {};
+function formatVndDisplay(amount) {
+  if (amount == null || Number.isNaN(Number(amount))) return "";
+  return `${new Intl.NumberFormat("vi-VN").format(Number(amount))} VNĐ`;
+}
+
+function normalizeFeeItemFromApi(item) {
+  if (!item || typeof item !== "object") return null;
+  const code = item.feeCode != null ? String(item.feeCode).trim() : "";
+  if (!code) return null;
+  const amt = item.amount != null ? Number(item.amount) || 0 : 0;
   return {
-    paymentNotes: f.paymentNotes != null ? String(f.paymentNotes) : "",
-    reservationFee: {
-      amount: rf.amount != null ? Number(rf.amount) || 0 : 0,
-      display: rf.display != null ? String(rf.display) : "",
-      currency: rf.currency != null ? String(rf.currency) : "VND",
-    },
+    feeCode: code,
+    feeName: item.feeName != null ? String(item.feeName) : "",
+    amount: amt,
+    currency: item.currency != null ? String(item.currency) : "VND",
+    display: item.display != null && String(item.display).trim() !== "" ? String(item.display) : formatVndDisplay(amt),
+    isReservationFee: Boolean(item.isReservationFee),
+    isMandatory: Boolean(item.isMandatory),
+    description: item.description != null ? String(item.description) : "",
+  };
+}
+
+function sanitizeFeeItemForApi(item) {
+  if (!item || typeof item !== "object") return null;
+  const code = item.feeCode != null ? String(item.feeCode).trim() : "";
+  if (!code) return null;
+  const amt = item.amount != null ? Number(item.amount) || 0 : 0;
+  return {
+    feeCode: code,
+    feeName: item.feeName != null ? String(item.feeName) : "",
+    amount: amt,
+    currency: item.currency != null ? String(item.currency) : "VND",
+    display: item.display != null && String(item.display).trim() !== "" ? String(item.display) : formatVndDisplay(amt),
+    isReservationFee: Boolean(item.isReservationFee),
+    isMandatory: Boolean(item.isMandatory),
+    description: item.description != null ? String(item.description) : "",
+  };
+}
+
+/**
+ * BE lưu `priceAdjustment` dạng phân số (0.1 = 10% trên UI).
+ * Nếu API cũ trả số nguyên phần trăm (vd. 15 = 15%) thì |n| > 1 → giữ nguyên cho UI.
+ */
+function priceAdjustmentPercentFromApi(v) {
+  if (v == null || v === "") return v;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 0;
+  if (Math.abs(n) <= 1) return n * 100;
+  return n;
+}
+
+/** UI nhập % (10) → gửi BE (0.1). */
+function priceAdjustmentPercentToApi(v) {
+  if (v == null || v === "") return v;
+  const n = Number(v);
+  if (!Number.isFinite(n)) return 0;
+  return n / 100;
+}
+
+/** GET → state: `feeItems` theo contract; legacy `reservationFee` → tạo một dòng RESERVATION_FEE. */
+function normalizeFinancePolicySection(fin, defaults) {
+  const f = fin && typeof fin === "object" ? fin : {};
+  const rawItems = Array.isArray(f.feeItems) ? f.feeItems.map(normalizeFeeItemFromApi).filter(Boolean) : [];
+  const resFee = f.reservationFee && typeof f.reservationFee === "object" ? f.reservationFee : {};
+  let feeItems = rawItems;
+  if (feeItems.length === 0 && (Number(resFee.amount) > 0 || (resFee.display != null && String(resFee.display).trim() !== ""))) {
+    const amt = resFee.amount != null ? Number(resFee.amount) || 0 : 0;
+    feeItems = [
+      {
+        feeCode: "RESERVATION_FEE",
+        feeName: "Phí giữ chỗ (Xác nhận nhập học)",
+        amount: amt,
+        currency: resFee.currency != null ? String(resFee.currency) : "VND",
+        display: resFee.display != null && String(resFee.display).trim() !== "" ? String(resFee.display) : formatVndDisplay(amt),
+        isReservationFee: true,
+        isMandatory: true,
+        description:
+          "Phí bắt buộc để giữ chỗ sau khi trúng tuyển. Khoản này sẽ được trừ vào học phí chính thức.",
+      },
+    ];
+  }
+  const resRow = feeItems.find((i) => i.feeCode === "RESERVATION_FEE" || i.isReservationFee);
+  const reservationFee = {
+    amount: resRow ? Number(resRow.amount) || 0 : Number(resFee.amount) || 0,
+    display: resRow
+      ? resRow.display || formatVndDisplay(resRow.amount)
+      : resFee.display != null && String(resFee.display).trim() !== ""
+        ? String(resFee.display)
+        : formatVndDisplay(resFee.amount ?? 0),
+    currency: resRow?.currency || (resFee.currency != null ? String(resFee.currency) : "VND") || "VND",
+  };
+  const pa = f.priceAdjustment && typeof f.priceAdjustment === "object" ? f.priceAdjustment : {};
+  const minFromApi = pa.minPercent != null ? priceAdjustmentPercentFromApi(pa.minPercent) : defaults.priceAdjustment.minPercent;
+  const maxFromApi = pa.maxPercent != null ? priceAdjustmentPercentFromApi(pa.maxPercent) : defaults.priceAdjustment.maxPercent;
+  return {
+    paymentNotes: f.paymentNotes != null ? String(f.paymentNotes) : defaults.paymentNotes,
+    feeItems,
+    reservationFee,
     priceAdjustment: {
-      minPercent: pa.minPercent != null ? Number(pa.minPercent) || 0 : 0,
-      maxPercent: pa.maxPercent != null ? Number(pa.maxPercent) || 0 : 0,
+      minPercent: typeof minFromApi === "number" && Number.isFinite(minFromApi) ? minFromApi : defaults.priceAdjustment.minPercent,
+      maxPercent: typeof maxFromApi === "number" && Number.isFinite(maxFromApi) ? maxFromApi : defaults.priceAdjustment.maxPercent,
     },
   };
+}
+
+/**
+ * PUT financePolicyData: chỉ gửi field / feeItems thực sự đổi so với snapshot ban đầu
+ * (BE giữ nguyên phần không có trong body).
+ */
+function feeItemsWithCodes(items) {
+  return (Array.isArray(items) ? items : []).filter((row) => row && String(row.feeCode ?? "").trim() !== "");
+}
+
+function feeCodeSetFromItems(items) {
+  return new Set(feeItemsWithCodes(items).map((row) => String(row.feeCode).trim()));
+}
+
+function buildPartialFinancePolicyPayload(cur, init) {
+  const c = cur && typeof cur === "object" ? cur : {};
+  const i = init && typeof init === "object" ? init : {};
+  const out = {};
+
+  const pnC = c.paymentNotes != null ? String(c.paymentNotes) : "";
+  const pnI = i.paymentNotes != null ? String(i.paymentNotes) : "";
+  if (pnC !== pnI) out.paymentNotes = pnC;
+
+  const cpa = c.priceAdjustment && typeof c.priceAdjustment === "object" ? c.priceAdjustment : {};
+  const ipa = i.priceAdjustment && typeof i.priceAdjustment === "object" ? i.priceAdjustment : {};
+  const minC = Number(cpa.minPercent) || 0;
+  const maxC = Number(cpa.maxPercent) || 0;
+  const minI = Number(ipa.minPercent) || 0;
+  const maxI = Number(ipa.maxPercent) || 0;
+  if (minC !== minI || maxC !== maxI) {
+    out.priceAdjustment = {
+      minPercent: priceAdjustmentPercentToApi(minC),
+      maxPercent: priceAdjustmentPercentToApi(maxC),
+    };
+  }
+
+  const curItems = Array.isArray(c.feeItems) ? c.feeItems : [];
+  const initItems = Array.isArray(i.feeItems) ? i.feeItems : [];
+  const curCoded = feeItemsWithCodes(curItems);
+  const initCoded = feeItemsWithCodes(initItems);
+  const curSet = feeCodeSetFromItems(curItems);
+  const initSet = feeCodeSetFromItems(initItems);
+  const structuralChange =
+    curCoded.length !== initCoded.length || [...initSet].some((code) => !curSet.has(code)) || [...curSet].some((code) => !initSet.has(code));
+
+  if (structuralChange) {
+    out.feeItems = curCoded.map((row) => sanitizeFeeItemForApi(row)).filter(Boolean);
+  } else {
+    const initMap = new Map(initCoded.map((row) => [String(row.feeCode).trim(), row]));
+    const changedFeeItems = [];
+    for (const row of curCoded) {
+      const code = String(row.feeCode).trim();
+      const prev = initMap.get(code);
+      const sRow = sanitizeFeeItemForApi(row);
+      const sPrev = prev ? sanitizeFeeItemForApi(prev) : null;
+      if (!sPrev || JSON.stringify(sRow) !== JSON.stringify(sPrev)) {
+        changedFeeItems.push(sRow);
+      }
+    }
+    if (changedFeeItems.length > 0) out.feeItems = changedFeeItems;
+  }
+
+  return out;
+}
+
+function emptyFinanceFeeItem() {
+  return {
+    feeCode: "",
+    feeName: "",
+    amount: "",
+    currency: "VND",
+    display: "",
+    isReservationFee: false,
+    isMandatory: false,
+    description: "",
+  };
+}
+
+function reservationFeeSnapshotFromItems(feeItems) {
+  const resRow = (Array.isArray(feeItems) ? feeItems : []).find((it) => it.feeCode === "RESERVATION_FEE" || it.isReservationFee);
+  if (!resRow) {
+    return {amount: 0, display: "", currency: "VND"};
+  }
+  const amt = resRow.amount != null ? Number(resRow.amount) || 0 : 0;
+  return {
+    amount: amt,
+    display: resRow.display != null && String(resRow.display).trim() !== "" ? String(resRow.display) : formatVndDisplay(amt),
+    currency: resRow.currency != null ? String(resRow.currency) : "VND",
+  };
+}
+
+/** Chỉ một dòng được `isReservationFee: true`. */
+function mapFeeItemsExclusiveReservation(items, index, checked) {
+  const list = Array.isArray(items) ? items.map((r) => ({...(r && typeof r === "object" ? r : {})})) : [];
+  if (index < 0 || index >= list.length) return list;
+  if (checked) {
+    return list.map((row, i) => ({...row, isReservationFee: i === index}));
+  }
+  return list.map((row, i) => (i === index ? {...row, isReservationFee: false} : row));
 }
 
 function sanitizeOperationSettingsForApi(op) {
@@ -644,7 +831,6 @@ function normalizeFromApi(body) {
   const adm = mergeAdmissionFromBody(body);
   const quota = pickSection(body, "quotaConfigData", "quota_config");
   const fin = pickSection(body, "financePolicyData", "finance_policy");
-  const resFee = fin.reservationFee && typeof fin.reservationFee === "object" ? fin.reservationFee : {};
   const doc = pickSection(body, "documentRequirementsData", "document_requirements");
   const op = pickSection(body, "operationSettingsData", "operation_settings");
   const fac = mergeFacilityFromBody(body);
@@ -679,16 +865,7 @@ function normalizeFromApi(body) {
       ...quota,
       campusAssignments: Array.isArray(quota.campusAssignments) ? quota.campusAssignments : d.quotaConfigData.campusAssignments,
     },
-    financePolicyData: {
-      ...d.financePolicyData,
-      ...fin,
-      reservationFee: {
-        ...d.financePolicyData.reservationFee,
-        ...resFee,
-        display: resFee.display || formatVndDisplay(resFee.amount ?? 0),
-      },
-      priceAdjustment: {...d.financePolicyData.priceAdjustment, ...(fin.priceAdjustment || {})},
-    },
+    financePolicyData: normalizeFinancePolicySection(fin, d.financePolicyData),
     documentRequirementsData: {
       ...d.documentRequirementsData,
       mandatoryAll: Array.isArray(doc.mandatoryAll) ? doc.mandatoryAll.map(normalizeDocItem) : d.documentRequirementsData.mandatoryAll,
@@ -752,7 +929,6 @@ function normalizeFromApi(body) {
 const CONFIG_SECTION_SANITIZERS = {
   admissionSettingsData: sanitizeAdmissionSettingsForApi,
   quotaConfigData: sanitizeQuotaConfigForApi,
-  financePolicyData: sanitizeFinancePolicyForApi,
   documentRequirementsData: sanitizeDocumentRequirementsForApi,
   operationSettingsData: sanitizeOperationSettingsForApi,
   facilityData: sanitizeFacilityDataForApi,
@@ -771,6 +947,18 @@ function buildPartialPayload(current, initial) {
   ];
   const out = {};
   for (const k of keys) {
+    if (k === "financePolicyData") {
+      try {
+        if (JSON.stringify(current[k]) !== JSON.stringify(initial[k])) {
+          const partialFin = buildPartialFinancePolicyPayload(current.financePolicyData, initial.financePolicyData);
+          if (Object.keys(partialFin).length > 0) out[k] = partialFin;
+        }
+      } catch {
+        const partialFin = buildPartialFinancePolicyPayload(current.financePolicyData, initial.financePolicyData);
+        if (Object.keys(partialFin).length > 0) out[k] = partialFin;
+      }
+      continue;
+    }
     try {
       if (JSON.stringify(current[k]) !== JSON.stringify(initial[k])) {
         const san = CONFIG_SECTION_SANITIZERS[k];
@@ -782,11 +970,6 @@ function buildPartialPayload(current, initial) {
     }
   }
   return out;
-}
-
-function formatVndDisplay(amount) {
-  if (amount == null || Number.isNaN(Number(amount))) return "";
-  return `${new Intl.NumberFormat("vi-VN").format(Number(amount))} VNĐ`;
 }
 
 function campusKey(c) {
@@ -1400,21 +1583,6 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
     enqueueSnackbar("Đã huỷ thay đổi", {variant: "info"});
   }, []);
 
-  const patchFinanceDisplay = useCallback((amount) => {
-    setConfig((c) => ({
-      ...c,
-      financePolicyData: {
-        ...c.financePolicyData,
-        reservationFee: {
-          ...c.financePolicyData.reservationFee,
-          amount: Number(amount) || 0,
-          display: formatVndDisplay(amount),
-          currency: "VND",
-        },
-      },
-    }));
-  }, []);
-
   const handleSave = useCallback(async () => {
     if (!editing) return;
     if (!useCampusConfigFlow && schoolId == null) return;
@@ -1480,7 +1648,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
 
     const minP = Number(config.financePolicyData?.priceAdjustment?.minPercent ?? 0);
     const maxP = Number(config.financePolicyData?.priceAdjustment?.maxPercent ?? 0);
-    if (schoolPayload.financePolicyData && minP >= maxP) {
+    if (schoolPayload.financePolicyData?.priceAdjustment != null && minP >= maxP) {
       enqueueSnackbar("% tối thiểu phải nhỏ hơn % tối đa", {variant: "error"});
       setTabIndex(2);
       return;
@@ -1510,6 +1678,31 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
         setTabIndex(6);
         return;
       }
+    }
+
+    const feeListAll = config.financePolicyData?.feeItems || [];
+    const feeCodedRows = feeItemsWithCodes(feeListAll);
+    const feeCodes = feeCodedRows.map((r) => String(r.feeCode).trim());
+    if (feeCodes.length !== new Set(feeCodes).size) {
+      enqueueSnackbar("Mã phí (feeCode) không được trùng nhau.", {variant: "error"});
+      setTabIndex(2);
+      return;
+    }
+    const feeRowMissingCode = feeListAll.some((r) => {
+      if (!r || typeof r !== "object") return false;
+      const code = String(r.feeCode ?? "").trim();
+      const hasData =
+        String(r.feeName ?? "").trim() !== "" ||
+        (r.amount != null && Number(r.amount) !== 0) ||
+        String(r.description ?? "").trim() !== "" ||
+        Boolean(r.isMandatory) ||
+        Boolean(r.isReservationFee);
+      return hasData && !code;
+    });
+    if (feeRowMissingCode) {
+      enqueueSnackbar("Mỗi khoản phí đã nhập dữ liệu cần có mã (feeCode).", {variant: "error"});
+      setTabIndex(2);
+      return;
     }
 
     setSaving(true);
@@ -1667,7 +1860,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
         ...c.resourceDistributionData,
         allocations: [
           ...(c.resourceDistributionData?.allocations || []),
-          {resourceType: RESOURCE_TYPE_OPTIONS[0]?.value ?? "counsellor", campusId: null, allocatedAmount: 0},
+          {resourceType: RESOURCE_TYPE_OPTIONS[0]?.value ?? "counsellor", campusId: null, allocatedAmount: ""},
         ],
       },
     }));
@@ -2278,7 +2471,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                       if (raw === "") {
                         setConfig((c) => ({
                           ...c,
-                          admissionSettingsData: {...c.admissionSettingsData, quotaAlertThresholdPercent: 0},
+                          admissionSettingsData: {...c.admissionSettingsData, quotaAlertThresholdPercent: ""},
                         }));
                         return;
                       }
@@ -2294,6 +2487,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                     }}
                     onBlur={() => {
                       if (fieldDisabled) return;
+                      if (config.admissionSettingsData.quotaAlertThresholdPercent === "") return;
                       const n = Number(config.admissionSettingsData.quotaAlertThresholdPercent ?? 0);
                       const clamped = Math.min(100, Math.max(0, Number.isFinite(n) ? n : 0));
                       if (clamped !== n) {
@@ -2333,11 +2527,18 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                   <TextField
                     label="Tổng chỉ tiêu toàn hệ thống"
                     type="number"
-                    value={config.quotaConfigData.totalSystemQuota ?? 0}
+                    value={
+                      config.quotaConfigData.totalSystemQuota === "" || config.quotaConfigData.totalSystemQuota == null
+                        ? ""
+                        : config.quotaConfigData.totalSystemQuota
+                    }
                     onChange={(e) =>
                       setConfig((c) => ({
                         ...c,
-                        quotaConfigData: {...c.quotaConfigData, totalSystemQuota: Number(e.target.value) || 0},
+                        quotaConfigData: {
+                          ...c.quotaConfigData,
+                          totalSystemQuota: e.target.value === "" ? "" : Number(e.target.value) || 0,
+                        },
                       }))
                     }
                     fullWidth
@@ -2383,9 +2584,9 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                             <TextField
                               type="number"
                               size="small"
-                              value={row.allocatedQuota ?? 0}
+                              value={row.allocatedQuota === "" || row.allocatedQuota == null ? "" : row.allocatedQuota}
                               onChange={(e) => {
-                                const v = Number(e.target.value) || 0;
+                                const v = e.target.value === "" ? "" : Number(e.target.value) || 0;
                                 setConfig((c) => {
                                   const rows = [...(c.quotaConfigData.campusAssignments || [])];
                                   rows[idx] = {...rows[idx], allocatedQuota: v};
@@ -2408,7 +2609,425 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
           {showFinanceTab && (
             <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
               <CardContent sx={{p: 3}}>
-                <Stack spacing={2}>
+                <Stack spacing={3}>
+                  <Box>
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2} mb={2} flexWrap="wrap">
+                      <Box sx={{flex: 1, minWidth: 220}}>
+                        <Typography sx={{fontWeight: 800}}>Các khoản phí</Typography>
+                      </Box>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<AddIcon/>}
+                        onClick={() =>
+                          setConfig((c) => {
+                            const fin = c.financePolicyData;
+                            const nextItems = [...(fin.feeItems || []), emptyFinanceFeeItem()];
+                            return {
+                              ...c,
+                              financePolicyData: {
+                                ...fin,
+                                feeItems: nextItems,
+                                reservationFee: reservationFeeSnapshotFromItems(nextItems),
+                              },
+                            };
+                          })
+                        }
+                        sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, flexShrink: 0, ...blockPointerSx}}
+                      >
+                        Thêm khoản phí
+                      </Button>
+                    </Stack>
+                    <Stack spacing={2.5}>
+                      {(config.financePolicyData.feeItems || []).length === 0 ? (
+                        <Paper variant="outlined" sx={{p: 2, borderStyle: "dashed", color: "#64748b", borderRadius: 2}}>
+                          Chưa có khoản phí. Nhấn &quot;Thêm khoản phí&quot; và điền đủ feeCode (vd. RESERVATION_FEE, ADMISSION_FORM_FEE).
+                        </Paper>
+                      ) : null}
+                      {(config.financePolicyData.feeItems || []).map((row, idx) => {
+                        const accent = METHOD_PROCESS_VISUAL_ACCENTS[0];
+                        const codeTrim = String(row.feeCode ?? "").trim();
+                        return (
+                          <Accordion
+                            key={`fee-${idx}-${codeTrim || "new"}`}
+                            defaultExpanded
+                            elevation={0}
+                            disableGutters
+                            sx={{
+                              borderRadius: 2,
+                              overflow: "hidden",
+                              border: "1px solid",
+                              borderColor: accent.border,
+                              boxShadow: "none",
+                              bgcolor: "#ffffff",
+                              "&:before": {display: "none"},
+                              "&.Mui-expanded": {margin: "20px 0"},
+                            }}
+                          >
+                            <AccordionSummary
+                              expandIcon={<ExpandMoreIcon sx={{color: accent.bar}}/>}
+                              sx={{
+                                px: 0,
+                                pr: 1,
+                                minHeight: 0,
+                                background: accent.headerBg,
+                                borderBottom: "2px solid",
+                                borderBottomColor: accent.bar,
+                                "& .MuiAccordionSummary-content": {
+                                  margin: "0 !important",
+                                  flexGrow: 1,
+                                  minWidth: 0,
+                                },
+                              }}
+                            >
+                              <Box sx={{width: "100%", px: 2, py: 1.5, pr: {xs: 1, sm: 2}}}>
+                                <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
+                                  <Chip
+                                    label={`Khoản ${idx + 1}`}
+                                    size="small"
+                                    sx={{bgcolor: accent.bar, color: "#fff", fontWeight: 800, letterSpacing: "0.02em"}}
+                                  />
+                                  {codeTrim ? (
+                                    <Chip
+                                      label={codeTrim}
+                                      size="small"
+                                      variant="outlined"
+                                      sx={{
+                                        borderWidth: 2,
+                                        borderColor: accent.bar,
+                                        color: "#0f172a",
+                                        fontWeight: 800,
+                                        bgcolor: "rgba(255,255,255,0.85)",
+                                      }}
+                                    />
+                                  ) : (
+                                    <Chip
+                                      label="Chưa có mã phí"
+                                      size="small"
+                                      sx={{bgcolor: "#e2e8f0", color: "#475569", fontWeight: 700}}
+                                    />
+                                  )}
+                                  {row.isReservationFee ? (
+                                    <Chip label="Phí giữ chỗ" size="small" sx={{fontWeight: 800, bgcolor: accent.stepsBg, color: accent.bar}} />
+                                  ) : null}
+                                  {row.isMandatory ? (
+                                    <Chip
+                                      label="Bắt buộc"
+                                      size="small"
+                                      variant="outlined"
+                                      sx={{fontWeight: 700, borderColor: accent.bar, color: "#0f172a"}}
+                                    />
+                                  ) : null}
+                                </Stack>
+                              </Box>
+                            </AccordionSummary>
+                            <AccordionDetails sx={{p: 0, display: "block"}}>
+                              <CardContent sx={{py: 2, px: 2, bgcolor: "rgba(248, 250, 252, 0.9)"}}>
+                                <Stack spacing={2}>
+                                  <Stack
+                                    direction={{xs: "column", sm: "row"}}
+                                    spacing={1.5}
+                                    alignItems={{sm: "flex-start"}}
+                                    justifyContent="space-between"
+                                  >
+                                    <Box sx={{flex: 1, minWidth: 0, width: "100%"}}>
+                                      <Stack direction={{xs: "column", sm: "row"}} spacing={1.5}>
+                                        <TextField
+                                          size="small"
+                                          label="Mã định danh loại phí"
+                                          value={row.feeCode ?? ""}
+                                          onChange={(e) => {
+                                            const v = e.target.value;
+                                            setConfig((c) => {
+                                              const fin = c.financePolicyData;
+                                              const nextItems = [...(fin.feeItems || [])];
+                                              nextItems[idx] = {...nextItems[idx], feeCode: v};
+                                              return {
+                                                ...c,
+                                                financePolicyData: {
+                                                  ...fin,
+                                                  feeItems: nextItems,
+                                                  reservationFee: reservationFeeSnapshotFromItems(nextItems),
+                                                },
+                                              };
+                                            });
+                                          }}
+                                          fullWidth
+                                          inputProps={{readOnly: fieldDisabled}}
+                                          placeholder="VD: RESERVATION_FEE"
+                                        />
+                                        <TextField
+                                          size="small"
+                                          label="Tên hiển thị"
+                                          value={row.feeName ?? ""}
+                                          onChange={(e) => {
+                                            const v = e.target.value;
+                                            setConfig((c) => {
+                                              const fin = c.financePolicyData;
+                                              const nextItems = [...(fin.feeItems || [])];
+                                              nextItems[idx] = {...nextItems[idx], feeName: v};
+                                              return {
+                                                ...c,
+                                                financePolicyData: {
+                                                  ...fin,
+                                                  feeItems: nextItems,
+                                                  reservationFee: reservationFeeSnapshotFromItems(nextItems),
+                                                },
+                                              };
+                                            });
+                                          }}
+                                          fullWidth
+                                          inputProps={{readOnly: fieldDisabled}}
+                                        />
+                                      </Stack>
+                                    </Box>
+                                    <IconButton
+                                      size="small"
+                                      color="error"
+                                      aria-label="Xóa khoản phí"
+                                      onClick={() =>
+                                        setConfig((c) => {
+                                          const fin = c.financePolicyData;
+                                          const nextItems = [...(fin.feeItems || [])];
+                                          nextItems.splice(idx, 1);
+                                          return {
+                                            ...c,
+                                            financePolicyData: {
+                                              ...fin,
+                                              feeItems: nextItems,
+                                              reservationFee: reservationFeeSnapshotFromItems(nextItems),
+                                            },
+                                          };
+                                        })
+                                      }
+                                      disabled={fieldDisabled}
+                                      sx={{...blockPointerSx}}
+                                    >
+                                      <DeleteOutlineIcon fontSize="small"/>
+                                    </IconButton>
+                                  </Stack>
+                                  <Divider sx={{borderColor: accent.stepsBorder, opacity: 1}}/>
+                                  <Typography
+                                    variant="subtitle2"
+                                    sx={{
+                                      fontWeight: 800,
+                                      color: "#0f172a",
+                                      pl: 1,
+                                      borderLeft: "4px solid",
+                                      borderLeftColor: accent.bar,
+                                    }}
+                                  >
+                                    Số tiền & hiển thị
+                                  </Typography>
+                                  <Card
+                                    variant="outlined"
+                                    sx={{
+                                      borderRadius: 2,
+                                      bgcolor: accent.stepsBg,
+                                      borderColor: accent.stepsBorder,
+                                      borderWidth: 1,
+                                    }}
+                                  >
+                                    <CardContent sx={{py: 1.5, "&:last-child": {pb: 1.5}}}>
+                                      <Stack direction={{xs: "column", sm: "row"}} spacing={1.5}>
+                                        <TextField
+                                          size="small"
+                                          label="Số lượng"
+                                          type="number"
+                                          value={row.amount === "" || row.amount == null ? "" : row.amount}
+                                          onChange={(e) => {
+                                            const raw = e.target.value;
+                                            const n = raw === "" ? "" : Number(raw) || 0;
+                                            setConfig((c) => {
+                                              const fin = c.financePolicyData;
+                                              const nextItems = [...(fin.feeItems || [])];
+                                              const cur = nextItems[idx] || {};
+                                              nextItems[idx] = {...cur, amount: n};
+                                              return {
+                                                ...c,
+                                                financePolicyData: {
+                                                  ...fin,
+                                                  feeItems: nextItems,
+                                                  reservationFee: reservationFeeSnapshotFromItems(nextItems),
+                                                },
+                                              };
+                                            });
+                                          }}
+                                          onBlur={() => {
+                                            setConfig((c) => {
+                                              const fin = c.financePolicyData;
+                                              const nextItems = [...(fin.feeItems || [])];
+                                              const cur = nextItems[idx] || {};
+                                              const hasAmount = row.amount !== "" && row.amount != null;
+                                              const n = hasAmount ? Number(row.amount) || 0 : "";
+                                              nextItems[idx] = {
+                                                ...cur,
+                                                amount: n,
+                                                display: hasAmount ? formatVndDisplay(n) : "",
+                                              };
+                                              return {
+                                                ...c,
+                                                financePolicyData: {
+                                                  ...fin,
+                                                  feeItems: nextItems,
+                                                  reservationFee: reservationFeeSnapshotFromItems(nextItems),
+                                                },
+                                              };
+                                            });
+                                          }}
+                                          sx={{minWidth: {sm: 160}}}
+                                          inputProps={{readOnly: fieldDisabled}}
+                                        />
+                                        <TextField
+                                          size="small"
+                                          label="Đơn vị tiền tệ"
+                                          value={row.currency ?? "VND"}
+                                          onChange={(e) => {
+                                            const v = e.target.value;
+                                            setConfig((c) => {
+                                              const fin = c.financePolicyData;
+                                              const nextItems = [...(fin.feeItems || [])];
+                                              nextItems[idx] = {...nextItems[idx], currency: v};
+                                              return {
+                                                ...c,
+                                                financePolicyData: {
+                                                  ...fin,
+                                                  feeItems: nextItems,
+                                                  reservationFee: reservationFeeSnapshotFromItems(nextItems),
+                                                },
+                                              };
+                                            });
+                                          }}
+                                          sx={{maxWidth: {sm: 120}}}
+                                          inputProps={{readOnly: fieldDisabled}}
+                                        />
+                                        <TextField
+                                          size="small"
+                                          label="Số tiền"
+                                          value={row.display ?? ""}
+                                          onChange={(e) => {
+                                            const v = e.target.value;
+                                            setConfig((c) => {
+                                              const fin = c.financePolicyData;
+                                              const nextItems = [...(fin.feeItems || [])];
+                                              nextItems[idx] = {...nextItems[idx], display: v};
+                                              return {
+                                                ...c,
+                                                financePolicyData: {
+                                                  ...fin,
+                                                  feeItems: nextItems,
+                                                  reservationFee: reservationFeeSnapshotFromItems(nextItems),
+                                                },
+                                              };
+                                            });
+                                          }}
+                                          fullWidth
+                                          inputProps={{readOnly: fieldDisabled}}
+                                          placeholder="VD: 2.000.000 VNĐ"
+                                        />
+                                      </Stack>
+                                    </CardContent>
+                                  </Card>
+                                  <Divider sx={{borderColor: accent.stepsBorder, opacity: 1}}/>
+                                  <Typography
+                                    variant="subtitle2"
+                                    sx={{
+                                      fontWeight: 800,
+                                      color: "#0f172a",
+                                      pl: 1,
+                                      borderLeft: "4px solid",
+                                      borderLeftColor: accent.bar,
+                                    }}
+                                  >
+                                    Tuỳ chọn & mô tả
+                                  </Typography>
+                                  <Stack direction={{xs: "column", sm: "row"}} spacing={1} alignItems={{sm: "center"}} flexWrap="wrap" useFlexGap>
+                                    <FormControlLabel
+                                      control={
+                                        <Checkbox
+                                          size="small"
+                                          checked={Boolean(row.isMandatory)}
+                                          onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            setConfig((c) => {
+                                              const fin = c.financePolicyData;
+                                              const nextItems = [...(fin.feeItems || [])];
+                                              nextItems[idx] = {...nextItems[idx], isMandatory: checked};
+                                              return {
+                                                ...c,
+                                                financePolicyData: {
+                                                  ...fin,
+                                                  feeItems: nextItems,
+                                                  reservationFee: reservationFeeSnapshotFromItems(nextItems),
+                                                },
+                                              };
+                                            });
+                                          }}
+                                          disabled={fieldDisabled}
+                                        />
+                                      }
+                                      label="Bắt buộc"
+                                    />
+                                    <FormControlLabel
+                                      control={
+                                        <Checkbox
+                                          size="small"
+                                          checked={Boolean(row.isReservationFee)}
+                                          onChange={(e) => {
+                                            const checked = e.target.checked;
+                                            setConfig((c) => {
+                                              const fin = c.financePolicyData;
+                                              const nextItems = mapFeeItemsExclusiveReservation(fin.feeItems || [], idx, checked);
+                                              return {
+                                                ...c,
+                                                financePolicyData: {
+                                                  ...fin,
+                                                  feeItems: nextItems,
+                                                  reservationFee: reservationFeeSnapshotFromItems(nextItems),
+                                                },
+                                              };
+                                            });
+                                          }}
+                                          disabled={fieldDisabled}
+                                        />
+                                      }
+                                      label="Phí giữ chỗ"
+                                    />
+                                  </Stack>
+                                  <TextField
+                                    size="small"
+                                    label="Mô tả"
+                                    value={row.description ?? ""}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      setConfig((c) => {
+                                        const fin = c.financePolicyData;
+                                        const nextItems = [...(fin.feeItems || [])];
+                                        nextItems[idx] = {...nextItems[idx], description: v};
+                                        return {
+                                          ...c,
+                                          financePolicyData: {
+                                            ...fin,
+                                            feeItems: nextItems,
+                                            reservationFee: reservationFeeSnapshotFromItems(nextItems),
+                                          },
+                                        };
+                                      });
+                                    }}
+                                    fullWidth
+                                    multiline
+                                    minRows={2}
+                                    inputProps={{readOnly: fieldDisabled}}
+                                  />
+                                </Stack>
+                              </CardContent>
+                            </AccordionDetails>
+                          </Accordion>
+                        );
+                      })}
+                    </Stack>
+                  </Box>
+
                   <TextField
                     label="Ghi chú thanh toán"
                     multiline
@@ -2423,30 +3042,28 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                     fullWidth
                     inputProps={{readOnly: fieldDisabled}}
                   />
-                  <TextField
-                    label="Phí giữ chỗ (VNĐ)"
-                    type="number"
-                    value={config.financePolicyData.reservationFee?.amount ?? 0}
-                    onChange={(e) => patchFinanceDisplay(e.target.value)}
-                    onBlur={() => patchFinanceDisplay(config.financePolicyData.reservationFee?.amount)}
-                    fullWidth
-                    size="small"
-                    inputProps={{readOnly: fieldDisabled}}
-                  />
-                  <Typography variant="caption" sx={{color: "#64748b"}}>
-                    Hiển thị: {config.financePolicyData.reservationFee?.display || formatVndDisplay(config.financePolicyData.reservationFee?.amount)}
-                </Typography>
+
+                  <Divider/>
+                  
                   <Stack direction={{xs: "column", sm: "row"}} spacing={2}>
                     <TextField
-                      label="% điều chỉnh tối thiểu"
+                      label="Hạn mức giảm tối đa / so với giá gốc"
                       type="number"
-                      value={config.financePolicyData.priceAdjustment?.minPercent ?? 0}
+                      value={
+                        config.financePolicyData.priceAdjustment?.minPercent === "" ||
+                        config.financePolicyData.priceAdjustment?.minPercent == null
+                          ? ""
+                          : config.financePolicyData.priceAdjustment.minPercent
+                      }
                       onChange={(e) =>
                         setConfig((c) => ({
                           ...c,
                           financePolicyData: {
                             ...c.financePolicyData,
-                            priceAdjustment: {...c.financePolicyData.priceAdjustment, minPercent: Number(e.target.value) || 0},
+                            priceAdjustment: {
+                              ...c.financePolicyData.priceAdjustment,
+                              minPercent: e.target.value === "" ? "" : Number(e.target.value) || 0,
+                            },
                           },
                         }))
                       }
@@ -2455,15 +3072,23 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                       inputProps={{readOnly: fieldDisabled}}
                     />
                     <TextField
-                      label="% điều chỉnh tối đa"
+                      label="Hạn mức tăng tối đa / so với giá gốc"
                       type="number"
-                      value={config.financePolicyData.priceAdjustment?.maxPercent ?? 0}
+                      value={
+                        config.financePolicyData.priceAdjustment?.maxPercent === "" ||
+                        config.financePolicyData.priceAdjustment?.maxPercent == null
+                          ? ""
+                          : config.financePolicyData.priceAdjustment.maxPercent
+                      }
                       onChange={(e) =>
                         setConfig((c) => ({
                           ...c,
                           financePolicyData: {
                             ...c.financePolicyData,
-                            priceAdjustment: {...c.financePolicyData.priceAdjustment, maxPercent: Number(e.target.value) || 0},
+                            priceAdjustment: {
+                              ...c.financePolicyData.priceAdjustment,
+                              maxPercent: e.target.value === "" ? "" : Number(e.target.value) || 0,
+                            },
                           },
                         }))
                       }
@@ -2472,6 +3097,25 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                       inputProps={{readOnly: fieldDisabled}}
                     />
                   </Stack>
+                  <Alert severity="info" sx={{borderRadius: 2}}>
+                    <Typography variant="body2" component="div" sx={{fontWeight: 700, mb: 0.75}}>
+                      Lưu ý:
+                    </Typography>
+                    <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
+                      Cấu hình này xác định hạn mức điều chỉnh giá cho cơ sở mà cơ sở chính cấp phép cho các cơ sở con.
+                      Nó cho phép giá dịch vụ/học phí tại mỗi cơ sở linh hoạt hơn so với giá gốc của cơ sở chính mà vẫn
+                      nằm trong tầm kiểm soát.
+                      <br/>
+                      <strong>1. Hạn mức giảm tối đa so với giá gốc</strong>
+                      <br/>- Cho phép cơ sở con giảm tối đa bao nhiêu % so với giá của cơ sở chính để cạnh tranh
+                      hoặc ưu đãi vùng miền. Nếu để 0 (%), cơ sở con tuyệt đối không được thu thấp hơn giá niêm yết của
+                      cơ sở chính.
+                      <br/>
+                      <strong>2. Hạn mức tăng tối đa so với giá gốc</strong>
+                      <br/>- Cho phép cơ sở con tăng giá thêm tối đa bao nhiêu % (có thể do chi phí vận hành tại khu
+                      vực đó cao hơn, ví dụ trung tâm Quận 1 so với các quận khác).
+                    </Typography>
+                  </Alert>
                 </Stack>
               </CardContent>
             </Card>
@@ -2833,13 +3477,18 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                       <TextField
                         label="Số phụ huynh tối đa trong 1 ca"
                         type="number"
-                        value={config.operationSettingsData.maxBookingPerSlot ?? 0}
+                        value={
+                          config.operationSettingsData.maxBookingPerSlot === "" ||
+                          config.operationSettingsData.maxBookingPerSlot == null
+                            ? ""
+                            : config.operationSettingsData.maxBookingPerSlot
+                        }
                         onChange={(e) =>
                           setConfig((c) => ({
                             ...c,
                             operationSettingsData: {
                               ...c.operationSettingsData,
-                              maxBookingPerSlot: Number(e.target.value) || 0,
+                              maxBookingPerSlot: e.target.value === "" ? "" : Number(e.target.value) || 0,
                             },
                           }))
                         }
@@ -2850,13 +3499,18 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                       <TextField
                         label="Tư vấn viên tối thiểu trong 1 ca"
                         type="number"
-                        value={config.operationSettingsData.minCounsellorPerSlot ?? 0}
+                        value={
+                          config.operationSettingsData.minCounsellorPerSlot === "" ||
+                          config.operationSettingsData.minCounsellorPerSlot == null
+                            ? ""
+                            : config.operationSettingsData.minCounsellorPerSlot
+                        }
                         onChange={(e) =>
                           setConfig((c) => ({
                             ...c,
                             operationSettingsData: {
                               ...c.operationSettingsData,
-                              minCounsellorPerSlot: Number(e.target.value) || 0,
+                              minCounsellorPerSlot: e.target.value === "" ? "" : Number(e.target.value) || 0,
                             },
                           }))
                         }
@@ -2867,7 +3521,12 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                       <TextField
                         label="Thời lượng 1 ca (phút)"
                         type="number"
-                        value={config.operationSettingsData.slotDurationInMinutes ?? 0}
+                        value={
+                          config.operationSettingsData.slotDurationInMinutes === "" ||
+                          config.operationSettingsData.slotDurationInMinutes == null
+                            ? ""
+                            : config.operationSettingsData.slotDurationInMinutes
+                        }
                         onChange={(e) =>
                           setConfig((c) => ({
                             ...c,
@@ -2875,7 +3534,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                               ...c.operationSettingsData,
                               slotDurationInMinutes:
                                 e.target.value === ""
-                                  ? 0
+                                  ? ""
                                   : Math.max(1, Number(e.target.value) || 0),
                             },
                           }))
@@ -2887,13 +3546,18 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                       <TextField
                         label="Đặt lịch trước (giờ)"
                         type="number"
-                        value={config.operationSettingsData.allowBookingBeforeHours ?? 0}
+                        value={
+                          config.operationSettingsData.allowBookingBeforeHours === "" ||
+                          config.operationSettingsData.allowBookingBeforeHours == null
+                            ? ""
+                            : config.operationSettingsData.allowBookingBeforeHours
+                        }
                         onChange={(e) =>
                           setConfig((c) => ({
                             ...c,
                             operationSettingsData: {
                               ...c.operationSettingsData,
-                              allowBookingBeforeHours: Number(e.target.value) || 0,
+                              allowBookingBeforeHours: e.target.value === "" ? "" : Number(e.target.value) || 0,
                             },
                           }))
                         }
@@ -3148,7 +3812,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                       </Paper>
                     ) : null}
                     {(config.operationSettingsData.methodAdmissionProcess || []).map((group, gi) => {
-                      const accent = METHOD_PROCESS_VISUAL_ACCENTS[gi % METHOD_PROCESS_VISUAL_ACCENTS.length];
+                      const accent = METHOD_PROCESS_VISUAL_ACCENTS[0];
                       const codeTrim = (group.methodCode || "").trim();
                       const optMatch = admissionMethodCodeOptions.find((o) => o.value === codeTrim);
                       const methodSuggestionReadonlyDisplay = optMatch ? `${optMatch.label} (${codeTrim})` : codeTrim || "—";
@@ -3171,13 +3835,14 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                           boxShadow: "none",
                           bgcolor: "#ffffff",
                           "&:before": {display: "none"},
-                          "&.Mui-expanded": {margin: 0},
+                          "&.Mui-expanded": {margin: "10px 0"},
                         }}
                       >
                         <AccordionSummary
                           expandIcon={<ExpandMoreIcon sx={{color: accent.bar}}/>}
                           sx={{
                             px: 0,
+                            pr: 1,
                             minHeight: 0,
                             background: accent.headerBg,
                             borderBottom: "2px solid",
@@ -3491,8 +4156,12 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                               label="Số lượng phân bổ"
                               size="small"
                               type="number"
-                              value={row.allocatedAmount ?? 0}
-                              onChange={(e) => updateResourceAllocationAt(idx, {allocatedAmount: Number(e.target.value) || 0})}
+                              value={row.allocatedAmount === "" || row.allocatedAmount == null ? "" : row.allocatedAmount}
+                              onChange={(e) =>
+                                updateResourceAllocationAt(idx, {
+                                  allocatedAmount: e.target.value === "" ? "" : Number(e.target.value) || 0,
+                                })
+                              }
                               sx={{width: {xs: "100%", md: 200}}}
                               inputProps={{readOnly: fieldDisabled, min: 0}}
                             />

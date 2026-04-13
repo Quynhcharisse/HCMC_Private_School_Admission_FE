@@ -236,6 +236,7 @@ export default function SchoolCampaignDetail() {
     const [confirmCloneOpen, setConfirmCloneOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
     const [cancelReasonError, setCancelReasonError] = useState("");
+    const [isInfoEditing, setIsInfoEditing] = useState(false);
     /** Tăng sau khi lưu template để remount phần chỉ tiêu và gọi lại API */
     const [offeringsRemountKey, setOfferingsRemountKey] = useState(0);
 
@@ -302,6 +303,7 @@ export default function SchoolCampaignDetail() {
         Number.isFinite(campaignYearNum) && campaignYearNum > 0 && campaignYearNum < CURRENT_YEAR;
 
     const formLocked = status !== "DRAFT" || !isPrimaryBranch || isPastYearCampaign;
+    const isCampaignInfoEditable = !formLocked && isInfoEditing;
     const readOnlyTerminal = status === "CLOSED" || status === "EXPIRED";
     const canMutateOfferings = status === "OPEN" && !readOnlyTerminal && !isPastYearCampaign;
     const isDraft = status === "DRAFT";
@@ -566,6 +568,7 @@ export default function SchoolCampaignDetail() {
             if (res?.status === 200 || res?.data) {
                 enqueueSnackbar("Đã lưu thay đổi chiến dịch.", { variant: "success" });
                 const updated = await refreshCampaign();
+                setIsInfoEditing(false);
                 setOfferingsRemountKey((k) => k + 1);
                 if (updated && campaignId) {
                     navigate(`/school/campaigns/detail/${campaignId}`, {
@@ -588,6 +591,10 @@ export default function SchoolCampaignDetail() {
             setSubmitLoading(false);
         }
     };
+
+    useEffect(() => {
+        if (formLocked) setIsInfoEditing(false);
+    }, [formLocked]);
 
     if (loadingCampaign) {
         return (
@@ -717,6 +724,34 @@ export default function SchoolCampaignDetail() {
                 }}
             >
                 <CardContent sx={{ p: 3 }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: "#1e293b" }}>
+                        Tiến độ thời gian
+                    </Typography>
+                    <LinearProgress
+                        variant="determinate"
+                        value={progress}
+                        sx={{
+                            height: 10,
+                            borderRadius: 5,
+                            bgcolor: "rgba(13, 100, 222, 0.12)",
+                            "& .MuiLinearProgress-bar": { borderRadius: 5, bgcolor: HEADER_ACCENT },
+                        }}
+                    />
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
+                        {formatDate(campaign.startDate)} → {formatDate(campaign.endDate)}
+                    </Typography>
+                </CardContent>
+            </Card>
+
+            <Card
+                elevation={0}
+                sx={{
+                    borderRadius: "16px",
+                    border: "1px solid #e2e8f0",
+                    boxShadow: "0 4px 24px rgba(51,65,85,0.06)",
+                }}
+            >
+                <CardContent sx={{ p: 3 }}>
                     <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#1e293b", mb: 2 }}>
                         Thông tin chiến dịch
                     </Typography>
@@ -732,7 +767,7 @@ export default function SchoolCampaignDetail() {
                             fullWidth
                             value={formValues.name}
                             onChange={handleFormChange}
-                            disabled={formLocked}
+                            InputProps={{ readOnly: !isCampaignInfoEditable }}
                             error={!!formErrors.name}
                             helperText={formErrors.name}
                             sx={{ flex: 1, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
@@ -746,7 +781,7 @@ export default function SchoolCampaignDetail() {
                         rows={3}
                         value={formValues.description}
                         onChange={handleFormChange}
-                        disabled={formLocked}
+                        InputProps={{ readOnly: !isCampaignInfoEditable }}
                         error={!!formErrors.description}
                         helperText={formErrors.description}
                         sx={{ mb: 2, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
@@ -759,7 +794,7 @@ export default function SchoolCampaignDetail() {
                             fullWidth
                             value={formValues.startDate}
                             onChange={handleFormChange}
-                            disabled={formLocked}
+                            InputProps={{ readOnly: !isCampaignInfoEditable }}
                             error={!!formErrors.startDate}
                             helperText={formErrors.startDate}
                             InputLabelProps={{ shrink: true }}
@@ -772,7 +807,7 @@ export default function SchoolCampaignDetail() {
                             fullWidth
                             value={formValues.endDate}
                             onChange={handleFormChange}
-                            disabled={formLocked}
+                            InputProps={{ readOnly: !isCampaignInfoEditable }}
                             error={!!formErrors.endDate}
                             helperText={formErrors.endDate}
                             InputLabelProps={{ shrink: true }}
@@ -785,8 +820,8 @@ export default function SchoolCampaignDetail() {
                                 <>
                                     <Button
                                         variant="contained"
-                                        onClick={runSaveTemplate}
-                                        disabled={submitLoading || !isFormDirty}
+                                        onClick={isInfoEditing ? runSaveTemplate : () => setIsInfoEditing(true)}
+                                        disabled={submitLoading || (isInfoEditing && !isFormDirty)}
                                         sx={{
                                             bgcolor: HEADER_ACCENT,
                                             textTransform: "none",
@@ -796,7 +831,7 @@ export default function SchoolCampaignDetail() {
                                             "&:hover": { bgcolor: "#0a52b8" },
                                         }}
                                     >
-                                        Lưu thay đổi
+                                        {isInfoEditing ? "Lưu thay đổi" : "Chỉnh sửa"}
                                     </Button>
                                     <Tooltip
                                         title={
@@ -890,34 +925,6 @@ export default function SchoolCampaignDetail() {
                     borderRadius: "16px",
                     border: "1px solid #e2e8f0",
                     boxShadow: "0 4px 24px rgba(51,65,85,0.06)",
-                }}
-            >
-                <CardContent sx={{ p: 3 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2, color: "#1e293b" }}>
-                        Tiến độ thời gian
-                    </Typography>
-                    <LinearProgress
-                        variant="determinate"
-                        value={progress}
-                        sx={{
-                            height: 10,
-                            borderRadius: 5,
-                            bgcolor: "rgba(13, 100, 222, 0.12)",
-                            "& .MuiLinearProgress-bar": { borderRadius: 5, bgcolor: HEADER_ACCENT },
-                        }}
-                    />
-                    <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: "block" }}>
-                        {formatDate(campaign.startDate)} → {formatDate(campaign.endDate)}
-                    </Typography>
-                </CardContent>
-            </Card>
-
-            <Card
-                elevation={0}
-                sx={{
-                    borderRadius: "16px",
-                    border: "1px solid #e2e8f0",
-                    boxShadow: "0 4px 24px rgba(51,65,85,0.06)",
                     p: 0,
                 }}
             >
@@ -937,6 +944,8 @@ export default function SchoolCampaignDetail() {
                     if (reason === "backdropClick") return;
                     if (!submitLoading) setConfirmPublishOpen(false);
                 }}
+                fullWidth
+                maxWidth="sm"
                 PaperProps={{ sx: { borderRadius: "16px" } }}
             >
                 <DialogContent>

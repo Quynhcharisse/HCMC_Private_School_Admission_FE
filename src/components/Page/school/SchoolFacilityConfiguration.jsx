@@ -200,7 +200,7 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
       const itemList = rows.map((it) => ({
         facilityCode: it.facilityCode,
         name: it.name,
-        value: typeof it.value === "number" ? it.value : Number(it.value) || 0,
+        value: it.value === "" || it.value == null ? "" : Number(it.value) || 0,
         unit: it.unit,
         category: it.category,
       }));
