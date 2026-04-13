@@ -64,11 +64,79 @@ function extractUploadResult(response, fallbackName) {
     return {fileName, fileUrl};
 }
 
+function pickDocumentUrl(item) {
+    const candidates = [
+        item?.fileUrl,
+        item?.url,
+        item?.file_url,
+        item?.downloadUrl,
+        item?.download_url,
+        item?.storageUrl,
+        item?.storagePath,
+        item?.link,
+        item?.file?.url,
+        item?.file?.fileUrl,
+    ];
+    for (const c of candidates) {
+        if (typeof c === "string" && c.trim()) return c.trim();
+    }
+    return "";
+}
+
 function mapDocument(item, index) {
+    const rawUrl = pickDocumentUrl(item);
     return {
         id: item?.templateId ?? item?.id ?? `row-${index}`,
         fileName: item?.fileName ?? item?.filename ?? item?.name ?? item?.originalFileName ?? `file_${index + 1}.docx`,
+        fileUrl: rawUrl ? resolveAbsoluteFileUrl(rawUrl) : "",
     };
+}
+
+function resolveServerOrigin() {
+    const raw = (import.meta.env.VITE_SERVER_BE || "http://localhost:8080").trim().replace(/\/+$/, "");
+    return raw.replace(/\/api\/v1$/i, "");
+}
+
+function resolveAbsoluteFileUrl(raw) {
+    const s = String(raw || "").trim();
+    if (!s) return "";
+    if (/^https?:\/\//i.test(s)) return s;
+    if (s.startsWith("//")) return `${typeof window !== "undefined" ? window.location.protocol : "https:"}${s}`;
+    if (s.startsWith("/")) {
+        const origin = resolveServerOrigin().replace(/\/+$/, "");
+        return `${origin}${s}`;
+    }
+    return s;
+}
+
+function isOfficeWordFile(fileName, urlString) {
+    if (/\.(docx?|docm)$/i.test(String(fileName || ""))) return true;
+    try {
+        return /\.(docx?|docm)$/i.test(new URL(urlString).pathname);
+    } catch {
+        return false;
+    }
+}
+
+function buildTemplateDocumentViewHref(fileUrl, fileName) {
+    const absolute = resolveAbsoluteFileUrl(fileUrl);
+    if (!absolute) return "";
+    if (!isOfficeWordFile(fileName, absolute)) return absolute;
+    try {
+        const u = new URL(absolute);
+        const host = u.hostname.toLowerCase();
+        const isLocal =
+            host === "localhost" ||
+            host === "127.0.0.1" ||
+            /^192\.168\.\d+\.\d+$/.test(host) ||
+            /^10\.\d+\.\d+\.\d+$/.test(host);
+        if (isLocal || u.protocol !== "https:") {
+            return absolute;
+        }
+        return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(absolute)}`;
+    } catch {
+        return absolute;
+    }
 }
 
 function isDocFile(file) {
@@ -356,12 +424,12 @@ export default function AdminDocumentTemplateManagement() {
                                 </Typography>
                                 {uploadedFileUrl ? (
                                     <Link
-                                        href={uploadedFileUrl}
+                                        href={buildTemplateDocumentViewHref(uploadedFileUrl, uploadedFileName)}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         sx={{ fontSize: "0.8rem", fontWeight: 600, wordBreak: "break-all" }}
                                     >
-                                        Mở liên kết tệp đã lưu
+                                        Xem / mở tệp đã lưu
                                     </Link>
                                 ) : null}
                             </Box>
@@ -416,9 +484,33 @@ export default function AdminDocumentTemplateManagement() {
                                                 py: 1,
                                             }}
                                         >
-                                            <Typography sx={{ fontWeight: 700, color: "#1e3a8a", wordBreak: "break-word" }}>
-                                                {doc.fileName}
-                                            </Typography>
+                                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                                                {doc.fileUrl ? (
+                                                    <Link
+                                                        href={buildTemplateDocumentViewHref(doc.fileUrl, doc.fileName)}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        underline="hover"
+                                                        sx={{
+                                                            fontWeight: 700,
+                                                            color: "#1e3a8a",
+                                                            wordBreak: "break-word",
+                                                        }}
+                                                    >
+                                                        {doc.fileName}
+                                                    </Link>
+                                                ) : (
+                                                    <Typography
+                                                        sx={{
+                                                            fontWeight: 700,
+                                                            color: "#1e3a8a",
+                                                            wordBreak: "break-word",
+                                                        }}
+                                                    >
+                                                        {doc.fileName}
+                                                    </Typography>
+                                                )}
+                                            </Box>
                                             <IconButton
                                                 size="small"
                                                 onClick={() => onDelete(doc)}
