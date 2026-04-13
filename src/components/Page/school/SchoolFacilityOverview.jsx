@@ -3137,13 +3137,15 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                       Thêm
                     </Button>
                   </Stack>
-                  <Typography variant="body2" sx={{color: "red", lineHeight: 1.65, maxWidth: 900}}>
-                    *Lưu ý: Đây là danh sách hồ sơ bắt buộc cho{" "}
-                    <Box component="span" sx={{fontWeight: 800, color: "red"}}>
-                      TẤT CẢ
-                    </Box>{" "}
-                    thí sinh, dù chọn bất kỳ phương thức xét tuyển nào.
-                  </Typography>
+                  <Alert severity="info" sx={{borderRadius: 2, maxWidth: 1200}}>
+                    <Typography variant="body2" component="div" sx={{fontWeight: 700, mb: 0.75}}>
+                      Lưu ý:
+                    </Typography>
+                    <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
+                      Đây là danh sách hồ sơ bắt buộc cho <strong>TẤT CẢ</strong> thí sinh, dù chọn bất kỳ phương
+                      thức xét tuyển nào.
+                    </Typography>
+                  </Alert>
                 </Stack>
                 <Stack spacing={1}>
                   {(config.documentRequirementsData.mandatoryAll || []).map((doc, idx) => (
@@ -3228,13 +3230,15 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                     Thêm nhóm phương thức
                   </Button>
                 </Stack>
-                <Typography variant="body2" sx={{color: "red", lineHeight: 1.65, maxWidth: 900, mb: 2.5}}>
-                    *Lưu ý: Đây là các hồ sơ bổ sung riêng biệt cho {" "}
-                    <Box component="span" sx={{fontWeight: 800, color: "red"}}>
-                      TỪNG PHƯƠNG THỨC
-                    </Box>{" "}
-                    để phục vụ việc chấm điểm và xét duyệt.
+                <Alert severity="info" sx={{borderRadius: 2, maxWidth: 1200, mb: 2.5}}>
+                  <Typography variant="body2" component="div" sx={{fontWeight: 700, mb: 0.75}}>
+                    Lưu ý:
                   </Typography>
+                  <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
+                    Đây là các hồ sơ bổ sung riêng biệt cho <strong>TỪNG PHƯƠNG THỨC</strong> để phục vụ việc chấm
+                    điểm và xét duyệt.
+                  </Typography>
+                </Alert>
 
                 {(config.documentRequirementsData.byMethod || []).map((group, gIdx) => {
                   const summaryLabel = group.methodCode?.trim() ? group.methodCode : `Nhóm ${gIdx + 1}`;
