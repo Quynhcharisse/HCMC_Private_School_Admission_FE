@@ -35,8 +35,32 @@ export const HOME_HERO_SHELF_GRADIENT = BRAND_PASTEL_SURFACE;
 export const HOME_PAGE_BODY_GRADIENT =
     'linear-gradient(180deg, #f5f9ff 0%, #fafcff 26%, #eaf2ff 50%, #f8fbff 100%)';
 
+/** Homepage: light → slightly deeper blue per section (subtle, readable) */
+export const HOME_BAND_0 = '#eef4ff';
+export const HOME_BAND_1 = '#e2ecff';
+export const HOME_BAND_2 = '#d6e4ff';
+export const HOME_BAND_3 = '#c7dbff';
+export const HOME_BAND_4 = '#b7d1ff';
+export const HOME_BAND_5 = '#a8c6ff';
+export const HOME_BAND_6 = '#99bcff';
+
 export const HOME_PAGE_SURFACE_GRADIENT =
-    'linear-gradient(180deg, #fcfdff 0%, #f5f9ff 28%, #eef5ff 52%, #fafbff 100%)';
+    `linear-gradient(180deg, ${HOME_BAND_0} 0%, ${HOME_BAND_0} 100%)`;
+
+export const HOME_SECTION_ABOUT_BG =
+    HOME_BAND_1;
+
+export const HOME_SECTION_SCHOOL_BG =
+    HOME_BAND_1;
+
+export const HOME_SECTION_CONSULT_BG =
+    '#D9EAF5';
+
+export const HOME_SECTION_PACKAGES_BG =
+    HOME_BAND_4;
+
+export const HOME_SECTION_TESTIMONIAL_BG =
+    '#E6F1FA';
 
 export const HOME_PAGE_HERO_BACKDROP = '#f6f9ff';
 
@@ -82,13 +106,13 @@ export const HOME_MOUNTAIN_HERO_FILLS = [
 ];
 
 export const HOME_MOUNTAIN_FOOTER_FILLS = [
-    HOME_HERO_BOTTOM_BG,
-    HERO_BAND_E,
-    HERO_BAND_D,
-    HERO_BAND_C,
-    HERO_BAND_B,
-    HERO_BAND_A,
-    HEADER_HOME_BAR_BG
+    HOME_BAND_5,
+    HOME_BAND_4,
+    HOME_BAND_3,
+    HOME_BAND_2,
+    HOME_BAND_1,
+    HOME_BAND_0,
+    '#f8fbff'
 ];
 
 export function landingSectionShadow(depth = 3) {
