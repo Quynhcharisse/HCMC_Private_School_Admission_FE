@@ -27,6 +27,7 @@ import {
     Avatar,
     CircularProgress,
     LinearProgress,
+    Tooltip,
 } from "@mui/material";
 import Pagination from "@mui/material/Pagination";
 import AddIcon from "@mui/icons-material/Add";
@@ -38,7 +39,10 @@ import BlockIcon from "@mui/icons-material/Block";
 import PersonOffIcon from "@mui/icons-material/PersonOff";
 import SupportAgentIcon from "@mui/icons-material/SupportAgent";
 import CloseIcon from "@mui/icons-material/Close";
+import LockIcon from "@mui/icons-material/Lock";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import {enqueueSnackbar} from "notistack";
+import {useNavigate} from "react-router-dom";
 import {fetchCounsellors, createCounsellor, exportCounsellors} from "../../../services/CounsellorService.jsx";
 import {sendWelcomeEmail} from "../../../services/emailService.jsx";
 import ImageUpload from "../../ui/ImageUpload.jsx";
@@ -159,7 +163,18 @@ function messageFromApiPayload(data) {
     return null;
 }
 
+function normalizeFeatureLockDisplayMessage(message) {
+    if (typeof message !== "string") return "";
+    const normalized = message.trim();
+    if (!normalized) return "";
+    if (normalized === "Cơ sở chưa đăng ký gói dịch vụ này. Vui lòng liên hệ để kích hoạt.") {
+        return "Cơ sở chưa đăng ký gói dịch vụ này. Vui lòng nâng cấp để kích hoạt.";
+    }
+    return normalized;
+}
+
 export default function SchoolCounselors() {
+    const navigate = useNavigate();
     const [counselors, setCounselors] = useState([]);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
@@ -177,21 +192,37 @@ export default function SchoolCounselors() {
     const [_loading, setLoading] = useState(false);
     const [exporting, setExporting] = useState(false);
     const [createSubmitting, setCreateSubmitting] = useState(false);
+    const [canCreate, setCanCreate] = useState(true);
+    const [displayMessage, setDisplayMessage] = useState("");
+    const [currentUsage, setCurrentUsage] = useState(0);
+    const [maxQuota, setMaxQuota] = useState(0);
+    const [accessStatus, setAccessStatus] = useState("");
 
     const loadCounsellors = useCallback(async () => {
         setLoading(true);
         try {
             const res = await fetchCounsellors(page, rowsPerPage);
             const body = res?.data?.body;
-            const list = body?.items;
+            const counsellorsPayload = body?.counsellors;
+            const list = counsellorsPayload?.items;
             if (res && res.status === 200 && Array.isArray(list)) {
                 setCounselors(list.map(mapCounsellorFromApi));
-                setTotalItems(body?.totalItems ?? 0);
-                setTotalPages(body?.totalPages ?? 0);
+                setTotalItems(counsellorsPayload?.totalItems ?? 0);
+                setTotalPages(counsellorsPayload?.totalPages ?? 0);
+                setCanCreate(Boolean(body?.canCreate));
+                setDisplayMessage(normalizeFeatureLockDisplayMessage(body?.displayMessage));
+                setCurrentUsage(Number(body?.currentUsage ?? 0));
+                setMaxQuota(Number(body?.maxQuota ?? 0));
+                setAccessStatus(typeof body?.accessStatus === "string" ? body.accessStatus : "");
             } else {
                 setCounselors([]);
                 setTotalItems(0);
                 setTotalPages(0);
+                setCanCreate(true);
+                setDisplayMessage("");
+                setCurrentUsage(0);
+                setMaxQuota(0);
+                setAccessStatus("");
             }
         } catch (error) {
             console.error("Fetch counsellors error:", error);
@@ -199,6 +230,11 @@ export default function SchoolCounselors() {
             setCounselors([]);
             setTotalItems(0);
             setTotalPages(0);
+            setCanCreate(true);
+            setDisplayMessage("");
+            setCurrentUsage(0);
+            setMaxQuota(0);
+            setAccessStatus("");
         } finally {
             setLoading(false);
         }
@@ -243,6 +279,7 @@ export default function SchoolCounselors() {
     };
 
     const handleOpenCreate = () => {
+        if (!canCreate) return;
         setFormValues(emptyForm);
         setFormErrors({});
         setCreateSubmitting(false);
@@ -431,6 +468,22 @@ export default function SchoolCounselors() {
         }
     };
 
+    const isFeatureLocked = accessStatus === "FEATURE_LOCKED_NO_PACKAGE";
+    const isUsageNoPackage = maxQuota === 0;
+    const usagePercent = useMemo(() => {
+        if (isUsageNoPackage) return 100;
+        const raw = (currentUsage / maxQuota) * 100;
+        return Math.max(0, Math.min(100, raw));
+    }, [currentUsage, isUsageNoPackage, maxQuota]);
+    const usageBarColor = useMemo(() => {
+        if (isUsageNoPackage) return "#94a3b8";
+        if (usagePercent >= 100) return "#ef4444";
+        if (usagePercent >= 80) return "#f59e0b";
+        return "#22c55e";
+    }, [isUsageNoPackage, usagePercent]);
+    const showUsageWarning = !isUsageNoPackage && usagePercent >= 100;
+    const createTooltipMessage = displayMessage || "Tính năng tạo tài khoản hiện chưa khả dụng.";
+
     return (
         <Box sx={{display: "flex", flexDirection: "column", gap: 3, width: "100%"}}>
             {/* Header with gradient */}
@@ -467,27 +520,58 @@ export default function SchoolCounselors() {
                             Quản lý tài khoản tư vấn viên của trường
                         </Typography>
                     </Box>
-                    <Button
-                        variant="contained"
-                        startIcon={<AddIcon/>}
-                        onClick={handleOpenCreate}
-                        sx={{
-                            bgcolor: "rgba(255,255,255,0.95)",
-                            color: "#0D64DE",
-                            borderRadius: 2,
-                            textTransform: "none",
-                            fontWeight: 600,
-                            px: 3,
-                            py: 1.5,
-                            boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
-                            "&:hover": {
-                                bgcolor: "white",
-                                boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
+                    <Tooltip
+                        title={!canCreate ? createTooltipMessage : ""}
+                        arrow
+                        disableHoverListener={canCreate}
+                        enterDelay={300}
+                        slotProps={{
+                            tooltip: {
+                                sx: {
+                                    bgcolor: "rgba(15, 23, 42, 0.95)",
+                                    color: "#fff",
+                                    borderRadius: 1.5,
+                                    boxShadow: "0 8px 24px rgba(15, 23, 42, 0.25)",
+                                    fontSize: 12,
+                                },
+                            },
+                            arrow: {
+                                sx: {
+                                    color: "rgba(15, 23, 42, 0.95)",
+                                },
                             },
                         }}
                     >
-                        Tạo tài khoản tư vấn viên
-                    </Button>
+                        <Box component="span">
+                            <Button
+                                variant="contained"
+                                startIcon={<AddIcon/>}
+                                onClick={handleOpenCreate}
+                                disabled={!canCreate}
+                                sx={{
+                                    bgcolor: canCreate ? "#0D64DE" : "#cbd5e1",
+                                    color: canCreate ? "#ffffff" : "#475569",
+                                    borderRadius: 2,
+                                    textTransform: "none",
+                                    fontWeight: 600,
+                                    px: 3,
+                                    py: 1.5,
+                                    opacity: canCreate ? 1 : 0.6,
+                                    cursor: canCreate ? "pointer" : "not-allowed",
+                                    transition: "all 0.2s ease",
+                                    boxShadow: canCreate ? "0 4px 14px rgba(0,0,0,0.15)" : "none",
+                                    "&:hover": canCreate
+                                        ? {
+                                            bgcolor: "#0b5ad1",
+                                            boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
+                                        }
+                                        : {},
+                                }}
+                            >
+                                Tạo tài khoản tư vấn viên
+                            </Button>
+                        </Box>
+                    </Tooltip>
                 </Box>
             </Box>
 
@@ -498,6 +582,9 @@ export default function SchoolCounselors() {
                     borderRadius: 3,
                     border: "1px solid #e2e8f0",
                     boxShadow: "0 4px 20px rgba(13, 100, 222, 0.06)",
+                    opacity: canCreate ? 1 : 0.55,
+                    pointerEvents: canCreate ? "auto" : "none",
+                    transition: "opacity 0.2s ease",
                 }}
             >
                 <CardContent sx={{p: 2.5}}>
@@ -511,6 +598,7 @@ export default function SchoolCounselors() {
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             size="small"
+                            disabled={!canCreate}
                             sx={{
                                 flex: 1,
                                 maxWidth: {md: 360},
@@ -533,6 +621,7 @@ export default function SchoolCounselors() {
                                 value={statusFilter}
                                 label="Trạng thái"
                                 onChange={(e) => setStatusFilter(e.target.value)}
+                                disabled={!canCreate}
                                 sx={{borderRadius: 2, bgcolor: "#f8fafc"}}
                             >
                                 <MenuItem value="all">Tất cả</MenuItem>
@@ -542,7 +631,7 @@ export default function SchoolCounselors() {
                         </FormControl>
                         <IconButton
                             onClick={handleExportCounsellors}
-                            disabled={exporting}
+                            disabled={exporting || !canCreate}
                             title={exporting ? "Đang xuất..." : "Xuất danh sách tư vấn viên"}
                             sx={{
                                 border: "1px solid #cbd5e1",
@@ -569,8 +658,31 @@ export default function SchoolCounselors() {
                     border: "1px solid #e2e8f0",
                     boxShadow: "0 4px 20px rgba(13, 100, 222, 0.06)",
                     overflow: "hidden",
+                    position: "relative",
                 }}
             >
+                <Box sx={{px: 3, pt: 2.5, pb: 1.5, borderBottom: "1px solid #e2e8f0", bgcolor: "#fcfdff"}}>
+                    <Stack spacing={1}>
+                        <Typography variant="body2" sx={{color: "#334155", fontWeight: 600, display: "flex", alignItems: "center", gap: 0.75}}>
+                            {isUsageNoPackage ? "Chưa có gói dịch vụ" : `Usage: ${currentUsage}/${maxQuota} tài khoản`}
+                            {showUsageWarning && <WarningAmberIcon sx={{fontSize: 18, color: "#f59e0b"}}/>}
+                        </Typography>
+                        <LinearProgress
+                            variant="determinate"
+                            value={usagePercent}
+                            sx={{
+                                height: 8,
+                                borderRadius: 999,
+                                bgcolor: "#e2e8f0",
+                                "& .MuiLinearProgress-bar": {
+                                    borderRadius: 999,
+                                    backgroundColor: usageBarColor,
+                                    transition: "transform 0.4s ease",
+                                },
+                            }}
+                        />
+                    </Stack>
+                </Box>
                 <TableContainer>
                     <Table>
                         <TableHead>
@@ -622,20 +734,41 @@ export default function SchoolCounselors() {
                                                     : "Tạo tài khoản tư vấn viên đầu tiên để bắt đầu."}
                                             </Typography>
                                             {counselors.length === 0 && (
-                                                <Button
-                                                    variant="contained"
-                                                    startIcon={<AddIcon/>}
-                                                    onClick={handleOpenCreate}
-                                                    sx={{
-                                                        mt: 1,
-                                                        borderRadius: 2,
-                                                        textTransform: "none",
-                                                        fontWeight: 600,
-                                                        background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
-                                                    }}
+                                                <Tooltip
+                                                    title={!canCreate ? createTooltipMessage : ""}
+                                                    arrow
+                                                    disableHoverListener={canCreate}
+                                                    enterDelay={300}
                                                 >
-                                                    Tạo tài khoản tư vấn viên
-                                                </Button>
+                                                    <Box component="span">
+                                                        <Button
+                                                            variant="contained"
+                                                            startIcon={<AddIcon/>}
+                                                            onClick={handleOpenCreate}
+                                                            disabled={!canCreate}
+                                                            sx={{
+                                                                mt: 1,
+                                                                borderRadius: 2,
+                                                                textTransform: "none",
+                                                                fontWeight: 600,
+                                                                background: canCreate
+                                                                    ? "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)"
+                                                                    : "#cbd5e1",
+                                                                opacity: canCreate ? 1 : 0.6,
+                                                                transition: "all 0.2s ease",
+                                                                cursor: canCreate ? "pointer" : "not-allowed",
+                                                                "&:hover": canCreate
+                                                                    ? {
+                                                                        background:
+                                                                            "linear-gradient(135deg, #6b9be6 0%, #0b5ad1 100%)",
+                                                                    }
+                                                                    : {},
+                                                            }}
+                                                        >
+                                                            Tạo tài khoản tư vấn viên
+                                                        </Button>
+                                                    </Box>
+                                                </Tooltip>
                                             )}
                                         </Box>
                                     </TableCell>
@@ -763,6 +896,111 @@ export default function SchoolCounselors() {
                             color="primary"
                             shape="rounded"
                         />
+                    </Box>
+                )}
+                {isFeatureLocked && (
+                    <Box
+                        sx={{
+                            position: "absolute",
+                            inset: 0,
+                            zIndex: 10,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            pt: {xs: 2, md: 0},
+                            background:
+                                "linear-gradient(to bottom, rgba(255,255,255,0.4), rgba(255,255,255,0.58))",
+                            backdropFilter: "blur(6px)",
+                            borderRadius: 3,
+                            animation: "lockOverlayFadeIn 0.2s ease",
+                            pointerEvents: "auto",
+                            "@keyframes lockOverlayFadeIn": {
+                                from: {opacity: 0},
+                                to: {opacity: 1},
+                            },
+                        }}
+                    >
+                        <Card
+                            elevation={0}
+                            role="dialog"
+                            aria-modal="true"
+                            sx={{
+                                width: "min(92%, 520px)",
+                                borderRadius: "20px",
+                                border: "1px solid rgba(255,255,255,0.55)",
+                                boxShadow:
+                                    "0 10px 40px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255,255,255,0.55)",
+                                p: 4,
+                                textAlign: "center",
+                                background: "rgba(255,255,255,0.55)",
+                                backdropFilter: "blur(12px)",
+                                WebkitBackdropFilter: "blur(12px)",
+                                transform: "translateY(-50px)",
+                                animation: "lockCardScaleIn 0.2s ease",
+                                transformOrigin: "center",
+                                position: "relative",
+                                overflow: "hidden",
+                                "@keyframes lockCardScaleIn": {
+                                    from: {opacity: 0, transform: "translateY(-50px) scale(0.96)"},
+                                    to: {opacity: 1, transform: "translateY(-50px) scale(1)"},
+                                },
+                                "&::before": {
+                                    content: '""',
+                                    position: "absolute",
+                                    inset: 0,
+                                    pointerEvents: "none",
+                                    background:
+                                        "linear-gradient(120deg, rgba(255,255,255,0.5), rgba(255,255,255,0.1))",
+                                },
+                            }}
+                        >
+                            <Stack spacing={2} alignItems="center">
+                                <Box
+                                    sx={{
+                                        width: 64,
+                                        height: 64,
+                                        borderRadius: "50%",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        background: "linear-gradient(135deg, #dbeafe, #bfdbfe)",
+                                        boxShadow: "0 0 20px rgba(37, 99, 235, 0.3)",
+                                    }}
+                                >
+                                    <LockIcon sx={{fontSize: 30, color: "#2563eb"}}/>
+                                </Box>
+                                <Typography variant="h6" sx={{fontWeight: 700, color: "#0f172a"}}>
+                                    Tính năng chưa khả dụng
+                                </Typography>
+                                <Typography variant="body2" sx={{color: "#64748b", maxWidth: 420}}>
+                                    {displayMessage || "Bạn chưa đăng ký gói dịch vụ cho tính năng này."}
+                                </Typography>
+                                <Stack direction={{xs: "column", sm: "row"}} spacing={1.5} sx={{pt: 1}}>
+                                    <Button
+                                        variant="contained"
+                                        onClick={() => navigate("/package-fees")}
+                                        autoFocus
+                                        sx={{
+                                            textTransform: "none",
+                                            fontWeight: 600,
+                                            borderRadius: 2,
+                                            px: 2.75,
+                                            py: 1,
+                                            background: "linear-gradient(135deg, #0D64DE, #2563eb)",
+                                            transition: "all 0.2s ease",
+                                            boxShadow: "0 8px 18px rgba(37, 99, 235, 0.25)",
+                                            "&:hover": {
+                                                transform: "translateY(-1px) scale(1.01)",
+                                                boxShadow: "0 10px 22px rgba(37, 99, 235, 0.32)",
+                                                background: "linear-gradient(135deg, #0b5ad1, #1d4ed8)",
+                                            },
+                                        }}
+                                    >
+                                        Nâng cấp gói
+                                    </Button>
+                                </Stack>
+                            </Stack>
+                        </Card>
                     </Box>
                 )}
             </Card>
