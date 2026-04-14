@@ -145,6 +145,10 @@ function translateCreateCounsellorBackendMessage(raw) {
         "This email is already registered in the system.": "Email này đã được đăng ký trong hệ thống.",
         "This email is already assigned to another counsellor.": "Email này đã được gán cho tư vấn viên khác.",
         "This campus has not been allocated a quota for Counsellors.": "Cơ sở này chưa được phân bổ hạn ngạch cho tư vấn viên.",
+        "Feature Locked: This campus has not subscribed to a service package or has not been allocated a counsellor quota.":
+            "Tính năng bị khóa: Cơ sở này chưa đăng ký gói dịch vụ hoặc chưa được cấp hạn ngạch tư vấn viên.",
+        "Current service package does not support counsellor creation. Please upgrade your package.":
+            "Gói dịch vụ hiện tại chưa hỗ trợ tạo tư vấn viên. Vui lòng nâng cấp gói.",
     };
     if (exact[msg]) return exact[msg];
     const quotaReached = msg.match(/^The counsellor quota for this campus has been reached \((\d+)\)\.?$/i);
