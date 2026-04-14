@@ -49,6 +49,7 @@ import PersonIcon from "@mui/icons-material/Person";
 import ComputerIcon from "@mui/icons-material/Computer";
 import VisibilityIconOutlined from "@mui/icons-material/VisibilityOutlined";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import { enqueueSnackbar } from "notistack";
 
 import { useSchool } from "../../../contexts/SchoolContext.jsx";
@@ -66,6 +67,7 @@ const modalBackdropSx = {
     backdropFilter: "blur(6px)",
     backgroundColor: "rgba(15, 23, 42, 0.45)",
 };
+const HEADER_ACCENT = "#0D64DE";
 
 const CURRICULUM_TYPE_OPTIONS = ["INTEGRATED", "NATIONAL", "INTERNATIONAL"];
 const METHOD_LEARNING_OPTIONS = [
@@ -331,8 +333,10 @@ export default function SchoolCurriculums() {
     const [evolveLoading, setEvolveLoading] = useState(false);
     const [publishLoading, setPublishLoading] = useState(false);
     const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
-    const [confirmEvolveOpen, setConfirmEvolveOpen] = useState(false);
     const [curriculumToEditAfterConfirm, setCurriculumToEditAfterConfirm] = useState(null);
+    const [activeLockedChoiceOpen, setActiveLockedChoiceOpen] = useState(false);
+    const [selectedActiveLockedOption, setSelectedActiveLockedOption] = useState("");
+    const [programLinkedBlockedOpen, setProgramLinkedBlockedOpen] = useState(false);
     const [pendingScrollSubjectIndex, setPendingScrollSubjectIndex] = useState(null);
     const [pendingScrollModal, setPendingScrollModal] = useState(null);
     const createSubjectItemRefs = useRef({});
@@ -526,6 +530,10 @@ export default function SchoolCurriculums() {
 
     const handleOpenCreate = () => {
         if (!isPrimaryBranch) return;
+        setProgramLinkedBlockedOpen(false);
+        setActiveLockedChoiceOpen(false);
+        setSelectedActiveLockedOption("");
+        setCurriculumToEditAfterConfirm(null);
         setSelectedCurriculum(null);
         setViewCurriculum(null);
         setFormErrors({});
@@ -577,9 +585,19 @@ export default function SchoolCurriculums() {
             enqueueSnackbar("Chương trình đã lưu trữ, không thể chỉnh sửa.", { variant: "warning" });
             return;
         }
-        if (isActiveStatus(curriculum?.curriculumStatus)) {
+        const statusKey = normalizeStatus(curriculum?.curriculumStatus);
+        const linkedProgramCount = Number(curriculum?.programCount || 0);
+
+        if (linkedProgramCount > 0) {
             setCurriculumToEditAfterConfirm(curriculum);
-            setConfirmEvolveOpen(true);
+            setProgramLinkedBlockedOpen(true);
+            return;
+        }
+
+        if (statusKey === "CUR_ACTIVE") {
+            setCurriculumToEditAfterConfirm(curriculum);
+            setSelectedActiveLockedOption("");
+            setActiveLockedChoiceOpen(true);
         } else {
             handleOpenEdit(curriculum);
         }
@@ -616,7 +634,7 @@ export default function SchoolCurriculums() {
             );
         } finally {
             setEvolveLoading(false);
-            setConfirmEvolveOpen(false);
+            setActiveLockedChoiceOpen(false);
         }
     };
 
@@ -1282,56 +1300,159 @@ export default function SchoolCurriculums() {
                     )}
             </Card>
 
-            {/* Confirm Edit Active (Evolve) Dialog */}
+            {/* Block Update When Program Linked */}
             <Dialog
-                open={confirmEvolveOpen}
+                open={programLinkedBlockedOpen}
                 onClose={(event, reason) => {
                     if (reason === "backdropClick") return;
                     if (evolveLoading) return;
-                    setConfirmEvolveOpen(false);
+                    setProgramLinkedBlockedOpen(false);
                     setCurriculumToEditAfterConfirm(null);
                 }}
-                maxWidth="xs"
                 fullWidth
-                PaperProps={{ sx: { borderRadius: 3, position: "relative" } }}
+                maxWidth="sm"
+                PaperProps={{ sx: { borderRadius: "16px", position: "relative" } }}
             >
-                <IconButton
-                    aria-label="Đóng"
-                    onClick={() => {
-                        if (evolveLoading) return;
-                        setConfirmEvolveOpen(false);
-                        setCurriculumToEditAfterConfirm(null);
-                    }}
-                    disabled={evolveLoading}
-                    sx={{ position: "absolute", right: 8, top: 8, zIndex: 1, color: "#64748b" }}
-                >
-                    <CloseIcon fontSize="small" />
-                </IconButton>
-                <DialogTitle sx={{ fontWeight: 700, pr: 6 }}>Chỉnh sửa chương trình đã công bố</DialogTitle>
-                <DialogContent>
-                    <Typography>
-                        Bạn đang chỉnh sửa chương trình đang hoạt động. Hệ thống sẽ tạo một bản nháp mới để bạn chỉnh sửa và giữ nguyên bản đang hoạt động hiện tại. Bạn có muốn tiếp tục?
+                <DialogContent sx={{ pt: 2.5 }}>
+                    <Stack direction="row" spacing={1.2} alignItems="center">
+                        <WarningAmberRoundedIcon sx={{ color: "red" }} />
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: "red" }}>
+                            Không thể cập nhật Curriculum
+                        </Typography>
+                    </Stack>
+                    <Typography variant="body1" color="#1e293b" sx={{ mt: 1.25, lineHeight: 1.6 }}>
+                        Không thể cập nhật khi Khung chương trình <Box component="span" sx={{ fontWeight: 700 }}>đang trong trạng thái mở</Box> và{" "}
+                        <Box component="span" sx={{ fontWeight: 700 }}>đã có Program</Box>.
+                    </Typography>
+                    <Typography variant="body1" sx={{ mt: 0.35, lineHeight: 1.6, fontWeight: 700, color: "#1e293b" }}>
+                        Vui lòng tạo mới Khung chương trình.
                     </Typography>
                 </DialogContent>
-                <DialogActions sx={{ px: 3, py: 2 }}>
+                <DialogActions sx={{ px: 3, pb: 2.5, gap: 1, flexWrap: "wrap" }}>
                     <Button
                         onClick={() => {
-                            if (evolveLoading) return;
-                            setConfirmEvolveOpen(false);
+                            setProgramLinkedBlockedOpen(false);
                             setCurriculumToEditAfterConfirm(null);
                         }}
                         disabled={evolveLoading}
-                        sx={{ textTransform: "none" }}
+                        sx={{ textTransform: "none", color: "#64748b" }}
                     >
-                        Hủy
+                        Đóng
                     </Button>
                     <Button
                         variant="contained"
-                        onClick={handleConfirmEvolve}
+                        onClick={handleOpenCreate}
                         disabled={evolveLoading}
-                        sx={{ textTransform: "none", borderRadius: 2 }}
+                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px", bgcolor: HEADER_ACCENT }}
                     >
-                        {evolveLoading ? "Đang tạo..." : "Tiếp tục"}
+                        Tạo Khung chương trình
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Active Curriculum Update Options */}
+            <Dialog
+                open={activeLockedChoiceOpen}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    if (evolveLoading) return;
+                    setActiveLockedChoiceOpen(false);
+                    setSelectedActiveLockedOption("");
+                    setCurriculumToEditAfterConfirm(null);
+                }}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{ sx: { borderRadius: "16px" } }}
+            >
+                <DialogContent sx={{ pt: 2.5 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Không thể cập nhật Curriculum
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25, lineHeight: 1.6 }}>
+                        Không thể cập nhật khi Khung chương trình đang trong trạng thái mở. Vui lòng chọn 2 options dưới đây.
+                    </Typography>
+                    <Stack spacing={1.5} sx={{ mt: 2 }}>
+                        <Card
+                            elevation={0}
+                            onClick={() => setSelectedActiveLockedOption("create")}
+                            sx={{
+                                p: 2,
+                                borderRadius: "12px",
+                                border: "2px solid",
+                                borderColor: selectedActiveLockedOption === "create" ? HEADER_ACCENT : "transparent",
+                                cursor: "pointer",
+                                backgroundColor: selectedActiveLockedOption === "create" ? "rgba(13, 100, 222, 0.08)" : "#fff",
+                                boxShadow:
+                                    selectedActiveLockedOption === "create"
+                                        ? "0 0 0 1px rgba(13, 100, 222, 0.15)"
+                                        : "0 0 0 1px #e2e8f0",
+                                transition: "all 0.2s ease",
+                            }}
+                        >
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#1e293b" }}>
+                                Option 1
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 0.5, color: "#475569" }}>
+                                Bạn có muốn Tạo khung chương trình mới
+                            </Typography>
+                        </Card>
+                        <Card
+                            elevation={0}
+                            onClick={() => setSelectedActiveLockedOption("revise")}
+                            sx={{
+                                p: 2,
+                                borderRadius: "12px",
+                                border: "2px solid",
+                                borderColor: selectedActiveLockedOption === "revise" ? HEADER_ACCENT : "transparent",
+                                cursor: "pointer",
+                                backgroundColor: selectedActiveLockedOption === "revise" ? "rgba(13, 100, 222, 0.08)" : "#fff",
+                                boxShadow:
+                                    selectedActiveLockedOption === "revise"
+                                        ? "0 0 0 1px rgba(13, 100, 222, 0.15)"
+                                        : "0 0 0 1px #e2e8f0",
+                                transition: "all 0.2s ease",
+                            }}
+                        >
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#1e293b" }}>
+                                Option 2
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 0.5, color: "#475569" }}>
+                                Bạn vẫn muốn giữ dữ liệu của khung chương trình hiện tại để clone cập nhật
+                            </Typography>
+                        </Card>
+                    </Stack>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2.5, gap: 1, flexWrap: "wrap" }}>
+                    <Button
+                        onClick={() => {
+                            if (evolveLoading) return;
+                            setActiveLockedChoiceOpen(false);
+                            setSelectedActiveLockedOption("");
+                            setCurriculumToEditAfterConfirm(null);
+                        }}
+                        disabled={evolveLoading}
+                        sx={{ textTransform: "none", color: "#64748b" }}
+                    >
+                        Đóng
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={async () => {
+                            if (!selectedActiveLockedOption) return;
+                            if (selectedActiveLockedOption === "create") {
+                                setActiveLockedChoiceOpen(false);
+                                setSelectedActiveLockedOption("");
+                                setCurriculumToEditAfterConfirm(null);
+                                handleOpenCreate();
+                                return;
+                            }
+                            await handleConfirmEvolve();
+                            setSelectedActiveLockedOption("");
+                        }}
+                        disabled={evolveLoading || !selectedActiveLockedOption}
+                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px", bgcolor: HEADER_ACCENT }}
+                    >
+                        {evolveLoading ? "Đang xử lý..." : "Tiếp tục"}
                     </Button>
                 </DialogActions>
             </Dialog>
