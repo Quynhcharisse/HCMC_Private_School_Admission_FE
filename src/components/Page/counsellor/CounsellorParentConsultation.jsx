@@ -19,9 +19,6 @@ import SendIcon from "@mui/icons-material/Send";
 import SearchIcon from "@mui/icons-material/Search";
 import AttachFileRoundedIcon from "@mui/icons-material/AttachFileRounded";
 import MoodRoundedIcon from "@mui/icons-material/MoodRounded";
-import ReplyRoundedIcon from "@mui/icons-material/ReplyRounded";
-import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
-import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import CloseIcon from "@mui/icons-material/Close";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
@@ -35,7 +32,7 @@ import {
 import {
   buildPrivateChatPayload,
   connectPrivateMessageSocket,
-  disconnect,
+  removePrivateMessageListener,
   sendMessage,
 } from "../../../services/WebSocketService.jsx";
 import {APP_PRIMARY_DARK, APP_PRIMARY_MAIN} from "../../../constants/homeLandingTheme";
@@ -93,6 +90,48 @@ const mergeUniqueMessages = (messages) => {
 
 const isSameConversationId = (a, b) => a != null && b != null && String(a) === String(b);
 
+const pickIncomingConversationId = (payload) => {
+  if (!payload || typeof payload !== "object") return null;
+  const raw =
+    payload.conversationId ??
+    payload.conversation_id ??
+    payload.conversationID ??
+    payload?.conversation?.id ??
+    payload?.conversation?.conversationId ??
+    payload?.chatMessage?.conversationId ??
+    payload?.message?.conversationId ??
+    payload?.data?.conversationId ??
+    null;
+  if (raw == null || raw === "") return null;
+  return raw;
+};
+
+const normalizeWsPrincipal = (v) =>
+  String(v || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^["'<\s]+|["'>\s]+$/g, "");
+
+/**
+ * Tin trên queue /user của tư vấn: receiverName thường là email tư vấn; có BE bỏ trống receiverName.
+ * Bỏ qua echo khi senderName là chính principal tư vấn.
+ */
+const receiverMatchesCounsellor = (payload, identityLowerSet) => {
+  const recv = normalizeWsPrincipal(payload?.receiverName);
+  const send = normalizeWsPrincipal(payload?.senderName);
+  if (!recv) {
+    if (send && identityLowerSet.has(send)) return false;
+    return true;
+  }
+  return identityLowerSet.has(recv);
+};
+
+const senderLooksLikeCounsellorSelf = (payload, identityLowerSet) => {
+  const send = normalizeWsPrincipal(payload?.senderName);
+  if (!send) return false;
+  return identityLowerSet.has(send);
+};
+
 /** Số cuộc tối đa mỗi lần tải / mỗi tab (theo yêu cầu UI). */
 const CONVERSATION_PAGE_SIZE = 20;
 
@@ -126,7 +165,8 @@ export default function CounsellorParentConsultation() {
   );
 
   const selectedConversation = useMemo(
-    () => allConversationsFlat.find((c) => c?.conversationId === selectedConversationId) || null,
+    () =>
+      allConversationsFlat.find((c) => isSameConversationId(c?.conversationId, selectedConversationId)) || null,
     [allConversationsFlat, selectedConversationId]
   );
 
@@ -142,6 +182,7 @@ export default function CounsellorParentConsultation() {
   const [messageItems, setMessageItems] = useState([]);
   const [messageLoading, setMessageLoading] = useState(false);
   const [messageError, setMessageError] = useState("");
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [messageNextCursorId, setMessageNextCursorId] = useState(null);
   const [messageHasMore, setMessageHasMore] = useState(false);
   const [studentProfileData, setStudentProfileData] = useState(null);
@@ -149,10 +190,18 @@ export default function CounsellorParentConsultation() {
 
   const loadingMoreRef = useRef(false);
   const hasMarkedReadRef = useRef(false);
+  const markReadInFlightRef = useRef(false);
+  const lastInputMarkReadAtRef = useRef(0);
   const messageListRef = useRef(null);
   const chatColumnRef = useRef(null);
   const selectedConversationIdRef = useRef(selectedConversationId);
   const selectedConversationRef = useRef(selectedConversation);
+  const activeConversationsRef = useRef([]);
+  const pendingConversationsRef = useRef([]);
+  const counsellorStickToBottomRef = useRef(true);
+  const messageHasMoreRef = useRef(false);
+  const messageNextCursorIdRef = useRef(null);
+  const pendingInitialBottomScrollRef = useRef(false);
 
   /** fixed: neo panel ngoài khung chat, cạnh trái cột tin nhắn (giống chat parent trên Header) */
   const [studentPanelLayout, setStudentPanelLayout] = useState({
@@ -271,9 +320,18 @@ export default function CounsellorParentConsultation() {
   }, [selectedConversation]);
 
   useEffect(() => {
+    messageHasMoreRef.current = messageHasMore;
+  }, [messageHasMore]);
+
+  useEffect(() => {
+    messageNextCursorIdRef.current = messageNextCursorId;
+  }, [messageNextCursorId]);
+
+  useEffect(() => {
     const node = messageListRef.current;
     if (!node) return;
     if (loadingMoreRef.current) return;
+    if (!counsellorStickToBottomRef.current) return;
     const scrollEnd = () => {
       node.scrollTop = node.scrollHeight;
     };
@@ -282,6 +340,26 @@ export default function CounsellorParentConsultation() {
       requestAnimationFrame(scrollEnd);
     });
   }, [selectedConversationId, messageItems.length]);
+
+  const scrollMessageListToBottom = () => {
+    const node = messageListRef.current;
+    if (!node) return;
+    const prevBehavior = node.style.scrollBehavior;
+    node.style.scrollBehavior = "auto";
+    const scrollEnd = () => {
+      node.scrollTop = node.scrollHeight;
+    };
+    scrollEnd();
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        scrollEnd();
+        setTimeout(() => {
+          scrollEnd();
+          node.style.scrollBehavior = prevBehavior;
+        }, 0);
+      });
+    });
+  };
 
   const parseConversationResponse = (response) => {
     const payload = response?.data?.body?.body || response?.data?.body || response?.data || {};
@@ -363,6 +441,24 @@ export default function CounsellorParentConsultation() {
       "";
     const sentAt = m?.sentAt ?? m?.createdAt ?? m?.timestamp ?? m?.time ?? null;
     return { id: String(id), text, sender, sentAt, raw: m };
+  };
+
+  const getOutgoingMessageStatusLabel = (message) => {
+    const raw = message?.raw || {};
+    const statusRaw =
+      raw?.status ??
+      raw?.messageStatus ??
+      raw?.deliveryStatus ??
+      raw?.readStatus ??
+      message?.status ??
+      null;
+    const s = String(statusRaw ?? "").trim().toUpperCase();
+    if (s.includes("SEEN") || s.includes("READ")) return "Seen";
+    if (s.includes("DELIVER")) return "Delivered";
+    if (s.includes("SEND") || s.includes("SENT")) return "Send";
+    if (raw?.seenAt || raw?.readAt || raw?.readTime) return "Seen";
+    if (raw?.deliveredAt || raw?.deliveredTime) return "Delivered";
+    return "Send";
   };
 
   const getConversationEmails = (conversation) => {
@@ -472,10 +568,26 @@ export default function CounsellorParentConsultation() {
     setMessageItems([]);
     setMessageNextCursorId(null);
     setMessageHasMore(false);
+    messageNextCursorIdRef.current = null;
+    messageHasMoreRef.current = false;
+    counsellorStickToBottomRef.current = true;
+    pendingInitialBottomScrollRef.current = true;
+    setLoadingOlderMessages(false);
     setMessageError("");
     await loadMessageHistory({ conversation });
+    // Fallback sớm; effect phía dưới sẽ scroll chắc chắn sau khi render xong.
+    scrollMessageListToBottom();
+    setTimeout(scrollMessageListToBottom, 30);
     await handleMarkRead({ conversation });
   };
+
+  useEffect(() => {
+    if (!pendingInitialBottomScrollRef.current) return;
+    if (messageLoading) return;
+    if (!selectedConversationId) return;
+    scrollMessageListToBottom();
+    pendingInitialBottomScrollRef.current = false;
+  }, [selectedConversationId, messageLoading, messageItems.length]);
 
   const handleAcceptPendingConversation = async (event, conversation) => {
     event?.stopPropagation?.();
@@ -516,6 +628,11 @@ export default function CounsellorParentConsultation() {
     }
   };
 
+  const loadConversationsRef = useRef(loadConversations);
+  loadConversationsRef.current = loadConversations;
+
+  const wsListRefreshTimerRef = useRef(null);
+
   const loadMessageHistory = async ({ conversation, cursorId, silent = false }) => {
     if (!conversation) return;
     if (!silent) {
@@ -551,6 +668,8 @@ export default function CounsellorParentConsultation() {
         );
         setMessageNextCursorId(parsed.nextCursorId);
         setMessageHasMore(parsed.hasMore);
+        messageNextCursorIdRef.current = parsed.nextCursorId ?? null;
+        messageHasMoreRef.current = !!parsed.hasMore;
         setStudentProfileData(parsed.profile);
       } else if (!silent) {
         setMessageError("Không thể tải lịch sử tin nhắn.");
@@ -568,6 +687,7 @@ export default function CounsellorParentConsultation() {
     if (!selectedConversationId) return;
     const intervalId = setInterval(() => {
       if (document.visibilityState !== "visible") return;
+      if (!counsellorStickToBottomRef.current) return;
       const conv = selectedConversationRef.current;
       if (!conv) return;
       loadMessageHistory({ conversation: conv, cursorId: null, silent: true });
@@ -576,25 +696,40 @@ export default function CounsellorParentConsultation() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversationId]);
 
-  const handleMarkRead = async ({ conversation } = {}) => {
+  const handleMarkRead = async ({ conversation, force } = {}) => {
     const targetConversation = conversation || selectedConversation;
-    if (!targetConversation || !targetConversation.conversationId) return;
-    if (hasMarkedReadRef.current) return;
+    const cid = targetConversation?.conversationId ?? targetConversation?.id ?? null;
+    if (!targetConversation || cid == null || String(cid).trim() === "") return;
     if (!usernameForRead) return;
+    if (!force && hasMarkedReadRef.current) return;
+    if (markReadInFlightRef.current) return;
 
+    markReadInFlightRef.current = true;
     try {
       await markCounsellorMessagesRead({
-        conversationId: targetConversation.conversationId,
+        conversationId: cid,
         username: usernameForRead,
       });
       hasMarkedReadRef.current = true;
-      updateConversationInLists(targetConversation.conversationId, (item) => ({
+      updateConversationInLists(cid, (item) => ({
         ...item,
         unreadCount: 0,
+        unreadMessages: 0,
       }));
     } catch (error) {
       console.error("Error marking messages as read:", error);
+    } finally {
+      markReadInFlightRef.current = false;
     }
+  };
+
+  /** Bấm / focus ô nhập: luôn thử mark read (sau khi có tin mới hasMarkedReadRef vẫn có thể true). */
+  const handleMarkReadFromInput = () => {
+    if (!selectedConversation) return;
+    const now = Date.now();
+    if (now - lastInputMarkReadAtRef.current < 450) return;
+    lastInputMarkReadAtRef.current = now;
+    void handleMarkRead({ force: true });
   };
 
   const handleSend = () => {
@@ -636,6 +771,7 @@ export default function CounsellorParentConsultation() {
       conversationId,
       timestamp: payload.timestamp,
       sentAt: new Date().toISOString(),
+      status: "SEND",
     };
     const optimisticMsg = normalizeMessage(optimisticRaw);
     setMessageItems((prev) => mergeUniqueMessages([...prev, optimisticMsg]));
@@ -652,25 +788,89 @@ export default function CounsellorParentConsultation() {
   }, []);
 
   useEffect(() => {
-    const client = connectPrivateMessageSocket({
-      onMessage: (payload) => {
-        const conversationId = payload?.conversationId ?? payload?.conversation?.id;
-        if (conversationId == null || conversationId === "") return;
+    const identityLowerSet = new Set();
+    [userInfo?.email, userInfo?.username, userInfo?.userName, userInfo?.sub].forEach((x) => {
+      const s = String(x || "").trim().toLowerCase();
+      if (s) identityLowerSet.add(s);
+    });
 
-        const normalizedIncoming = normalizeMessage(payload);
+    const unwrapWsPayload = (p) => {
+      if (!p || typeof p !== "object") return p;
+      if (typeof p.body === "string") {
+        try {
+          return JSON.parse(p.body);
+        } catch {
+          return p;
+        }
+      }
+      if (p.body && typeof p.body === "object") return p.body;
+      return p;
+    };
 
-        updateConversationInLists(conversationId, (item) => {
-          const currentSelectedId = selectedConversationIdRef.current;
-          const shouldIncreaseUnread = !(
-            currentSelectedId != null && isSameConversationId(currentSelectedId, conversationId)
-          );
-          return {
-            ...item,
-            lastMessage: normalizedIncoming.text || item.lastMessage,
-            time: normalizedIncoming.sentAt || item.time,
-            unreadCount: shouldIncreaseUnread ? Number(item.unreadCount || 0) + 1 : item.unreadCount || 0,
-          };
-        });
+    const onCounsellorPrivateMessage = (payload) => {
+        const root = unwrapWsPayload(payload);
+        const conversationId = pickIncomingConversationId(root);
+        if (conversationId == null || String(conversationId).trim() === "") return;
+
+        if (!receiverMatchesCounsellor(root, identityLowerSet)) return;
+        if (senderLooksLikeCounsellorSelf(root, identityLowerSet)) return;
+
+        const normalizedIncoming = normalizeMessage(root);
+        const tabVisible = typeof document === "undefined" || document.visibilityState === "visible";
+        const viewingThisThread =
+          tabVisible &&
+          selectedConversationIdRef.current != null &&
+          isSameConversationId(selectedConversationIdRef.current, conversationId);
+
+        /** Không tạo mảng mới khi không có dòng khớp — tránh re-render thừa. */
+        const mapList = (list) => {
+          let matched = false;
+          const next = list.map((item) => {
+            if (!isSameConversationId(item?.conversationId, conversationId)) return item;
+            matched = true;
+            const u = Number(item.unreadCount ?? item.unreadMessages ?? 0) || 0;
+            const nextUnread = viewingThisThread ? u : u + 1;
+            return {
+              ...item,
+              lastMessage: normalizedIncoming.text || item.lastMessage,
+              time: normalizedIncoming.sentAt || item.time,
+              unreadCount: nextUnread,
+              unreadMessages: nextUnread,
+            };
+          });
+          return { next: matched ? next : list, matched };
+        };
+
+        const prevA = activeConversationsRef.current;
+        const prevP = pendingConversationsRef.current;
+        const rA = mapList(prevA);
+
+        if (rA.matched) {
+          activeConversationsRef.current = rA.next;
+          pendingConversationsRef.current = prevP;
+          setActiveConversations(rA.next);
+          setPendingConversations(prevP);
+        } else {
+          const rP = mapList(prevP);
+          if (rP.matched) {
+            activeConversationsRef.current = prevA;
+            pendingConversationsRef.current = rP.next;
+            setActiveConversations(prevA);
+            setPendingConversations(rP.next);
+          } else {
+            /**
+             * Không chèn hàng “ảo” từ WS: BE chưa lưu / chưa trả list thì không có conversationId ổn định trên DB,
+             * mỗi tin + setState bất đồng bộ dễ sinh nhiều dòng trùng một phụ huynh. Chỉ gọi lại REST (debounce).
+             */
+            if (wsListRefreshTimerRef.current != null) {
+              clearTimeout(wsListRefreshTimerRef.current);
+            }
+            wsListRefreshTimerRef.current = window.setTimeout(() => {
+              wsListRefreshTimerRef.current = null;
+              loadConversationsRef.current?.();
+            }, 450);
+          }
+        }
 
         if (isSameConversationId(selectedConversationIdRef.current, conversationId)) {
           setMessageItems((prev) => {
@@ -685,28 +885,50 @@ export default function CounsellorParentConsultation() {
             return mergeUniqueMessages([...withoutMatchingOptimistic, normalizedIncoming]);
           });
         }
-      },
-    });
+    };
+
+    connectPrivateMessageSocket({ onMessage: onCounsellorPrivateMessage });
 
     return () => {
-      if (client?.active) disconnect();
+      if (wsListRefreshTimerRef.current != null) {
+        clearTimeout(wsListRefreshTimerRef.current);
+        wsListRefreshTimerRef.current = null;
+      }
+      removePrivateMessageListener(onCounsellorPrivateMessage);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleMessageScroll = async (event) => {
-    if (!messageHasMore || loadingMoreRef.current || !selectedConversation) return;
     const node = event.currentTarget;
-    if (node.scrollTop > 60) return;
+    const distanceFromBottom = node.scrollHeight - node.scrollTop - node.clientHeight;
+    counsellorStickToBottomRef.current = distanceFromBottom <= 120;
+
+    const conv = selectedConversationRef.current;
+    const hasMore = messageHasMoreRef.current;
+    const nextCursorId = messageNextCursorIdRef.current;
+    if (!hasMore || loadingMoreRef.current || !conv || !nextCursorId) return;
+    if (node.scrollTop > 120) return;
 
     loadingMoreRef.current = true;
+    const loadingStartAt = Date.now();
+    setLoadingOlderMessages(true);
     const previousHeight = node.scrollHeight;
-    await loadMessageHistory({ conversation: selectedConversation, cursorId: messageNextCursorId });
+    try {
+      await loadMessageHistory({ conversation: conv, cursorId: nextCursorId, silent: true });
     requestAnimationFrame(() => {
       const newHeight = node.scrollHeight;
       node.scrollTop = Math.max(newHeight - previousHeight, 0);
+      });
+    } finally {
+      const elapsed = Date.now() - loadingStartAt;
+      const minVisibleMs = 280;
+      if (elapsed < minVisibleMs) {
+        await new Promise((resolve) => setTimeout(resolve, minVisibleMs - elapsed));
+      }
+      setLoadingOlderMessages(false);
       loadingMoreRef.current = false;
-    });
+    }
   };
 
   const handleCloseStudentInfo = () => setStudentInfoOpen(false);
@@ -876,27 +1098,27 @@ export default function CounsellorParentConsultation() {
                 </Box>
 
                 {visibleConversationList.length === 0 ? (
-                  <Box sx={{ px: 2, py: 2 }}>
-                    <Typography sx={{ fontSize: 13, color: "#64748b" }}>
+              <Box sx={{ px: 2, py: 2 }}>
+                <Typography sx={{ fontSize: 13, color: "#64748b" }}>
                       {searchValue.trim()
                         ? "Không tìm thấy cuộc trò chuyện phù hợp."
                         : listTab === "pending"
                           ? "Không có cuộc trò chuyện đang chờ."
                           : "Không có cuộc trò chuyện đang hoạt động."}
-                    </Typography>
-                  </Box>
+                </Typography>
+              </Box>
                 ) : listTab === "pending" ? (
                   filteredPendingConversations.map((c) => {
-                    const isActive = c?.conversationId === selectedConversationId;
-                    return (
-                      <ListItem
+                const isActive = c?.conversationId === selectedConversationId;
+                return (
+                <ListItem
                         key={`pending-${c.conversationId}`}
-                        disablePadding
+                  disablePadding
                         sx={{ px: 0, "&:not(:last-of-type)": { mb: 0.5 } }}
                       >
                         <Paper
                           elevation={0}
-                          sx={{
+                  sx={{
                             px: 1.75,
                             py: 1.25,
                             borderRadius: 3,
@@ -959,51 +1181,51 @@ export default function CounsellorParentConsultation() {
                         key={`active-${c.conversationId}`}
                         disablePadding
                         sx={{ px: 0, "&:not(:last-of-type)": { mb: 0.5 } }}
-                      >
-                        <Paper
-                          onClick={() => handleSelectConversation(c)}
-                          elevation={0}
-                          sx={{
-                            px: 1.75,
-                            py: 1.25,
-                            borderRadius: 3,
-                            display: "flex",
-                            alignItems: "center",
-                            width: "100%",
-                            cursor: "pointer",
-                            bgcolor: isActive ? "rgba(37,99,235,0.08)" : "transparent",
-                            border: isActive ? "1px solid rgba(37,99,235,0.35)" : "1px solid transparent",
-                            boxShadow: isActive ? "0 10px 22px rgba(37,99,235,0.15)" : "none",
+                >
+                  <Paper
+                    onClick={() => handleSelectConversation(c)}
+                    elevation={0}
+                    sx={{
+                      px: 1.75,
+                      py: 1.25,
+                      borderRadius: 3,
+                      display: "flex",
+                      alignItems: "center",
+                      width: "100%",
+                      cursor: "pointer",
+                      bgcolor: isActive ? "rgba(37,99,235,0.08)" : "transparent",
+                      border: isActive ? "1px solid rgba(37,99,235,0.35)" : "1px solid transparent",
+                      boxShadow: isActive ? "0 10px 22px rgba(37,99,235,0.15)" : "none",
                             transition: "all 0.22s ease-in-out",
-                            "&:hover": {
-                              bgcolor: isActive ? "rgba(37,99,235,0.12)" : "#f1f5f9",
-                              transform: "translateY(-1px)",
-                            },
-                          }}
-                        >
-                          <ListItemAvatar sx={{ minWidth: 44 }}>
-                            <Badge
-                              color="error"
-                              overlap="circular"
-                              variant={c.unreadCount ? "dot" : "standard"}
-                              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-                            >
-                              <Avatar
+                      "&:hover": {
+                        bgcolor: isActive ? "rgba(37,99,235,0.12)" : "#f1f5f9",
+                        transform: "translateY(-1px)",
+                      },
+                    }}
+                  >
+                    <ListItemAvatar sx={{ minWidth: 44 }}>
+                      <Badge
+                        color="error"
+                        overlap="circular"
+                        variant={c.unreadCount ? "dot" : "standard"}
+                        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                      >
+                        <Avatar
                                 sx={{ width: 36, height: 36, fontSize: 14, bgcolor: c.avatarColor }}
-                                src={c.avatarUrl || undefined}
-                              >
-                                {getInitials(c.studentName || c.name || "P")}
-                              </Avatar>
-                            </Badge>
-                          </ListItemAvatar>
-                          <ListItemText
+                          src={c.avatarUrl || undefined}
+                        >
+                          {getInitials(c.studentName || c.name || "P")}
+                        </Avatar>
+                      </Badge>
+                    </ListItemAvatar>
+                    <ListItemText
                             primary={<Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}><Typography sx={{ fontSize: 14, fontWeight: isActive ? 600 : 500, color: "#1e293b", mr: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</Typography><Typography sx={{ fontSize: 11, color: "#94a3b8", flexShrink: 0 }}>{formatMessageTime(c.time)}</Typography></Box>}
                             secondary={<Typography component="span" sx={{ fontSize: 12, color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "block" }}>{c.lastMessage || "Bắt đầu cuộc trò chuyện..."}</Typography>}
-                          />
-                        </Paper>
-                      </ListItem>
-                    );
-                  })
+                    />
+                  </Paper>
+                </ListItem>
+                );
+              })
                 )}
               </>
             )}
@@ -1124,7 +1346,6 @@ export default function CounsellorParentConsultation() {
                 overflowY: "auto",
                 WebkitOverflowScrolling: "touch",
                 bgcolor: "linear-gradient(180deg, rgba(238,242,255,0.55) 0%, rgba(248,250,252,0.95) 100%)",
-                scrollBehavior: "smooth",
               }}
               onScroll={handleMessageScroll}
               ref={messageListRef}
@@ -1140,7 +1361,32 @@ export default function CounsellorParentConsultation() {
                   Chưa có tin nhắn.
                 </Typography>
               ) : (
-                groupedMessages.map((group) => (
+                <>
+                  {loadingOlderMessages ? (
+                    <Box
+                      sx={{
+                        position: "sticky",
+                        top: 0,
+                        zIndex: 1,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 0.8,
+                        py: 0.55,
+                        mb: 0.6,
+                        borderRadius: 999,
+                        border: "1px solid rgba(148,163,184,0.24)",
+                        bgcolor: "rgba(241,245,249,0.9)",
+                        backdropFilter: "blur(4px)",
+                      }}
+                    >
+                      <CircularProgress size={12} />
+                      <Typography sx={{ fontSize: 10.5, color: "#64748b", fontWeight: 600 }}>
+                        Đang tải tin nhắn
+                      </Typography>
+                    </Box>
+                  ) : null}
+                  {groupedMessages.map((group) => (
                   <Box key={group.key} sx={{ mb: 1.25 }}>
                     <Typography
                       align="center"
@@ -1163,9 +1409,7 @@ export default function CounsellorParentConsultation() {
                             display: "flex",
                             justifyContent: isMine ? "flex-end" : "flex-start",
                             mb: 0.5,
-                            // opacity:0 vẫn giữ chỗ — chỉ hiện khi hover để khỏi giãn dòng
                             ".msg-actions": { display: "none" },
-                            "&:hover .msg-actions": { display: "flex" },
                           }}
                         >
                           <Box sx={{ maxWidth: "78%" }}>
@@ -1206,35 +1450,19 @@ export default function CounsellorParentConsultation() {
                               </Typography>
                               {isMine ? (
                                 <Typography sx={{ fontSize: 10.5, color: "#22c55e", fontWeight: 500, lineHeight: 1.2 }}>
-                                  Seen
+                                  {getOutgoingMessageStatusLabel(m)}
                                 </Typography>
                               ) : null}
                             </Box>
 
-                            <Box
-                              className="msg-actions"
-                              sx={{
-                                mt: 0.25,
-                                justifyContent: isMine ? "flex-end" : "flex-start",
-                                gap: 0.25,
-                              }}
-                            >
-                              <IconButton size="small"><ReplyRoundedIcon sx={{ fontSize: 16 }} /></IconButton>
-                              <IconButton size="small"><ContentCopyRoundedIcon sx={{ fontSize: 16 }} /></IconButton>
-                              <IconButton size="small"><DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} /></IconButton>
-                            </Box>
                           </Box>
                         </Box>
                       );
                     })}
                   </Box>
-                ))
+                  ))}
+                </>
               )}
-              {selectedConversation && messageLoading && messageItems.length > 0 ? (
-                <Box sx={{ display: "flex", justifyContent: "center", mt: 1 }}>
-                  <Typography sx={{ fontSize: 11, color: "#64748b" }}>Dang tai them...</Typography>
-                </Box>
-              ) : null}
             </Box>
           ) : (
             <Box
@@ -1252,89 +1480,90 @@ export default function CounsellorParentConsultation() {
               }}
             >
               {shouldShowPendingBlankPanel ? null : (
-                <Typography sx={{ fontSize: 14, color: "#94a3b8" }}>
-                  Chưa có cuộc trò chuyện nào được chọn.
-                </Typography>
+              <Typography sx={{ fontSize: 14, color: "#94a3b8" }}>
+                Chưa có cuộc trò chuyện nào được chọn.
+              </Typography>
               )}
             </Box>
           )}
 
           {shouldShowPendingBlankPanel ? null : (
-            <Box
+          <Box
+            sx={{
+              px: 3,
+              py: 1.5,
+              borderTop: "1px solid #e2e8f0",
+              bgcolor: "rgba(255,255,255,0.94)",
+              flexShrink: 0,
+            }}
+          >
+            <Paper
+              elevation={0}
               sx={{
-                px: 3,
-                py: 1.5,
-                borderTop: "1px solid #e2e8f0",
-                bgcolor: "rgba(255,255,255,0.94)",
-                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                borderRadius: 999,
+                border: "1px solid #e2e8f0",
+                px: 1,
+                py: 0.5,
+                bgcolor: "#f8fafc",
+                transition: "all 0.2s ease-in-out",
+                "&:focus-within": {
+                  borderColor: "rgba(37,99,235,0.45)",
+                  boxShadow: "0 0 0 4px rgba(37,99,235,0.08)",
+                },
               }}
             >
-              <Paper
-                elevation={0}
+              <Tooltip title="Dinh kem">
+                <IconButton size="small" sx={{ color: APP_PRIMARY_MAIN, ml: 0.25 }}>
+                  <AttachFileRoundedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <InputBase
+                placeholder={
+                  selectedConversation
+                    ? "Type a message..."
+                    : "Chon mot cuoc tro chuyen de bat dau nhan tin..."
+                }
+                sx={{ flex: 1, fontSize: 13, px: 1 }}
+                value={inputValue}
+                disabled={!selectedConversation}
+                onChange={(e) => setInputValue(e.target.value)}
+                  onPointerDown={handleMarkReadFromInput}
+                  onFocus={handleMarkReadFromInput}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+              />
+              <Tooltip title="Emoji">
+                <IconButton size="small" sx={{ color: APP_PRIMARY_MAIN }}>
+                  <MoodRoundedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <IconButton
+                onClick={handleSend}
+                disabled={!inputValue.trim() || !selectedConversation}
                 sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  borderRadius: 999,
-                  border: "1px solid #e2e8f0",
-                  px: 1,
-                  py: 0.5,
-                  bgcolor: "#f8fafc",
-                  transition: "all 0.2s ease-in-out",
-                  "&:focus-within": {
-                    borderColor: "rgba(37,99,235,0.45)",
-                    boxShadow: "0 0 0 4px rgba(37,99,235,0.08)",
+                  ml: 0.5,
+                  bgcolor: inputValue.trim() && selectedConversation ? "#4F46E5" : "transparent",
+                  color: inputValue.trim() && selectedConversation ? "#ffffff" : "#4F46E5",
+                  "&:hover": {
+                    bgcolor:
+                      inputValue.trim() && selectedConversation
+                        ? APP_PRIMARY_DARK
+                        : "rgba(37,99,235,0.08)",
                   },
+                  "&:active": { transform: "scale(0.95)" },
+                  transition: "all 0.2s ease-in-out",
                 }}
               >
-                <Tooltip title="Dinh kem">
-                  <IconButton size="small" sx={{ color: APP_PRIMARY_MAIN, ml: 0.25 }}>
-                    <AttachFileRoundedIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <InputBase
-                  placeholder={
-                    selectedConversation
-                      ? "Type a message..."
-                      : "Chon mot cuoc tro chuyen de bat dau nhan tin..."
-                  }
-                  sx={{ flex: 1, fontSize: 13, px: 1 }}
-                  value={inputValue}
-                  disabled={!selectedConversation}
-                  onChange={(e) => setInputValue(e.target.value)}
-                  onFocus={() => handleMarkRead()}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                />
-                <Tooltip title="Emoji">
-                  <IconButton size="small" sx={{ color: APP_PRIMARY_MAIN }}>
-                    <MoodRoundedIcon fontSize="small" />
-                  </IconButton>
-                </Tooltip>
-                <IconButton
-                  onClick={handleSend}
-                  disabled={!inputValue.trim() || !selectedConversation}
-                  sx={{
-                    ml: 0.5,
-                    bgcolor: inputValue.trim() && selectedConversation ? "#4F46E5" : "transparent",
-                    color: inputValue.trim() && selectedConversation ? "#ffffff" : "#4F46E5",
-                    "&:hover": {
-                      bgcolor:
-                        inputValue.trim() && selectedConversation
-                          ? APP_PRIMARY_DARK
-                          : "rgba(37,99,235,0.08)",
-                    },
-                    "&:active": { transform: "scale(0.95)" },
-                    transition: "all 0.2s ease-in-out",
-                  }}
-                >
-                  <SendIcon fontSize="small" />
-                </IconButton>
-              </Paper>
-            </Box>
+                <SendIcon fontSize="small" />
+              </IconButton>
+            </Paper>
+          </Box>
           )}
         </Box>
       </Paper>

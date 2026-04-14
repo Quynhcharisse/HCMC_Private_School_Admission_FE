@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Avatar,
+    Badge,
     Box,
     Divider,
     IconButton,
@@ -26,10 +27,97 @@ import PsychologyOutlinedIcon from "@mui/icons-material/PsychologyOutlined";
 import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
 import MonetizationOnOutlinedIcon from "@mui/icons-material/MonetizationOnOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
+import ContactSupportOutlinedIcon from "@mui/icons-material/ContactSupportOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
 import { signout } from "../../services/AccountService.jsx";
+import { getCampusConversationsForAdmin } from "../../services/ConversationService.jsx";
+import { connectPrivateMessageSocket, removePrivateMessageListener } from "../../services/WebSocketService.jsx";
+
+const parseBodyObject = (value) => {
+    if (value == null) return {};
+    if (typeof value === "string") {
+        try {
+            const parsed = JSON.parse(value);
+            return parsed && typeof parsed === "object" ? parsed : {};
+        } catch {
+            return {};
+        }
+    }
+    return value && typeof value === "object" ? value : {};
+};
+
+const pickFirstConversationItem = (responseData) => {
+    const envelope = parseBodyObject(responseData);
+    const topBody = parseBodyObject(envelope?.body);
+    const innerBody = parseBodyObject(topBody?.body);
+    const roots = [innerBody, topBody, envelope].filter((x) => x && typeof x === "object");
+    for (let i = 0; i < roots.length; i += 1) {
+        const r = roots[i];
+        if (Array.isArray(r?.items) && r.items.length) return r.items[0];
+        if (Array.isArray(r?.content) && r.content.length) return r.content[0];
+        if (Array.isArray(r?.data) && r.data.length) return r.data[0];
+    }
+    return null;
+};
+
+const conversationHasUnread = (item) => {
+    if (!item || typeof item !== "object") return false;
+    if (item.hasUnread === true) return true;
+    const u = Number(
+        item.unreadCount ??
+            item.unreadMessages ??
+            item.unread ??
+            item.unreadMessageCount ??
+            0
+    );
+    return Number.isFinite(u) && u > 0;
+};
+
+const getAdminConversationSourceItems = (responseData) => {
+    const envelope = parseBodyObject(responseData);
+    const topBody = parseBodyObject(envelope?.body);
+    const list = Array.isArray(topBody?.items) ? topBody.items : [];
+    const first = list.length ? null : pickFirstConversationItem(responseData);
+    return list.length ? list : first ? [first] : [];
+};
+
+const countConversationsWithUnreadFromResponseData = (responseData) =>
+    getAdminConversationSourceItems(responseData).reduce(
+        (acc, item) => acc + (conversationHasUnread(item) ? 1 : 0),
+        0
+    );
+
+const sumUnreadMessagesFromResponseData = (responseData) => {
+    const total = getAdminConversationSourceItems(responseData).reduce((acc, item) => {
+        const u = Number(
+            item.unreadCount ?? item.unreadMessages ?? item.unreadMessageCount ?? item.unread ?? 0
+        );
+        if (!Number.isFinite(u) || u <= 0) return acc;
+        return acc + Math.min(99, Math.trunc(u));
+    }, 0);
+    return Math.min(99, total);
+};
+
+const normalizePrincipal = (v) =>
+    String(v || "")
+        .trim()
+        .toLowerCase()
+        .replace(/^["'<\s]+|["'>\s]+$/g, "");
+
+const unwrapWsPayloadAdmin = (p) => {
+    if (!p || typeof p !== "object") return p;
+    if (typeof p.body === "string") {
+        try {
+            return JSON.parse(p.body);
+        } catch {
+            return p;
+        }
+    }
+    if (p.body && typeof p.body === "object") return p.body;
+    return p;
+};
 
 const menuGroups = [
     {
@@ -78,11 +166,20 @@ const menuGroups = [
             },
         ],
     },
+    {
+        title: "HỖ TRỢ",
+        items: [{ text: "Liên hệ", icon: <ContactSupportOutlinedIcon />, path: "/admin/contact" }],
+    },
 ];
 
 export default function AdminSidebar({ currentPath, collapsed = false, onToggleCollapse }) {
     const navigate = useNavigate();
     const [userAnchorEl, setUserAnchorEl] = useState(null);
+    /** Đồng bộ từ WS (aggregate) + GET lần đầu; khi không ở /admin/contact, WS bơm +từng tin. */
+    const [contactUnreadConversationCount, setContactUnreadConversationCount] = useState(0);
+    const [contactUnreadMessageTotal, setContactUnreadMessageTotal] = useState(0);
+    const currentPathRef = useRef(currentPath);
+    const offPageWsSyncTimerRef = useRef(null);
 
     const userInfo = useMemo(() => {
         try {
@@ -97,6 +194,81 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
     const displayEmail = userInfo?.email || "";
     const avatarUrl = userInfo?.picture || null;
     const roleLabel = "Quản trị viên";
+    const myPrincipalLower = normalizePrincipal(userInfo?.email || userInfo?.username || userInfo?.userName || "");
+
+    const refreshAdminContactUnread = useCallback(async () => {
+        try {
+            const response = await getCampusConversationsForAdmin();
+            if (response?.status !== 200) return;
+            const nConv = countConversationsWithUnreadFromResponseData(response?.data);
+            const nMsg = sumUnreadMessagesFromResponseData(response?.data);
+            setContactUnreadConversationCount(Math.min(99, nConv));
+            setContactUnreadMessageTotal(Math.min(99, nMsg));
+        } catch {
+            /* ignore */
+        }
+    }, []);
+
+    useEffect(() => {
+        currentPathRef.current = currentPath;
+    }, [currentPath]);
+
+    /** GET danh sách conversation chỉ lần đầu load sidebar; sau đó unread cập nhật qua WS (trang contact tự quản danh sách). */
+    useEffect(() => {
+        void refreshAdminContactUnread();
+        const onCustom = () => void refreshAdminContactUnread();
+        window.addEventListener("admin-contact-conversations-refresh", onCustom);
+        return () => {
+            window.removeEventListener("admin-contact-conversations-refresh", onCustom);
+        };
+    }, [refreshAdminContactUnread]);
+
+    /** Trang Liên hệ emit sau mỗi lần cập nhật `conversations` (từ WS bump _unreadCount). */
+    useEffect(() => {
+        const onAggregate = (e) => {
+            const cw = Number(e?.detail?.conversationsWithUnread);
+            const tm = Number(e?.detail?.totalUnreadMessages);
+            if (Number.isFinite(cw) && cw >= 0) setContactUnreadConversationCount(Math.min(99, cw));
+            if (Number.isFinite(tm) && tm >= 0) setContactUnreadMessageTotal(Math.min(99, tm));
+        };
+        window.addEventListener("admin-contact-unread-aggregate", onAggregate);
+        return () => window.removeEventListener("admin-contact-unread-aggregate", onAggregate);
+    }, []);
+
+    /**
+     * Không GET khi có tin campus. Mỗi frame STOMP: +1 tổng tin; +1 số cuộc (debounce ~400ms, gộp nhiều tin cùng lúc).
+     * Trang /admin/contact: aggregate từ AdminContactPage ghi đè cả hai.
+     */
+    useEffect(() => {
+        const onPrivateMessage = (payload) => {
+            const root = unwrapWsPayloadAdmin(payload);
+            const sender =
+                root?.senderName ??
+                root?.senderEmail ??
+                root?.sender ??
+                root?.from ??
+                root?.username ??
+                "";
+            const senderLower = normalizePrincipal(sender);
+            if (senderLower && myPrincipalLower && senderLower === myPrincipalLower) return;
+            const p = currentPathRef.current || "";
+            if (p === "/admin/contact" || p.startsWith("/admin/contact/")) return;
+            setContactUnreadMessageTotal((m) => Math.min(99, (m || 0) + 1));
+            if (offPageWsSyncTimerRef.current) window.clearTimeout(offPageWsSyncTimerRef.current);
+            offPageWsSyncTimerRef.current = window.setTimeout(() => {
+                offPageWsSyncTimerRef.current = null;
+                setContactUnreadConversationCount((c) => Math.min(99, (c || 0) + 1));
+            }, 400);
+        };
+        connectPrivateMessageSocket({ onMessage: onPrivateMessage });
+        return () => {
+            if (offPageWsSyncTimerRef.current) window.clearTimeout(offPageWsSyncTimerRef.current);
+            removePrivateMessageListener(onPrivateMessage);
+        };
+    }, [myPrincipalLower]);
+
+    /** Badge menu Liên hệ: chỉ số cuộc có tin chưa đọc (không phải tổng số tin). Chi tiết tin/cuộc giữ trong tooltip. */
+    const adminContactBadgeDisplay = Math.min(99, contactUnreadConversationCount || 0);
 
     const handleUserMenuOpen = (e) => {
         e.stopPropagation();
@@ -290,6 +462,12 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
                             const isActive =
                                 currentPath === item.path ||
                                 (item.path !== "/admin/dashboard" && currentPath.startsWith(item.path + "/"));
+                            const contactSub =
+                                item.path === "/admin/contact" &&
+                                (contactUnreadMessageTotal > 0 || contactUnreadConversationCount > 0)
+                                    ? ` — ${contactUnreadMessageTotal} tin · ${contactUnreadConversationCount} cuộc`
+                                    : "";
+                            const navItemTooltip = `${item.text}${contactSub}`;
 
                             const button = (
                                 <ListItem key={item.path} disablePadding sx={{ mb: 0.5 }}>
@@ -326,7 +504,24 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
                                                 alignSelf: "center",
                                             }}
                                         >
-                                            {item.icon}
+                                            {item.path === "/admin/contact" && adminContactBadgeDisplay > 0 ? (
+                                                <Badge
+                                                    badgeContent={adminContactBadgeDisplay}
+                                                    color="error"
+                                                    sx={{
+                                                        "& .MuiBadge-badge": {
+                                                            fontSize: 10,
+                                                            fontWeight: 700,
+                                                            minWidth: 18,
+                                                            height: 18,
+                                                        },
+                                                    }}
+                                                >
+                                                    {item.icon}
+                                                </Badge>
+                                            ) : (
+                                                item.icon
+                                            )}
                                         </ListItemIcon>
                                         {!collapsed ? (
                                             <Box sx={labelWrapperStyle}>
@@ -349,7 +544,11 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
                             );
 
                             return collapsed ? (
-                                <Tooltip key={item.path} title={item.text} placement="right">
+                                <Tooltip key={item.path} title={navItemTooltip} placement="right">
+                                    <span style={{ display: "block" }}>{button}</span>
+                                </Tooltip>
+                            ) : item.path === "/admin/contact" && contactSub ? (
+                                <Tooltip key={item.path} title={navItemTooltip} placement="right">
                                     <span style={{ display: "block" }}>{button}</span>
                                 </Tooltip>
                             ) : (

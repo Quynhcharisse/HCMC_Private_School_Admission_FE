@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Avatar,
+    Badge,
     Box,
     Divider,
     IconButton,
@@ -28,11 +29,140 @@ import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import CorporateFareOutlinedIcon from "@mui/icons-material/CorporateFareOutlined";
 import CardMembershipIcon from "@mui/icons-material/CardMembership";
+import ContactSupportOutlinedIcon from "@mui/icons-material/ContactSupportOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
 import { signout } from "../../services/AccountService.jsx";
 import { useSchool } from "../../contexts/SchoolContext.jsx";
+import { getCampusConversation } from "../../services/ConversationService.jsx";
+import { markCampusMessagesRead } from "../../services/MessageService.jsx";
+import { connectPrivateMessageSocket, removePrivateMessageListener } from "../../services/WebSocketService.jsx";
+
+const SCHOOL_CONTACT_UNREAD_KEY = "school_contact_admin_unread_count";
+
+const parseBodyObject = (value) => {
+    if (value == null) return {};
+    if (typeof value === "string") {
+        try {
+            const parsed = JSON.parse(value);
+            return parsed && typeof parsed === "object" ? parsed : {};
+        } catch {
+            return {};
+        }
+    }
+    return value && typeof value === "object" ? value : {};
+};
+
+const pickCampusConversationPayload = (responseData) => {
+    const envelope = parseBodyObject(responseData);
+    const body = parseBodyObject(envelope?.body);
+    const inner = parseBodyObject(body?.body);
+    if (inner && typeof inner === "object" && (inner.unreadCount != null || inner.hasNewMessage != null || inner.conversationId != null)) {
+        return inner;
+    }
+    return body;
+};
+
+const extractCampusAdminConversationId = (responseData) => {
+    const p = pickCampusConversationPayload(responseData);
+    if (!p || typeof p !== "object") return null;
+    const raw =
+        p.conversationId ??
+        p.conversation_id ??
+        p.conversationID ??
+        p.id ??
+        null;
+    if (raw == null || String(raw).trim() === "") return null;
+    return raw;
+};
+
+/** Chỉ dùng field rõ ràng của conversation — tránh `unread` trùng tên field khác trên DTO tin nhắn WS. */
+const unreadDisplayFromCampusConversationPayload = (payload) => {
+    if (!payload || typeof payload !== "object") return 0;
+    const raw =
+        payload.unreadCount ??
+        payload.unreadMessages ??
+        payload.unreadMessageCount ??
+        payload.numberOfUnread ??
+        null;
+    if (raw != null && raw !== "") {
+        const unread = Number(raw);
+        if (Number.isFinite(unread) && unread > 0) return Math.min(99, Math.trunc(unread));
+    }
+    if (payload.hasNewMessage === true) return 1;
+    return 0;
+};
+
+/** BE có thể đặt sender trong chatMessage / message lồng. */
+const extractPrivateMessageSender = (merged) => {
+    const layers = [merged, merged?.chatMessage, merged?.message, merged?.data, merged?.dto, merged?.payload].filter(
+        (x) => x && typeof x === "object" && !Array.isArray(x)
+    );
+    for (let i = 0; i < layers.length; i += 1) {
+        const o = layers[i];
+        const s =
+            o.senderEmail ??
+            o.senderName ??
+            o.sender ??
+            o.from ??
+            o.username ??
+            o.createdBy ??
+            "";
+        if (String(s).trim()) return String(s);
+    }
+    return "";
+};
+
+/** Gộp frame STOMP / body (kể cả chuỗi JSON) / data lồng — BE có thể gửi sender ở lớp bất kỳ. */
+const mergeSchoolContactWsPayload = (payload) => {
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return {};
+    let body = payload;
+    if (payload.body != null) {
+        if (typeof payload.body === "string") {
+            try {
+                body = JSON.parse(payload.body);
+            } catch {
+                body = payload;
+            }
+        } else if (typeof payload.body === "object") {
+            body = payload.body;
+        }
+    }
+    const base = {...payload};
+    const r = body && typeof body === "object" && !Array.isArray(body) ? body : {};
+    const nestedData = r?.data && typeof r.data === "object" && !Array.isArray(r.data) ? r.data : {};
+    return {...base, ...r, ...nestedData};
+};
+
+const normalizePrincipal = (v) =>
+    String(v || "")
+        .trim()
+        .toLowerCase()
+        .replace(/^["'<\s]+|["'>\s]+$/g, "");
+
+const readSchoolContactUnreadCount = () => {
+    try {
+        const raw = localStorage.getItem(SCHOOL_CONTACT_UNREAD_KEY);
+        const num = Number(raw);
+        return Number.isFinite(num) && num > 0 ? Math.trunc(num) : 0;
+    } catch {
+        return 0;
+    }
+};
+
+const writeSchoolContactUnreadCount = (value) => {
+    const next = Number.isFinite(Number(value)) ? Math.max(0, Math.trunc(Number(value))) : 0;
+    try {
+        localStorage.setItem(SCHOOL_CONTACT_UNREAD_KEY, String(next));
+    } catch {
+        // ignore storage errors
+    }
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("school-contact-unread-updated", { detail: { count: next } }));
+    }
+    return next;
+};
 
 function buildConfigMenuItems(isPrimaryBranch, schoolCtxLoading) {
     const items = [];
@@ -74,6 +204,10 @@ const menuGroupsBase = [
         ],
     },
     {
+        title: "HỖ TRỢ",
+        items: [{ text: "Liên hệ", icon: <ContactSupportOutlinedIcon />, path: "/school/contact" }],
+    },
+    {
         title: "CẤU HÌNH",
         items: [],
     },
@@ -90,6 +224,7 @@ export default function SchoolSidebar({ currentPath, collapsed = false, onToggle
         });
     }, [isPrimaryBranch, schoolCtxLoading]);
     const [userAnchorEl, setUserAnchorEl] = useState(null);
+    const [contactUnreadCount, setContactUnreadCount] = useState(() => readSchoolContactUnreadCount());
 
     const userInfo = useMemo(() => {
         try {
@@ -104,6 +239,98 @@ export default function SchoolSidebar({ currentPath, collapsed = false, onToggle
     const displayEmail = userInfo?.email || "";
     const avatarUrl = userInfo?.picture || null;
     const roleLabel = "Trường học";
+    const myPrincipalLower = normalizePrincipal(userInfo?.email || userInfo?.username || userInfo?.userName || "");
+
+    const refreshSchoolContactFromApi = useCallback(async () => {
+        try {
+            const response = await getCampusConversation();
+            if (response?.status !== 200) return;
+            const payload = pickCampusConversationPayload(response?.data);
+            const apiN = unreadDisplayFromCampusConversationPayload(payload);
+            /** Không ghi đè bump từ WS: GET đôi khi trả unread=0 chậm / lệch so với tin vừa tới qua STOMP. */
+            const localN = readSchoolContactUnreadCount();
+            const merged = Math.max(apiN, localN);
+            writeSchoolContactUnreadCount(merged);
+        } catch {
+            /* ignore */
+        }
+    }, []);
+
+    /** Vào trang Liên hệ từ sidebar → đánh dấu đã đọc trên server rồi xóa badge. */
+    const markSchoolContactReadAndClearBadge = useCallback(async () => {
+        try {
+            const response = await getCampusConversation();
+            if (response?.status !== 200) {
+                writeSchoolContactUnreadCount(0);
+                return;
+            }
+            const cid = extractCampusAdminConversationId(response?.data);
+            if (cid != null) {
+                const res = await markCampusMessagesRead(cid);
+                if (res?.status >= 200 && res?.status < 300) {
+                    writeSchoolContactUnreadCount(0);
+                    return;
+                }
+            }
+            writeSchoolContactUnreadCount(0);
+        } catch {
+            writeSchoolContactUnreadCount(0);
+        }
+    }, []);
+
+    /** GET /campus/conversation: lần đầu load sidebar + sau khi trang Liên hệ sync (event). Không gọi theo từng tin WS. */
+    useEffect(() => {
+        void refreshSchoolContactFromApi();
+        const onConversationRefresh = () => void refreshSchoolContactFromApi();
+        window.addEventListener("school-contact-conversation-refresh", onConversationRefresh);
+        return () => {
+            window.removeEventListener("school-contact-conversation-refresh", onConversationRefresh);
+        };
+    }, [refreshSchoolContactFromApi]);
+
+    useEffect(() => {
+        const onUnreadUpdated = (event) => {
+            const next = Number(event?.detail?.count);
+            if (Number.isFinite(next) && next >= 0) {
+                const v = Math.trunc(next);
+                setContactUnreadCount(v);
+                try {
+                    localStorage.setItem(SCHOOL_CONTACT_UNREAD_KEY, String(v));
+                } catch {
+                    /* ignore */
+                }
+                return;
+            }
+            setContactUnreadCount(readSchoolContactUnreadCount());
+        };
+        window.addEventListener("school-contact-unread-updated", onUnreadUpdated);
+        return () => window.removeEventListener("school-contact-unread-updated", onUnreadUpdated);
+    }, []);
+
+    useEffect(() => {
+        const onPrivateMessage = (payload) => {
+            const merged = mergeSchoolContactWsPayload(payload);
+            const sender = extractPrivateMessageSender(merged);
+            const senderLower = normalizePrincipal(sender);
+            /** Tin do chính campus gửi (STOMP echo) — không tăng badge. */
+            if (senderLower && myPrincipalLower && senderLower === myPrincipalLower) return;
+
+            const fromApiShape = unreadDisplayFromCampusConversationPayload(merged);
+            if (fromApiShape > 0) {
+                setContactUnreadCount(fromApiShape);
+                writeSchoolContactUnreadCount(fromApiShape);
+                return;
+            }
+
+            /** Luôn +1 theo WS — trang Liên hệ (SchoolContactAdmin) sẽ queueMicrotask đặt lại 0 khi đang xem chat. */
+            const prev = readSchoolContactUnreadCount();
+            const next = Math.min(99, prev + 1);
+            setContactUnreadCount(next);
+            writeSchoolContactUnreadCount(next);
+        };
+        connectPrivateMessageSocket({ onMessage: onPrivateMessage });
+        return () => removePrivateMessageListener(onPrivateMessage);
+    }, [myPrincipalLower]);
 
     const handleUserMenuOpen = (e) => {
         e.stopPropagation();
@@ -303,7 +530,12 @@ export default function SchoolSidebar({ currentPath, collapsed = false, onToggle
                             const button = (
                                 <ListItem key={item.path} disablePadding sx={{ mb: 0.5 }}>
                                     <ListItemButton
-                                        onClick={() => navigate(item.path)}
+                                        onClick={() => {
+                                            navigate(item.path);
+                                            if (item.path === "/school/contact") {
+                                                void markSchoolContactReadAndClearBadge();
+                                            }
+                                        }}
                                         sx={{
                                             py: 1.25,
                                             px: collapsed ? 1.5 : 2,
@@ -333,12 +565,33 @@ export default function SchoolSidebar({ currentPath, collapsed = false, onToggle
                                                 mr: collapsed ? 0 : 1.5,
                                             }}
                                         >
-                                            {item.icon}
+                                            {item.path === "/school/contact" && contactUnreadCount > 0 ? (
+                                                <Badge
+                                                    badgeContent={Math.min(99, contactUnreadCount)}
+                                                    color="error"
+                                                    sx={{
+                                                        "& .MuiBadge-badge": {
+                                                            fontSize: 10,
+                                                            fontWeight: 700,
+                                                            minWidth: 18,
+                                                            height: 18,
+                                                        },
+                                                    }}
+                                                >
+                                                    {item.icon}
+                                                </Badge>
+                                            ) : (
+                                                item.icon
+                                            )}
                                         </ListItemIcon>
                                         {!collapsed ? (
                                             <Box sx={labelWrapperStyle}>
                                                 <Box
                                                     sx={{
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                        justifyContent: "space-between",
+                                                        gap: 1,
                                                         whiteSpace: "nowrap",
                                                         overflow: "hidden",
                                                         textOverflow: "ellipsis",

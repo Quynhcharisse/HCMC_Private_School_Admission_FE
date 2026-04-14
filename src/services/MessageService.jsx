@@ -70,3 +70,51 @@ export const markCounsellorMessagesRead = async ({conversationId, username}) => 
 
     return response || null;
 };
+
+/** PUT /campus/messages/read/{conversationId} — campus đánh dấu đã đọc tin từ admin. */
+export const markCampusMessagesRead = async (conversationId) => {
+    const encodedConversationId = encodeURIComponent(conversationId ?? "");
+    const endpoint = `/campus/messages/read/${encodedConversationId}`;
+    const response = await axiosClient.put(endpoint, {}, {
+        headers: {
+            "X-Device-Type": "web"
+        }
+    });
+    return response || null;
+};
+
+export const getCampusAdminMessagesHistory = async ({cursorId} = {}) => {
+    const response = await axiosClient.request({
+        url: "/campus/message/history/admin",
+        method: "get",
+        params: cursorId ? {cursorId} : undefined,
+        headers: {
+            "X-Device-Type": "web"
+        }
+    });
+    return response || null;
+};
+
+export const getAdminMessagesHistory = async ({campusId, cursorId} = {}) => {
+    const encodedCampusId = encodeURIComponent(campusId ?? "");
+    const response = await axiosClient.request({
+        url: `/admin/message/history/${encodedCampusId}`,
+        method: "get",
+        params: cursorId ? {cursorId} : undefined,
+        headers: {
+            "X-Device-Type": "web"
+        }
+    });
+    return response || null;
+};
+
+export const markAdminMessagesRead = async (conversationId) => {
+    const encodedConversationId = encodeURIComponent(conversationId ?? "");
+    const endpoint = `/admin/messages/read/${encodedConversationId}`;
+    const response = await axiosClient.put(endpoint, {}, {
+        headers: {
+            "X-Device-Type": "web"
+        }
+    });
+    return response || null;
+};

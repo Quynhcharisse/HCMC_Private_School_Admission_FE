@@ -25,6 +25,7 @@ const AdminPersonalityTypes = lazy(() => import("./components/Page/admin/AdminPe
 const AdminSubjectsManagement = lazy(() => import("./components/Page/admin/AdminSubjectsManagement.jsx"));
 const AdminPackageFeeManagement = lazy(() => import("./components/Page/admin/AdminPackageFeeManagement.jsx"));
 const AdminDocumentTemplateManagement = lazy(() => import("./components/Page/admin/AdminDocumentTemplateManagement.jsx"));
+const AdminContactPage = lazy(() => import("./components/Page/admin/AdminContactPage.jsx"));
 const SchoolLayout = lazy(() => import("./components/layouts/SchoolLayout.jsx"));
 const SchoolDashboard = lazy(() => import("./components/Page/school/SchoolDashboard.jsx"));
 const SchoolCampus = lazy(() => import("./components/Page/school/SchoolCampus.jsx"));
@@ -38,6 +39,7 @@ const SchoolProfile = lazy(() => import("./components/Page/school/SchoolProfile.
 const SchoolFacilityOverview = lazy(() => import("./components/Page/school/SchoolFacilityOverview.jsx"));
 const SchoolFacilityConfiguration = lazy(() =>import("./components/Page/school/SchoolFacilityConfiguration.jsx"));
 const SchoolCampusConfigOverview = lazy(() =>import("./components/Page/school/SchoolCampusConfigOverview.jsx"));
+const SchoolContactAdmin = lazy(() => import("./components/Page/school/SchoolContactAdmin.jsx"));
 const CounsellorLayout = lazy(() => import("./components/layouts/CounsellorLayout.jsx"));
 const CounsellorDashboard = lazy(() => import("./components/Page/counsellor/CounsellorDashboard.jsx"));
 const CounsellorParentConsultation = lazy(() => import("./components/Page/counsellor/CounsellorParentConsultation.jsx"));
@@ -423,6 +425,14 @@ const router = createBrowserRouter([
                         <SchoolProfile/>
                     </Suspense>
                 )
+            },
+            {
+                path: 'contact',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolContactAdmin/>
+                    </Suspense>
+                )
             }
         ]
     },
@@ -527,6 +537,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <AdminDocumentTemplateManagement/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'contact',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminContactPage/>
                     </Suspense>
                 )
             }
