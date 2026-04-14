@@ -3497,6 +3497,8 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                           }))
                         }
                         size="small"
+                        helperText="*Số lượng khách tối đa được phép đặt vào một khung giờ."
+                        FormHelperTextProps={{sx: {fontWeight: 700}}}
                         inputProps={{readOnly: fieldDisabled, min: 0}}
                         sx={{minWidth: 200, flex: 1}}
                       />
@@ -3519,6 +3521,8 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                           }))
                         }
                         size="small"
+                        helperText="*Số lượng tư vấn viên tối thiểu trực trong một ca."
+                        FormHelperTextProps={{sx: {fontWeight: 700}}}
                         inputProps={{readOnly: fieldDisabled, min: 0}}
                         sx={{minWidth: 200, flex: 1}}
                       />
@@ -3544,6 +3548,8 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                           }))
                         }
                         size="small"
+                        helperText="*Thời lượng của một cuộc hẹn tư vấn (ví dụ: 30, 45 phút)."
+                        FormHelperTextProps={{sx: {fontWeight: 700}}}
                         inputProps={{readOnly: fieldDisabled, min: 0}}
                         sx={{minWidth: 180, flex: 1}}
                       />
@@ -3566,6 +3572,8 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                           }))
                         }
                         size="small"
+                        helperText="*Thời gian tối thiểu phải đặt trước khi cuộc hẹn diễn ra."
+                        FormHelperTextProps={{sx: {fontWeight: 700}}}
                         inputProps={{readOnly: fieldDisabled, min: 0}}
                         sx={{minWidth: 180, flex: 1}}
                       />
