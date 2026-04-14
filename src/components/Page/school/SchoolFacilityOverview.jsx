@@ -53,14 +53,14 @@ import {
 } from "../../../services/SchoolFacilityService.jsx";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
 
-const TAB_SLUGS = ["admission", "documents", "operation", "quota", "finance", "facility", "resource-distribution"];
+const TAB_SLUGS = ["admission", "documents", "operation", "finance", "facility", "quota", "resource-distribution"];
 const TAB_LABELS = [
   "Cài Đặt Tuyển Sinh",
   "Cài Đặt Hồ Sơ",
   "Cài Đặt Vận Hành",
-  "Cài Đặt Chỉ Tiêu",
   "Cài Đặt Tài Chính",
   "Cài Đặt Cơ Sở Vật Chất",
+  "Cài Đặt Chỉ Tiêu",
   "Phân Bổ Nguồn Lực",
 ];
 
@@ -1951,9 +1951,9 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
   const showAdmissionTab = !useCampusConfigFlow && tabIndex === 0;
   const showDocumentsTab = !useCampusConfigFlow && tabIndex === 1;
   const showOperationTab = (!useCampusConfigFlow && tabIndex === 2) || (useCampusConfigFlow && tabIndex === 0);
-  const showQuotaTab = !useCampusConfigFlow && tabIndex === 3;
-  const showFinanceTab = !useCampusConfigFlow && tabIndex === 4;
-  const showFacilityTab = (!useCampusConfigFlow && tabIndex === 5) || (useCampusConfigFlow && tabIndex === 1);
+  const showFinanceTab = !useCampusConfigFlow && tabIndex === 3;
+  const showFacilityTab = (!useCampusConfigFlow && tabIndex === 4) || (useCampusConfigFlow && tabIndex === 1);
+  const showQuotaTab = !useCampusConfigFlow && tabIndex === 5;
   const showResourceDistributionTab = !useCampusConfigFlow && tabIndex === 6;
 
   if (!schoolCtxLoading && variant === "platform" && !isPrimaryBranch) {
