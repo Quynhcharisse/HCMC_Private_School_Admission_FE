@@ -21,22 +21,24 @@ export const saveProgram = async ({
     programId,
     curriculumId,
     name,
-    languageOfInstruction,
-    programCategory,
+    languageOfInstructionList,
     graduationStandard,
     targetStudentDescription,
     baseTuitionFee,
     feeUnit,
+    extraSubjectList,
 }) => {
     const body = {
         curriculumId,
         name: name != null ? String(name).trim() : "",
-        languageOfInstruction: languageOfInstruction ?? null,
-        programCategory: programCategory ?? null,
+        languageOfInstructionList: Array.isArray(languageOfInstructionList)
+            ? languageOfInstructionList.filter(Boolean)
+            : [],
         graduationStandard,
         targetStudentDescription,
         baseTuitionFee: Number(baseTuitionFee),
         feeUnit: feeUnit ?? null,
+        extraSubjectList: Array.isArray(extraSubjectList) ? extraSubjectList : [],
     };
 
     const id = programId != null ? Number(programId) : 0;
