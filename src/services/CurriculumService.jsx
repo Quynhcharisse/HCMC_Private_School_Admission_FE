@@ -14,31 +14,34 @@ export const getCurriculumList = async (page = 0, pageSize = 10) => {
 
 /**
  * POST /api/v1/school/curriculum
- * Create (curriculumId absent) or Update draft (send curriculumId).
+ * Upsert curriculum draft:
+ * - Create when curriculumId is absent/null/0
+ * - Update when curriculumId is provided (> 0)
+ *
  * @param {Object} payload
- * @param {number|null} [payload.curriculumId] - null = create, set = update/evolve
+ * @param {number|null} [payload.curriculumId]
  * @param {string} payload.subTypeName
  * @param {string} payload.description
  * @param {string} payload.curriculumType
- * @param {string} payload.methodLearning
- * @param {number} payload.enrollmentYear
+ * @param {string[]} payload.methodLearningList
+ * @param {number} payload.applicationYear
  * @param {Array<{name:string, description:string, isMandatory:boolean}>} payload.subjectOptions
  */
-export const saveCurriculum = async ({
+export const upsertCurriculum = async ({
     curriculumId = null,
     subTypeName,
     description,
     curriculumType,
-    methodLearning,
-    enrollmentYear,
+    methodLearningList,
+    applicationYear,
     subjectOptions,
 }) => {
     const body = {
         subTypeName,
         description,
         curriculumType,
-        methodLearning,
-        enrollmentYear,
+        methodLearningList: Array.isArray(methodLearningList) ? methodLearningList : [],
+        applicationYear,
         subjectOptions: subjectOptions || [],
     };
     // BE: curriculumId = 0 (hoặc không truyền) => tạo mới DRAFT
@@ -53,6 +56,9 @@ export const saveCurriculum = async ({
     });
     return response || null;
 };
+
+// Backward-compatible alias
+export const saveCurriculum = upsertCurriculum;
 
 /**
  * PATCH /api/v1/school/{id}/activate/curriculum
