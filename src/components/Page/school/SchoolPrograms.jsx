@@ -413,7 +413,7 @@ export default function SchoolPrograms() {
         return list;
     }, [programs, search, enrollmentYearFilter, curriculumTypeFilter, statusFilter]);
 
-    const tableColSpan = isPrimaryBranch ? 6 : 5;
+    const tableColSpan = isPrimaryBranch ? 5 : 4;
 
     const loadData = async (pageParam = page, pageSizeParam = rowsPerPage) => {
         setLoading(true);
@@ -1016,7 +1016,6 @@ export default function SchoolPrograms() {
                         <TableHead>
                             <TableRow sx={{ bgcolor: "#f1f5f9" }}>
                                 <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Program / Khung CT</TableCell>
-                                <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Năm tuyển sinh</TableCell>
                                 <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Loại khung chương trình</TableCell>
                                 <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Học phí gốc</TableCell>
                                 <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Trạng thái</TableCell>
@@ -1033,9 +1032,6 @@ export default function SchoolPrograms() {
                                     <TableRow key={i}>
                                         <TableCell>
                                             <Skeleton variant="text" width="55%" />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Skeleton variant="text" width="35%" />
                                         </TableCell>
                                         <TableCell>
                                             <Skeleton variant="text" width="45%" />
@@ -1118,7 +1114,6 @@ export default function SchoolPrograms() {
                                                 </Box>
                                             </Tooltip>
                                         </TableCell>
-                                        <TableCell sx={{ color: "#64748b" }}>{row.enrollmentYear || "—"}</TableCell>
                                         <TableCell sx={{ color: "#64748b" }}>{toCurriculumTypeLabel(row.curriculumType)}</TableCell>
                                         <TableCell sx={{ color: "#64748b" }}>{formatVND(row.baseTuitionFee)}</TableCell>
                                         <TableCell>
