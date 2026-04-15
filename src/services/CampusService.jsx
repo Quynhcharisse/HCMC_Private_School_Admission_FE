@@ -29,7 +29,6 @@ export const exportCampusList = async () => {
 
 export const createCampus = async ({
     email,
-    name,
     address,
     phone,
     city,
@@ -43,7 +42,6 @@ export const createCampus = async ({
         "/school/campus",
         {
             email,
-            name,
             address,
             phone,
             city: city ?? undefined,

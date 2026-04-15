@@ -265,7 +265,6 @@ export default function SchoolCampus() {
 
     const validateForm = () => {
         const errors = {};
-        if (!formValues.name?.trim()) errors.name = "Tên cơ sở là bắt buộc";
         if (!formValues.email?.trim()) errors.email = "Email là bắt buộc";
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
@@ -422,7 +421,6 @@ export default function SchoolCampus() {
         try {
             const res = await createCampus({
                 email: formValues.email.trim(),
-                name: formValues.name.trim(),
                 address: formValues.address?.trim() || "",
                 phone: formValues.phone?.trim() || "",
                 city: HCM_CITY_NAME,
@@ -434,9 +432,10 @@ export default function SchoolCampus() {
             });
 
             const body = res?.data?.body;
-            if (res && res.status === 200 && body?.campus) {
-                const account = body.campus.account ?? body.account;
-                const newCampus = mapCampusFromApi(body.campus, account);
+            const campusDto = body?.campus ?? body ?? null;
+            if (campusDto?.id) {
+                const account = campusDto.account ?? body?.account;
+                const newCampus = mapCampusFromApi(campusDto, account);
                 setCampuses((prev) => [newCampus, ...prev]);
                 enqueueSnackbar("Tạo cơ sở thành công", {variant: "success"});
                 handleCloseCreate();
@@ -975,16 +974,6 @@ export default function SchoolCampus() {
                 </Box>
                 <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 1}}>
                     <Stack spacing={2.5}>
-                        <TextField
-                            label="Tên cơ sở"
-                            name="name"
-                            fullWidth
-                            value={formValues.name}
-                            onChange={handleChange}
-                            error={!!formErrors.name}
-                            helperText={formErrors.name}
-                            required
-                        />
                         <TextField
                             label="Địa chỉ"
                             name="address"
