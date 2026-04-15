@@ -163,7 +163,13 @@ export default function VnpayPaymentResultPage() {
     const [countdown, setCountdown] = React.useState(-1);
     const failToastShownRef = React.useRef(false);
 
-    const redirectTarget = getPostPaymentRedirectPath();
+    const redirectTarget = React.useMemo(() => {
+        const base = getPostPaymentRedirectPath();
+        if (base === "/school/purchased-packages" && status === "success") {
+            return "/school/purchased-packages?payment=success";
+        }
+        return base;
+    }, [status]);
 
     React.useEffect(() => {
         if (!parsed.hasVnpParams) {
