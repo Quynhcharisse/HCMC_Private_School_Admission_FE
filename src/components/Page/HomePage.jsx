@@ -123,21 +123,18 @@ const HOME_TESTIMONIALS = [
     {
         quote: "Nhờ EduBridgeHCM mà gia đình mình tìm được trường phù hợp rất nhanh. Thông tin rõ ràng, dễ so sánh và tư vấn rất tận tâm.",
         name: "Trần Thị Mai",
-        role: "Phụ huynh học sinh",
         accent: "#0ea5e9",
         avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80"
     },
     {
         quote: "Mình thích nhất là có thể xem nhiều trường cùng lúc và đặt lịch tư vấn ngay. Trải nghiệm mượt, tiết kiệm rất nhiều thời gian.",
         name: "Nguyễn Hoàng Nam",
-        role: "Phụ huynh học sinh",
         accent: "#2563eb",
         avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80"
     },
     {
         quote: "Website trình bày khoa học, nội dung thực tế và đáng tin cậy. Con mình đã nhập học đúng nguyện vọng nhờ nền tảng này.",
         name: "Lê Mỹ Linh",
-        role: "Phụ huynh học sinh",
         accent: "#1d4ed8",
         avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=120&q=80"
     }
