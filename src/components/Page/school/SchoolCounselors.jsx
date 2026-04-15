@@ -1,5 +1,6 @@
 import React, {useState, useMemo, useEffect, useCallback} from "react";
 import {
+    Alert,
     Box,
     Button,
     Card,
@@ -474,6 +475,10 @@ export default function SchoolCounselors() {
 
     const isFeatureLocked = accessStatus === "FEATURE_LOCKED_NO_PACKAGE";
     const isUsageNoPackage = maxQuota === 0;
+    const remainingCreates = useMemo(() => {
+        if (!Number.isFinite(maxQuota) || maxQuota <= 0) return 0;
+        return Math.max(0, maxQuota - currentUsage);
+    }, [maxQuota, currentUsage]);
     const usagePercent = useMemo(() => {
         if (isUsageNoPackage) return 100;
         const raw = (currentUsage / maxQuota) * 100;
@@ -486,7 +491,13 @@ export default function SchoolCounselors() {
         return "#22c55e";
     }, [isUsageNoPackage, usagePercent]);
     const showUsageWarning = !isUsageNoPackage && usagePercent >= 100;
-    const createTooltipMessage = displayMessage || "Tính năng tạo tài khoản hiện chưa khả dụng.";
+    const createTooltipMessage = useMemo(() => {
+        if (displayMessage) return displayMessage;
+        if (!canCreate && maxQuota > 0) {
+            return `Cơ sở của bạn đã sử dụng hết ${currentUsage}/${maxQuota} chỉ tiêu. Vui lòng liên hệ Trụ sở chính để xin thêm hạn ngạch.`;
+        }
+        return "Hạn ngạch cơ sở đã hết, vui lòng liên hệ trụ sở chính để xin thêm.";
+    }, [displayMessage, canCreate, maxQuota, currentUsage]);
 
     return (
         <Box sx={{display: "flex", flexDirection: "column", gap: 3, width: "100%"}}>
@@ -553,26 +564,29 @@ export default function SchoolCounselors() {
                                 onClick={handleOpenCreate}
                                 disabled={!canCreate}
                                 sx={{
-                                    bgcolor: canCreate ? "#0D64DE" : "#cbd5e1",
-                                    color: canCreate ? "#ffffff" : "#475569",
+                                    bgcolor: canCreate ? "#ffffff" : "rgba(255,255,255,0.35)",
+                                    color: canCreate ? "#0D64DE" : "#64748b",
                                     borderRadius: 2,
                                     textTransform: "none",
                                     fontWeight: 600,
                                     px: 3,
                                     py: 1.5,
-                                    opacity: canCreate ? 1 : 0.6,
+                                    opacity: canCreate ? 1 : 0.85,
                                     cursor: canCreate ? "pointer" : "not-allowed",
                                     transition: "all 0.2s ease",
-                                    boxShadow: canCreate ? "0 4px 14px rgba(0,0,0,0.15)" : "none",
+                                    boxShadow: canCreate ? "0 4px 14px rgba(0,0,0,0.12)" : "none",
+                                    "& .MuiButton-startIcon": { color: "inherit" },
                                     "&:hover": canCreate
                                         ? {
-                                            bgcolor: "#0b5ad1",
-                                            boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
+                                            bgcolor: "#f8fafc",
+                                            boxShadow: "0 6px 20px rgba(0,0,0,0.15)",
                                         }
                                         : {},
                                 }}
                             >
-                                Tạo tài khoản tư vấn viên
+                                {canCreate && maxQuota > 0
+                                    ? `Thêm tư vấn viên (Còn ${remainingCreates})`
+                                    : "Thêm tư vấn viên"}
                             </Button>
                         </Box>
                     </Tooltip>
@@ -586,9 +600,6 @@ export default function SchoolCounselors() {
                     borderRadius: 3,
                     border: "1px solid #e2e8f0",
                     boxShadow: "0 4px 20px rgba(13, 100, 222, 0.06)",
-                    opacity: canCreate ? 1 : 0.55,
-                    pointerEvents: canCreate ? "auto" : "none",
-                    transition: "opacity 0.2s ease",
                 }}
             >
                 <CardContent sx={{p: 2.5}}>
@@ -602,7 +613,7 @@ export default function SchoolCounselors() {
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                             size="small"
-                            disabled={!canCreate}
+                            disabled={isFeatureLocked}
                             sx={{
                                 flex: 1,
                                 maxWidth: {md: 360},
@@ -619,13 +630,12 @@ export default function SchoolCounselors() {
                                 ),
                             }}
                         />
-                        <FormControl size="small" sx={{minWidth: 160}}>
+                        <FormControl size="small" sx={{minWidth: 160}} disabled={isFeatureLocked}>
                             <InputLabel>Trạng thái</InputLabel>
                             <Select
                                 value={statusFilter}
                                 label="Trạng thái"
                                 onChange={(e) => setStatusFilter(e.target.value)}
-                                disabled={!canCreate}
                                 sx={{borderRadius: 2, bgcolor: "#f8fafc"}}
                             >
                                 <MenuItem value="all">Tất cả</MenuItem>
@@ -635,7 +645,7 @@ export default function SchoolCounselors() {
                         </FormControl>
                         <IconButton
                             onClick={handleExportCounsellors}
-                            disabled={exporting || !canCreate}
+                            disabled={exporting}
                             title={exporting ? "Đang xuất..." : "Xuất danh sách tư vấn viên"}
                             sx={{
                                 border: "1px solid #cbd5e1",
@@ -668,9 +678,14 @@ export default function SchoolCounselors() {
                 <Box sx={{px: 3, pt: 2.5, pb: 1.5, borderBottom: "1px solid #e2e8f0", bgcolor: "#fcfdff"}}>
                     <Stack spacing={1}>
                         <Typography variant="body2" sx={{color: "#334155", fontWeight: 600, display: "flex", alignItems: "center", gap: 0.75}}>
-                            {isUsageNoPackage ? "Chưa có gói dịch vụ" : `Usage: ${currentUsage}/${maxQuota} tài khoản`}
+                            {isUsageNoPackage ? "Chưa có gói dịch vụ" : `Đang dùng: ${currentUsage}/${maxQuota} tài khoản`}
                             {showUsageWarning && <WarningAmberIcon sx={{fontSize: 18, color: "#f59e0b"}}/>}
                         </Typography>
+                        {!isFeatureLocked && (displayMessage || (!canCreate && maxQuota > 0)) ? (
+                            <Typography variant="body2" sx={{ color: "#64748b", fontSize: "0.8125rem", lineHeight: 1.55 }}>
+                                {displayMessage || createTooltipMessage}
+                            </Typography>
+                        ) : null}
                         <LinearProgress
                             variant="determinate"
                             value={usagePercent}
@@ -769,7 +784,9 @@ export default function SchoolCounselors() {
                                                                     : {},
                                                             }}
                                                         >
-                                                            Tạo tài khoản tư vấn viên
+                                                            {canCreate && maxQuota > 0
+                                                                ? `Thêm tư vấn viên (Còn ${remainingCreates})`
+                                                                : "Thêm tư vấn viên"}
                                                         </Button>
                                                     </Box>
                                                 </Tooltip>
@@ -1071,6 +1088,18 @@ export default function SchoolCounselors() {
                 </Box>
                 <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 1}}>
                     <Stack spacing={2.5}>
+                        {maxQuota > 0 || displayMessage ? (
+                            <Alert severity={!canCreate ? "warning" : "info"} sx={{ borderRadius: 2 }}>
+                                <Typography sx={{ fontWeight: 600, fontSize: "0.875rem" }}>
+                                    Hạn ngạch cơ sở: {maxQuota > 0 ? `${currentUsage}/${maxQuota}` : "—"}
+                                </Typography>
+                                {(displayMessage || (!canCreate && maxQuota > 0)) ? (
+                                    <Typography sx={{ mt: 0.5, fontSize: "0.8125rem", lineHeight: 1.5 }}>
+                                        {displayMessage || createTooltipMessage}
+                                    </Typography>
+                                ) : null}
+                            </Alert>
+                        ) : null}
                         <TextField
                             label="Email tư vấn viên"
                             name="email"

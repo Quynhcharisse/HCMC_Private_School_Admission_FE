@@ -85,8 +85,19 @@ export default function SchoolSidebar({ currentPath, collapsed = false, onToggle
 
     const menuGroups = useMemo(() => {
         return menuGroupsBase.map((g) => {
-            if (g.title !== "CẤU HÌNH") return g;
-            return { ...g, items: buildConfigMenuItems(isPrimaryBranch, schoolCtxLoading) };
+            if (g.title === "CẤU HÌNH") {
+                return { ...g, items: buildConfigMenuItems(isPrimaryBranch, schoolCtxLoading) };
+            }
+            if (g.title === "TỔNG QUAN") {
+                const items = g.items.filter((item) => {
+                    if (item.path === "/school/purchased-packages") {
+                        return schoolCtxLoading || isPrimaryBranch;
+                    }
+                    return true;
+                });
+                return { ...g, items };
+            }
+            return g;
         });
     }, [isPrimaryBranch, schoolCtxLoading]);
     const [userAnchorEl, setUserAnchorEl] = useState(null);
