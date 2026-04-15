@@ -146,8 +146,8 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
     ? "Tổng quan về cơ sở vật chất là một đoạn văn mô tả chung về cơ sở vật chất của mỗi cơ sở"
     : "Tổng quan về cơ sở vật chất là một đoạn văn mô tả chung về cơ sở vật chất của trường";
   const coverNoteText = perCampus
-    ? "* Lưu ý: Ảnh bìa là ảnh bao quát nhất về cơ sở vật chất (thường là ảnh chụp toàn cảnh trường từ trên cao hoặc cổng trường của mỗi cơ sở)"
-    : "* Lưu ý: Ảnh bìa là ảnh bao quát nhất về cơ sở vật chất (thường là ảnh chụp toàn cảnh trường từ trên cao hoặc cổng trường)";
+    ? "Ảnh bìa là ảnh bao quát nhất về cơ sở vật chất (thường là ảnh chụp toàn cảnh trường từ trên cao hoặc cổng trường của mỗi cơ sở)"
+    : "Ảnh bìa là ảnh bao quát nhất về cơ sở vật chất (thường là ảnh chụp toàn cảnh trường từ trên cao hoặc cổng trường)";
 
   const setFacilityData = useCallback(
     (updater) => {
@@ -442,46 +442,47 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
 
   return (
     <Box sx={{width: "100%", display: "flex", flexDirection: "column", gap: 3, pb: 1}}>
-      {/* Section 1: chỉ tổng quan mô tả */}
-      <Card sx={{borderRadius: "12px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)", border: "1px solid rgba(226,232,240,1)"}}>
-        <CardContent sx={{p: 3}}>
-          <Typography sx={{fontWeight: 900, color: "#0f172a", mb: 1.25, fontSize: 18}}>Tổng quan cơ sở vật chất</Typography>
-          <Alert severity="info" sx={{borderRadius: 2, maxWidth: 1200, mb: 1.5}}>
-            <Typography variant="body2" component="div" sx={{fontWeight: 700, mb: 0.75}}>
-              Lưu ý:
-            </Typography>
-            <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
-              {overviewNoteBody}
-            </Typography>
-          </Alert>
-          {loading ? (
-            <Stack spacing={1.5}>
-              <Skeleton variant="rounded" height={120} sx={{borderRadius: "12px"}}/>
-              <Skeleton variant="text" width="35%"/>
-            </Stack>
-          ) : (
-            <Box>
-              <Box sx={{display: "flex", flexDirection: "column", gap: 0.75}}>
-                <CreatePostRichTextEditor
-                  initialHtml={overviewToInitialEditorHtml(overview)}
-                  onChange={setOverview}
-                  disabled={formLocked}
-                  minEditorHeight={260}
-                  maxEditorHeight={480}
-                />
+      {!perCampus ? (
+        <Card sx={{borderRadius: "12px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)", border: "1px solid rgba(226,232,240,1)"}}>
+          <CardContent sx={{p: 3}}>
+            <Typography sx={{fontWeight: 900, color: "#0f172a", mb: 1.25, fontSize: 18}}>Tổng quan cơ sở vật chất</Typography>
+            <Alert severity="info" sx={{borderRadius: 2, maxWidth: 1200, mb: 1.5}}>
+              <Typography variant="body2" component="div" sx={{fontWeight: 700, mb: 0.75}}>
+                Lưu ý:
+              </Typography>
+              <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
+                {overviewNoteBody}
+              </Typography>
+            </Alert>
+            {loading ? (
+              <Stack spacing={1.5}>
+                <Skeleton variant="rounded" height={120} sx={{borderRadius: "12px"}}/>
+                <Skeleton variant="text" width="35%"/>
+              </Stack>
+            ) : (
+              <Box>
+                <Box sx={{display: "flex", flexDirection: "column", gap: 0.75}}>
+                  <CreatePostRichTextEditor
+                    initialHtml={overviewToInitialEditorHtml(overview)}
+                    onChange={setOverview}
+                    disabled={formLocked}
+                    minEditorHeight={260}
+                    maxEditorHeight={480}
+                  />
+                </Box>
+                <Box sx={{display: "flex", justifyContent: "space-between", mt: 1}}>
+                  <Typography
+                    variant="caption"
+                    sx={{color: overviewPlainLen >= MAX_OVERVIEW_CHARS ? "#ef4444" : "#94a3b8"}}
+                  >
+                    {overviewPlainLen}/{MAX_OVERVIEW_CHARS}
+                  </Typography>
+                </Box>
               </Box>
-              <Box sx={{display: "flex", justifyContent: "space-between", mt: 1}}>
-                <Typography
-                  variant="caption"
-                  sx={{color: overviewPlainLen >= MAX_OVERVIEW_CHARS ? "#ef4444" : "#94a3b8"}}
-                >
-                  {overviewPlainLen}/{MAX_OVERVIEW_CHARS}
-                </Typography>
-              </Box>
-            </Box>
-          )}
-        </CardContent>
-      </Card>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* Section 2: danh sách + ảnh bìa + lọc + từng mục */}
       <Card sx={{borderRadius: "12px", boxShadow: "0 8px 24px rgba(15, 23, 42, 0.06)", border: "1px solid rgba(226,232,240,1)"}}>
@@ -508,9 +509,14 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
           <Typography variant="subtitle2" sx={{fontWeight: 800, color: "#0f172a", mb: 1.25}}>
             Ảnh bìa
           </Typography>
-          <Typography variant="caption" sx={{display: "block", color: "#dc2626", fontWeight: 700, mb: 1.5}}>
-            {coverNoteText}
-          </Typography>
+          <Alert severity="info" sx={{borderRadius: 2, maxWidth: 1200, mb: 1.5}}>
+            <Typography variant="body2" component="div" sx={{fontWeight: 700, mb: 0.75}}>
+              Lưu ý:
+            </Typography>
+            <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
+              {coverNoteText}
+            </Typography>
+          </Alert>
           {loading ? (
             <Skeleton variant="rounded" height={180} sx={{borderRadius: "12px", mb: 2.5}}/>
           ) : (

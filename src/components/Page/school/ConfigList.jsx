@@ -1,21 +1,3 @@
-import React from "react";
-import ConfigList from "./ConfigList.jsx";
-
-/**
- * @deprecated Use `ConfigList` directly.
- */
-export default function SchoolCampusConfigOverview() {
-  return <ConfigList />;
-}
-import React from "react";
-import ConfigList from "./ConfigList.jsx";
-
-/**
- * @deprecated Use `ConfigList` directly.
- */
-export default function SchoolCampusConfigOverview() {
-  return <ConfigList />;
-}
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Box,
@@ -48,10 +30,6 @@ import {
   parseSchoolCampusConfigListBody,
   schoolCampusListRowPolicyText,
 } from "../../../services/SchoolFacilityService.jsx";
-
-function campusOverviewLooksLikeHtml(s) {
-  return typeof s === "string" && /<[a-z][\s/>]/i.test(s.trim());
-}
 
 function facilityCoverUrl(imageData) {
   if (!imageData || typeof imageData !== "object") return "";
@@ -330,7 +308,7 @@ function CorporateFareIllustration() {
   );
 }
 
-export default function SchoolCampusConfigOverview() {
+export default function ConfigList() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [search, setSearch] = useState("");
@@ -373,10 +351,6 @@ export default function SchoolCampusConfigOverview() {
   const active = filtered[tabIndex] || null;
   const facilityConfig = active?.facilityConfig && typeof active.facilityConfig === "object" ? active.facilityConfig : null;
   const itemList = Array.isArray(facilityConfig?.itemList) ? facilityConfig.itemList : [];
-  const overviewText =
-    facilityConfig?.overview != null && String(facilityConfig.overview).trim() !== ""
-      ? String(facilityConfig.overview)
-      : null;
   const facilityImageData =
     facilityConfig?.imageData && typeof facilityConfig.imageData === "object" ? facilityConfig.imageData : null;
   const cover = facilityPrimaryImageUrl(facilityImageData);
@@ -677,38 +651,6 @@ export default function SchoolCampusConfigOverview() {
                       )}
                     </Box>
                     <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
-                      <Typography sx={{ fontSize: "1.125rem", fontWeight: 600, color: "#0f172a", mb: 1.5 }}>
-                        Tổng quan cơ sở vật chất
-                      </Typography>
-                      {overviewText && campusOverviewLooksLikeHtml(overviewText) ? (
-                        <Box
-                          component="div"
-                          sx={{
-                            color: "#475569",
-                            lineHeight: 1.65,
-                            mb: 3,
-                            fontSize: "0.875rem",
-                            "& p": { margin: "0.35em 0" },
-                            "& ul, & ol": { pl: "1.25rem", my: 0.5 },
-                            "& strong": { fontWeight: 700 },
-                            "& em": { fontStyle: "italic" },
-                            "& u": { textDecoration: "underline" },
-                          }}
-                          dangerouslySetInnerHTML={{ __html: overviewText }}
-                        />
-                      ) : (
-                        <Typography
-                          variant="body2"
-                          sx={{
-                            color: overviewText ? "#475569" : "#94a3b8",
-                            fontStyle: overviewText ? "normal" : "italic",
-                            lineHeight: 1.65,
-                            mb: 3,
-                          }}
-                        >
-                          {overviewText || "Chưa có mô tả tổng quan."}
-                        </Typography>
-                      )}
                       <Typography sx={{ fontSize: "0.95rem", fontWeight: 600, color: "#334155", mb: 0.5 }}>
                         Danh mục cơ sở vật chất
                       </Typography>

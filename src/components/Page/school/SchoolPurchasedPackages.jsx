@@ -284,19 +284,19 @@ function ResourceSummaryMetrics({ rs }) {
         >
             <ResourceMetricCard
                 icon={<StorefrontOutlinedIcon sx={{ fontSize: 22 }} />}
-                label="Tổng hạn ngạch gói"
+                label="Tổng tài nguyên hiện có"
                 value={rs.totalPackageQuota}
                 accent="#0D64DE"
             />
             <ResourceMetricCard
                 icon={<HubOutlinedIcon sx={{ fontSize: 22 }} />}
-                label="Hạn ngạch tại trụ sở"
+                label="Tài nguyên của cơ sở chính hiện có"
                 value={rs.myCampusQuota}
                 accent="#047857"
             />
             <ResourceMetricCard
                 icon={<AccountTreeOutlinedIcon sx={{ fontSize: 22 }} />}
-                label="Hạn ngạch chi nhánh"
+                label="Tài nguyên của các chi nhánh hiện có"
                 value={rs.otherCampusesQuota}
                 accent="#b45309"
             />
