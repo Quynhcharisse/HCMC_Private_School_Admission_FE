@@ -12,19 +12,17 @@ export const useLoading = () => {
 
 export const LoadingProvider = ({children}) => {
     const [loadingStates, setLoadingStates] = useState({
-        app: false,           // React Router lazy loading
-        auth: false,          // Authentication check
-        layout: false,        // Layout initialization
-        data: false,          // Data fetching
-        custom: false         // Custom loading states
+        app: false,
+        auth: false,
+        layout: false,
+        data: false,
+        custom: false
     });
 
     const [globalLoading, setGlobalLoading] = useState(false);
 
-    // Kiểm tra xem có loading nào đang chạy không
     const hasAnyLoading = Object.values(loadingStates).some(state => state);
 
-    // Cập nhật global loading dựa trên loading states
     useEffect(() => {
         setGlobalLoading(hasAnyLoading);
     }, [hasAnyLoading]);
@@ -72,7 +70,6 @@ export const LoadingProvider = ({children}) => {
     );
 };
 
-// Global Loading Overlay Component
 export const GlobalLoadingOverlay = () => {
     const {globalLoading} = useLoading();
 

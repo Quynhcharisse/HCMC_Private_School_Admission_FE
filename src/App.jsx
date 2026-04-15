@@ -4,22 +4,66 @@ import {lazy, Suspense} from "react";
 import {SnackbarProvider} from 'notistack';
 import {createTheme, CssBaseline, Slide, ThemeProvider} from '@mui/material';
 import {GlobalLoadingOverlay, LoadingProvider} from './contexts/LoadingContext.jsx';
+import {APP_PRIMARY_DARK, APP_PRIMARY_LIGHT, APP_PRIMARY_MAIN} from './constants/homeLandingTheme';
 
-// Lazy load components
 const WebAppLayout = lazy(() => import("./components/ui/WebAppLayout.jsx"));
 const HomePage = lazy(() => import("./components/Page/HomePage.jsx"));
+const PostFeedPage = lazy(() => import("./components/Page/PostFeedPage.jsx"));
+const SchoolSearchPage = lazy(() => import("./components/Page/SchoolSearchPage.jsx"));
 const Login = lazy(() => import("./components/auth/Login.jsx"));
 const Register = lazy(() => import("./components/auth/Register.jsx"));
+const ParentRegistrationForm = lazy(() => import("./components/auth/ParentRegistrationForm.jsx"));
 const ProtectedRoute = lazy(() => import("./configs/ProtectedRoute.jsx"));
 const AdminLayout = lazy(() => import("./components/layouts/AdminLayout.jsx"));
 const AdminDashboard = lazy(() => import("./components/Page/admin/AdminDashboard.jsx"));
 const AdminUsersManagement = lazy(() => import("./components/Page/admin/AdminUsersManagement.jsx"));
+const AdminSchoolVerification = lazy(() => import("./components/Page/admin/AdminSchoolVerification.jsx"));
+const AdminSchoolCampuses = lazy(() => import("./components/Page/admin/AdminSchoolCampuses.jsx"));
+const AdminCampusConsultants = lazy(() => import("./components/Page/admin/AdminCampusConsultants.jsx"));
+const AdminPlatformSettings = lazy(() => import("./components/Page/admin/AdminPlatformSettings.jsx"));
+const AdminPersonalityTypes = lazy(() => import("./components/Page/admin/AdminPersonalityTypes.jsx"));
+const AdminSubjectsManagement = lazy(() => import("./components/Page/admin/AdminSubjectsManagement.jsx"));
+const AdminPackageFeeManagement = lazy(() => import("./components/Page/admin/AdminPackageFeeManagement.jsx"));
+const AdminDocumentTemplateManagement = lazy(() => import("./components/Page/admin/AdminDocumentTemplateManagement.jsx"));
+const SchoolLayout = lazy(() => import("./components/layouts/SchoolLayout.jsx"));
+const SchoolDashboard = lazy(() => import("./components/Page/school/SchoolDashboard.jsx"));
+const SchoolCampus = lazy(() => import("./components/Page/school/SchoolCampus.jsx"));
+const UserProfilePage = lazy(() => import("./components/Page/UserProfilePage.jsx"));
+const SchoolCounselors = lazy(() => import("./components/Page/school/SchoolCounselors.jsx"));
+const SchoolCounselorSchedule = lazy(() => import("./components/Page/school/SchoolCounselorSchedule.jsx"));
+const SchoolCampaigns = lazy(() => import("./components/Page/school/SchoolCampaigns.jsx"));
+const SchoolCampaignOfferings = lazy(() => import("./components/Page/school/SchoolCampaignOfferings.jsx"));
+const SchoolCampaignDetail = lazy(() =>import("./components/Page/school/SchoolCampaignDetail.jsx"));
+const SchoolProfile = lazy(() => import("./components/Page/school/SchoolProfile.jsx"));
+const SchoolFacilityOverview = lazy(() => import("./components/Page/school/SchoolFacilityOverview.jsx"));
+const SchoolFacilityConfiguration = lazy(() =>import("./components/Page/school/SchoolFacilityConfiguration.jsx"));
+const SchoolCampusConfigOverview = lazy(() =>import("./components/Page/school/SchoolCampusConfigOverview.jsx"));
+const CounsellorLayout = lazy(() => import("./components/layouts/CounsellorLayout.jsx"));
+const CounsellorDashboard = lazy(() => import("./components/Page/counsellor/CounsellorDashboard.jsx"));
+const CounsellorParentConsultation = lazy(() => import("./components/Page/counsellor/CounsellorParentConsultation.jsx"));
+const CounsellorProfile = lazy(() => import("./components/Page/counsellor/CounsellorProfile.jsx"));
+const SchoolCurriculums = lazy(() => import("./components/Page/school/SchoolCurriculums.jsx"));
+const SchoolPrograms = lazy(() => import("./components/Page/school/SchoolPrograms.jsx"));
+const SchoolPurchasedPackages = lazy(() => import("./components/Page/school/SchoolPurchasedPackages.jsx"));
+const ParentProfile = lazy(() => import("./components/auth/ParentProfile.jsx"));
+const SavedSchoolsPage = lazy(() => import("./components/Page/SavedSchoolsPage.jsx"));
+const CompareSchoolsPage = lazy(() => import("./components/Page/CompareSchoolsPage.jsx"));
+const ChildrenInfoPage = lazy(() => import("./components/Page/ChildrenInfoPage.jsx"));
+const PackageFeesPage = lazy(() => import("./components/Page/PackageFeesPage.jsx"));
+const VnpayPaymentResultPage = lazy(() => import("./components/Page/payment/VnpayPaymentResultPage.jsx"));
 
 const LoadingFallback = () => {
     return null;
 };
 
 const theme = createTheme({
+    palette: {
+        primary: {
+            main: APP_PRIMARY_MAIN,
+            dark: APP_PRIMARY_DARK,
+            light: APP_PRIMARY_LIGHT,
+        },
+    },
     typography: {
         fontFamily: '"Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif',
         h1: {
@@ -83,20 +127,24 @@ const router = createBrowserRouter([
                 )
             },
             {
-                path: 'schools',
+                path: 'posts',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
-                        <div>Schools List</div>
+                        <PostFeedPage/>
                     </Suspense>
                 )
             },
             {
-                path: 'guide',
+                path: 'search-schools',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
-                        <div>Guide Page</div>
+                        <SchoolSearchPage/>
                     </Suspense>
                 )
+            },
+            {
+                path: 'schools',
+                element: <Navigate to={'/search-schools'} replace />
             },
             {
                 path: 'about',
@@ -139,10 +187,60 @@ const router = createBrowserRouter([
                 )
             },
             {
+                path: 'saved-schools',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SavedSchoolsPage/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'compare-schools',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <CompareSchoolsPage/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'package-fees',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <PackageFeesPage/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'payment/vnpay-result',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <VnpayPaymentResultPage/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'children-info',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <ProtectedRoute allowRoles={['PARENT']}>
+                            <ChildrenInfoPage/>
+                        </ProtectedRoute>
+                    </Suspense>
+                )
+            },
+            {
                 path: 'register',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <Register/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'parent-first-login',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <ParentRegistrationForm isFirstLogin />
                     </Suspense>
                 )
             }
@@ -176,7 +274,7 @@ const router = createBrowserRouter([
                 path: 'profile',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
-                        <div>Student Profile</div>
+                        <UserProfilePage/>
                     </Suspense>
                 )
             }
@@ -188,7 +286,7 @@ const router = createBrowserRouter([
             <Suspense fallback={<LoadingFallback/>}>
                 <ProtectedRoute allowRoles={['SCHOOL']}>
                     <Suspense fallback={<LoadingFallback/>}>
-                        <div>School Dashboard Layout</div>
+                        <SchoolLayout/>
                     </Suspense>
                 </ProtectedRoute>
             </Suspense>
@@ -202,7 +300,119 @@ const router = createBrowserRouter([
                 path: 'dashboard',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
-                        <div>School Dashboard</div>
+                        <SchoolDashboard/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'campus',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolCampus/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'campus-config',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolCampusConfigOverview/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'campus-facility-config',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolFacilityOverview variant="campus"/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'facility-config',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolFacilityOverview variant="platform"/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'facility-config/detail',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolFacilityConfiguration/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'counselors',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolCounselors/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'counselor-schedule',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolCounselorSchedule/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'curriculums',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolCurriculums/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'programs',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolPrograms/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'purchased-packages',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolPurchasedPackages/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'purchased-packages/:subscriptionId',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolPurchasedPackages/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'campaigns',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolCampaigns/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'campaigns/detail/:campaignId',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolCampaignDetail/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'campaigns/offerings/:campaignId',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolCampaignOfferings/>
                     </Suspense>
                 )
             },
@@ -210,7 +420,7 @@ const router = createBrowserRouter([
                 path: 'profile',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
-                        <div>School Profile</div>
+                        <SchoolProfile/>
                     </Suspense>
                 )
             }
@@ -241,10 +451,150 @@ const router = createBrowserRouter([
                 )
             },
             {
+                path: 'profile',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <UserProfilePage/>
+                    </Suspense>
+                )
+            },
+            {
                 path: 'users',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <AdminUsersManagement/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'personality-types',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminPersonalityTypes/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'subjects',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminSubjectsManagement/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'schools/:schoolId/campuses',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminSchoolCampuses/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'campuses/:campusId/consultants',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminCampusConsultants/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'schools/verification',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminSchoolVerification/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'platform-settings',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminPlatformSettings/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'package-fees',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminPackageFeeManagement/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'document-templates',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminDocumentTemplateManagement/>
+                    </Suspense>
+                )
+            }
+        ]
+    },
+    {
+        path: '/counsellor',
+        element: (
+            <Suspense fallback={<LoadingFallback/>}>
+                <ProtectedRoute allowRoles={['COUNSELLOR']}>
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <CounsellorLayout/>
+                    </Suspense>
+                </ProtectedRoute>
+            </Suspense>
+        ),
+        children: [
+            {
+                index: true,
+                element: <Navigate to={'/counsellor/dashboard'}/>
+            },
+            {
+                path: 'dashboard',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <CounsellorDashboard/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'parent-consultation',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <CounsellorParentConsultation/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'profile',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <CounsellorProfile/>
+                    </Suspense>
+                )
+            }
+        ]
+    },
+    {
+        path: '/parent',
+        element: (
+            <Suspense fallback={<LoadingFallback/>}>
+                <ProtectedRoute allowRoles={['PARENT']}>
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <WebAppLayout/>
+                    </Suspense>
+                </ProtectedRoute>
+            </Suspense>
+        ),
+        children: [
+            {
+                index: true,
+                element: <Navigate to={'/parent/profile'}/>
+            },
+            {
+                path: 'profile',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <ParentProfile/>
                     </Suspense>
                 )
             }

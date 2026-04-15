@@ -2,6 +2,8 @@ import {useEffect, useState} from "react";
 import {refreshToken} from "../services/AuthService.jsx";
 import {getAccess, signout} from "../services/AccountService.jsx";
 import {useLoading} from "../contexts/LoadingContext.jsx";
+import {getRoleDashboardRoute} from "../utils/roleRouting";
+import {normalizeUserRole, pickRoleFromAccessBody} from "../utils/userRole.js";
 
 async function GetAccessData() {
     try {
@@ -31,7 +33,6 @@ async function Logout() {
                 window.location.href = "/login";
             }, 1000);
         } else {
-            // Nếu logout fail, vẫn clear storage và redirect
             if (localStorage.length > 0) {
                 localStorage.clear();
             }
@@ -42,7 +43,6 @@ async function Logout() {
         }
     } catch (error) {
         console.error("Logout error:", error);
-        // Vẫn clear storage và redirect dù có lỗi
         if (localStorage.length > 0) {
             localStorage.clear();
         }
@@ -54,7 +54,10 @@ async function Logout() {
 }
 
 async function CheckIfRoleValid(allowRoles, role) {
-    return !!allowRoles.includes(role);
+    if (!role) return false;
+    const normalizedRole = normalizeUserRole(role);
+    const normalizedAllowRoles = allowRoles.map((r) => normalizeUserRole(r));
+    return normalizedAllowRoles.includes(normalizedRole);
 }
 
 export default function ProtectedRoute({children, allowRoles = []}) {
@@ -77,45 +80,65 @@ export default function ProtectedRoute({children, allowRoles = []}) {
 
                 const data = await GetAccessData();
 
-                if (data != null) {
-                    const isValidRole = await CheckIfRoleValid(allowRoles, data.role);
+                const roleFromData = data != null ? pickRoleFromAccessBody(data) ?? data.role : null;
+                if (data != null && roleFromData) {
+                    const isValidRole = await CheckIfRoleValid(allowRoles, roleFromData);
                     if (isValidRole) {
                         setIsAuthenticated(true);
                         setHasValidRole(true);
                         setIsLoading(false);
+                        setAuthLoading(false);
                         return;
                     } else {
-                        await Logout();
+                        console.warn(`User has role ${roleFromData} but route requires:`, allowRoles);
+                        const redirect = getRoleDashboardRoute(normalizeUserRole(roleFromData));
+                        window.location.href = redirect;
                         return;
                     }
                 }
 
-                const refreshResponse = await refreshToken();
-                if (refreshResponse.status === 401 || refreshResponse.status === 403) {
-                    await Logout();
-                    return;
+                try {
+                    const refreshResponse = await refreshToken();
+                    if (refreshResponse && refreshResponse.status === 200) {
+                        const retryData = await GetAccessData();
+                        const retryRole = retryData != null ? pickRoleFromAccessBody(retryData) ?? retryData.role : null;
+                        if (retryData != null && retryRole) {
+                            const isValidRole = await CheckIfRoleValid(allowRoles, retryRole);
+                            if (isValidRole) {
+                                setIsAuthenticated(true);
+                                setHasValidRole(true);
+                                setIsLoading(false);
+                                setAuthLoading(false);
+                                return;
+                            } else {
+                                console.warn(`User has role ${retryRole} but route requires:`, allowRoles);
+                                const redirect = getRoleDashboardRoute(normalizeUserRole(retryRole));
+                                window.location.href = redirect;
+                                return;
+                            }
+                        }
+                    }
+                } catch (refreshError) {
+                    console.log("Token refresh failed, user not authenticated");
                 }
 
-                const retryData = await GetAccessData();
-                if (retryData != null) {
-                    const isValidRole = await CheckIfRoleValid(allowRoles, retryData.role);
-                    if (isValidRole) {
-                        setIsAuthenticated(true);
-                        setHasValidRole(true);
-                        setIsLoading(false);
-                        return;
-                    } else {
-                        await Logout();
-                        return;
-                    }
-                } else {
-                    await Logout();
-                    return;
+                if (localStorage.length > 0) {
+                    localStorage.clear();
                 }
+                if (sessionStorage.length > 0) {
+                    sessionStorage.clear();
+                }
+                window.location.href = "/login";
 
             } catch (error) {
                 console.error("Authentication error:", error);
-                await Logout();
+                if (localStorage.length > 0) {
+                    localStorage.clear();
+                }
+                if (sessionStorage.length > 0) {
+                    sessionStorage.clear();
+                }
+                window.location.href = "/login";
             } finally {
                 setIsLoading(false);
                 setAuthLoading(false);
@@ -123,10 +146,9 @@ export default function ProtectedRoute({children, allowRoles = []}) {
         };
 
         checkAuthentication();
-    }, [allowRoles]);
+    }, [allowRoles, setAuthLoading]);
 
     if (isLoading) {
-        // Không hiển thị loading UI ở đây nữa, sẽ dùng GlobalLoadingOverlay
         return null;
     }
 

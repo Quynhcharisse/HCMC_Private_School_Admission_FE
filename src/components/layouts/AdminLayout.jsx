@@ -1,75 +1,98 @@
-import React from "react";
-import {Box, Drawer} from "@mui/material";
-import {Outlet, useLocation} from "react-router-dom";
+import React, { useMemo, useState } from "react";
+import { Box, Drawer, Fade } from "@mui/material";
+import { ThemeProvider, createTheme, useTheme } from "@mui/material/styles";
+import { Outlet, useLocation } from "react-router-dom";
 import AuthHeader from "../partials/AuthHeader.jsx";
 import AdminSidebar from "../partials/AdminSidebar.jsx";
 
-const DRAWER_WIDTH = 280;
+const SIDEBAR_WIDTH_EXPANDED = 264;
+const SIDEBAR_WIDTH_COLLAPSED = 72;
+const SIDEBAR_WIDTH_TRANSITION = "280ms cubic-bezier(0.4, 0, 0.2, 1)";
+const ADMIN_FONT = '"Roboto", "Helvetica Neue", Helvetica, Arial, sans-serif';
 
 export default function AdminLayout() {
-    const location = useLocation();
+  const baseTheme = useTheme();
+  const adminTheme = useMemo(
+    () =>
+      createTheme(baseTheme, {
+        typography: {
+          ...baseTheme.typography,
+          fontFamily: ADMIN_FONT,
+          allVariants: { fontFamily: ADMIN_FONT },
+        },
+      }),
+    [baseTheme]
+  );
 
-    return (
-        <Box sx={{display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: '#f8fafc'}}>
-            <AuthHeader/>
-            <Box sx={{display: 'flex', flex: 1, pt: '65px'}}>
-                <Drawer
-                    variant="permanent"
-                    sx={{
-                        width: DRAWER_WIDTH,
-                        flexShrink: 0,
-                        '& .MuiDrawer-paper': {
-                            width: DRAWER_WIDTH,
-                            boxSizing: 'border-box',
-                            borderRight: '1px solid #e0e7ff',
-                            bgcolor: 'white',
-                            height: 'calc(100vh - 65px)',
-                            top: '65px',
-                            animation: 'slideInLeft 0.3s ease-out',
-                            '@keyframes slideInLeft': {
-                                '0%': {
-                                    transform: 'translateX(-100%)',
-                                    opacity: 0,
-                                },
-                                '100%': {
-                                    transform: 'translateX(0)',
-                                    opacity: 1,
-                                },
-                            },
-                        },
-                    }}
-                >
-                    <AdminSidebar currentPath={location.pathname}/>
-                </Drawer>
-                <Box
-                    component="main"
-                    sx={{
-                        flexGrow: 1,
-                        pt: 3,
-                        pb: 3,
-                        pl: 7,
-                        pr: 4,
-                        minHeight: 'calc(100vh - 65px)',
-                        bgcolor: '#f8fafc',
-                        overflow: 'auto',
-                        animation: 'fadeInUp 0.4s ease-out',
-                        '@keyframes fadeInUp': {
-                            '0%': {
-                                opacity: 0,
-                                transform: 'translateY(10px)',
-                            },
-                            '100%': {
-                                opacity: 1,
-                                transform: 'translateY(0)',
-                            },
-                        },
-                    }}
-                >
-                    <Box sx={{ml: -3}}>
-                        <Outlet/>
-                    </Box>
-                </Box>
+  const location = useLocation();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const sidebarWidth = sidebarCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
+  const HEADER_HEIGHT = 65;
+
+  return (
+    <ThemeProvider theme={adminTheme}>
+      <Box
+        sx={{
+          display: "flex",
+          minHeight: "100vh",
+          bgcolor: "#f8fafc",
+          fontFamily: ADMIN_FONT,
+        }}
+      >
+        <Drawer
+          variant="persistent"
+          open
+          sx={{
+            zIndex: 1100,
+            width: sidebarWidth,
+            flexShrink: 0,
+            transition: `width ${SIDEBAR_WIDTH_TRANSITION}`,
+            "& .MuiDrawer-paper": {
+              width: sidebarWidth,
+              boxSizing: "border-box",
+              borderRight: "1px solid #e5e7eb",
+              bgcolor: "#ffffff",
+              height: "100vh",
+              minHeight: "100vh",
+              top: 0,
+              mt: 0,
+              zIndex: 1100,
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+              transition: `width ${SIDEBAR_WIDTH_TRANSITION}`,
+              boxShadow: "2px 0 8px rgba(0,0,0,0.04)",
+            },
+          }}
+        >
+          <AdminSidebar
+            currentPath={location.pathname}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed((prev) => !prev)}
+          />
+        </Drawer>
+
+        <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+          <AuthHeader headerLeftOffset={sidebarWidth} />
+          <Fade in key={location.pathname} timeout={{ enter: 250, exit: 150 }}>
+            <Box
+              component="main"
+              sx={{
+                flex: 1,
+                pt: 3,
+                pb: 3,
+                px: 3,
+                mt: `${HEADER_HEIGHT}px`,
+                minHeight: `calc(100vh - ${HEADER_HEIGHT}px)`,
+                bgcolor: "#f8fafc",
+                overflow: "auto",
+              }}
+            >
+              <Outlet />
             </Box>
+          </Fade>
         </Box>
-    );
+      </Box>
+    </ThemeProvider>
+  );
 }

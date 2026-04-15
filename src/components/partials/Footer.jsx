@@ -1,34 +1,100 @@
 import React from "react";
-import {Box, Container, Divider, Grid, Typography} from "@mui/material";
+import {Box, Container, Divider, Grid, Link, Typography} from "@mui/material";
 import PhoneIcon from '@mui/icons-material/Phone';
 import EmailIcon from '@mui/icons-material/Email';
+import {BRAND_AQUA, HOME_SECTION_TESTIMONIAL_BG} from "../../constants/homeLandingTheme";
+
+const sectionTitleSx = {
+    fontWeight: 700,
+    mb: 1.25,
+    color: '#1e293b',
+    letterSpacing: '0.06em',
+    fontSize: '0.95rem',
+    position: 'relative',
+    display: 'inline-block',
+    pl: {xs: 0, md: 1.5},
+    textShadow: 'none',
+    '&::before': {
+        content: '""',
+        display: {xs: 'none', md: 'block'},
+        position: 'absolute',
+        left: 0,
+        top: '0.15em',
+        width: 3,
+        height: '1em',
+        borderRadius: 1,
+        background: `linear-gradient(180deg, #60a5fa 0%, ${BRAND_AQUA} 100%)`
+    }
+};
+
+const linkSx = {
+    color: '#334155',
+    textDecoration: 'none',
+    display: 'inline-block',
+    py: 0.25,
+    borderRadius: 1,
+    textShadow: 'none',
+    transition: 'color 0.2s ease, transform 0.2s ease, background-color 0.2s ease',
+    '&:hover': {
+        color: '#1d4ed8',
+        transform: 'translateX(2px)',
+        backgroundColor: 'rgba(59,130,246,0.08)'
+    }
+};
+
+/** Plain footer lines (no href) — same base look as links without hover/navigation */
+const footerPlainLineSx = {
+    color: '#334155',
+    textShadow: 'none',
+    py: 0.25,
+};
 
 export default function Footer() {
     return (
-        <Box sx={{
-            background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
-            color: 'white',
-            pt: 8,
-            pb: 3,
-        }}>
-            <Container maxWidth={false} sx={{px: {xs: 2, md: 8}}}>
+        <Box
+            component="footer"
+            sx={{
+                width: '100%',
+                background: HOME_SECTION_TESTIMONIAL_BG,
+                borderTop: 'none'
+            }}
+        >
+            <Container
+                maxWidth="lg"
+                sx={{
+                    px: {xs: 2, md: 4},
+                    py: {xs: 3, md: 3.5},
+                    color: '#1e293b',
+                    backgroundColor: 'transparent'
+                }}
+            >
                 <Grid
                     container
-                    spacing={4}
+                    spacing={3}
                     alignItems="flex-start"
                     justifyContent="space-between"
                 >
-                    {/* Phần 1 trống để chia layout */}
-                    <Grid item xs={false} md={2} sx={{display: {xs: 'none', md: 'block'}}}/>
-
-                    {/* Phần 2: LIÊN HỆ */}
                     <Grid
                         item
                         xs={12}
-                        md={2}
+                        md={3}
                         sx={{textAlign: {xs: 'center', md: 'left'}}}
                     >
-                        <Typography variant="h6" sx={{fontWeight: 700, mb: 2, color: 'white'}}>
+                        <Typography variant="h6" component="h2" sx={sectionTitleSx}>
+                            GIỚI THIỆU
+                        </Typography>
+                        <Typography variant="body2" sx={{color: '#475569', lineHeight: 1.65, mb: 1}}>
+                            EduBridgeHCM là dự án học tập nhằm xây dựng nền tảng tư vấn tuyển sinh thông minh, kết nối phụ huynh với các trường học. Dự án phục vụ mục đích nghiên cứu và không đại diện cho tổ chức thương mại thực tế
+                        </Typography>
+                    </Grid>
+
+                    <Grid
+                        item
+                        xs={12}
+                        md={3}
+                        sx={{textAlign: {xs: 'center', md: 'left'}}}
+                    >
+                        <Typography variant="h6" component="h2" sx={sectionTitleSx}>
                             LIÊN HỆ
                         </Typography>
 
@@ -41,8 +107,8 @@ export default function Footer() {
                                 mb: 0.5
                             }}
                         >
-                            <PhoneIcon sx={{fontSize: 18, color: 'rgba(255,255,255,0.8)'}}/>
-                            <Typography variant="body2">0839-674-767</Typography>
+                            <PhoneIcon sx={{fontSize: 18, color: BRAND_AQUA}}/>
+                            <Typography variant="body2" sx={{color: '#475569'}}>0839-674-767</Typography>
                         </Box>
                         <Box
                             sx={{
@@ -53,59 +119,88 @@ export default function Footer() {
                                 mb: 1
                             }}
                         >
-                            <EmailIcon sx={{fontSize: 18, color: 'rgba(255,255,255,0.8)'}}/>
-                            <Typography variant="body2">admission@hcmhighschool.edu.vn</Typography>
+                            <EmailIcon sx={{fontSize: 18, color: BRAND_AQUA}}/>
+                            <Typography variant="body2" sx={{color: '#475569'}}>admissionhcmhighschool@gmail.com</Typography>
                         </Box>
                     </Grid>
 
-                    {/* Phần 3 trống để chia layout */}
-                    <Grid item xs={false} md={2} sx={{display: {xs: 'none', md: 'block'}}}/>
-
-                    {/* Phần 4: CHÍNH SÁCH */}
                     <Grid
                         item
                         xs={12}
-                        md={2}
+                        md={3}
                         sx={{textAlign: {xs: 'center', md: 'left'}}}
                     >
-                        <Typography variant="h6" sx={{fontWeight: 700, mb: 2, color: 'white'}}>
-                            CHÍNH SÁCH
+                        <Typography variant="h6" component="h2" sx={sectionTitleSx}>
+                            THÔNG TIN & HỖ TRỢ
                         </Typography>
                         <Box sx={{
-                            color: 'rgba(255,255,255,0.9)',
                             fontSize: 15,
                             display: 'flex',
                             flexDirection: 'column',
-                            gap: 1
+                            gap: 1,
+                            alignItems: {xs: 'center', md: 'flex-start'}
                         }}>
-                            <div><a href="/policy/privacy" style={{color: 'inherit', textDecoration: 'none'}}>Chính Sách
-                                Bảo Mật</a></div>
-                            <div><a href="/tos" style={{color: 'inherit', textDecoration: 'none'}}>Điều Khoản Sử
-                                Dụng</a>
-                            </div>
-                            <div><a href="/faq" style={{color: 'inherit', textDecoration: 'none'}}>Câu Hỏi Thường
-                                Gặp</a></div>
+                            <Typography component="span" variant="body2" sx={footerPlainLineSx}>
+                                Bảo Mật Thông tin (Demo)
+                            </Typography>
+                            <Typography component="span" variant="body2" sx={footerPlainLineSx}>
+                                Hướng Dẫn Sử Dụng
+                            </Typography>
+                            <Typography component="span" variant="body2" sx={footerPlainLineSx}>
+                                Câu Hỏi Thường Gặp
+                            </Typography>
                         </Box>
                     </Grid>
 
-                    {/* Phần 5 trống để chia layout */}
-                    <Grid item xs={false} md={2} sx={{display: {xs: 'none', md: 'block'}}}/>
+                    <Grid
+                        item
+                        xs={12}
+                        md={3}
+                        sx={{textAlign: {xs: 'center', md: 'left'}}}
+                    >
+                        <Typography variant="h6" component="h2" sx={sectionTitleSx}>
+                            LIÊN KẾT NHANH
+                        </Typography>
+                        <Box sx={{
+                            fontSize: 15,
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 1,
+                            alignItems: {xs: 'center', md: 'flex-start'}
+                        }}>
+                            <Link href="/home" sx={linkSx}>Trang Chủ</Link>
+                            <Link href="/search-schools" sx={linkSx}>Danh Sách Trường</Link>
+                            <Link href="/compare-schools" sx={linkSx}>So sánh trường</Link>
+                            <Link href="/home#ve-chung-toi" sx={linkSx}>Về Chúng Tôi</Link>
+                        </Box>
+                    </Grid>
                 </Grid>
-                <Divider sx={{my: 4, borderColor: 'rgba(255,255,255,0.2)'}}/>
+                <Divider sx={{mt: 1.25, mb: 0.75, borderColor: 'rgba(148,163,184,0.35)'}}/>
                 <Box sx={{
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    gap: 1
+                    pt: 0,
+                    pb: 0,
+                    width: '100%',
+                    overflowX: 'auto',
+                    WebkitOverflowScrolling: 'touch',
                 }}>
-                    <Typography variant="body2" align="center" sx={{color: 'rgba(255,255,255,0.7)'}}>
-                        © {new Date().getFullYear()} EduBridgeHCM - Nền Tảng Tư Vấn Tuyển Sinh. Tất cả quyền được bảo
-                        lưu
+                    <Typography
+                        variant="body2"
+                        align="center"
+                        sx={{
+                            color: '#64748b',
+                            whiteSpace: 'nowrap',
+                            m: 0,
+                            px: 0.5,
+                        }}
+                    >
+                        © {new Date().getFullYear()} EduBridgeHCM - Dự án học tập. Tất cả thông tin trên hệ thống mang tính minh họa.
                     </Typography>
                 </Box>
             </Container>
         </Box>
     );
 }
-
