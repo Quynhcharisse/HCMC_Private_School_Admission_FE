@@ -7,7 +7,8 @@ import {
     Typography,
     Avatar,
     Fade,
-    Slide
+    Slide,
+    CircularProgress
 } from '@mui/material';
 import {
     Send as SendIcon,
@@ -16,7 +17,103 @@ import {
 } from '@mui/icons-material';
 import {APP_PRIMARY_DARK, APP_PRIMARY_MAIN} from '../../constants/homeLandingTheme';
 
+const CHATBOT_WEBHOOK_URL = 'https://n8n-service-ijbl.onrender.com/webhook/chat-web';
+
+const getStoredUser = () => {
+    try {
+        const rawUser = localStorage.getItem('user');
+        if (!rawUser) return null;
+        return JSON.parse(rawUser);
+    } catch {
+        return null;
+    }
+};
+
+const getSessionIdFromUser = (user) => {
+    if (!user) return '';
+    return String(user?.email || user?.username || user?.userName || '').trim();
+};
+
+const getUserAvatarUrl = (user) => {
+    if (!user || typeof user !== 'object') return '';
+    return String(
+        user?.picture ||
+            user?.avatarUrl ||
+            user?.avatar ||
+            user?.profileImageUrl ||
+            user?.profilePicture ||
+            user?.photoUrl ||
+            user?.profile?.picture ||
+            ''
+    ).trim();
+};
+
+const getUserInitial = (user) => {
+    const nameCandidate = String(user?.fullName || user?.name || user?.email || user?.username || '').trim();
+    if (!nameCandidate) return 'U';
+    return nameCandidate.charAt(0).toUpperCase();
+};
+
+const extractBotReply = (payload) => {
+    if (typeof payload === 'string') return payload.trim();
+    if (!payload || typeof payload !== 'object') return '';
+    return (
+        payload?.output ||
+        payload?.response ||
+        payload?.answer ||
+        payload?.message ||
+        payload?.text ||
+        payload?.data?.output ||
+        payload?.data?.response ||
+        payload?.data?.answer ||
+        payload?.data?.message ||
+        ''
+    )
+        .toString()
+        .trim();
+};
+
+const normalizeBotPayload = (payload) => {
+    if (!payload || typeof payload !== 'object') {
+        return {
+            text: extractBotReply(payload),
+            details: [],
+            source: ''
+        };
+    }
+
+    const text = String(payload?.summary || extractBotReply(payload) || '').trim();
+    const details = Array.isArray(payload?.details)
+        ? payload.details
+              .map((item) => {
+                  if (item && typeof item === 'object') {
+                      const label = String(item?.label || '').trim();
+                      const value = String(item?.value || '').trim();
+                      if (!value) return null;
+                      return {label, value};
+                  }
+                  const textValue = String(item || '').trim();
+                  if (!textValue) return null;
+                  return {label: '', value: textValue};
+              })
+              .filter(Boolean)
+        : [];
+    const source = String(payload?.source || '').trim();
+
+    return {text, details, source};
+};
+
+const buildSourceViewUrl = (sourceUrl) => {
+    const normalized = String(sourceUrl || '').trim();
+    if (!normalized) return '';
+    return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(normalized)}`;
+};
+
 const Chatbot = () => {
+    const user = getStoredUser();
+    const sessionId = getSessionIdFromUser(user);
+    const userAvatarUrl = getUserAvatarUrl(user);
+    const userInitial = getUserInitial(user);
     const [isOpen, setIsOpen] = useState(false);
     const [messages, setMessages] = useState([
         {
@@ -27,6 +124,7 @@ const Chatbot = () => {
         }
     ]);
     const [inputMessage, setInputMessage] = useState('');
+    const [isSending, setIsSending] = useState(false);
     const messagesEndRef = useRef(null);
     const inputRef = useRef(null);
 
@@ -46,36 +144,73 @@ const Chatbot = () => {
         }
     }, [isOpen]);
 
-    const handleSendMessage = () => {
-        if (inputMessage.trim() === '') return;
+    const handleSendMessage = async (messageOverride) => {
+        const resolvedMessage = typeof messageOverride === 'string' ? messageOverride : inputMessage;
+        if (resolvedMessage.trim() === '' || isSending || !sessionId) return;
 
+        const trimmedInput = resolvedMessage.trim();
         const userMessage = {
-            id: messages.length + 1,
-            text: inputMessage,
+            id: Date.now(),
+            text: trimmedInput,
             sender: 'user',
             timestamp: new Date()
         };
 
-        setMessages([...messages, userMessage]);
+        setMessages((prev) => [...prev, userMessage]);
         setInputMessage('');
+        setIsSending(true);
 
-        setTimeout(() => {
-            const botResponses = [
-                'Cảm ơn bạn đã liên hệ! Tôi đang xử lý câu hỏi của bạn...',
-                'Đây là một câu hỏi hay! Để tôi tìm thông tin phù hợp cho bạn.',
-                'Tôi hiểu câu hỏi của bạn. Hãy để tôi hỗ trợ bạn tìm thông tin cần thiết.',
-                'Cảm ơn bạn đã quan tâm! Tôi sẽ cung cấp thông tin chi tiết trong giây lát.'
-            ];
-            const randomResponse = botResponses[Math.floor(Math.random() * botResponses.length)];
-            
+        try {
+            const response = await fetch(CHATBOT_WEBHOOK_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    chatInput: trimmedInput,
+                    sessionId
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Webhook error: ${response.status}`);
+            }
+
+            const contentType = response.headers.get('content-type') || '';
+            const responsePayload = contentType.includes('application/json')
+                ? await response.json()
+                : await response.text();
+            const normalized = normalizeBotPayload(responsePayload);
+            const hasBotContent =
+                Boolean(normalized.text) ||
+                (Array.isArray(normalized.details) && normalized.details.length > 0) ||
+                Boolean(normalized.source);
+            if (!hasBotContent) {
+                return;
+            }
             const botMessage = {
-                id: messages.length + 2,
-                text: randomResponse,
+                id: Date.now() + 1,
+                text: normalized.text,
+                details: normalized.details,
+                source: normalized.source,
                 sender: 'bot',
                 timestamp: new Date()
             };
             setMessages(prev => [...prev, botMessage]);
-        }, 1000);
+        } catch (error) {
+            const botMessage = {
+                id: Date.now() + 1,
+                text: 'Hiện tại chatbot đang bận, vui lòng thử lại sau ít phút.',
+                details: [],
+                source: '',
+                sender: 'bot',
+                timestamp: new Date()
+            };
+            setMessages((prev) => [...prev, botMessage]);
+            console.error('Chatbot webhook request failed:', error);
+        } finally {
+            setIsSending(false);
+        }
     };
 
     const handleKeyPress = (e) => {
@@ -93,11 +228,13 @@ const Chatbot = () => {
     ];
 
     const handleQuickQuestion = (question) => {
-        setInputMessage(question);
-        setTimeout(() => {
-            handleSendMessage();
-        }, 100);
+        setInputMessage('');
+        handleSendMessage(question);
     };
+
+    if (!sessionId) {
+        return null;
+    }
 
     return (
         <>
@@ -263,16 +400,84 @@ const Chatbot = () => {
                                                 order: message.sender === 'user' ? 0 : 1
                                             }}
                                         >
-                                            <Typography
-                                                variant="body2"
-                                                sx={{
-                                                    fontSize: '0.875rem',
-                                                    lineHeight: 1.5,
-                                                    wordBreak: 'break-word'
-                                                }}
-                                            >
-                                                {message.text}
-                                            </Typography>
+                                            {message.text && (
+                                                <Typography
+                                                    variant="body2"
+                                                    sx={{
+                                                        fontSize: '0.875rem',
+                                                        lineHeight: 1.5,
+                                                        wordBreak: 'break-word'
+                                                    }}
+                                                >
+                                                    {message.text}
+                                                </Typography>
+                                            )}
+                                            {message.sender === 'bot' && Array.isArray(message.details) && message.details.length > 0 && (
+                                                <Box sx={{mt: 1, display: 'flex', flexDirection: 'column', gap: 0.5}}>
+                                                    {message.details.map((detail, index) => (
+                                                        <Box
+                                                            key={`${message.id}-detail-${index}`}
+                                                            sx={{
+                                                                px: 1,
+                                                                py: 0.6,
+                                                                borderRadius: 1.2,
+                                                                bgcolor: message.sender === 'user' ? 'rgba(255,255,255,0.15)' : 'rgba(59,130,246,0.08)',
+                                                                border: message.sender === 'user'
+                                                                    ? '1px solid rgba(255,255,255,0.25)'
+                                                                    : '1px solid rgba(59,130,246,0.18)'
+                                                            }}
+                                                        >
+                                                            {detail.label ? (
+                                                                <Typography
+                                                                    variant="caption"
+                                                                    sx={{
+                                                                        display: 'block',
+                                                                        fontSize: '0.75rem',
+                                                                        lineHeight: 1.45,
+                                                                        color: '#334155'
+                                                                    }}
+                                                                >
+                                                                    <Box component="span" sx={{fontWeight: 700, color: '#0f172a'}}>
+                                                                        {detail.label}
+                                                                    </Box>
+                                                                    {' : '}
+                                                                    {detail.value}
+                                                                </Typography>
+                                                            ) : (
+                                                                <Typography
+                                                                    variant="caption"
+                                                                    sx={{
+                                                                        display: 'block',
+                                                                        fontSize: '0.75rem',
+                                                                        lineHeight: 1.45,
+                                                                        color: '#334155'
+                                                                    }}
+                                                                >
+                                                                    • {detail.value}
+                                                                </Typography>
+                                                            )}
+                                                        </Box>
+                                                    ))}
+                                                </Box>
+                                            )}
+                                            {message.sender === 'bot' && message.source && (
+                                                <Typography
+                                                    component="a"
+                                                    href={buildSourceViewUrl(message.source)}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    variant="caption"
+                                                    sx={{
+                                                        display: 'inline-block',
+                                                        mt: 0.9,
+                                                        fontSize: '0.75rem',
+                                                        textDecoration: 'underline',
+                                                        color: message.sender === 'user' ? 'rgba(255,255,255,0.9)' : APP_PRIMARY_MAIN
+                                                    }}
+                                                >
+                                                    Nguồn tham khảo
+                                                </Typography>
+                                            )}
                                             <Typography
                                                 variant="caption"
                                                 sx={{
@@ -290,6 +495,7 @@ const Chatbot = () => {
                                         </Box>
                                         {message.sender === 'user' && (
                                             <Avatar
+                                                src={userAvatarUrl || undefined}
                                                 sx={{
                                                     bgcolor: '#dbeafe',
                                                     color: APP_PRIMARY_MAIN,
@@ -298,9 +504,11 @@ const Chatbot = () => {
                                                     order: 1
                                                 }}
                                             >
-                                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 600 }}>
-                                                    U
-                                                </Typography>
+                                                {!userAvatarUrl && (
+                                                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600 }}>
+                                                        {userInitial}
+                                                    </Typography>
+                                                )}
                                             </Avatar>
                                         )}
                                     </Box>
@@ -394,7 +602,7 @@ const Chatbot = () => {
                                 />
                                 <IconButton
                                     onClick={handleSendMessage}
-                                    disabled={inputMessage.trim() === ''}
+                                    disabled={inputMessage.trim() === '' || isSending}
                                     sx={{
                                         bgcolor: APP_PRIMARY_MAIN,
                                         color: 'white',
@@ -409,7 +617,7 @@ const Chatbot = () => {
                                         }
                                     }}
                                 >
-                                    <SendIcon />
+                                    {isSending ? <CircularProgress size={20} sx={{color: 'white'}} /> : <SendIcon />}
                                 </IconButton>
                             </Box>
                         </Paper>
