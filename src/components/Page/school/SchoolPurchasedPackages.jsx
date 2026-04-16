@@ -18,6 +18,7 @@ import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
 import { getCurrentSchoolSubscription } from "../../../services/SchoolSubscriptionService.jsx";
 import { getApiErrorMessage } from "../../../utils/getApiErrorMessage.js";
+import BranchQuotaRequestToPrimaryCard from "./BranchQuotaRequestToPrimaryCard.jsx";
 import { useSchool } from "../../../contexts/SchoolContext.jsx";
 
 const PAGE_BG = "#F7F9FC";
@@ -735,6 +736,11 @@ function SubscriptionDetailPage({ sub, onBack, onRenewOrUpgrade, hideCommerceAct
                     </Box>
                 ) : null}
             </Box>
+            {hideCommerceActions ? (
+                <Box sx={{ mt: 3 }}>
+                    <BranchQuotaRequestToPrimaryCard disabled={false} />
+                </Box>
+            ) : null}
         </Box>
     );
 }
@@ -850,6 +856,8 @@ function CurrentSubscriptionPage({
                         Chi nhánh chỉ xem thông tin gói; mua gói và phân bổ tài nguyên do trụ sở chính thực hiện.
                     </Alert>
                 ) : null}
+
+                {branchReadOnly ? <BranchQuotaRequestToPrimaryCard disabled={loading} /> : null}
 
                 {loading ? (
                     <Box sx={{ display: "flex", justifyContent: "center", py: 10 }}>
