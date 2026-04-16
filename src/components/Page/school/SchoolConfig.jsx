@@ -1,26 +1,3 @@
-import React from "react";
-import SchoolConfig from "./SchoolConfig.jsx";
-import CampusConfig from "./CampusConfig.jsx";
-
-/**
- * @deprecated Use `SchoolConfig` or `CampusConfig` directly.
- */
-export default function SchoolFacilityOverview({variant = "platform"}) {
-  return variant === "campus" ? <CampusConfig /> : <SchoolConfig />;
-}
-import React from "react";
-import SchoolConfig from "./SchoolConfig.jsx";
-import CampusConfig from "./CampusConfig.jsx";
-
-/**
- * @deprecated Use `SchoolConfig` or `CampusConfig` directly.
- */
-export default function SchoolFacilityOverview({variant = "platform"}) {
-  if (variant === "campus") {
-    return <CampusConfig />;
-  }
-  return <SchoolConfig />;
-}
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {
   Accordion,
@@ -62,7 +39,7 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AddIcon from "@mui/icons-material/Add";
-import {Navigate, useSearchParams} from "react-router-dom";
+import {useSearchParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 
 import {extractCampusListBody, listCampuses} from "../../../services/CampusService.jsx";
@@ -203,6 +180,10 @@ function defaultConfig() {
         regularDays: ["MON", "TUE", "WED", "THU", "FRI"],
         weekendDays: ["SAT"],
         isOpenSunday: false,
+      },
+      academicCalendar: {
+        term1: {start: "", end: ""},
+        term2: {start: "", end: ""},
       },
       /** GET `admissionProcesses` / PUT `methodAdmissionProcess` — quy trình theo từng methodCode */
       methodAdmissionProcess: [],
@@ -401,6 +382,78 @@ function normalizeMethodAdmissionProcessGroup(g) {
         : "";
   const steps = Array.isArray(g.steps) ? g.steps.map((s, idx) => normalizeAdmissionProcessStep(s, idx)) : [];
   return {methodCode, steps};
+}
+
+function normalizeAcademicDate(value) {
+  if (value == null) return "";
+  const s = String(value).trim();
+  if (!s) return "";
+  const d = new Date(s);
+  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+function normalizeAcademicTerm(term) {
+  if (!term || typeof term !== "object") return {start: "", end: ""};
+  return {
+    start: normalizeAcademicDate(term.start),
+    end: normalizeAcademicDate(term.end),
+  };
+}
+
+function normalizeAcademicCalendar(raw, fallback) {
+  const fb = fallback && typeof fallback === "object" ? fallback : {term1: {start: "", end: ""}, term2: {start: "", end: ""}};
+  const src = raw && typeof raw === "object" ? raw : {};
+  return {
+    term1: normalizeAcademicTerm(src.term1 ?? fb.term1),
+    term2: normalizeAcademicTerm(src.term2 ?? fb.term2),
+  };
+}
+
+function normalizeOperationSettingsFromApi(op, fallback) {
+  const fb = fallback && typeof fallback === "object" ? fallback : defaultConfig().operationSettingsData;
+  const src = op && typeof op === "object" ? op : {};
+  const workingRaw =
+    src.workingConfig && typeof src.workingConfig === "object"
+      ? src.workingConfig
+      : src.working_config && typeof src.working_config === "object"
+        ? src.working_config
+        : {};
+  return {
+    ...fb,
+    hotline: src.hotline != null ? String(src.hotline) : fb.hotline,
+    emailSupport: src.emailSupport != null ? String(src.emailSupport) : fb.emailSupport,
+    maxBookingPerSlot:
+      src.maxBookingPerSlot != null && !Number.isNaN(Number(src.maxBookingPerSlot))
+        ? Number(src.maxBookingPerSlot)
+        : fb.maxBookingPerSlot,
+    minCounsellorPerSlot:
+      src.minCounsellorPerSlot != null && !Number.isNaN(Number(src.minCounsellorPerSlot))
+        ? Number(src.minCounsellorPerSlot)
+        : fb.minCounsellorPerSlot,
+    slotDurationInMinutes:
+      src.slotDurationInMinutes != null && !Number.isNaN(Number(src.slotDurationInMinutes))
+        ? Number(src.slotDurationInMinutes)
+        : fb.slotDurationInMinutes,
+    allowBookingBeforeHours:
+      src.allowBookingBeforeHours != null && !Number.isNaN(Number(src.allowBookingBeforeHours))
+        ? Number(src.allowBookingBeforeHours)
+        : fb.allowBookingBeforeHours,
+    workingConfig: {
+      ...fb.workingConfig,
+      note: workingRaw.note != null ? String(workingRaw.note) : fb.workingConfig.note,
+      workShifts: Array.isArray(workingRaw.workShifts) ? workingRaw.workShifts : fb.workingConfig.workShifts,
+      regularDays: Array.isArray(workingRaw.regularDays) ? workingRaw.regularDays : fb.workingConfig.regularDays,
+      weekendDays: Array.isArray(workingRaw.weekendDays) ? workingRaw.weekendDays : fb.workingConfig.weekendDays,
+      isOpenSunday: Boolean(
+        workingRaw.isOpenSunday ??
+        workingRaw.openSunday ??
+        fb.workingConfig.isOpenSunday
+      ),
+    },
+    academicCalendar: normalizeAcademicCalendar(src.academicCalendar ?? src.academic_calendar, fb.academicCalendar),
+    methodAdmissionProcess: parseMethodAdmissionProcessFromOperation(src),
+  };
 }
 
 /**
@@ -737,6 +790,8 @@ function sanitizeOperationSettingsForApi(op) {
         )
     : [];
 
+  const academicCalendar = normalizeAcademicCalendar(op.academicCalendar);
+
   return {
     hotline: op.hotline != null ? String(op.hotline) : "",
     emailSupport: op.emailSupport != null ? String(op.emailSupport) : "",
@@ -751,6 +806,7 @@ function sanitizeOperationSettingsForApi(op) {
       weekendDays: Array.isArray(wc.weekendDays) ? wc.weekendDays.map(String) : [],
       openSunday,
     },
+    academicCalendar,
     methodAdmissionProcess,
   };
 }
@@ -894,44 +950,7 @@ function normalizeFromApi(body) {
       mandatoryAll: Array.isArray(doc.mandatoryAll) ? doc.mandatoryAll.map(normalizeDocItem) : d.documentRequirementsData.mandatoryAll,
       byMethod: Array.isArray(doc.byMethod) ? doc.byMethod.map(normalizeByMethodGroup) : d.documentRequirementsData.byMethod,
     },
-    operationSettingsData: {
-      ...d.operationSettingsData,
-      hotline: op.hotline != null ? String(op.hotline) : d.operationSettingsData.hotline,
-      emailSupport: op.emailSupport != null ? String(op.emailSupport) : d.operationSettingsData.emailSupport,
-      maxBookingPerSlot:
-        op.maxBookingPerSlot != null && !Number.isNaN(Number(op.maxBookingPerSlot))
-          ? Number(op.maxBookingPerSlot)
-          : d.operationSettingsData.maxBookingPerSlot,
-      minCounsellorPerSlot:
-        op.minCounsellorPerSlot != null && !Number.isNaN(Number(op.minCounsellorPerSlot))
-          ? Number(op.minCounsellorPerSlot)
-          : d.operationSettingsData.minCounsellorPerSlot,
-      slotDurationInMinutes:
-        op.slotDurationInMinutes != null && !Number.isNaN(Number(op.slotDurationInMinutes))
-          ? Number(op.slotDurationInMinutes)
-          : d.operationSettingsData.slotDurationInMinutes,
-      allowBookingBeforeHours:
-        op.allowBookingBeforeHours != null && !Number.isNaN(Number(op.allowBookingBeforeHours))
-          ? Number(op.allowBookingBeforeHours)
-          : d.operationSettingsData.allowBookingBeforeHours,
-      workingConfig: {
-        ...d.operationSettingsData.workingConfig,
-        ...(op.workingConfig && typeof op.workingConfig === "object" ? op.workingConfig : {}),
-        note:
-          op.workingConfig?.note != null
-            ? String(op.workingConfig.note)
-            : d.operationSettingsData.workingConfig.note,
-        workShifts: Array.isArray(op.workingConfig?.workShifts) ? op.workingConfig.workShifts : d.operationSettingsData.workingConfig.workShifts,
-        regularDays: Array.isArray(op.workingConfig?.regularDays) ? op.workingConfig.regularDays : d.operationSettingsData.workingConfig.regularDays,
-        weekendDays: Array.isArray(op.workingConfig?.weekendDays) ? op.workingConfig.weekendDays : d.operationSettingsData.workingConfig.weekendDays,
-        isOpenSunday: Boolean(
-          op.workingConfig?.isOpenSunday ??
-            op.workingConfig?.openSunday ??
-            d.operationSettingsData.workingConfig.isOpenSunday
-        ),
-      },
-      methodAdmissionProcess: parseMethodAdmissionProcessFromOperation(op),
-    },
+    operationSettingsData: normalizeOperationSettingsFromApi(op, d.operationSettingsData),
     facilityData: {
       itemList: Array.isArray(fac.itemList) ? fac.itemList : [],
       overview: fac.overview ?? "",
@@ -1332,8 +1351,8 @@ function admissionMethodExtraEntries(m) {
  * - platform: GET/PUT /school/config/{schoolId} (chỉ campus chính / isPrimaryBranch)
  * - campus: GET /campus/config; PUT /campus/{campusId}/config — campus phụ: cơ sở đăng nhập; campus chính: chỉ cơ sở chính (không chọn campus khác).
  */
-export default function SchoolFacilityOverview({variant = "platform"}) {
-  const isCampusVariant = variant === "campus";
+export default function SchoolConfig() {
+  const isCampusVariant = false;
   const {isPrimaryBranch, currentCampusId, loading: schoolCtxLoading} = useSchool();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1979,9 +1998,6 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
   const showQuotaTab = !useCampusConfigFlow && tabIndex === 5;
   const showResourceDistributionTab = !useCampusConfigFlow && tabIndex === 6;
 
-  if (!schoolCtxLoading && variant === "platform" && !isPrimaryBranch) {
-    return <Navigate to="/school/campus-facility-config" replace />;
-  }
 
   const pageTitle = isCampusVariant ? "Cấu hình của cơ sở" : "Cấu hình chung cho các cơ sở";
   const pageSubtitle = isCampusVariant
@@ -3828,6 +3844,114 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                   </Stack>
         </CardContent>
       </Card>
+
+              <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
+                <CardContent sx={{p: 3}}>
+                  <Typography sx={{fontWeight: 800, mb: 2}}>Lịch năm học</Typography>
+                  <Stack spacing={2}>
+                    <Stack direction={{xs: "column", md: "row"}} spacing={2}>
+                      <TextField
+                        label="Học kỳ 1 - Bắt đầu"
+                        type="date"
+                        size="small"
+                        InputLabelProps={{shrink: true}}
+                        value={config.operationSettingsData.academicCalendar?.term1?.start ?? ""}
+                        onChange={(e) =>
+                          setConfig((c) => ({
+                            ...c,
+                            operationSettingsData: {
+                              ...c.operationSettingsData,
+                              academicCalendar: {
+                                ...(c.operationSettingsData.academicCalendar || {}),
+                                term1: {
+                                  ...(c.operationSettingsData.academicCalendar?.term1 || {}),
+                                  start: e.target.value,
+                                },
+                              },
+                            },
+                          }))
+                        }
+                        inputProps={{readOnly: fieldDisabled}}
+                        fullWidth
+                      />
+                      <TextField
+                        label="Học kỳ 1 - Kết thúc"
+                        type="date"
+                        size="small"
+                        InputLabelProps={{shrink: true}}
+                        value={config.operationSettingsData.academicCalendar?.term1?.end ?? ""}
+                        onChange={(e) =>
+                          setConfig((c) => ({
+                            ...c,
+                            operationSettingsData: {
+                              ...c.operationSettingsData,
+                              academicCalendar: {
+                                ...(c.operationSettingsData.academicCalendar || {}),
+                                term1: {
+                                  ...(c.operationSettingsData.academicCalendar?.term1 || {}),
+                                  end: e.target.value,
+                                },
+                              },
+                            },
+                          }))
+                        }
+                        inputProps={{readOnly: fieldDisabled}}
+                        fullWidth
+                      />
+                    </Stack>
+                    <Stack direction={{xs: "column", md: "row"}} spacing={2}>
+                      <TextField
+                        label="Học kỳ 2 - Bắt đầu"
+                        type="date"
+                        size="small"
+                        InputLabelProps={{shrink: true}}
+                        value={config.operationSettingsData.academicCalendar?.term2?.start ?? ""}
+                        onChange={(e) =>
+                          setConfig((c) => ({
+                            ...c,
+                            operationSettingsData: {
+                              ...c.operationSettingsData,
+                              academicCalendar: {
+                                ...(c.operationSettingsData.academicCalendar || {}),
+                                term2: {
+                                  ...(c.operationSettingsData.academicCalendar?.term2 || {}),
+                                  start: e.target.value,
+                                },
+                              },
+                            },
+                          }))
+                        }
+                        inputProps={{readOnly: fieldDisabled}}
+                        fullWidth
+                      />
+                      <TextField
+                        label="Học kỳ 2 - Kết thúc"
+                        type="date"
+                        size="small"
+                        InputLabelProps={{shrink: true}}
+                        value={config.operationSettingsData.academicCalendar?.term2?.end ?? ""}
+                        onChange={(e) =>
+                          setConfig((c) => ({
+                            ...c,
+                            operationSettingsData: {
+                              ...c.operationSettingsData,
+                              academicCalendar: {
+                                ...(c.operationSettingsData.academicCalendar || {}),
+                                term2: {
+                                  ...(c.operationSettingsData.academicCalendar?.term2 || {}),
+                                  end: e.target.value,
+                                },
+                              },
+                            },
+                          }))
+                        }
+                        inputProps={{readOnly: fieldDisabled}}
+                        fullWidth
+                      />
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
 
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>

@@ -134,7 +134,7 @@ export default function AdminSchoolVerification() {
     const handleVerify = async () => {
         const currentRegistration = selectedRegistration;
         const schoolName = currentRegistration?.schoolName || "quý nhà trường";
-        const schoolEmail = getRegistrationEmail(currentRegistration);
+        const fallbackSchoolEmail = getRegistrationEmail(currentRegistration);
         const requestId = getVerifyRequestId(selectedRegistration);
         if (verifyingId) return;
         if (requestId === null) {
@@ -145,6 +145,8 @@ export default function AdminSchoolVerification() {
         try {
             const res = await verifySchoolRegistration(requestId);
             if (res && res.status === 200) {
+                const verifiedEmail = String(res?.data?.body?.email || "").trim();
+                const schoolEmail = verifiedEmail || fallbackSchoolEmail;
                 showSuccessSnackbar("Xác thực trường học thành công!");
                 if (schoolEmail) {
                     try {
@@ -159,7 +161,7 @@ export default function AdminSchoolVerification() {
                     }
                 } else {
                     enqueueSnackbar(
-                        "Đã xác thực trường học nhưng chưa tìm thấy email đăng ký để gửi thông báo.",
+                        "Đã xác thực trường học nhưng không có email trong phản hồi để gửi thông báo.",
                         {variant: "warning"}
                     );
                 }

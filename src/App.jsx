@@ -35,9 +35,10 @@ const SchoolCampaigns = lazy(() => import("./components/Page/school/SchoolCampai
 const SchoolCampaignOfferings = lazy(() => import("./components/Page/school/SchoolCampaignOfferings.jsx"));
 const SchoolCampaignDetail = lazy(() =>import("./components/Page/school/SchoolCampaignDetail.jsx"));
 const SchoolProfile = lazy(() => import("./components/Page/school/SchoolProfile.jsx"));
-const SchoolFacilityOverview = lazy(() => import("./components/Page/school/SchoolFacilityOverview.jsx"));
+const SchoolConfig = lazy(() => import("./components/Page/school/SchoolConfig.jsx"));
+const CampusConfig = lazy(() => import("./components/Page/school/CampusConfig.jsx"));
 const SchoolFacilityConfiguration = lazy(() =>import("./components/Page/school/SchoolFacilityConfiguration.jsx"));
-const SchoolCampusConfigOverview = lazy(() =>import("./components/Page/school/SchoolCampusConfigOverview.jsx"));
+const ConfigList = lazy(() =>import("./components/Page/school/ConfigList.jsx"));
 const CounsellorLayout = lazy(() => import("./components/layouts/CounsellorLayout.jsx"));
 const CounsellorDashboard = lazy(() => import("./components/Page/counsellor/CounsellorDashboard.jsx"));
 const CounsellorParentConsultation = lazy(() => import("./components/Page/counsellor/CounsellorParentConsultation.jsx"));
@@ -316,7 +317,7 @@ const router = createBrowserRouter([
                 path: 'campus-config',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
-                        <SchoolCampusConfigOverview/>
+                        <ConfigList/>
                     </Suspense>
                 )
             },
@@ -324,7 +325,7 @@ const router = createBrowserRouter([
                 path: 'campus-facility-config',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
-                        <SchoolFacilityOverview variant="campus"/>
+                        <CampusConfig/>
                     </Suspense>
                 )
             },
@@ -332,7 +333,7 @@ const router = createBrowserRouter([
                 path: 'facility-config',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
-                        <SchoolFacilityOverview variant="platform"/>
+                        <SchoolConfig/>
                     </Suspense>
                 )
             },
