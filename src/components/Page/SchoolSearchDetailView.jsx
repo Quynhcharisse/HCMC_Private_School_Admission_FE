@@ -1435,7 +1435,7 @@ export default function SchoolSearchDetailView({
                             bottom: 0,
                             pt: {xs: 5, sm: 6},
                             pb: {xs: 2, sm: 3},
-                            px: {xs: 24, sm: 40}
+                            px: {xs: "24px", sm: "40px"}
                         }}
                     >
                         <Box
