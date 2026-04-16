@@ -143,21 +143,37 @@ export const uploadSchoolBusinessLicensePdf = async (file) => {
 };
 
 export const checkTaxCode = async (taxCode) => {
+    const response = await fetch(`https://api.vietqr.io/v2/business/${encodeURIComponent(taxCode)}`);
+    const status = response.status;
+    const contentType = response.headers.get('content-type') || '';
+    let data = null;
     try {
-        const response = await fetch(`https://api.vietqr.io/v2/business/${taxCode}`);
-        const data = await response.json();
-        if (!response.ok) {
-            const error = new Error(data?.desc || 'Tax code lookup failed');
-            error.status = response.status;
-            error.response = {
-                status: response.status,
-                data,
-            };
-            throw error;
+        if (contentType.includes('application/json')) {
+            data = await response.json();
+        } else {
+            const text = await response.text();
+            try {
+                data = text ? JSON.parse(text) : null;
+            } catch {
+                data = { raw: text };
+            }
         }
-        return data;
-    } catch (error) {
-        console.error('Error checking tax code:', error);
+    } catch (parseErr) {
+        const err = new Error('Tax code lookup failed');
+        err.status = status;
+        err.response = { status, data: null };
+        throw err;
+    }
+    if (!response.ok) {
+        const message =
+            data?.desc ||
+            (status === 429
+                ? 'Too many requests'
+                : 'Tax code lookup failed');
+        const error = new Error(message);
+        error.status = status;
+        error.response = { status, data };
         throw error;
     }
-}
+    return data;
+};
