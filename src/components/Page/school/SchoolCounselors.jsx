@@ -44,6 +44,8 @@ import LockIcon from "@mui/icons-material/Lock";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import {enqueueSnackbar} from "notistack";
 import {useNavigate} from "react-router-dom";
+import {useSchool} from "../../../contexts/SchoolContext.jsx";
+import BranchQuotaRequestToPrimaryCard from "./BranchQuotaRequestToPrimaryCard.jsx";
 import {fetchCounsellors, createCounsellor, exportCounsellors} from "../../../services/CounsellorService.jsx";
 import {sendWelcomeEmail} from "../../../services/emailService.jsx";
 import ImageUpload from "../../ui/ImageUpload.jsx";
@@ -180,6 +182,8 @@ function normalizeFeatureLockDisplayMessage(message) {
 
 export default function SchoolCounselors() {
     const navigate = useNavigate();
+    const {isPrimaryBranch, loading: schoolCtxLoading} = useSchool();
+    const branchCampus = !schoolCtxLoading && !isPrimaryBranch;
     const [counselors, setCounselors] = useState([]);
     const [search, setSearch] = useState("");
     const [statusFilter, setStatusFilter] = useState("all");
@@ -592,6 +596,10 @@ export default function SchoolCounselors() {
                     </Tooltip>
                 </Box>
             </Box>
+
+            {branchCampus ? (
+                <BranchQuotaRequestToPrimaryCard disabled={_loading} quotaUsage={currentUsage} quotaMax={maxQuota} />
+            ) : null}
 
             {/* Search & Filter */}
             <Card

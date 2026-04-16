@@ -60,3 +60,11 @@ export const createCampus = async ({
     return response || null;
 };
 
+/**
+ * GET /api/v1/campus/quota/request/summary/emailjs
+ * Dữ liệu cho campus phụ gửi email yêu cầu thêm nguồn lực tới campus chính (EmailJS).
+ */
+export const getCampusQuotaRequestSummaryForEmailJs = async () => {
+    const response = await axiosClient.get("/campus/quota/request/summary/emailjs");
+    return response?.data?.body ?? response?.data ?? null;
+};

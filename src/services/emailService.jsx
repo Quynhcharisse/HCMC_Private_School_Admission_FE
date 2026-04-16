@@ -1,14 +1,24 @@
 import emailjs from "@emailjs/browser";
+import {getCampusQuotaRequestSummaryForEmailJs} from "./CampusService.jsx";
 
-const SERVICE_ID = (import.meta.env.VITE_EMAILJS_SERVICE_ID || "").trim();
+const WELCOME_SERVICE_ID = (import.meta.env.VITE_EMAILJS_SERVICE_ID || "").trim();
 const TEMPLATE_ID = (import.meta.env.VITE_EMAILJS_TEMPLATE_ID || "").trim();
+const QUOTA_REQUEST_TEMPLATE_ID = (
+    import.meta.env.VITE_EMAILJS_QUOTA_REQUEST_TEMPLATE_ID || "template_ddj9q5l"
+).trim();
+const QUOTA_REQUEST_SERVICE_ID = (
+    import.meta.env.VITE_EMAILJS_QUOTA_REQUEST_SERVICE_ID || WELCOME_SERVICE_ID
+).trim();
 const SCHOOL_VERIFIED_TEMPLATE_ID = (
     import.meta.env.VITE_EMAILJS_SCHOOL_VERIFIED_TEMPLATE_ID || TEMPLATE_ID || ""
 ).trim();
-const PUBLIC_KEY = (import.meta.env.VITE_EMAILJS_PUBLIC_KEY || "").trim();
+const WELCOME_PUBLIC_KEY = (import.meta.env.VITE_EMAILJS_PUBLIC_KEY || "").trim();
+const QUOTA_REQUEST_PUBLIC_KEY = (
+    import.meta.env.VITE_EMAILJS_QUOTA_REQUEST_PUBLIC_KEY || WELCOME_PUBLIC_KEY
+).trim();
 
 const assertEmailJsConfig = () => {
-    if (!SERVICE_ID || !TEMPLATE_ID || !PUBLIC_KEY) {
+    if (!WELCOME_SERVICE_ID || !TEMPLATE_ID || !WELCOME_PUBLIC_KEY) {
         throw new Error(
             "Thiếu cấu hình EmailJS. Thêm VITE_EMAILJS_SERVICE_ID, VITE_EMAILJS_TEMPLATE_ID và VITE_EMAILJS_PUBLIC_KEY vào file .env"
         );
@@ -28,7 +38,7 @@ export const sendWelcomeEmail = async ({ name, email }) => {
         throw new Error("Email người nhận không hợp lệ.");
     }
 
-    emailjs.init({ publicKey: PUBLIC_KEY });
+    emailjs.init({ publicKey: WELCOME_PUBLIC_KEY });
 
     // Gửi đủ alias: HTML của bạn dùng {{userName}} / {{userEmail}}; trường "To Email"
     // trên EmailJS thường là {{email}}, {{user_email}} hoặc {{to_email}} — nếu không khớp,
@@ -45,10 +55,10 @@ export const sendWelcomeEmail = async ({ name, email }) => {
 
     try {
         const response = await emailjs.send(
-            SERVICE_ID,
+            WELCOME_SERVICE_ID,
             TEMPLATE_ID,
             templateParams,
-            { publicKey: PUBLIC_KEY }
+            { publicKey: WELCOME_PUBLIC_KEY }
         );
 
         console.log("Send email success:", response);
@@ -104,7 +114,7 @@ export const sendSchoolVerifiedEmail = async ({ schoolName, email }) => {
         );
     }
 
-    emailjs.init({ publicKey: PUBLIC_KEY });
+    emailjs.init({ publicKey: WELCOME_PUBLIC_KEY });
 
     const templateParams = {
         // Recipient aliases
@@ -131,15 +141,111 @@ export const sendSchoolVerifiedEmail = async ({ schoolName, email }) => {
 
     try {
         const response = await emailjs.send(
-            SERVICE_ID,
+            WELCOME_SERVICE_ID,
             SCHOOL_VERIFIED_TEMPLATE_ID,
             templateParams,
-            { publicKey: PUBLIC_KEY }
+            { publicKey: WELCOME_PUBLIC_KEY }
         );
         console.log("Send school verified email success:", response);
         return response;
     } catch (error) {
         console.error("Send school verified email failed:", error);
+        throw error;
+    }
+};
+
+const assertQuotaRequestEmailJsConfig = () => {
+    if (!QUOTA_REQUEST_SERVICE_ID || !QUOTA_REQUEST_TEMPLATE_ID || !QUOTA_REQUEST_PUBLIC_KEY) {
+        throw new Error(
+            "Thiếu cấu hình EmailJS cho yêu cầu hạn ngạch. Thêm VITE_EMAILJS_QUOTA_REQUEST_SERVICE_ID, VITE_EMAILJS_QUOTA_REQUEST_PUBLIC_KEY và VITE_EMAILJS_QUOTA_REQUEST_TEMPLATE_ID (hoặc dùng fallback) vào file .env"
+        );
+    }
+};
+
+/**
+ * Campus phụ: lấy tóm tắt từ BE rồi gửi email tới email campus chính (EmailJS).
+ * @param {{ requestedAmount: number; userNote?: string }} params
+ */
+export const sendCampusQuotaRequestEmail = async ({requestedAmount, userNote = ""}) => {
+    assertQuotaRequestEmailJsConfig();
+
+    const n = Number(requestedAmount);
+    if (!Number.isFinite(n) || n < 1) {
+        throw new Error("Số lượng yêu cầu phải là số nguyên dương.");
+    }
+
+    const summary = await getCampusQuotaRequestSummaryForEmailJs();
+    if (!summary || typeof summary !== "object") {
+        throw new Error("Không lấy được dữ liệu từ máy chủ.");
+    }
+
+    const toEmail = String(summary.primaryBranchEmail || "").trim();
+    if (!toEmail) {
+        throw new Error("Trường chưa cấu hình email trụ sở chính để nhận yêu cầu.");
+    }
+
+    const schoolName = String(summary.schoolName ?? "").trim() || "—";
+    const campusName = String(summary.campusName ?? "").trim() || "—";
+    const currentUsage = summary.currentUsage != null ? Number(summary.currentUsage) : 0;
+    const maxQuota = summary.maxQuota != null ? Number(summary.maxQuota) : 0;
+    const note = String(userNote ?? "").trim();
+    const noteDisplay = note || "—";
+    const requestedStr = String(Math.floor(n));
+
+    /** Nội dung đã ghép sẵn — dùng trong EmailJS: {{message}} hoặc {{message_html}} (EmailJS chỉ map với {{tên_biến}}, không phải {tên_biến}). */
+    const message = `Kính gửi Ban Quản trị trường ${schoolName},
+
+Cơ sở ${campusName} hiện đã sử dụng hết hạn ngạch Tư vấn viên (${currentUsage}/${maxQuota}).
+
+Chúng tôi kính đề nghị cấp thêm: ${requestedStr} chỉ tiêu.
+
+Lý do: ${noteDisplay}
+
+Trân trọng,
+Hệ thống Edubridge`;
+    const message_html = message.split("\n").join("<br />");
+
+    emailjs.init({publicKey: QUOTA_REQUEST_PUBLIC_KEY});
+
+    const usageStr = String(currentUsage);
+    const maxStr = String(maxQuota);
+
+    const templateParams = {
+        schoolName,
+        campusName,
+        currentUsage: usageStr,
+        maxQuota: maxStr,
+        requestedAmount: requestedStr,
+        userNote: noteDisplay,
+
+        school_name: schoolName,
+        campus_name: campusName,
+        current_usage: usageStr,
+        max_quota: maxStr,
+        requested_amount: requestedStr,
+        user_note: noteDisplay,
+
+        message,
+        message_html,
+        email_body: message,
+        body: message,
+        bodyText: message,
+        body_text: message,
+
+        to_email: toEmail,
+        email: toEmail,
+        user_email: toEmail,
+        userEmail: toEmail,
+    };
+
+    try {
+        const response = await emailjs.send(QUOTA_REQUEST_SERVICE_ID, QUOTA_REQUEST_TEMPLATE_ID, templateParams, {
+            publicKey: QUOTA_REQUEST_PUBLIC_KEY,
+        });
+        console.log("Send campus quota request email success:", response);
+        return response;
+    } catch (error) {
+        console.error("Send campus quota request email failed:", error);
         throw error;
     }
 };
