@@ -2,7 +2,7 @@ import axios from "axios";
 import {refreshToken} from "../services/AuthService.jsx";
 
 function resolveApiV1Base() {
-    const raw = (import.meta.env.VITE_SERVER_BE || "http://localhost:8080").trim().replace(/\/+$/, "");
+    const raw = (import.meta.env.VITE_SERVER_BE || "https://edubridgehcm.onrender.com").trim().replace(/\/+$/, "");
     const withoutApi = raw.replace(/\/api\/v1$/i, "");
     return `${withoutApi}/api/v1`;
 }
