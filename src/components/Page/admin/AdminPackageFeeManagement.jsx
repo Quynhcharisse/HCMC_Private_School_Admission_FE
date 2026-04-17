@@ -977,7 +977,7 @@ export default function AdminPackageFeeManagement() {
                         >
                             <FormControlLabel
                                 control={<Switch checked={Boolean(form.allowChat)} onChange={(e) => setForm((prev) => ({ ...prev, allowChat: e.target.checked }))} />}
-                                label="Cho phép Chatbot AI"
+                                label="Được dùng Chatbot AI"
                             />
                         </Stack>
                         {isEdit && (
