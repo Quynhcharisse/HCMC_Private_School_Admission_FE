@@ -204,7 +204,10 @@ function defaultConfig() {
         weekendDays: ["SAT"],
         isOpenSunday: false,
       },
-      /** GET `admissionProcesses` / PUT `methodAdmissionProcess` — quy trình theo từng methodCode */
+      academicCalendar: {
+        term1: {start: "", end: ""},
+        term2: {start: "", end: ""},
+      },
       methodAdmissionProcess: [],
     },
     facilityData: {
@@ -752,6 +755,26 @@ function sanitizeOperationSettingsForApi(op) {
       openSunday,
     },
     methodAdmissionProcess,
+    academicCalendar: (() => {
+      const convertDate = (v) => {
+        if (v == null) return "";
+        if (Array.isArray(v) && v.length >= 3) {
+          const [year, month, day] = v;
+          return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        }
+        return String(v);
+      };
+      return {
+        term1: {
+          start: convertDate(op.academicCalendar?.term1?.start),
+          end: convertDate(op.academicCalendar?.term1?.end),
+        },
+        term2: {
+          start: convertDate(op.academicCalendar?.term2?.start),
+          end: convertDate(op.academicCalendar?.term2?.end),
+        },
+      };
+    })(),
   };
 }
 
@@ -856,11 +879,25 @@ function normalizeFromApi(body) {
   const fin = pickSection(body, "financePolicyData", "finance_policy");
   const doc = pickSection(body, "documentRequirementsData", "document_requirements");
   const op = pickSection(body, "operationSettingsData", "operation_settings");
+  const opAcademicCalendar = op.academicCalendar ?? op.academic_calendar;
   const fac = mergeFacilityFromBody(body);
   const rd = pickSection(body, "resourceDistributionData", "resource_distribution_data");
 
   const imageData = fac.imageData && typeof fac.imageData === "object" ? fac.imageData : {};
   const allocations = Array.isArray(rd?.allocations) ? rd.allocations.map(normalizeResourceAllocationRow) : [];
+
+  function convertAcademicDate(arr) {
+    if (!Array.isArray(arr) || arr.length < 3) return "";
+    const [year, month, day] = arr;
+    const mm = String(month).padStart(2, "0");
+    const dd = String(day).padStart(2, "0");
+    return `${year}-${mm}-${dd}`;
+  }
+
+  const term1Start = opAcademicCalendar?.term1?.start != null ? convertAcademicDate(opAcademicCalendar.term1.start) : d.operationSettingsData.academicCalendar.term1.start;
+  const term1End = opAcademicCalendar?.term1?.end != null ? convertAcademicDate(opAcademicCalendar.term1.end) : d.operationSettingsData.academicCalendar.term1.end;
+  const term2Start = opAcademicCalendar?.term2?.start != null ? convertAcademicDate(opAcademicCalendar.term2.start) : d.operationSettingsData.academicCalendar.term2.start;
+  const term2End = opAcademicCalendar?.term2?.end != null ? convertAcademicDate(opAcademicCalendar.term2.end) : d.operationSettingsData.academicCalendar.term2.end;
 
   return {
     admissionSettingsData: {
@@ -931,6 +968,16 @@ function normalizeFromApi(body) {
         ),
       },
       methodAdmissionProcess: parseMethodAdmissionProcessFromOperation(op),
+      academicCalendar: {
+        term1: {
+          start: term1Start,
+          end: term1End,
+        },
+        term2: {
+          start: term2Start,
+          end: term2End,
+        },
+      },
     },
     facilityData: {
       itemList: Array.isArray(fac.itemList) ? fac.itemList : [],
@@ -1174,6 +1221,27 @@ function normalizeFromCampusConfigApi(body) {
       isOpenSunday: Boolean(wc.isOpenSunday ?? wc.openSunday),
     },
     methodAdmissionProcess: parseMethodAdmissionProcessFromOperation(hqOp),
+    academicCalendar: (() => {
+      const convertDate = (v) => {
+        if (v == null) return "";
+        if (Array.isArray(v) && v.length >= 3) {
+          const [year, month, day] = v;
+          return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+        }
+        return String(v);
+      };
+      const hqCal = hqOp.academicCalendar ?? hqOp.academic_calendar;
+      return {
+        term1: {
+          start: convertDate(hqCal?.term1?.start),
+          end: convertDate(hqCal?.term1?.end),
+        },
+        term2: {
+          start: convertDate(hqCal?.term2?.start),
+          end: convertDate(hqCal?.term2?.end),
+        },
+      };
+    })(),
   };
 
   const pdr = campusCurrentPolicyDetailRendered(cur);
@@ -1334,7 +1402,7 @@ function admissionMethodExtraEntries(m) {
  */
 export default function SchoolFacilityOverview({variant = "platform"}) {
   const isCampusVariant = variant === "campus";
-  const {isPrimaryBranch, currentCampusId, loading: schoolCtxLoading} = useSchool();
+  const {isPrimaryBranch, currentCampusId, loading: schoolCtxLoading, name: schoolCtxName} = useSchool();
 
   const [searchParams, setSearchParams] = useSearchParams();
   /** Chỉ dùng khi campus chính + variant campus — id cơ sở chính sau listCampuses. */
@@ -1932,11 +2000,38 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
     }));
   }, []);
 
+  const removeMandatoryDocument = useCallback((idx) => {
+    setConfig((c) => {
+      const list = [...(c.documentRequirementsData.mandatoryAll || [])];
+      if (idx < 0 || idx >= list.length) return c;
+      list.splice(idx, 1);
+      return {
+        ...c,
+        documentRequirementsData: {
+          ...c.documentRequirementsData,
+          mandatoryAll: list,
+        },
+      };
+    });
+  }, []);
+
   const addDocumentToMethod = useCallback((gIdx) => {
     setConfig((c) => {
       const by = [...(c.documentRequirementsData.byMethod || [])];
       if (!by[gIdx]) return c;
       const docs = [...(by[gIdx].documents || []), {code: "", name: "", required: true}];
+      by[gIdx] = normalizeByMethodGroup({...by[gIdx], documents: docs});
+      return {...c, documentRequirementsData: {...c.documentRequirementsData, byMethod: by}};
+    });
+  }, []);
+
+  const removeDocumentFromMethod = useCallback((gIdx, dIdx) => {
+    setConfig((c) => {
+      const by = [...(c.documentRequirementsData.byMethod || [])];
+      if (!by[gIdx]) return c;
+      const docs = [...(by[gIdx].documents || [])];
+      if (dIdx < 0 || dIdx >= docs.length) return c;
+      docs.splice(dIdx, 1);
       by[gIdx] = normalizeByMethodGroup({...by[gIdx], documents: docs});
       return {...c, documentRequirementsData: {...c.documentRequirementsData, byMethod: by}};
     });
@@ -1950,6 +2045,21 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
         byMethod: [...(c.documentRequirementsData.byMethod || []), {methodCode: "", documents: []}],
       },
     }));
+  }, []);
+
+  const removeWorkShiftAt = useCallback((idx) => {
+    setConfig((c) => {
+      const ws = [...(c.operationSettingsData?.workingConfig?.workShifts || [])];
+      if (idx < 0 || idx >= ws.length) return c;
+      ws.splice(idx, 1);
+      return {
+        ...c,
+        operationSettingsData: {
+          ...c.operationSettingsData,
+          workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
+        },
+      };
+    });
   }, []);
 
   const footerCancelSx = {
@@ -1983,7 +2093,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
     return <Navigate to="/school/campus-facility-config" replace />;
   }
 
-  const pageTitle = isCampusVariant ? "Cấu hình của cơ sở" : "Cấu hình chung cho các cơ sở";
+  const pageTitle = isCampusVariant ? `Cấu hình của tôi ${schoolCtxName || "cơ sở"}` : "Cấu hình chung cho các cơ sở";
   const pageSubtitle = isCampusVariant
     ? isPrimaryBranch
       ? "Chỉnh vận hành và CSVC của cơ sở chính. Mỗi cơ sở chỉ sửa được cấu hình của chính mình. Sau khi Lưu, nội dung được phản ánh trong Bản chỉnh sửa từ cơ sở."
@@ -3234,6 +3344,16 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                           }}
                           sx={blockPointerSx}
                         />
+                        {!fieldDisabled ? (
+                          <IconButton
+                            size="small"
+                            onClick={() => removeMandatoryDocument(idx)}
+                            sx={{color: "#64748b", "&:hover": {color: "#dc2626"}}}
+                            title="Xoá hồ sơ"
+                          >
+                            <DeleteOutlineIcon fontSize="small"/>
+                          </IconButton>
+                        ) : null}
                       </Stack>
                     </Box>
                   ))}
@@ -3402,6 +3522,16 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                                 }}
                                 sx={blockPointerSx}
                               />
+                              {!fieldDisabled ? (
+                                <IconButton
+                                  size="small"
+                                  onClick={() => removeDocumentFromMethod(gIdx, dIdx)}
+                                  sx={{color: "#64748b", "&:hover": {color: "#dc2626"}}}
+                                  title="Xoá hồ sơ"
+                                >
+                                  <DeleteOutlineIcon fontSize="small"/>
+                                </IconButton>
+                              ) : null}
                             </Stack>
                               </Box>
                         ))}
@@ -3520,8 +3650,8 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                           }))
                         }
                         size="small"
-                        helperText="*Số lượng khách tối đa được phép đặt vào một khung giờ."
-                        FormHelperTextProps={{sx: {fontWeight: 700}}}
+                        helperText="*Số lượng khách tối đa được phép đặt vào một khung giờ"
+                        FormHelperTextProps={{sx: {fontWeight: 700, color: "red"}}}
                         inputProps={{readOnly: fieldDisabled, min: 0}}
                         sx={{minWidth: 200, flex: 1}}
                       />
@@ -3544,8 +3674,8 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                           }))
                         }
                         size="small"
-                        helperText="*Số lượng tư vấn viên tối thiểu trực trong một ca."
-                        FormHelperTextProps={{sx: {fontWeight: 700}}}
+                        helperText="*Số lượng tư vấn viên tối thiểu trực trong một ca"
+                        FormHelperTextProps={{sx: {fontWeight: 700, color: "red"}}}
                         inputProps={{readOnly: fieldDisabled, min: 0}}
                         sx={{minWidth: 200, flex: 1}}
                       />
@@ -3571,8 +3701,8 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                           }))
                         }
                         size="small"
-                        helperText="*Thời lượng của một cuộc hẹn tư vấn (ví dụ: 30, 45 phút)."
-                        FormHelperTextProps={{sx: {fontWeight: 700}}}
+                        helperText="*Thời lượng của một cuộc hẹn tư vấn (ví dụ: 30, 45 phút)"
+                        FormHelperTextProps={{sx: {fontWeight: 700, color: "red"}}}
                         inputProps={{readOnly: fieldDisabled, min: 0}}
                         sx={{minWidth: 180, flex: 1}}
                       />
@@ -3595,8 +3725,8 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                           }))
                         }
                         size="small"
-                        helperText="*Thời gian tối thiểu phải đặt trước khi cuộc hẹn diễn ra."
-                        FormHelperTextProps={{sx: {fontWeight: 700}}}
+                        helperText="*Thời gian tối thiểu phải đặt trước khi cuộc hẹn diễn ra"
+                        FormHelperTextProps={{sx: {fontWeight: 700, color: "red"}}}
                         inputProps={{readOnly: fieldDisabled, min: 0}}
                         sx={{minWidth: 180, flex: 1}}
                       />
@@ -3740,7 +3870,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                   <Typography sx={{fontWeight: 800, mt: 3, mb: 1}}>Ca làm việc</Typography>
                   <Stack spacing={1}>
                     {(config.operationSettingsData.workingConfig.workShifts || []).map((sh, idx) => (
-                      <Stack key={idx} direction={{xs: "column", sm: "row"}} spacing={1}>
+                      <Stack key={idx} direction={{xs: "column", sm: "row"}} spacing={1} alignItems={{sm: "center"}}>
                         <TextField
                           label="Tên ca"
                           size="small"
@@ -3805,6 +3935,16 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                           }}
                           inputProps={{readOnly: fieldDisabled}}
                         />
+                        {!fieldDisabled ? (
+                          <IconButton
+                            size="small"
+                            onClick={() => removeWorkShiftAt(idx)}
+                            sx={{color: "#64748b", "&:hover": {color: "#dc2626"}, alignSelf: {xs: "flex-end", sm: "center"}}}
+                            title="Xoá ca"
+                          >
+                            <DeleteOutlineIcon fontSize="small"/>
+                          </IconButton>
+                        ) : null}
                       </Stack>
                     ))}
                     <Button
@@ -3825,6 +3965,110 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                     >
                       Thêm ca
                     </Button>
+                  </Stack>
+
+                  <Typography sx={{fontWeight: 800, mt: 3, mb: 1}}>Lịch năm học</Typography>
+                  <Stack spacing={2}>
+                    <Stack direction={{xs: "column", sm: "row"}} spacing={2}>
+                      <TextField
+                        label="Học kỳ 1 - Bắt đầu"
+                        type="date"
+                        size="small"
+                        InputLabelProps={{shrink: true}}
+                        value={config.operationSettingsData.academicCalendar?.term1?.start ?? ""}
+                        onChange={(e) => {
+                          setConfig((c) => ({
+                            ...c,
+                            operationSettingsData: {
+                              ...c.operationSettingsData,
+                              academicCalendar: {
+                                ...(c.operationSettingsData.academicCalendar || {}),
+                                term1: {
+                                  ...(c.operationSettingsData.academicCalendar?.term1 || {}),
+                                  start: e.target.value,
+                                },
+                              },
+                            },
+                          }));
+                        }}
+                        inputProps={{readOnly: fieldDisabled}}
+                        sx={{flex: 1}}
+                      />
+                      <TextField
+                        label="Học kỳ 1 - Kết thúc"
+                        type="date"
+                        size="small"
+                        InputLabelProps={{shrink: true}}
+                        value={config.operationSettingsData.academicCalendar?.term1?.end ?? ""}
+                        onChange={(e) => {
+                          setConfig((c) => ({
+                            ...c,
+                            operationSettingsData: {
+                              ...c.operationSettingsData,
+                              academicCalendar: {
+                                ...(c.operationSettingsData.academicCalendar || {}),
+                                term1: {
+                                  ...(c.operationSettingsData.academicCalendar?.term1 || {}),
+                                  end: e.target.value,
+                                },
+                              },
+                            },
+                          }));
+                        }}
+                        inputProps={{readOnly: fieldDisabled}}
+                        sx={{flex: 1}}
+                      />
+                    </Stack>
+                    <Stack direction={{xs: "column", sm: "row"}} spacing={2}>
+                      <TextField
+                        label="Học kỳ 2 - Bắt đầu"
+                        type="date"
+                        size="small"
+                        InputLabelProps={{shrink: true}}
+                        value={config.operationSettingsData.academicCalendar?.term2?.start ?? ""}
+                        onChange={(e) => {
+                          setConfig((c) => ({
+                            ...c,
+                            operationSettingsData: {
+                              ...c.operationSettingsData,
+                              academicCalendar: {
+                                ...(c.operationSettingsData.academicCalendar || {}),
+                                term2: {
+                                  ...(c.operationSettingsData.academicCalendar?.term2 || {}),
+                                  start: e.target.value,
+                                },
+                              },
+                            },
+                          }));
+                        }}
+                        inputProps={{readOnly: fieldDisabled}}
+                        sx={{flex: 1}}
+                      />
+                      <TextField
+                        label="Học kỳ 2 - Kết thúc"
+                        type="date"
+                        size="small"
+                        InputLabelProps={{shrink: true}}
+                        value={config.operationSettingsData.academicCalendar?.term2?.end ?? ""}
+                        onChange={(e) => {
+                          setConfig((c) => ({
+                            ...c,
+                            operationSettingsData: {
+                              ...c.operationSettingsData,
+                              academicCalendar: {
+                                ...(c.operationSettingsData.academicCalendar || {}),
+                                term2: {
+                                  ...(c.operationSettingsData.academicCalendar?.term2 || {}),
+                                  end: e.target.value,
+                                },
+                              },
+                            },
+                          }));
+                        }}
+                        inputProps={{readOnly: fieldDisabled}}
+                        sx={{flex: 1}}
+                      />
+                    </Stack>
                   </Stack>
         </CardContent>
       </Card>
@@ -3963,7 +4207,6 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                                     value={group.methodCode ?? ""}
                                     onChange={(e) => updateMethodAdmissionProcessCode(gi, e.target.value.trim())}
                                     placeholder="VD: ACADEMIC_RECORD"
-                                    helperText="Phải trùng code phương thức đã cấu hình tuyển sinh / hồ sơ."
                                     inputProps={{readOnly: fieldDisabled}}
                                   />
                                 </Stack>

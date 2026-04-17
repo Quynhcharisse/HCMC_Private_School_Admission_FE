@@ -39,7 +39,7 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AddIcon from "@mui/icons-material/Add";
-import {useSearchParams} from "react-router-dom";
+import {useNavigate, useSearchParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 
 import {extractCampusListBody, listCampuses} from "../../../services/CampusService.jsx";
@@ -1354,6 +1354,7 @@ function admissionMethodExtraEntries(m) {
 export default function SchoolConfig() {
   const isCampusVariant = false;
   const {isPrimaryBranch, currentCampusId, loading: schoolCtxLoading} = useSchool();
+  const navigate = useNavigate();
 
   const [searchParams, setSearchParams] = useSearchParams();
   /** Chỉ dùng khi campus chính + variant campus — id cơ sở chính sau listCampuses. */
@@ -1371,6 +1372,12 @@ export default function SchoolConfig() {
   const tabLabels = isCampusVariant ? BRANCH_TAB_LABELS : TAB_LABELS;
   const tabSlug = searchParams.get("tab") || (isCampusVariant ? "operation" : "admission");
   const tabIndex = tabSlugs.includes(tabSlug) ? tabSlugs.indexOf(tabSlug) : 0;
+
+  useEffect(() => {
+    if (!isCampusVariant && searchParams.get("tab") === "holiday") {
+      navigate("/school/holiday-settings", {replace: true});
+    }
+  }, [isCampusVariant, navigate, searchParams]);
 
   const setTabIndex = useCallback(
     (idx) => {
@@ -2020,13 +2027,13 @@ export default function SchoolConfig() {
     "&:hover": {bgcolor: "#1d4ed8"},
   };
 
-  const showAdmissionTab = !useCampusConfigFlow && tabIndex === 0;
-  const showDocumentsTab = !useCampusConfigFlow && tabIndex === 1;
-  const showOperationTab = (!useCampusConfigFlow && tabIndex === 2) || (useCampusConfigFlow && tabIndex === 0);
-  const showFinanceTab = !useCampusConfigFlow && tabIndex === 3;
-  const showFacilityTab = (!useCampusConfigFlow && tabIndex === 4) || (useCampusConfigFlow && tabIndex === 1);
-  const showQuotaTab = !useCampusConfigFlow && tabIndex === 5;
-  const showResourceDistributionTab = !useCampusConfigFlow && tabIndex === 6;
+  const showAdmissionTab = !useCampusConfigFlow && tabSlug === "admission";
+  const showDocumentsTab = !useCampusConfigFlow && tabSlug === "documents";
+  const showOperationTab = (!useCampusConfigFlow && tabSlug === "operation") || (useCampusConfigFlow && tabSlug === "operation");
+  const showFinanceTab = !useCampusConfigFlow && tabSlug === "finance";
+  const showFacilityTab = (!useCampusConfigFlow && tabSlug === "facility") || (useCampusConfigFlow && tabSlug === "facility");
+  const showQuotaTab = !useCampusConfigFlow && tabSlug === "quota";
+  const showResourceDistributionTab = !useCampusConfigFlow && tabSlug === "resource-distribution";
 
 
   const pageTitle = isCampusVariant ? "Cấu hình của cơ sở" : "Cấu hình chung cho các cơ sở";

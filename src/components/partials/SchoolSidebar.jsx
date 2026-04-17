@@ -27,6 +27,7 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import EventBusyOutlinedIcon from "@mui/icons-material/EventBusyOutlined";
 import CorporateFareOutlinedIcon from "@mui/icons-material/CorporateFareOutlined";
 import CardMembershipIcon from "@mui/icons-material/CardMembership";
 import ContactSupportOutlinedIcon from "@mui/icons-material/ContactSupportOutlined";
@@ -172,6 +173,7 @@ function buildConfigMenuItems(isPrimaryBranch, schoolCtxLoading) {
     items.push(
         { text: "Danh sách cấu hình", icon: <CorporateFareOutlinedIcon />, path: "/school/campus-config" },
         { text: "Cấu hình của tôi", icon: <ApartmentIcon />, path: "/school/campus-facility-config" },
+        { text: "Cài đặt ngày nghỉ", icon: <EventBusyOutlinedIcon />, path: "/school/holiday-settings" },
     );
     return items;
 }
