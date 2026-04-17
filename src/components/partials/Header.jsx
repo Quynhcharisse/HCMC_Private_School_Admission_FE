@@ -709,6 +709,18 @@ function MainHeader() {
         const u = pickConversationSchoolLogoUrl(selectedConversation);
         return u || null;
     }, [selectedConversation]);
+    const selectedConversationUnreadCount = useMemo(() => {
+        const unread = Number(
+            selectedConversation?.unreadCount ??
+                selectedConversation?.unreadMessages ??
+                selectedConversation?.unread ??
+                selectedConversation?.unreadMessageCount ??
+                selectedConversation?.numberOfUnread ??
+                0
+        );
+        return Number.isFinite(unread) && unread > 0 ? Math.trunc(unread) : 0;
+    }, [selectedConversation]);
+    const parentChatHasUnread = selectedConversationUnreadCount > 0;
     const isStudentInfoOpen = studentInfoOpen;
     /** Badge header: số cuộc trò chuyện có tin chưa đọc (không cộng dồn từng tin). */
     const conversationsWithUnreadCount = filteredConversationItems.reduce((count, item) => {
@@ -1218,6 +1230,14 @@ function MainHeader() {
                         return {...item, unreadCount: 0, unreadMessages: 0};
                     })
                 );
+                setSelectedConversation((prev) => {
+                    if (!prev) return prev;
+                    const id = prev?.conversationId ?? prev?.id;
+                    if (!isSameConversationId(id, conversationId)) return prev;
+                    const next = {...prev, unreadCount: 0, unreadMessages: 0};
+                    selectedConversationRef.current = next;
+                    return next;
+                });
             } catch (error) {
                 console.error('Error marking messages as read:', error);
             } finally {
@@ -1518,9 +1538,6 @@ function MainHeader() {
                         emailForMatch,
                         conversationItemsRef.current
                     );
-                /** Chỉ khi đã tương tác ô nhập mới chặn tăng unread (mở cửa sổ chat ≠ đã đọc). */
-                const suppressUnreadForThread = liveViewingThread && parentComposerEngagedRef.current;
-
                 if (liveViewingThread && currentSelected) {
                     const sid = currentSelected?.conversationId ?? currentSelected?.id;
                     if (
@@ -1545,8 +1562,7 @@ function MainHeader() {
                         if (!isSameConversationId(id, conversationId)) return item;
                         matched = true;
                         const currentUnread = Number(item?.unreadCount ?? item?.unreadMessages ?? 0) || 0;
-                        const shouldIncreaseUnread = !suppressUnreadForThread;
-                        const nextUnread = shouldIncreaseUnread ? currentUnread + 1 : currentUnread;
+                        const nextUnread = Math.min(99, currentUnread + 1);
                         return {
                             ...item,
                             lastMessage: previewText || item?.lastMessage,
@@ -1576,10 +1592,26 @@ function MainHeader() {
                         lastMessage: previewText,
                         time: previewTime,
                         updatedAt: previewTime,
-                        unreadCount: suppressUnreadForThread ? 0 : 1,
-                        unreadMessages: suppressUnreadForThread ? 0 : 1,
+                        unreadCount: 1,
+                        unreadMessages: 1,
                     });
                     return [synthetic, ...mapped];
+                });
+
+                setSelectedConversation((prev) => {
+                    if (!prev) return prev;
+                    const selectedId = prev?.conversationId ?? prev?.id;
+                    if (!isSameConversationId(selectedId, conversationId)) return prev;
+                    const currentUnread = Number(prev?.unreadCount ?? prev?.unreadMessages ?? 0) || 0;
+                    const next = {
+                        ...prev,
+                        lastMessage: previewText || prev?.lastMessage,
+                        ...(previewTime != null ? {time: previewTime, updatedAt: previewTime} : {}),
+                        unreadCount: Math.min(99, currentUnread + 1),
+                        unreadMessages: Math.min(99, currentUnread + 1),
+                    };
+                    selectedConversationRef.current = next;
+                    return next;
                 });
 
                 if (liveViewingThread) {
@@ -2255,6 +2287,7 @@ function MainHeader() {
                                                     const conversationName = conversation?.title || conversation?.name || conversation?.schoolName || conversation?.participantName || 'Cuộc trò chuyện';
                                                     const latestMessage = conversation?.lastMessage?.content || conversation?.lastMessage || conversation?.latestMessage || 'Chưa có nội dung';
                                                     const unreadCount = Number(conversation?.unreadCount ?? conversation?.unreadMessages ?? 0) || 0;
+                                                    const hasUnread = unreadCount > 0;
                                                     const listLogoUrl = pickConversationSchoolLogoUrl(conversation) || null;
 
                                                     return (
@@ -2269,9 +2302,11 @@ function MainHeader() {
                                                                 alignItems: 'center',
                                                                 gap: 1.5,
                                                                 cursor: 'pointer',
-                                                                transition: 'background-color 0.2s ease',
+                                                                bgcolor: hasUnread ? 'rgba(37,99,235,0.12)' : 'transparent',
+                                                                borderLeft: hasUnread ? '3px solid #2563eb' : '3px solid transparent',
+                                                                transition: 'background-color 0.2s ease, border-color 0.2s ease',
                                                                 '&:hover': {
-                                                                    bgcolor: 'rgba(59,130,246,0.08)'
+                                                                    bgcolor: hasUnread ? 'rgba(37,99,235,0.16)' : 'rgba(59,130,246,0.08)'
                                                                 }
                                                             }}
                                                         >
@@ -2282,16 +2317,16 @@ function MainHeader() {
                                                                 {conversationName.charAt(0).toUpperCase()}
                                                             </Avatar>
                                                             <Box sx={{minWidth: 0, flex: 1}}>
-                                                                <Typography noWrap sx={{fontSize: 14, fontWeight: 700, color: '#1e293b'}}>
+                                                                <Typography noWrap sx={{fontSize: 14, fontWeight: hasUnread ? 800 : 700, color: '#1e293b'}}>
                                                                     {conversationName}
                                                                 </Typography>
-                                                                <Typography noWrap sx={{fontSize: 13, color: '#475569'}}>
+                                                                <Typography noWrap sx={{fontSize: 13, color: hasUnread ? '#1e3a8a' : '#475569', fontWeight: hasUnread ? 600 : 500}}>
                                                                     {latestMessage}
                                                                 </Typography>
                                                             </Box>
                                                             {unreadCount > 0 && (
                                                                 <Badge
-                                                                    badgeContent={unreadCount}
+                                                                    badgeContent={unreadCount > 99 ? '99+' : unreadCount}
                                                                     color="error"
                                                                     sx={{
                                                                         '& .MuiBadge-badge': {
@@ -2343,9 +2378,13 @@ function MainHeader() {
                                             zIndex: isStudentInfoOpen ? 1550 : 1500,
                                             display: 'flex',
                                             flexDirection: 'column',
-                                            bgcolor: '#f8fafc',
-                                            border: `1px solid ${selectedStudentTheme.border}`,
-                                            boxShadow: '0 24px 56px rgba(51,65,85,0.18), 0 0 0 1px rgba(255,255,255,0.5) inset'
+                                            bgcolor: parentChatHasUnread ? '#fff7ed' : '#f8fafc',
+                                            border: parentChatHasUnread
+                                                ? '1px solid rgba(249,115,22,0.45)'
+                                                : `1px solid ${selectedStudentTheme.border}`,
+                                            boxShadow: parentChatHasUnread
+                                                ? '0 26px 60px rgba(249,115,22,0.22), 0 0 0 1px rgba(255,255,255,0.55) inset'
+                                                : '0 24px 56px rgba(51,65,85,0.18), 0 0 0 1px rgba(255,255,255,0.5) inset'
                                         }}
                                     >
                                         <Box
@@ -2355,7 +2394,9 @@ function MainHeader() {
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'space-between',
-                                                background: selectedStudentTheme.headerGradient,
+                                                background: parentChatHasUnread
+                                                    ? 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)'
+                                                    : selectedStudentTheme.headerGradient,
                                                 borderBottom: '1px solid rgba(255,255,255,0.12)',
                                                 flexShrink: 0
                                             }}
@@ -2488,7 +2529,10 @@ function MainHeader() {
                                                 pb: 2,
                                                 overflowY: 'auto',
                                                 overflowX: 'hidden',
-                                                background: `
+                                                background: parentChatHasUnread ? `
+                                                    linear-gradient(180deg, rgba(255,237,213,0.92) 0%, rgba(255,247,237,0.98) 35%, #fff7ed 100%),
+                                                    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(249,115,22,0.14), transparent 55%)
+                                                ` : `
                                                     linear-gradient(180deg, rgba(238,242,255,0.65) 0%, rgba(248,250,252,0.98) 28%, #f1f5f9 100%),
                                                     radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99,102,241,0.12), transparent 55%)
                                                 `,

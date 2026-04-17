@@ -90,17 +90,49 @@ const mergeUniqueMessages = (messages) => {
 
 const isSameConversationId = (a, b) => a != null && b != null && String(a) === String(b);
 
+const parseWsObject = (value) => {
+  if (value == null) return {};
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+  return value && typeof value === "object" ? value : {};
+};
+
+const mergeCounsellorWsPayload = (payload) => {
+  const root = parseWsObject(payload);
+  const body = parseWsObject(root?.body);
+  const data = parseWsObject(body?.data ?? root?.data);
+  const chatMessage = parseWsObject(root?.chatMessage ?? body?.chatMessage ?? data?.chatMessage);
+  const message = parseWsObject(root?.message ?? body?.message ?? data?.message);
+  return { ...root, ...body, ...data, ...chatMessage, ...message };
+};
+
 const pickIncomingConversationId = (payload) => {
   if (!payload || typeof payload !== "object") return null;
+  const merged = mergeCounsellorWsPayload(payload);
   const raw =
-    payload.conversationId ??
-    payload.conversation_id ??
-    payload.conversationID ??
-    payload?.conversation?.id ??
-    payload?.conversation?.conversationId ??
-    payload?.chatMessage?.conversationId ??
-    payload?.message?.conversationId ??
-    payload?.data?.conversationId ??
+    merged.conversationId ??
+    merged.conversation_id ??
+    merged.conversationID ??
+    merged.threadId ??
+    merged.roomId ??
+    merged?.conversation?.id ??
+    merged?.conversation?.conversationId ??
+    merged?.chatMessage?.conversationId ??
+    merged?.chatMessage?.conversation?.id ??
+    merged?.message?.conversationId ??
+    merged?.message?.conversation?.id ??
+    merged?.data?.conversationId ??
+    merged?.dto?.conversationId ??
+    merged?.chatDto?.conversationId ??
+    merged?.privateConversationId ??
+    merged?.chatRoomId ??
+    merged?.privateRoomId ??
     null;
   if (raw == null || raw === "") return null;
   return raw;
@@ -117,19 +149,45 @@ const normalizeWsPrincipal = (v) =>
  * Bỏ qua echo khi senderName là chính principal tư vấn.
  */
 const receiverMatchesCounsellor = (payload, identityLowerSet) => {
-  const recv = normalizeWsPrincipal(payload?.receiverName);
-  const send = normalizeWsPrincipal(payload?.senderName);
+  const merged = mergeCounsellorWsPayload(payload);
+  const recv = normalizeWsPrincipal(
+    merged?.receiverName ?? merged?.receiverEmail ?? merged?.to ?? merged?.username ?? merged?.receiver
+  );
+  const senderIds = extractSenderIdentifiers(merged);
   if (!recv) {
-    if (send && identityLowerSet.has(send)) return false;
+    if (senderIds.length > 0 && senderIds.every((id) => identityLowerSet.has(id))) return false;
     return true;
   }
-  return identityLowerSet.has(recv);
+  if (identityLowerSet.has(recv)) return true;
+  // WS frame da vao /user queue cua counsellor, receiver trong body co the sai.
+  if (senderIds.length > 0 && senderIds.every((id) => identityLowerSet.has(id))) return false;
+  return true;
 };
 
 const senderLooksLikeCounsellorSelf = (payload, identityLowerSet) => {
-  const send = normalizeWsPrincipal(payload?.senderName);
-  if (!send) return false;
-  return identityLowerSet.has(send);
+  const merged = mergeCounsellorWsPayload(payload);
+  const identifiers = [
+    normalizeWsPrincipal(merged?.senderName),
+    normalizeWsPrincipal(merged?.senderEmail),
+    normalizeWsPrincipal(merged?.from),
+    normalizeWsPrincipal(merged?.sender),
+    normalizeWsPrincipal(merged?.createdBy),
+    normalizeWsPrincipal(merged?.username),
+  ].filter(Boolean);
+  if (identifiers.length === 0) return false;
+  return identifiers.every((id) => identityLowerSet.has(id));
+};
+
+const extractSenderIdentifiers = (payload) => {
+  const merged = mergeCounsellorWsPayload(payload);
+  return [
+    normalizeWsPrincipal(merged?.senderName),
+    normalizeWsPrincipal(merged?.senderEmail),
+    normalizeWsPrincipal(merged?.from),
+    normalizeWsPrincipal(merged?.sender),
+    normalizeWsPrincipal(merged?.createdBy),
+    normalizeWsPrincipal(merged?.username),
+  ].filter(Boolean);
 };
 
 /** Số cuộc tối đa mỗi lần tải / mỗi tab (theo yêu cầu UI). */
@@ -137,6 +195,26 @@ const CONVERSATION_PAGE_SIZE = 20;
 
 /** Hiển thị số lượng trên tab: nếu BE báo hasMore thì hiện 20+ */
 const formatConversationCountLabel = (count, hasMore) => (hasMore ? "20+" : String(count));
+const COUNSELLOR_PARENT_UNREAD_CONVERSATIONS_KEY = "counsellor_parent_unread_conversations";
+
+const countUnreadConversations = (items = []) =>
+  (Array.isArray(items) ? items : []).reduce((total, item) => {
+    const unread = Number(item?.unreadCount ?? item?.unreadMessages ?? 0) || 0;
+    return total + (unread > 0 ? 1 : 0);
+  }, 0);
+
+const writeCounsellorUnreadConversations = (value) => {
+  const next = Number.isFinite(Number(value)) ? Math.max(0, Math.trunc(Number(value))) : 0;
+  try {
+    localStorage.setItem(COUNSELLOR_PARENT_UNREAD_CONVERSATIONS_KEY, String(next));
+  } catch {
+    // ignore storage errors
+  }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("counsellor-parent-unread-updated", { detail: { count: next } }));
+  }
+  return next;
+};
 
 export default function CounsellorParentConsultation() {
   const userInfo = useMemo(() => {
@@ -318,6 +396,20 @@ export default function CounsellorParentConsultation() {
   useEffect(() => {
     selectedConversationRef.current = selectedConversation;
   }, [selectedConversation]);
+
+  useEffect(() => {
+    activeConversationsRef.current = activeConversations;
+  }, [activeConversations]);
+
+  useEffect(() => {
+    pendingConversationsRef.current = pendingConversations;
+  }, [pendingConversations]);
+
+  useEffect(() => {
+    const unreadConversationCount =
+      countUnreadConversations(activeConversations) + countUnreadConversations(pendingConversations);
+    writeCounsellorUnreadConversations(unreadConversationCount);
+  }, [activeConversations, pendingConversations]);
 
   useEffect(() => {
     messageHasMoreRef.current = messageHasMore;
@@ -682,20 +774,6 @@ export default function CounsellorParentConsultation() {
     }
   };
 
-  /** Khi WS trễ / lỡ — đồng bộ REST mỗi vài giây khi đang mở cuộc trò chuyện (không hiện spinner). */
-  useEffect(() => {
-    if (!selectedConversationId) return;
-    const intervalId = setInterval(() => {
-      if (document.visibilityState !== "visible") return;
-      if (!counsellorStickToBottomRef.current) return;
-      const conv = selectedConversationRef.current;
-      if (!conv) return;
-      loadMessageHistory({ conversation: conv, cursorId: null, silent: true });
-    }, 3500);
-    return () => clearInterval(intervalId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedConversationId]);
-
   const handleMarkRead = async ({ conversation, force } = {}) => {
     const targetConversation = conversation || selectedConversation;
     const cid = targetConversation?.conversationId ?? targetConversation?.id ?? null;
@@ -794,22 +872,22 @@ export default function CounsellorParentConsultation() {
       if (s) identityLowerSet.add(s);
     });
 
-    const unwrapWsPayload = (p) => {
-      if (!p || typeof p !== "object") return p;
-      if (typeof p.body === "string") {
-        try {
-          return JSON.parse(p.body);
-        } catch {
-          return p;
-        }
-      }
-      if (p.body && typeof p.body === "object") return p.body;
-      return p;
-    };
-
     const onCounsellorPrivateMessage = (payload) => {
-        const root = unwrapWsPayload(payload);
-        const conversationId = pickIncomingConversationId(root);
+        const root = mergeCounsellorWsPayload(payload);
+        let conversationId = pickIncomingConversationId(root);
+        if (conversationId == null || String(conversationId).trim() === "") {
+          const senderIds = extractSenderIdentifiers(root).filter((id) => !identityLowerSet.has(id));
+          if (senderIds.length > 0) {
+            const combined = [...activeConversationsRef.current, ...pendingConversationsRef.current];
+            const matched = combined.find((item) => {
+              const parent = normalizeWsPrincipal(item?.parentEmail ?? item?.participantEmail ?? item?.otherUser);
+              return !!parent && senderIds.includes(parent);
+            });
+            if (matched?.conversationId != null && String(matched.conversationId).trim() !== "") {
+              conversationId = matched.conversationId;
+            }
+          }
+        }
         if (conversationId == null || String(conversationId).trim() === "") return;
 
         if (!receiverMatchesCounsellor(root, identityLowerSet)) return;
@@ -829,7 +907,7 @@ export default function CounsellorParentConsultation() {
             if (!isSameConversationId(item?.conversationId, conversationId)) return item;
             matched = true;
             const u = Number(item.unreadCount ?? item.unreadMessages ?? 0) || 0;
-            const nextUnread = viewingThisThread ? u : u + 1;
+            const nextUnread = Math.min(99, u + 1);
             return {
               ...item,
               lastMessage: normalizedIncoming.text || item.lastMessage,
@@ -1139,8 +1217,17 @@ export default function CounsellorParentConsultation() {
                             <Badge
                               color="warning"
                               overlap="circular"
-                              variant={c.unreadCount ? "dot" : "standard"}
+                              badgeContent={c.unreadCount > 0 ? Math.min(99, c.unreadCount) : null}
+                              invisible={!c.unreadCount}
                               anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                              sx={{
+                                "& .MuiBadge-badge": {
+                                  fontSize: 10,
+                                  fontWeight: 700,
+                                  minWidth: 18,
+                                  height: 18,
+                                },
+                              }}
                             >
                               <Avatar
                                 sx={{ width: 36, height: 36, fontSize: 14, bgcolor: c.avatarColor }}
@@ -1207,8 +1294,17 @@ export default function CounsellorParentConsultation() {
                       <Badge
                         color="error"
                         overlap="circular"
-                        variant={c.unreadCount ? "dot" : "standard"}
+                        badgeContent={c.unreadCount > 0 ? Math.min(99, c.unreadCount) : null}
+                        invisible={!c.unreadCount}
                         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                        sx={{
+                          "& .MuiBadge-badge": {
+                            fontSize: 10,
+                            fontWeight: 700,
+                            minWidth: 18,
+                            height: 18,
+                          },
+                        }}
                       >
                         <Avatar
                                 sx={{ width: 36, height: 36, fontSize: 14, bgcolor: c.avatarColor }}
