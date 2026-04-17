@@ -52,6 +52,7 @@ import {
   updateSchoolConfig,
 } from "../../../services/SchoolFacilityService.jsx";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
+import SchoolHoliday from "./SchoolHoliday.jsx";
 
 const TAB_SLUGS = ["admission", "documents", "operation", "finance", "facility", "quota", "resource-distribution"];
 const TAB_LABELS = [
@@ -64,9 +65,9 @@ const TAB_LABELS = [
   "Phân Bổ Nguồn Lực",
 ];
 
-/** Campus phụ: chỉ vận hành + CSVC (API GET/PUT /campus/{id}/config) */
-const BRANCH_TAB_SLUGS = ["operation", "facility"];
-const BRANCH_TAB_LABELS = ["Cài Đặt Vận Hành", "Cài Đặt Cơ Sở Vật Chất"];
+/** Campus phụ: vận hành + ngày nghỉ + CSVC (GET/PUT /campus/{id}/config; lịch nghỉ qua API /holiday/) */
+const BRANCH_TAB_SLUGS = ["operation", "holiday", "facility"];
+const BRANCH_TAB_LABELS = ["Cài Đặt Vận Hành", "Cài đặt ngày nghỉ", "Cài Đặt Cơ Sở Vật Chất"];
 
 /**
  * Danh sách phương thức hiển thị checkbox: từ API, không preset FE.
@@ -1676,7 +1677,7 @@ export default function CampusConfig() {
         const ok = facilityFormRef.current?.validate?.() ?? true;
         if (!ok) {
           enqueueSnackbar("Vui lòng kiểm tra lại tab Cơ sở vật chất", {variant: "error"});
-          setTabIndex(useCampusConfigFlow ? 1 : 5);
+          setTabIndex(useCampusConfigFlow ? 2 : 5);
           return;
         }
       }
@@ -2022,7 +2023,10 @@ export default function CampusConfig() {
   const showDocumentsTab = !useCampusConfigFlow && tabIndex === 1;
   const showOperationTab = (!useCampusConfigFlow && tabIndex === 2) || (useCampusConfigFlow && tabIndex === 0);
   const showFinanceTab = !useCampusConfigFlow && tabIndex === 3;
-  const showFacilityTab = (!useCampusConfigFlow && tabIndex === 4) || (useCampusConfigFlow && tabIndex === 1);
+  /** Tab lịch nghỉ chỉ dùng khi đã xác định campus (GET/PUT config + API holiday theo ngữ cảnh đăng nhập). */
+  const showHolidayTab = useCampusConfigFlow && tabSlug === "holiday";
+  const showFacilityTab =
+    (!useCampusConfigFlow && tabIndex === 4) || (useCampusConfigFlow && tabIndex === 2);
   const showQuotaTab = !useCampusConfigFlow && tabIndex === 5;
   const showResourceDistributionTab = !useCampusConfigFlow && tabIndex === 6;
 
@@ -4186,6 +4190,8 @@ export default function CampusConfig() {
             </Stack>
           )}
 
+          {showHolidayTab && <SchoolHoliday />}
+
           {showFacilityTab && (
             <SchoolFacilityFacilityForm
               ref={facilityFormRef}
@@ -4312,7 +4318,7 @@ export default function CampusConfig() {
         </Box>
 
         <Box sx={{mt: 2, display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap"}}>
-          {!editing ? (
+          {showHolidayTab ? null : !editing ? (
             <Button
               variant="contained"
               onClick={() => setEditing(true)}

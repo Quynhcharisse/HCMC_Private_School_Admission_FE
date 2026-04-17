@@ -364,9 +364,26 @@ export default function SchoolHoliday() {
             const response = await getHolidayList();
             const rows = extractHolidayListBody(response).map(normalizeHolidayRow);
             setHolidays(rows);
+            /** GET 200 + [] là bình thường (chưa có ngày nghỉ) — không báo lỗi. Lỗi chỉ khi request throw (4xx/5xx/mạng). */
         } catch (error) {
             console.error("Load holiday list failed", error);
-            enqueueSnackbar("Không tải được danh sách ngày nghỉ", {variant: "error"});
+            const status = error?.response?.status;
+            const serverMsg =
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                (typeof error?.response?.data === "string" ? error.response.data : "");
+            const detail =
+                serverMsg ||
+                (status === 404
+                    ? "API danh sách ngày nghỉ không tồn tại hoặc sai đường dẫn."
+                    : status === 403
+                      ? "Không có quyền xem danh sách ngày nghỉ."
+                      : status === 401
+                        ? "Phiên đăng nhập hết hạn hoặc chưa đăng nhập."
+                        : "");
+            enqueueSnackbar(detail || "Không tải được danh sách ngày nghỉ (lỗi mạng hoặc máy chủ).", {
+                variant: "error",
+            });
             setHolidays([]);
         } finally {
             setLoadingHolidays(false);
