@@ -6,11 +6,7 @@ import {
     Card,
     CardMedia,
     CircularProgress,
-    Dialog,
-    DialogContent,
-    DialogTitle,
     Divider,
-    IconButton,
     Link,
     Pagination,
     Rating,
@@ -20,14 +16,13 @@ import {
 import {
     Add as AddIcon,
     CheckCircle as CheckCircleIcon,
-    Close as CloseIcon,
     Favorite as FavoriteIcon,
+    FavoriteBorder as FavoriteBorderIcon,
     Language as LanguageIcon,
     LocationOn as LocationOnIcon,
     Phone as PhoneIcon
 } from "@mui/icons-material";
 import {useNavigate} from "react-router-dom";
-import {enqueueSnackbar} from "notistack";
 import {showSuccessSnackbar, showWarningSnackbar} from "../ui/AppSnackbar.jsx";
 import {
     APP_PRIMARY_DARK,
@@ -35,11 +30,14 @@ import {
     HOME_PAGE_SURFACE_GRADIENT,
     landingSectionShadow
 } from "../../constants/homeLandingTheme";
-import {getPublicSchoolDetail} from "../../services/SchoolPublicService.jsx";
+import {getPublicSchoolDetail, searchNearbyCampuses} from "../../services/SchoolPublicService.jsx";
 import {
     deleteParentFavouriteSchool,
-    getParentFavouriteSchools
+    getParentFavouriteSchools,
+    postParentFavouriteSchool
 } from "../../services/ParentService.jsx";
+import SchoolSearchDetailView from "./SchoolSearchDetailView.jsx";
+import {mapPublicSchoolDetailToRow} from "../../utils/schoolPublicMapper.js";
 import {
     getCompareSchools,
     MAX_COMPARE_SCHOOLS,
@@ -56,7 +54,7 @@ const FAVOURITE_PAGE_SIZE = 10;
 function mapFavouriteSchoolRow(item) {
     if (!item || typeof item !== "object") return null;
     const school = item.school ?? item.schoolDto ?? item;
-    const id =
+    const schoolId =
         item.schoolId != null && item.schoolId !== ""
             ? item.schoolId
             : school?.schoolId != null && school?.schoolId !== ""
@@ -79,8 +77,10 @@ function mapFavouriteSchoolRow(item) {
             ? [ward, province].filter(Boolean).join(", ")
             : "");
     return {
-        id,
-        schoolKey: id != null ? `id:${id}` : `saved-${name || Math.random()}`,
+        id: schoolId,
+        schoolId,
+        favouriteId: item?.id ?? null,
+        schoolKey: schoolId != null ? `id:${schoolId}` : `saved-${name || Math.random()}`,
         schoolName: name,
         school: name,
         province,
@@ -147,7 +147,6 @@ export default function SavedSchoolsPage() {
     const [totalPages, setTotalPages] = React.useState(1);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState("");
-    const [detailOpen, setDetailOpen] = React.useState(false);
     const [detailLoading, setDetailLoading] = React.useState(false);
     const [detailError, setDetailError] = React.useState("");
     const [detailSchool, setDetailSchool] = React.useState(null);
@@ -208,27 +207,62 @@ export default function SavedSchoolsPage() {
         };
     }, [isParent, userInfo, page, loadFavouritePage]);
 
-    const onRemove = async (schoolRecord) => {
+    const toggleFavourite = async (schoolRecord) => {
         if (!isParent) {
             showWarningSnackbar("Bạn phải đăng nhập với vai trò Phụ huynh để quản lý trường yêu thích.");
             return;
         }
-        if (!schoolRecord?.id) {
-            showWarningSnackbar("Không xác định được trường để bỏ yêu thích.");
+        const rawSchoolId =
+            schoolRecord?.schoolId ??
+            schoolRecord?.id ??
+            (String(schoolRecord?.schoolKey || "").startsWith("id:")
+                ? String(schoolRecord.schoolKey).slice(3)
+                : null);
+        const schoolId = Number(rawSchoolId);
+        if (!Number.isFinite(schoolId)) {
+            showWarningSnackbar("Không xác định được trường để cập nhật yêu thích.");
             return;
         }
+        const favouriteIdCandidate =
+            schoolRecord?.favouriteId ??
+            savedSchools.find((r) => Number(r?.schoolId ?? r?.id) === schoolId)?.favouriteId ??
+            (Number(detailSchool?.id) === schoolId ? detailSchool?.favouriteId : null);
+        const favouriteId = Number(favouriteIdCandidate);
+        const exists = Boolean(
+            (Number(detailSchool?.id) === schoolId ? detailSchool?.isFavourite : undefined) ??
+                savedSchools.find((r) => Number(r?.id) === schoolId)?.isFavourite ??
+                schoolRecord?.isFavourite
+        );
         try {
-            await deleteParentFavouriteSchool(schoolRecord.id);
+            if (exists) {
+                if (!Number.isFinite(favouriteId)) {
+                    showWarningSnackbar("Thiếu id bản ghi yêu thích để bỏ yêu thích.");
+                    return;
+                }
+                await deleteParentFavouriteSchool(favouriteId);
+            } else {
+                await postParentFavouriteSchool({schoolId});
+            }
         } catch (e) {
             showWarningSnackbar(
                 e?.response?.data?.message ||
                 e?.message ||
-                "Không thể gỡ trường khỏi danh sách yêu thích."
+                "Không thể cập nhật trạng thái yêu thích trường lúc này. Vui lòng thử lại."
             );
             return;
         }
-        enqueueSnackbar("Đã gỡ trường khỏi Trường yêu thích.", {autoHideDuration: 1800});
-        await loadFavouritePage(page);
+        setSavedSchools((prev) =>
+            prev.map((row) =>
+                Number(row?.id) === schoolId ? {...row, isFavourite: !exists} : row
+            )
+        );
+        setDetailSchool((prev) =>
+            prev && Number(prev.id) === schoolId ? {...prev, isFavourite: !exists} : prev
+        );
+        showSuccessSnackbar(exists ? "Đã bỏ trường khỏi Trường yêu thích." : "Đã thêm trường vào Trường yêu thích.");
+        if (exists) {
+            await loadFavouritePage(page);
+        }
     };
 
     const toggleCompare = React.useCallback(
@@ -264,42 +298,54 @@ export default function SavedSchoolsPage() {
         [userInfo]
     );
 
-    const openSchoolDetail = async (schoolRecord) => {
-        setDetailOpen(true);
+    const closeSchoolDetail = React.useCallback(() => {
+        setDetailSchool(null);
         setDetailError("");
+        setDetailLoading(false);
+    }, []);
+
+    const openSchoolDetail = React.useCallback(async (schoolRecord) => {
+        setDetailError("");
+        const label = schoolRecord?.schoolName || schoolRecord?.school || "Trường";
         setDetailSchool({
-            schoolName: schoolRecord?.schoolName || "Trường",
-            logoUrl: schoolRecord?.logoUrl || null,
-            averageRating: Number(schoolRecord?.averageRating) || 0,
-            ward: schoolRecord?.ward || LOCATION_FALLBACK_WARD,
-            province: schoolRecord?.province || LOCATION_FALLBACK_PROVINCE,
-            hotline: "",
-            websiteUrl: "",
-            description: ""
+            ...schoolRecord,
+            school: label,
+            hasDetailLoaded: false
         });
-        const id = schoolRecord?.id ?? (String(schoolRecord?.schoolKey || "").startsWith("id:") ? Number(String(schoolRecord.schoolKey).slice(3)) : null);
+        const id = schoolRecord?.id;
         if (!id) return;
         try {
             setDetailLoading(true);
-            const detail = await getPublicSchoolDetail(id);
-            const campusList = Array.isArray(detail?.campusList) ? detail.campusList : [];
-            const firstCampus = campusList[0] ?? null;
-            setDetailSchool({
-                schoolName: detail?.name || schoolRecord?.schoolName || "Trường",
-                logoUrl: detail?.logoUrl || schoolRecord?.logoUrl || null,
-                averageRating: Number(detail?.averageRating) || Number(schoolRecord?.averageRating) || 0,
-                ward: (firstCampus?.district || "").trim() || schoolRecord?.ward || LOCATION_FALLBACK_WARD,
-                province: (firstCampus?.city || "").trim() || schoolRecord?.province || LOCATION_FALLBACK_PROVINCE,
-                hotline: firstCampus?.phoneNumber || detail?.hotline || "",
-                websiteUrl: detail?.websiteUrl || "",
-                description: detail?.description ? String(detail.description) : ""
-            });
+            const detailBody = await getPublicSchoolDetail(id);
+            const mapped = mapPublicSchoolDetailToRow(detailBody);
+            if (!mapped) return;
+            setDetailSchool((prev) => ({
+                ...(prev || {}),
+                ...mapped,
+                isFavourite: Boolean(schoolRecord?.isFavourite)
+            }));
         } catch (e) {
             setDetailError(e?.response?.data?.message || e?.message || "Không tải được chi tiết trường.");
         } finally {
             setDetailLoading(false);
         }
-    };
+    }, []);
+
+    const maptilerApiKey = import.meta.env.VITE_MAPTILER_API_KEY ?? "";
+    const canSaveSchool = Boolean(isParent && userInfo);
+
+    React.useEffect(() => {
+        if (!detailSchool) return undefined;
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        return () => {
+            document.body.style.overflow = prev;
+        };
+    }, [detailSchool]);
+
+    const detailKeyForActions = detailSchool ? getSchoolStorageKey(detailSchool) : "";
+    const detailIsSaved = Boolean(detailSchool?.isFavourite);
+    const detailInCompare = Boolean(detailSchool && compareSchoolKeys.has(detailKeyForActions));
 
     const cardSurface = {
         bgcolor: "#fff",
@@ -385,6 +431,7 @@ export default function SavedSchoolsPage() {
                                 {savedSchools.map((item) => {
                                     const schoolKey = getSchoolStorageKey(item);
                                     const inCompare = compareSchoolKeys.has(schoolKey);
+                                    const isSaved = Boolean(item?.isFavourite);
                                     return (
                                     <Card
                                         key={item?.schoolKey}
@@ -659,24 +706,44 @@ export default function SavedSchoolsPage() {
                                                     So sánh
                                                 </ButtonBase>
                                                 <ButtonBase
-                                                    onClick={() => onRemove(item)}
-                                                    title="Bỏ yêu thích"
+                                                    onClick={() => toggleFavourite(item)}
+                                                    title={
+                                                        isParent
+                                                            ? isSaved
+                                                                ? "Bỏ yêu thích"
+                                                                : "Thêm vào yêu thích"
+                                                            : "Đăng nhập với vai trò Phụ huynh để yêu thích trường"
+                                                    }
+                                                    disabled={!isParent}
                                                     sx={{
                                                         display: "inline-flex",
                                                         alignItems: "center",
-                                                        gap: 0.4,
-                                                        color: "#e11d48",
+                                                        gap: 0.45,
                                                         fontSize: "0.6875rem",
                                                         fontWeight: 700,
-                                                        borderRadius: 1.5,
-                                                        py: 0.35,
-                                                        px: 0.35,
-                                                        bgcolor: "transparent",
-                                                        "&:hover": {bgcolor: "rgba(59,130,246,0.06)"}
+                                                        borderRadius: 999,
+                                                        py: 0.5,
+                                                        px: 1.25,
+                                                        color: isSaved ? "#e11d48" : "#64748b",
+                                                        border: isSaved
+                                                            ? "1px solid rgba(225,29,72,0.45)"
+                                                            : "1px solid rgba(148,163,184,0.85)",
+                                                        bgcolor: isSaved ? "rgba(225,29,72,0.06)" : "rgba(255,255,255,0.85)",
+                                                        "&:hover": {
+                                                            bgcolor: isSaved ? "rgba(225,29,72,0.1)" : "rgba(241,245,249,0.95)"
+                                                        },
+                                                        "&.Mui-disabled": {
+                                                            color: "rgba(100,116,139,0.55)",
+                                                            borderColor: "rgba(148,163,184,0.5)"
+                                                        }
                                                     }}
                                                 >
-                                                    <FavoriteIcon sx={{fontSize: 14, color: "#e11d48"}}/>
-                                                    Đã yêu thích
+                                                    {isSaved ? (
+                                                        <FavoriteIcon sx={{fontSize: 14, color: "#e11d48"}}/>
+                                                    ) : (
+                                                        <FavoriteBorderIcon sx={{fontSize: 14, color: "#64748b"}}/>
+                                                    )}
+                                                    {isSaved ? "Đã yêu thích" : "Yêu thích"}
                                                 </ButtonBase>
                                                 <Button
                                                     size="small"
@@ -725,68 +792,32 @@ export default function SavedSchoolsPage() {
                     </>
                 )}
             </Box>
-            <Dialog
-                open={detailOpen}
-                onClose={() => setDetailOpen(false)}
-                fullWidth
-                maxWidth="md"
-                PaperProps={{sx: {borderRadius: 3}}}
-            >
-                <DialogTitle sx={{display: "flex", alignItems: "center", justifyContent: "space-between"}}>
-                    <Typography sx={{fontWeight: 800, color: "#1e293b"}}>Chi tiết trường</Typography>
-                    <IconButton onClick={() => setDetailOpen(false)}>
-                        <CloseIcon/>
-                    </IconButton>
-                </DialogTitle>
-                <DialogContent dividers>
-                    {detailSchool && (
-                        <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "240px 1fr"}, gap: 2}}>
-                            <CardMedia
-                                component="img"
-                                image={detailSchool.logoUrl || DEFAULT_SCHOOL_IMAGE}
-                                alt={detailSchool.schoolName}
-                                sx={{height: 180, width: "100%", borderRadius: 2, objectFit: "contain"}}
-                            />
-                            <Box>
-                                <Typography sx={{fontSize: 24, fontWeight: 800, color: "#0f172a"}}>
-                                    {detailSchool.schoolName}
-                                </Typography>
-                                <Typography sx={{mt: 1, color: "#64748b", fontWeight: 600}}>
-                                    {`${detailSchool.ward || LOCATION_FALLBACK_WARD} - ${detailSchool.province || LOCATION_FALLBACK_PROVINCE}`}
-                                </Typography>
-                                <Box sx={{mt: 1}}>
-                                    <Rating
-                                        value={Math.min(5, Math.max(0, Number(detailSchool.averageRating) || 0))}
-                                        precision={0.5}
-                                        readOnly
-                                    />
-                                </Box>
-                                {!!detailSchool.hotline && (
-                                    <Typography sx={{mt: 1.5, color: "#334155"}}>Hotline: {detailSchool.hotline}</Typography>
-                                )}
-                                {!!detailSchool.websiteUrl && (
-                                    <Typography sx={{mt: 0.75, color: "#334155"}}>Website: {detailSchool.websiteUrl}</Typography>
-                                )}
-                            </Box>
-                        </Box>
-                    )}
-                    {detailLoading && (
-                        <Box sx={{display: "flex", justifyContent: "center", py: 2}}>
-                            <CircularProgress size={24} sx={{color: BRAND_NAVY}}/>
-                        </Box>
-                    )}
-                    {!!detailError && (
-                        <Typography sx={{mt: 1.5, color: "#b45309", fontWeight: 600}}>
-                            {detailError}
-                        </Typography>
-                    )}
-                    {!!detailSchool?.description && (
-                        <Typography sx={{mt: 2, color: "#475569", lineHeight: 1.7}}>
-                            {detailSchool.description}
-                        </Typography>
-                    )}
-                </DialogContent>
-            </Dialog>
+            {detailSchool && (
+                <SchoolSearchDetailView
+                    school={detailSchool}
+                    detailKeyRaw={detailKeyForActions}
+                    detailLoading={detailLoading}
+                    detailError={detailError}
+                    maptilerApiKey={maptilerApiKey}
+                    onSearchNearbyCampuses={searchNearbyCampuses}
+                    onOpenSchoolById={(schoolId) => {
+                        const target = savedSchools.find((s) => Number(s?.id) === Number(schoolId));
+                        if (target) {
+                            openSchoolDetail(target);
+                        } else {
+                            navigate(`/search-schools?detail=${encodeURIComponent(`id:${schoolId}`)}`);
+                        }
+                    }}
+                    onClose={closeSchoolDetail}
+                    navigate={navigate}
+                    isParent={isParent}
+                    canSaveSchool={canSaveSchool}
+                    detailIsSaved={detailIsSaved}
+                    detailInCompare={detailInCompare}
+                    toggleCompare={toggleCompare}
+                    toggleSave={toggleFavourite}
+                />
+            )}
         </Box>
     );
 }
