@@ -52,12 +52,14 @@ import {
   updateSchoolConfig,
 } from "../../../services/SchoolFacilityService.jsx";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
+import SchoolHoliday from "./SchoolHoliday.jsx";
 
-const TAB_SLUGS = ["admission", "documents", "operation", "finance", "facility", "quota", "resource-distribution"];
+const TAB_SLUGS = ["admission", "documents", "operation", "holiday", "finance", "facility", "quota", "resource-distribution"];
 const TAB_LABELS = [
   "Cài Đặt Tuyển Sinh",
   "Cài Đặt Hồ Sơ",
   "Cài Đặt Vận Hành",
+  "Cài Đặt Ngày Nghỉ",
   "Cài Đặt Tài Chính",
   "Cài Đặt Cơ Sở Vật Chất",
   "Cài Đặt Chỉ Tiêu",
@@ -2020,13 +2022,14 @@ export default function SchoolConfig() {
     "&:hover": {bgcolor: "#1d4ed8"},
   };
 
-  const showAdmissionTab = !useCampusConfigFlow && tabIndex === 0;
-  const showDocumentsTab = !useCampusConfigFlow && tabIndex === 1;
-  const showOperationTab = (!useCampusConfigFlow && tabIndex === 2) || (useCampusConfigFlow && tabIndex === 0);
-  const showFinanceTab = !useCampusConfigFlow && tabIndex === 3;
-  const showFacilityTab = (!useCampusConfigFlow && tabIndex === 4) || (useCampusConfigFlow && tabIndex === 1);
-  const showQuotaTab = !useCampusConfigFlow && tabIndex === 5;
-  const showResourceDistributionTab = !useCampusConfigFlow && tabIndex === 6;
+  const showAdmissionTab = !useCampusConfigFlow && tabSlug === "admission";
+  const showDocumentsTab = !useCampusConfigFlow && tabSlug === "documents";
+  const showOperationTab = (!useCampusConfigFlow && tabSlug === "operation") || (useCampusConfigFlow && tabSlug === "operation");
+  const showHolidayTab = !useCampusConfigFlow && tabSlug === "holiday";
+  const showFinanceTab = !useCampusConfigFlow && tabSlug === "finance";
+  const showFacilityTab = (!useCampusConfigFlow && tabSlug === "facility") || (useCampusConfigFlow && tabSlug === "facility");
+  const showQuotaTab = !useCampusConfigFlow && tabSlug === "quota";
+  const showResourceDistributionTab = !useCampusConfigFlow && tabSlug === "resource-distribution";
 
 
   const pageTitle = isCampusVariant ? "Cấu hình của cơ sở" : "Cấu hình chung cho các cơ sở";
@@ -4309,6 +4312,8 @@ export default function SchoolConfig() {
             </Stack>
           )}
 
+          {showHolidayTab && <SchoolHoliday />}
+
           {showFacilityTab && (
             <SchoolFacilityFacilityForm
               ref={facilityFormRef}
@@ -4435,7 +4440,7 @@ export default function SchoolConfig() {
         </Box>
 
         <Box sx={{mt: 2, display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap"}}>
-          {!editing ? (
+          {showHolidayTab ? null : !editing ? (
             <Button
               variant="contained"
               onClick={() => setEditing(true)}
