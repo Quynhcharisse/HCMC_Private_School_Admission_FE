@@ -897,39 +897,6 @@ export default function SchoolCampus() {
                                                 >
                                                     <VisibilityIcon fontSize="small"/>
                                                 </IconButton>
-                                                {isPrimaryBranch && (
-                                                    <>
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleOpenEdit(row);
-                                                            }}
-                                                            sx={{
-                                                                color: "#64748b",
-                                                                "&:hover": {color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)"},
-                                                            }}
-                                                            title="Sửa"
-                                                        >
-                                                            <EditIcon fontSize="small"/>
-                                                        </IconButton>
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleOpenDisableConfirm(row);
-                                                            }}
-                                                            disabled={row.status === "inactive"}
-                                                            sx={{
-                                                                color: "#64748b",
-                                                                "&:hover": {color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)"},
-                                                            }}
-                                                            title="Vô hiệu hóa"
-                                                        >
-                                                            <BlockIcon fontSize="small"/>
-                                                        </IconButton>
-                                                    </>
-                                                )}
                                             </Stack>
                                         </TableCell>
                                     </TableRow>
