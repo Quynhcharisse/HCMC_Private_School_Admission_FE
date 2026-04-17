@@ -109,15 +109,12 @@ export default function AdminPlatformSettings() {
     const [mediaFormatsTab, setMediaFormatsTab] = useState(0);
     const [imgFormatsDraft, setImgFormatsDraft] = useState([]);
     const [videoFormatsDraft, setVideoFormatsDraft] = useState([]);
+    const [docFormatsDraft, setDocFormatsDraft] = useState([]);
 
     const [mediaLimitsForm, setMediaLimitsForm] = useState({
         maxImgSize: "",
         maxVideoSize: "",
-        maxReportVideos: "",
-        maxReferenceImages: "",
-        maxReportImages: "",
-        maxFeedbackImages: "",
-        maxFeedbackVideos: "",
+        maxDocSize: "",
     });
     const [mediaLimitsErrors, setMediaLimitsErrors] = useState({});
 
@@ -219,8 +216,19 @@ export default function AdminPlatformSettings() {
     const normalizeFormatString = (raw) => {
         const v = String(raw ?? "").trim().toLowerCase();
         if (!v) return "";
-        if (!v.startsWith(".")) return `.${v}`;
         return v;
+    };
+
+    const getFormatListFromMedia = (media, keys = []) => {
+        const source = keys.find((key) => Array.isArray(media?.[key]));
+        if (!source) return [];
+        return media[source]
+            .map((item) => {
+                if (typeof item === "string") return item;
+                return item?.format;
+            })
+            .map((value) => String(value ?? "").trim())
+            .filter(Boolean);
     };
 
     const sanitizeMoneyInput = (raw) => {
@@ -344,17 +352,14 @@ export default function AdminPlatformSettings() {
         setSelectedQuotaYear((prev) => prev || quotaYears[0] || "");
 
         const media = configBody?.media || {};
-        setImgFormatsDraft((media.imgFormat || []).map((x) => x?.format).filter(Boolean));
-        setVideoFormatsDraft((media.videoFormat || []).map((x) => x?.format).filter(Boolean));
+        setImgFormatsDraft(getFormatListFromMedia(media, ["imgFormats", "imgFormat"]));
+        setVideoFormatsDraft(getFormatListFromMedia(media, ["videoFormats", "videoFormat"]));
+        setDocFormatsDraft(getFormatListFromMedia(media, ["docFormats", "docFormat"]));
 
         setMediaLimitsForm({
             maxImgSize: media.maxImgSize ?? "",
             maxVideoSize: media.maxVideoSize ?? "",
-            maxReportVideos: media.maxReportVideo ?? "",
-            maxReferenceImages: media.maxDesignRefImg ?? "",
-            maxReportImages: media.maxReportImg ?? "",
-            maxFeedbackImages: media.maxFeedbackImg ?? "",
-            maxFeedbackVideos: media.maxFeedbackVideo ?? "",
+            maxDocSize: media.maxDocSize ?? "",
         });
         setMediaLimitsErrors({});
 
@@ -446,16 +451,13 @@ export default function AdminPlatformSettings() {
     const cancelMediaFormats = () => {
         if (!configBody) return;
         const media = configBody?.media || {};
-        setImgFormatsDraft((media.imgFormat || []).map((x) => x?.format).filter(Boolean));
-        setVideoFormatsDraft((media.videoFormat || []).map((x) => x?.format).filter(Boolean));
+        setImgFormatsDraft(getFormatListFromMedia(media, ["imgFormats", "imgFormat"]));
+        setVideoFormatsDraft(getFormatListFromMedia(media, ["videoFormats", "videoFormat"]));
+        setDocFormatsDraft(getFormatListFromMedia(media, ["docFormats", "docFormat"]));
         setMediaLimitsForm({
             maxImgSize: media.maxImgSize ?? "",
             maxVideoSize: media.maxVideoSize ?? "",
-            maxReportVideos: media.maxReportVideo ?? "",
-            maxReferenceImages: media.maxDesignRefImg ?? "",
-            maxReportImages: media.maxReportImg ?? "",
-            maxFeedbackImages: media.maxFeedbackImg ?? "",
-            maxFeedbackVideos: media.maxFeedbackVideo ?? "",
+            maxDocSize: media.maxDocSize ?? "",
         });
         setMediaLimitsErrors({});
         setFormatDialogOpen(false);
@@ -649,46 +651,34 @@ export default function AdminPlatformSettings() {
             return;
         }
 
+        const updateFormatDraft = (setter) => {
+            setter((prev) => {
+                const exists = prev.includes(normalized);
+                if (formatDialogMode === "add") {
+                    if (exists) {
+                        setFormatDialogError("Định dạng đã tồn tại.");
+                        return prev;
+                    }
+                    return [...prev, normalized];
+                }
+                const idx = formatDialogIndex;
+                if (idx < 0 || idx >= prev.length) return prev;
+                const next = [...prev];
+                if (exists && prev[idx] !== normalized) {
+                    setFormatDialogError("Định dạng đã tồn tại.");
+                    return prev;
+                }
+                next[idx] = normalized;
+                return next;
+            });
+        };
+
         if (formatDialogType === "image") {
-            setImgFormatsDraft((prev) => {
-                const exists = prev.includes(normalized);
-                if (formatDialogMode === "add") {
-                    if (exists) {
-                        setFormatDialogError("Định dạng đã tồn tại.");
-                        return prev;
-                    }
-                    return [...prev, normalized];
-                }
-                const idx = formatDialogIndex;
-                if (idx < 0 || idx >= prev.length) return prev;
-                const next = [...prev];
-                if (exists && prev[idx] !== normalized) {
-                    setFormatDialogError("Định dạng đã tồn tại.");
-                    return prev;
-                }
-                next[idx] = normalized;
-                return next;
-            });
+            updateFormatDraft(setImgFormatsDraft);
+        } else if (formatDialogType === "video") {
+            updateFormatDraft(setVideoFormatsDraft);
         } else {
-            setVideoFormatsDraft((prev) => {
-                const exists = prev.includes(normalized);
-                if (formatDialogMode === "add") {
-                    if (exists) {
-                        setFormatDialogError("Định dạng đã tồn tại.");
-                        return prev;
-                    }
-                    return [...prev, normalized];
-                }
-                const idx = formatDialogIndex;
-                if (idx < 0 || idx >= prev.length) return prev;
-                const next = [...prev];
-                if (exists && prev[idx] !== normalized) {
-                    setFormatDialogError("Định dạng đã tồn tại.");
-                    return prev;
-                }
-                next[idx] = normalized;
-                return next;
-            });
+            updateFormatDraft(setDocFormatsDraft);
         }
 
         closeFormatDialog();
@@ -699,11 +689,7 @@ export default function AdminPlatformSettings() {
         const fields = [
             "maxImgSize",
             "maxVideoSize",
-            "maxReportVideos",
-            "maxReferenceImages",
-            "maxReportImages",
-            "maxFeedbackImages",
-            "maxFeedbackVideos",
+            "maxDocSize",
         ];
         fields.forEach((key) => {
             const v = parseFinite(form[key]);
@@ -726,16 +712,13 @@ export default function AdminPlatformSettings() {
         setStatus({ type: "", message: "" });
         try {
             const updatedBody = {
-                media: {
-                    imgFormat: imgFormatsDraft.map((f) => ({ format: f })),
-                    videoFormat: videoFormatsDraft.map((f) => ({ format: f })),
+                mediaData: {
                     maxImgSize: parseFinite(mediaLimitsForm.maxImgSize),
                     maxVideoSize: parseFinite(mediaLimitsForm.maxVideoSize),
-                    maxReportVideo: parseFinite(mediaLimitsForm.maxReportVideos),
-                    maxDesignRefImg: parseFinite(mediaLimitsForm.maxReferenceImages),
-                    maxReportImg: parseFinite(mediaLimitsForm.maxReportImages),
-                    maxFeedbackImg: parseFinite(mediaLimitsForm.maxFeedbackImages),
-                    maxFeedbackVideo: parseFinite(mediaLimitsForm.maxFeedbackVideos),
+                    maxDocSize: parseFinite(mediaLimitsForm.maxDocSize),
+                    imgFormats: imgFormatsDraft.map((f) => ({ format: f })),
+                    videoFormats: videoFormatsDraft.map((f) => ({ format: f })),
+                    docFormats: docFormatsDraft.map((f) => ({ format: f })),
                 },
             };
             await updateSystemConfig(updatedBody);
@@ -1202,40 +1185,26 @@ export default function AdminPlatformSettings() {
     );
 
     const renderMediaTab = () => {
-        const media = configBody?.media || {};
-        const isImageTab = mediaFormatsTab === 0;
+        const activeFormatType = mediaFormatsTab === 0 ? "image" : mediaFormatsTab === 1 ? "video" : "doc";
         const mediaDisabled = !mediaEditing || saving;
         const imgFormats = imgFormatsDraft || [];
         const videoFormats = videoFormatsDraft || [];
+        const docFormats = docFormatsDraft || [];
 
-        const list = isImageTab ? imgFormats : videoFormats;
-        const dialogTypeLabel = isImageTab ? "ảnh" : "video";
+        const list = activeFormatType === "image" ? imgFormats : activeFormatType === "video" ? videoFormats : docFormats;
+        const dialogTypeLabel = activeFormatType === "image" ? "ảnh" : activeFormatType === "video" ? "video" : "tài liệu";
 
         const deleteFormatFromDraft = (type, index) => {
             if (type === "image") {
                 setImgFormatsDraft((prev) => prev.filter((_, i) => i !== index));
                 return;
             }
-            setVideoFormatsDraft((prev) => prev.filter((_, i) => i !== index));
+            if (type === "video") {
+                setVideoFormatsDraft((prev) => prev.filter((_, i) => i !== index));
+                return;
+            }
+            setDocFormatsDraft((prev) => prev.filter((_, i) => i !== index));
         };
-
-        const capacityValue = isImageTab ? mediaLimitsForm.maxImgSize : mediaLimitsForm.maxVideoSize;
-        const reportValue = isImageTab ? mediaLimitsForm.maxReportImages : mediaLimitsForm.maxReportVideos;
-        const refValue = isImageTab ? mediaLimitsForm.maxReferenceImages : mediaLimitsForm.maxReferenceImages;
-        const feedbackValue = isImageTab ? mediaLimitsForm.maxFeedbackImages : mediaLimitsForm.maxFeedbackVideos;
-        const reportUnit = isImageTab ? "ảnh" : "video";
-        const summaryItems = isImageTab
-            ? [
-                  { label: "Dung lượng tối đa:", value: `${capacityValue ?? "-"}MB` },
-                  { label: "Báo cáo tối đa:", value: `${reportValue ?? "-"} ${reportUnit}` },
-                  { label: "Tham chiếu tối đa:", value: `${refValue ?? "-"} ${reportUnit}` },
-                  { label: "Phản hồi tối đa:", value: `${feedbackValue ?? "-"} ${reportUnit}` },
-              ]
-            : [
-                  { label: "Dung lượng tối đa:", value: `${capacityValue ?? "-"}MB` },
-                  { label: "Báo cáo tối đa:", value: `${reportValue ?? "-"} ${reportUnit}` },
-                  { label: "Phản hồi tối đa:", value: `${feedbackValue ?? "-"} ${reportUnit}` },
-              ];
 
         return (
             <Box>
@@ -1249,17 +1218,18 @@ export default function AdminPlatformSettings() {
                     </Typography>
                     <Box
                         sx={{
-                            display: "flex",
-                            flexWrap: "wrap",
+                            display: "grid",
+                            gridTemplateColumns: {
+                                xs: "1fr",
+                                sm: "repeat(2, minmax(0, 1fr))",
+                                md: "repeat(3, minmax(0, 1fr))",
+                            },
                             gap: 1.5,
                             width: "100%",
-                            alignItems: "stretch",
                         }}
                     >
                         <Box
                             sx={{
-                                flex: "1 1 25%",
-                                minWidth: 200,
                                 ...settingsFieldCardSx,
                             }}
                         >
@@ -1291,107 +1261,6 @@ export default function AdminPlatformSettings() {
 
                         <Box
                             sx={{
-                                flex: "1 1 25%",
-                                minWidth: 200,
-                                ...settingsFieldCardSx,
-                            }}
-                        >
-                            <Typography sx={settingsFieldLabelSx}>
-                                Số ảnh tham chiếu tối đa
-                            </Typography>
-                            <TextField
-                                size="small"
-                                fullWidth
-                                type="number"
-                                disabled={mediaDisabled}
-                                value={mediaLimitsForm.maxReferenceImages}
-                                onChange={(e) => {
-                                    const nextVal = e.target.value;
-                                    setMediaLimitsForm((prev) => {
-                                        const next = { ...prev, maxReferenceImages: nextVal };
-                                        setMediaLimitsErrors(validateMediaLimits(next));
-                                        return next;
-                                    });
-                                }}
-                                error={Boolean(mediaLimitsErrors.maxReferenceImages)}
-                                helperText={mediaLimitsErrors.maxReferenceImages || ""}
-                                InputProps={{
-                                    endAdornment: <InputAdornment position="end">ảnh</InputAdornment>,
-                                }}
-                                sx={settingsInputSx}
-                            />
-                        </Box>
-
-                        <Box
-                            sx={{
-                                flex: "1 1 25%",
-                                minWidth: 200,
-                                ...settingsFieldCardSx,
-                            }}
-                        >
-                            <Typography sx={settingsFieldLabelSx}>
-                                Số ảnh báo cáo tối đa
-                            </Typography>
-                            <TextField
-                                size="small"
-                                fullWidth
-                                type="number"
-                                disabled={mediaDisabled}
-                                value={mediaLimitsForm.maxReportImages}
-                                onChange={(e) => {
-                                    const nextVal = e.target.value;
-                                    setMediaLimitsForm((prev) => {
-                                        const next = { ...prev, maxReportImages: nextVal };
-                                        setMediaLimitsErrors(validateMediaLimits(next));
-                                        return next;
-                                    });
-                                }}
-                                error={Boolean(mediaLimitsErrors.maxReportImages)}
-                                helperText={mediaLimitsErrors.maxReportImages || ""}
-                                InputProps={{
-                                    endAdornment: <InputAdornment position="end">ảnh</InputAdornment>,
-                                }}
-                                sx={settingsInputSx}
-                            />
-                        </Box>
-
-                        <Box
-                            sx={{
-                                flex: "1 1 25%",
-                                minWidth: 200,
-                                ...settingsFieldCardSx,
-                            }}
-                        >
-                            <Typography sx={settingsFieldLabelSx}>
-                                Số ảnh phản hồi tối đa
-                            </Typography>
-                            <TextField
-                                size="small"
-                                fullWidth
-                                type="number"
-                                disabled={mediaDisabled}
-                                value={mediaLimitsForm.maxFeedbackImages}
-                                onChange={(e) => {
-                                    const nextVal = e.target.value;
-                                    setMediaLimitsForm((prev) => {
-                                        const next = { ...prev, maxFeedbackImages: nextVal };
-                                        setMediaLimitsErrors(validateMediaLimits(next));
-                                        return next;
-                                    });
-                                }}
-                                error={Boolean(mediaLimitsErrors.maxFeedbackImages)}
-                                helperText={mediaLimitsErrors.maxFeedbackImages || ""}
-                                InputProps={{
-                                    endAdornment: <InputAdornment position="end">ảnh</InputAdornment>,
-                                }}
-                                sx={settingsInputSx}
-                            />
-                        </Box>
-
-                        <Box
-                            sx={{
-                                flex: "1 1 200px",
-                                minWidth: 220,
                                 ...settingsFieldCardSx,
                             }}
                         >
@@ -1423,65 +1292,30 @@ export default function AdminPlatformSettings() {
 
                         <Box
                             sx={{
-                                flex: "1 1 200px",
-                                minWidth: 220,
                                 ...settingsFieldCardSx,
                             }}
                         >
                             <Typography sx={settingsFieldLabelSx}>
-                                Số video báo cáo tối đa
+                                Dung lượng tài liệu tối đa
                             </Typography>
                             <TextField
                                 size="small"
                                 fullWidth
                                 type="number"
                                 disabled={mediaDisabled}
-                                value={mediaLimitsForm.maxReportVideos}
+                                value={mediaLimitsForm.maxDocSize}
                                 onChange={(e) => {
                                     const nextVal = e.target.value;
                                     setMediaLimitsForm((prev) => {
-                                        const next = { ...prev, maxReportVideos: nextVal };
+                                        const next = { ...prev, maxDocSize: nextVal };
                                         setMediaLimitsErrors(validateMediaLimits(next));
                                         return next;
                                     });
                                 }}
-                                error={Boolean(mediaLimitsErrors.maxReportVideos)}
-                                helperText={mediaLimitsErrors.maxReportVideos || ""}
+                                error={Boolean(mediaLimitsErrors.maxDocSize)}
+                                helperText={mediaLimitsErrors.maxDocSize || ""}
                                 InputProps={{
-                                    endAdornment: <InputAdornment position="end">video</InputAdornment>,
-                                }}
-                                sx={settingsInputSx}
-                            />
-                        </Box>
-
-                        <Box
-                            sx={{
-                                flex: "1 1 200px",
-                                minWidth: 220,
-                                ...settingsFieldCardSx,
-                            }}
-                        >
-                            <Typography sx={settingsFieldLabelSx}>
-                                Số video phản hồi tối đa
-                            </Typography>
-                            <TextField
-                                size="small"
-                                fullWidth
-                                type="number"
-                                disabled={mediaDisabled}
-                                value={mediaLimitsForm.maxFeedbackVideos}
-                                onChange={(e) => {
-                                    const nextVal = e.target.value;
-                                    setMediaLimitsForm((prev) => {
-                                        const next = { ...prev, maxFeedbackVideos: nextVal };
-                                        setMediaLimitsErrors(validateMediaLimits(next));
-                                        return next;
-                                    });
-                                }}
-                                error={Boolean(mediaLimitsErrors.maxFeedbackVideos)}
-                                helperText={mediaLimitsErrors.maxFeedbackVideos || ""}
-                                InputProps={{
-                                    endAdornment: <InputAdornment position="end">video</InputAdornment>,
+                                    endAdornment: <InputAdornment position="end">MB</InputAdornment>,
                                 }}
                                 sx={settingsInputSx}
                             />
@@ -1500,6 +1334,7 @@ export default function AdminPlatformSettings() {
                         >
                             <Tab label="Định dạng ảnh" sx={{ fontWeight: 700, textTransform: "none" }} />
                             <Tab label="Định dạng video" sx={{ fontWeight: 700, textTransform: "none" }} />
+                            <Tab label="Định dạng tài liệu" sx={{ fontWeight: 700, textTransform: "none" }} />
                         </Tabs>
 
                         <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
@@ -1510,13 +1345,18 @@ export default function AdminPlatformSettings() {
 
                                 <Button
                                     variant="contained"
-                                    onClick={() => openAddFormatDialog(isImageTab ? "image" : "video")}
+                                    onClick={() => openAddFormatDialog(activeFormatType)}
+                                    disabled={mediaDisabled}
                                     sx={{
                                         bgcolor: "#0ea5e9",
                                         fontWeight: 700,
                                         borderRadius: 2,
                                         textTransform: "none",
                                         "&:hover": { bgcolor: "#0284c7" },
+                                        "&.Mui-disabled": {
+                                            bgcolor: "#e2e8f0",
+                                            color: "#94a3b8",
+                                        },
                                     }}
                                 >
                                     + Thêm định dạng
@@ -1562,7 +1402,7 @@ export default function AdminPlatformSettings() {
                                                         disabled={mediaDisabled}
                                                         onClick={() =>
                                                             openEditFormatDialog(
-                                                                isImageTab ? "image" : "video",
+                                                                activeFormatType,
                                                                 idx,
                                                                 fmt
                                                             )
@@ -1579,7 +1419,7 @@ export default function AdminPlatformSettings() {
                                                         disabled={mediaDisabled}
                                                         onClick={() =>
                                                             deleteFormatFromDraft(
-                                                                isImageTab ? "image" : "video",
+                                                                activeFormatType,
                                                                 idx
                                                             )
                                                         }
@@ -1622,7 +1462,8 @@ export default function AdminPlatformSettings() {
                             borderBottom: "1px solid #93c5fd",
                         }}
                     >
-                        {formatDialogMode === "add" ? "Thêm" : "Sửa"} định dạng {formatDialogType === "image" ? "ảnh" : "video"}
+                        {formatDialogMode === "add" ? "Thêm" : "Sửa"} định dạng{" "}
+                        {formatDialogType === "image" ? "ảnh" : formatDialogType === "video" ? "video" : "tài liệu"}
                     </DialogTitle>
                     <DialogContent sx={{ bgcolor: "#eff6ff" }}>
                         <TextField

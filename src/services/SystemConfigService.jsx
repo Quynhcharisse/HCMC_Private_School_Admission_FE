@@ -6,7 +6,7 @@ export const getSystemConfig = async () => {
 };
 
 export const updateSystemConfig = async (body) => {
-    const res = await axiosClient.put("/system/config", { body });
+    const res = await axiosClient.put("/system/config", body);
     return res || null;
 };
 
