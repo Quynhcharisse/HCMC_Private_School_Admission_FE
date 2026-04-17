@@ -21,6 +21,7 @@ export default function WebAppLayout() {
     const isParentProfileRoute = location.pathname === '/parent/profile';
     const toBoolean = (value) => value === true || value === 'true' || value === 1 || value === '1';
     const hasHandledInitialRoute = useRef(false);
+    const isSignedIn = Boolean(localStorage.getItem('user'));
 
     const isPublicRoute = (path) => {
         return (
@@ -196,7 +197,7 @@ export default function WebAppLayout() {
             </Box>
             {!isAuthPage && !isParentFirstLoginRoute && !isParentProfileRoute && <Footer/>}
             {!isAuthPage && <ScrollTopButton/>}
-            {!isAuthPage && <Chatbot/>}
+            {!isAuthPage && isSignedIn && <Chatbot/>}
         </Box>
     );
 }

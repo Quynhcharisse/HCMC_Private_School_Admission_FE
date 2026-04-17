@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
     Box,
@@ -9,10 +9,17 @@ import {
     Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
-import { useNavigate, useParams } from "react-router-dom";
+import StorefrontOutlinedIcon from "@mui/icons-material/StorefrontOutlined";
+import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
+import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { enqueueSnackbar } from "notistack";
 import { getCurrentSchoolSubscription } from "../../../services/SchoolSubscriptionService.jsx";
 import { getApiErrorMessage } from "../../../utils/getApiErrorMessage.js";
+import BranchQuotaRequestToPrimaryCard from "./BranchQuotaRequestToPrimaryCard.jsx";
+import { useSchool } from "../../../contexts/SchoolContext.jsx";
 
 const PAGE_BG = "#F7F9FC";
 const CARD_RADIUS = "16px";
@@ -24,9 +31,26 @@ function startOfDay(d) {
     return x;
 }
 
-function daysBetween(a, b) {
-    const ms = 86400000;
-    return Math.ceil((startOfDay(b) - startOfDay(a)) / ms);
+function mapResourceSummary(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    const t = Number(raw.totalPackageQuota);
+    const m = Number(raw.myCampusQuota);
+    const o = Number(raw.otherCampusesQuota);
+    return {
+        totalPackageQuota: Number.isFinite(t) ? Math.max(0, t) : 0,
+        myCampusQuota: Number.isFinite(m) ? Math.max(0, m) : 0,
+        otherCampusesQuota: Number.isFinite(o) ? Math.max(0, o) : 0,
+    };
+}
+
+/**
+ * Campus chính: còn gói có hạn ngạch nhưng trụ sở hoặc chi nhánh đang 0 → chuyển tới
+ * Cấu hình chung → tab Phân bổ nguồn lực (`/school/facility-config?tab=resource-distribution`).
+ */
+function shouldRedirectToResourceDistribution(rs) {
+    if (!rs) return false;
+    if (!(rs.totalPackageQuota > 0)) return false;
+    return rs.myCampusQuota === 0 || rs.otherCampusesQuota === 0;
 }
 
 /** Map API body → normalized subscription model */
@@ -43,6 +67,7 @@ function mapSubscription(body) {
     const licenseKey = body.licenseKey != null ? String(body.licenseKey) : "";
     const id = licenseKey || "current-subscription";
     const isExpired = body.isExpired === true;
+    const resourceSummary = mapResourceSummary(body.resourceSummary);
 
     return {
         id,
@@ -52,6 +77,7 @@ function mapSubscription(body) {
         endDate,
         dasRemaining,
         isExpired,
+        resourceSummary,
         statusMessage: localizeSubscriptionStatusMessage(
             typeof body.statusMessage === "string" ? body.statusMessage : "",
             body
@@ -143,7 +169,7 @@ function subscriptionElapsedPercent(startDate, endDate, isExpired) {
     return Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)));
 }
 
-function SubscriptionEmptyState({ onBuy }) {
+function SubscriptionEmptyState({ onBuy, branchReadOnly }) {
     return (
         <Box
             sx={{
@@ -170,7 +196,9 @@ function SubscriptionEmptyState({ onBuy }) {
                 Chưa có gói đăng ký đang hoạt động
             </Typography>
             <Typography sx={{ color: "#64748b", mt: 1.5, mb: 3, fontSize: "0.9375rem", lineHeight: 1.6 }}>
-                Mua gói dịch vụ để sử dụng đầy đủ tính năng cho trường của bạn.
+                {branchReadOnly
+                    ? "Chi nhánh không thể mua gói. Vui lòng liên hệ trụ sở chính để kích hoạt dịch vụ."
+                    : "Mua gói dịch vụ để sử dụng đầy đủ tính năng cho trường của bạn."}
             </Typography>
             <Button
                 variant="contained"
@@ -189,7 +217,7 @@ function SubscriptionEmptyState({ onBuy }) {
                     },
                 }}
             >
-                Mua gói
+                {branchReadOnly ? "Về bảng điều khiển" : "Mua gói"}
             </Button>
         </Box>
     );
@@ -218,7 +246,130 @@ function SuggestionPanel({ text }) {
     );
 }
 
-function SubscriptionMainCard({ sub, onViewDetails, onRenewOrUpgrade }) {
+function ResourceMetricCard({ icon, label, value, accent }) {
+    return (
+        <Box
+            sx={{
+                bgcolor: "#fff",
+                borderRadius: "14px",
+                border: "1px solid rgba(226, 232, 240, 0.95)",
+                boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+                p: 2,
+                display: "flex",
+                flexDirection: "column",
+                gap: 1,
+                minWidth: 0,
+            }}
+        >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, color: accent || "#64748b" }}>{icon}</Box>
+            <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                {label}
+            </Typography>
+            <Typography sx={{ fontSize: "1.75rem", fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em", lineHeight: 1.1 }}>
+                {value}
+            </Typography>
+        </Box>
+    );
+}
+
+function ResourceSummaryMetrics({ rs }) {
+    if (!rs) return null;
+    return (
+        <Box
+            sx={{
+                display: "grid",
+                gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
+                gap: 2,
+                width: "100%",
+            }}
+        >
+            <ResourceMetricCard
+                icon={<StorefrontOutlinedIcon sx={{ fontSize: 22 }} />}
+                label="Tổng tài nguyên hiện có"
+                value={rs.totalPackageQuota}
+                accent="#0D64DE"
+            />
+            <ResourceMetricCard
+                icon={<HubOutlinedIcon sx={{ fontSize: 22 }} />}
+                label="Tài nguyên của cơ sở chính hiện có"
+                value={rs.myCampusQuota}
+                accent="#047857"
+            />
+            <ResourceMetricCard
+                icon={<AccountTreeOutlinedIcon sx={{ fontSize: 22 }} />}
+                label="Tài nguyên của các chi nhánh hiện có"
+                value={rs.otherCampusesQuota}
+                accent="#b45309"
+            />
+        </Box>
+    );
+}
+
+function PaymentSuccessSummaryCard({ resourceSummary, packageName, onManageBranches, onContinue }) {
+    return (
+        <Box
+            sx={{
+                bgcolor: "#fff",
+                borderRadius: CARD_RADIUS,
+                boxShadow: CARD_SHADOW,
+                border: "1px solid rgba(34, 197, 94, 0.35)",
+                p: { xs: 2.5, sm: 3.5 },
+                width: "100%",
+                boxSizing: "border-box",
+            }}
+        >
+            <Box sx={{ textAlign: "center", mb: 2.5 }}>
+                <CheckCircleRoundedIcon sx={{ fontSize: { xs: 64, sm: 72 }, color: "#16a34a", display: "block", mx: "auto" }} />
+                <Typography sx={{ mt: 1.5, fontSize: { xs: "1.35rem", sm: "1.5rem" }, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em" }}>
+                    Thanh toán thành công
+                </Typography>
+                {packageName ? (
+                    <Typography sx={{ mt: 0.75, color: "#64748b", fontSize: "0.9375rem" }}>
+                        Gói: <Box component="span" sx={{ fontWeight: 600, color: "#334155" }}>{packageName}</Box>
+                    </Typography>
+                ) : null}
+            </Box>
+            <Typography sx={{ fontSize: "0.8125rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", mb: 1.5 }}>
+                Báo cáo tài nguyên tổng thể
+            </Typography>
+            <ResourceSummaryMetrics rs={resourceSummary} />
+            <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 1.5, mt: 3, justifyContent: "center" }}>
+                <Button
+                    variant="outlined"
+                    onClick={onManageBranches}
+                    sx={{
+                        textTransform: "none",
+                        fontWeight: 600,
+                        borderRadius: "10px",
+                        borderColor: "#e2e8f0",
+                        color: "#334155",
+                        py: 1.25,
+                        "&:hover": { borderColor: "#cbd5e1", bgcolor: "rgba(248,250,252,0.95)" },
+                    }}
+                >
+                    Quản lý chi tiết chi nhánh
+                </Button>
+                <Button
+                    variant="contained"
+                    onClick={onContinue}
+                    sx={{
+                        textTransform: "none",
+                        fontWeight: 600,
+                        borderRadius: "10px",
+                        py: 1.25,
+                        bgcolor: "#0D64DE",
+                        boxShadow: "0 4px 12px rgba(13, 100, 222, 0.25)",
+                        "&:hover": { bgcolor: "#0b5ad1", boxShadow: "0 6px 16px rgba(13, 100, 222, 0.35)" },
+                    }}
+                >
+                    Tiếp tục
+                </Button>
+            </Box>
+        </Box>
+    );
+}
+
+function SubscriptionMainCard({ sub, onViewDetails, onRenewOrUpgrade, hideCommerceActions }) {
     const expiringSoon = !sub.isExpired && sub.dasRemaining < 5;
     const elapsedPct = useMemo(
         () => subscriptionElapsedPercent(sub.startDate, sub.endDate, sub.isExpired),
@@ -432,49 +583,51 @@ function SubscriptionMainCard({ sub, onViewDetails, onRenewOrUpgrade }) {
                     >
                         Xem chi tiết
                     </Button>
-                    {sub.isExpired ? (
-                        <Button
-                            variant="contained"
-                            onClick={onRenewOrUpgrade}
-                            sx={{
-                                textTransform: "none",
-                                fontWeight: 600,
-                                borderRadius: "10px",
-                                minWidth: { lg: 160 },
-                                bgcolor: "#dc2626",
-                                boxShadow: "none",
-                                "&:hover": { bgcolor: "#b91c1c", boxShadow: "0 4px 12px rgba(220,38,38,0.25)" },
-                            }}
-                        >
-                            Gia hạn ngay
-                        </Button>
-                    ) : (
-                        <Button
-                            variant="contained"
-                            onClick={onRenewOrUpgrade}
-                            sx={{
-                                textTransform: "none",
-                                fontWeight: 600,
-                                borderRadius: "10px",
-                                minWidth: { lg: 160 },
-                                bgcolor: "#0D64DE",
-                                boxShadow: "0 4px 12px rgba(13, 100, 222, 0.25)",
-                                "&:hover": {
-                                    bgcolor: "#0b5ad1",
-                                    boxShadow: "0 6px 16px rgba(13, 100, 222, 0.35)",
-                                },
-                            }}
-                        >
-                            Nâng cấp
-                        </Button>
-                    )}
+                    {!hideCommerceActions ? (
+                        sub.isExpired ? (
+                            <Button
+                                variant="contained"
+                                onClick={onRenewOrUpgrade}
+                                sx={{
+                                    textTransform: "none",
+                                    fontWeight: 600,
+                                    borderRadius: "10px",
+                                    minWidth: { lg: 160 },
+                                    bgcolor: "#dc2626",
+                                    boxShadow: "none",
+                                    "&:hover": { bgcolor: "#b91c1c", boxShadow: "0 4px 12px rgba(220,38,38,0.25)" },
+                                }}
+                            >
+                                Gia hạn ngay
+                            </Button>
+                        ) : (
+                            <Button
+                                variant="contained"
+                                onClick={onRenewOrUpgrade}
+                                sx={{
+                                    textTransform: "none",
+                                    fontWeight: 600,
+                                    borderRadius: "10px",
+                                    minWidth: { lg: 160 },
+                                    bgcolor: "#0D64DE",
+                                    boxShadow: "0 4px 12px rgba(13, 100, 222, 0.25)",
+                                    "&:hover": {
+                                        bgcolor: "#0b5ad1",
+                                        boxShadow: "0 6px 16px rgba(13, 100, 222, 0.35)",
+                                    },
+                                }}
+                            >
+                                Nâng cấp
+                            </Button>
+                        )
+                    ) : null}
                 </Box>
             </Box>
         </Box>
     );
 }
 
-function SubscriptionDetailPage({ sub, onBack, onRenewOrUpgrade }) {
+function SubscriptionDetailPage({ sub, onBack, onRenewOrUpgrade, hideCommerceActions }) {
     if (!sub) {
         return (
             <Box sx={{ textAlign: "center", py: 8, maxWidth: 400, mx: "auto" }}>
@@ -540,48 +693,74 @@ function SubscriptionDetailPage({ sub, onBack, onRenewOrUpgrade }) {
                         }}
                     />
                 </Box>
-                <Box sx={{ mt: 3, display: "flex", gap: 1.5, flexWrap: "wrap" }}>
-                    <Button
-                        variant="contained"
-                        onClick={onRenewOrUpgrade}
-                        sx={{
-                            textTransform: "none",
-                            fontWeight: 600,
-                            borderRadius: "10px",
-                            ...(sub.isExpired
-                                ? {
-                                      bgcolor: "#dc2626",
-                                      boxShadow: "none",
-                                      "&:hover": { bgcolor: "#b91c1c", boxShadow: "0 4px 12px rgba(220,38,38,0.25)" },
-                                  }
-                                : {
-                                      bgcolor: "#0D64DE",
-                                      boxShadow: "0 4px 12px rgba(13, 100, 222, 0.25)",
-                                      "&:hover": {
-                                          bgcolor: "#0b5ad1",
-                                          boxShadow: "0 6px 16px rgba(13, 100, 222, 0.35)",
-                                      },
-                                  }),
-                        }}
-                    >
-                        {sub.isExpired ? "Gia hạn ngay" : "Nâng cấp"}
-                    </Button>
-                </Box>
+                {!hideCommerceActions ? (
+                    <Box sx={{ mt: 3, display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+                        <Button
+                            variant="contained"
+                            onClick={onRenewOrUpgrade}
+                            sx={{
+                                textTransform: "none",
+                                fontWeight: 600,
+                                borderRadius: "10px",
+                                ...(sub.isExpired
+                                    ? {
+                                          bgcolor: "#dc2626",
+                                          boxShadow: "none",
+                                          "&:hover": { bgcolor: "#b91c1c", boxShadow: "0 4px 12px rgba(220,38,38,0.25)" },
+                                      }
+                                    : {
+                                          bgcolor: "#0D64DE",
+                                          boxShadow: "0 4px 12px rgba(13, 100, 222, 0.25)",
+                                          "&:hover": {
+                                              bgcolor: "#0b5ad1",
+                                              boxShadow: "0 6px 16px rgba(13, 100, 222, 0.35)",
+                                          },
+                                      }),
+                            }}
+                        >
+                            {sub.isExpired ? "Gia hạn ngay" : "Nâng cấp"}
+                        </Button>
+                    </Box>
+                ) : null}
+                {sub.resourceSummary ? (
+                    <Box sx={{ mt: 3 }}>
+                        <Typography sx={{ fontSize: "0.8125rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", mb: 1.5 }}>
+                            Phân bổ hạn ngạch nhanh
+                        </Typography>
+                        <ResourceSummaryMetrics rs={sub.resourceSummary} />
+                    </Box>
+                ) : null}
                 {sub.suggestion ? (
                     <Box sx={{ mt: 3 }}>
                         <SuggestionPanel text={sub.suggestion} />
                     </Box>
                 ) : null}
             </Box>
+            {hideCommerceActions ? (
+                <Box sx={{ mt: 3 }}>
+                    <BranchQuotaRequestToPrimaryCard disabled={false} />
+                </Box>
+            ) : null}
         </Box>
     );
 }
 
-function CurrentSubscriptionPage({ subscription, loading, error, onRetry }) {
+function CurrentSubscriptionPage({
+    subscription,
+    loading,
+    error,
+    onRetry,
+    showPaymentSuccessSummary,
+    onContinuePaymentSuccess,
+    isPrimaryBranch,
+    schoolCtxLoading,
+}) {
     const navigate = useNavigate();
 
     const goPackageFees = () => navigate("/package-fees");
     const viewDetails = (id) => navigate(`/school/purchased-packages/${encodeURIComponent(id)}`);
+    const goCampusList = () => navigate("/school/campus");
+    const branchReadOnly = !schoolCtxLoading && !isPrimaryBranch;
 
     return (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 3, width: "100%" }}>
@@ -617,30 +796,34 @@ function CurrentSubscriptionPage({ subscription, loading, error, onRetry }) {
                             Gói đăng ký hiện tại
                         </Typography>
                         <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.95 }}>
-                            Xem và quản lý gói dịch vụ đang sử dụng của trường
+                            {branchReadOnly
+                                ? "Thông tin gói theo trường — chỉ trụ sở chính được mua / phân bổ gói."
+                                : "Xem và quản lý gói dịch vụ đang sử dụng của trường"}
                         </Typography>
                     </Box>
-                    <Button
-                        variant="contained"
-                        startIcon={<AddIcon />}
-                        onClick={goPackageFees}
-                        sx={{
-                            bgcolor: "rgba(255,255,255,0.95)",
-                            color: "#0D64DE",
-                            borderRadius: 2,
-                            textTransform: "none",
-                            fontWeight: 600,
-                            px: 3,
-                            py: 1.5,
-                            boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
-                            "&:hover": {
-                                bgcolor: "white",
-                                boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
-                            },
-                        }}
-                    >
-                        Nâng cấp / Gia hạn gói
-                    </Button>
+                    {!branchReadOnly ? (
+                        <Button
+                            variant="contained"
+                            startIcon={<AddIcon />}
+                            onClick={goPackageFees}
+                            sx={{
+                                bgcolor: "rgba(255,255,255,0.95)",
+                                color: "#0D64DE",
+                                borderRadius: 2,
+                                textTransform: "none",
+                                fontWeight: 600,
+                                px: 3,
+                                py: 1.5,
+                                boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
+                                "&:hover": {
+                                    bgcolor: "white",
+                                    boxShadow: "0 6px 20px rgba(0,0,0,0.2)",
+                                },
+                            }}
+                        >
+                            Nâng cấp / Gia hạn gói
+                        </Button>
+                    ) : null}
                 </Box>
             </Box>
 
@@ -668,19 +851,49 @@ function CurrentSubscriptionPage({ subscription, loading, error, onRetry }) {
                     </Alert>
                 ) : null}
 
+                {branchReadOnly ? (
+                    <Alert severity="info" sx={{ mb: 2, borderRadius: "12px" }}>
+                        Chi nhánh chỉ xem thông tin gói; mua gói và phân bổ tài nguyên do trụ sở chính thực hiện.
+                    </Alert>
+                ) : null}
+
+                {branchReadOnly ? <BranchQuotaRequestToPrimaryCard disabled={loading} /> : null}
+
                 {loading ? (
                     <Box sx={{ display: "flex", justifyContent: "center", py: 10 }}>
                         <CircularProgress size={40} sx={{ color: "#64748b" }} />
                     </Box>
                 ) : !error && !subscription ? (
-                    <SubscriptionEmptyState onBuy={goPackageFees} />
+                    <SubscriptionEmptyState
+                        branchReadOnly={branchReadOnly}
+                        onBuy={branchReadOnly ? () => navigate("/school/dashboard") : goPackageFees}
+                    />
                 ) : subscription ? (
                     <>
+                        {showPaymentSuccessSummary ? (
+                            <Box sx={{ mb: 3 }}>
+                                <PaymentSuccessSummaryCard
+                                    resourceSummary={subscription.resourceSummary}
+                                    packageName={subscription.packageName}
+                                    onManageBranches={goCampusList}
+                                    onContinue={onContinuePaymentSuccess}
+                                />
+                            </Box>
+                        ) : null}
                         <SubscriptionMainCard
                             sub={subscription}
                             onViewDetails={viewDetails}
                             onRenewOrUpgrade={goPackageFees}
+                            hideCommerceActions={branchReadOnly}
                         />
+                        {isPrimaryBranch && subscription.resourceSummary ? (
+                            <Box sx={{ mt: 3 }}>
+                                <Typography sx={{ fontSize: "0.8125rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", mb: 1.5 }}>
+                                    Báo cáo tài nguyên tổng thể
+                                </Typography>
+                                <ResourceSummaryMetrics rs={subscription.resourceSummary} />
+                            </Box>
+                        ) : null}
                         <SuggestionPanel text={subscription.suggestion} />
                     </>
                 ) : null}
@@ -692,9 +905,14 @@ function CurrentSubscriptionPage({ subscription, loading, error, onRetry }) {
 export default function SchoolPurchasedPackages() {
     const { subscriptionId } = useParams();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const { isPrimaryBranch, loading: schoolCtxLoading } = useSchool();
     const [subscription, setSubscription] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const resourceRedirectKeyRef = useRef("");
+
+    const branchReadOnly = !schoolCtxLoading && !isPrimaryBranch;
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -719,6 +937,46 @@ export default function SchoolPurchasedPackages() {
     useEffect(() => {
         load();
     }, [load]);
+
+    const paymentSuccessParam = searchParams.get("payment") === "success";
+
+    const showPaymentSuccessSummary = useMemo(() => {
+        if (!paymentSuccessParam || !isPrimaryBranch || schoolCtxLoading) return false;
+        if (!subscription?.resourceSummary) return false;
+        if (shouldRedirectToResourceDistribution(subscription.resourceSummary)) return false;
+        return true;
+    }, [paymentSuccessParam, isPrimaryBranch, schoolCtxLoading, subscription]);
+
+    const onContinuePaymentSuccess = useCallback(() => {
+        navigate("/school/purchased-packages", { replace: true });
+    }, [navigate]);
+
+    useEffect(() => {
+        if (subscriptionId) return;
+        if (schoolCtxLoading || loading) return;
+        if (!paymentSuccessParam) {
+            resourceRedirectKeyRef.current = "";
+            return;
+        }
+        if (!isPrimaryBranch || !subscription?.resourceSummary) return;
+        if (!shouldRedirectToResourceDistribution(subscription.resourceSummary)) {
+            resourceRedirectKeyRef.current = "";
+            return;
+        }
+        const rs = subscription.resourceSummary;
+        const key = `${subscription.licenseKey}:${rs.totalPackageQuota}:${rs.myCampusQuota}:${rs.otherCampusesQuota}`;
+        if (resourceRedirectKeyRef.current === key) return;
+        resourceRedirectKeyRef.current = key;
+        const n = rs.totalPackageQuota;
+        const msg =
+            rs.myCampusQuota === 0 && rs.otherCampusesQuota === 0
+                ? `Trường có ${n} tài nguyên trong gói nhưng trụ sở và chi nhánh chưa được phân bổ. Vui lòng Phân bổ nguồn lực…`
+                : rs.myCampusQuota === 0
+                  ? `Hạn ngạch tại trụ sở đang bằng 0 (gói ${n} tài nguyên). Vui lòng Phân bổ nguồn lực…`
+                  : `Tổng hạn ngạch chi nhánh đang bằng 0 (gói ${n} tài nguyên). Vui lòng Phân bổ nguồn lực…`;
+        enqueueSnackbar(msg, { variant: "warning", autoHideDuration: 4800 });
+        navigate("/school/facility-config?tab=resource-distribution", { replace: true });
+    }, [subscriptionId, schoolCtxLoading, loading, paymentSuccessParam, isPrimaryBranch, subscription, navigate]);
 
     const goPackageFees = () => navigate("/package-fees");
     const detailSub =
@@ -814,6 +1072,7 @@ export default function SchoolPurchasedPackages() {
                             sub={detailSub}
                             onBack={() => navigate("/school/purchased-packages")}
                             onRenewOrUpgrade={goPackageFees}
+                            hideCommerceActions={branchReadOnly}
                         />
                     )}
                 </Box>
@@ -822,6 +1081,15 @@ export default function SchoolPurchasedPackages() {
     }
 
     return (
-        <CurrentSubscriptionPage subscription={subscription} loading={loading} error={error} onRetry={load} />
+        <CurrentSubscriptionPage
+            subscription={subscription}
+            loading={loading}
+            error={error}
+            onRetry={load}
+            showPaymentSuccessSummary={showPaymentSuccessSummary}
+            onContinuePaymentSuccess={onContinuePaymentSuccess}
+            isPrimaryBranch={isPrimaryBranch}
+            schoolCtxLoading={schoolCtxLoading}
+        />
     );
 }

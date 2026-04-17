@@ -11,6 +11,7 @@ import {
     DialogActions,
     DialogContent,
     DialogTitle,
+    Grow,
     IconButton,
     InputAdornment,
     MenuItem,
@@ -20,6 +21,7 @@ import {
     Step,
     StepLabel,
     Stepper,
+    Switch,
     Table,
     TableBody,
     TableCell,
@@ -36,6 +38,7 @@ import AddIcon from "@mui/icons-material/Add";
 import EditIcon from "@mui/icons-material/Edit";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import CloseIcon from "@mui/icons-material/Close";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import PowerSettingsNewRoundedIcon from "@mui/icons-material/PowerSettingsNewRounded";
@@ -77,16 +80,7 @@ const LANGUAGE_OPTIONS = [
     { value: "JAPANESE", label: "Tiếng Nhật" },
     { value: "CHINESE", label: "Tiếng Trung" },
     { value: "KOREAN", label: "Tiếng Hàn" },
-];
-
-const PROGRAM_CATEGORY_OPTIONS = [
-    { value: "MOET", label: "MOET" },
-    { value: "MOET_INTEGRATED", label: "MOET (Tích hợp)" },
-    { value: "CAMBRIDGE", label: "Cambridge" },
-    { value: "IB", label: "IB" },
-    { value: "AMERICAN_AP", label: "Advanced Placement (AP)" },
-    { value: "OXFORD", label: "Oxford" },
-    { value: "VOCATIONAL_ORIENTED", label: "Định hướng nghề nghiệp" },
+    { value: "GERMAN", label: "Tiếng Đức" },
 ];
 
 const FEE_UNIT_OPTIONS = [
@@ -111,6 +105,11 @@ const getEnumLabel = (options, value) => {
     const v = safeString(value).trim();
     if (!v) return "—";
     return options.find((o) => String(o.value).toUpperCase() === String(v).toUpperCase())?.label ?? v;
+};
+const getEnumListLabel = (options, values) => {
+    const list = Array.isArray(values) ? values : [];
+    const labels = list.map((value) => getEnumLabel(options, value)).filter((label) => label && label !== "—");
+    return labels.length > 0 ? labels.join(", ") : "—";
 };
 
 const formatVND = (value) => {
@@ -168,6 +167,7 @@ function mapCurriculumForProgramSelect(item) {
 
 const MAX_TEXT_FIELD_LEN = 2000;
 const MAX_PROGRAM_NAME_LEN = 100;
+const createEmptyExtraSubject = () => ({ name: "", description: "", isMandatory: false });
 
 function tuitionFeeToDigitString(value) {
     if (value === "" || value == null) return "";
@@ -189,6 +189,14 @@ function mapProgramFromApi(item) {
     })();
 
     const curriculum = item.curriculum ?? {};
+    const subjects = Array.isArray(item.subjects) ? item.subjects : [];
+    const extraSubjectList = subjects
+        .filter((s) => String(s?.origin || "").toUpperCase() === "EXTRA")
+        .map((s) => ({
+            name: s?.name ?? "",
+            description: s?.description ?? "",
+            isMandatory: !!s?.isMandatory,
+        }));
 
     return {
         id: item.id,
@@ -200,13 +208,17 @@ function mapProgramFromApi(item) {
         curriculumStatus: item.curriculumStatus ?? curriculum?.status ?? "",
 
         status,
-        languageOfInstruction: item.languageOfInstruction ?? item.LanguageOfInstruction ?? "",
-        programCategory: item.programCategory ?? item.program_category ?? "",
+        languageOfInstructionList: Array.isArray(item.languageOfInstructionList)
+            ? item.languageOfInstructionList.filter(Boolean)
+            : item.languageOfInstruction
+              ? [item.languageOfInstruction]
+              : [],
         feeUnit: item.feeUnit ?? item.fee_unit ?? "",
 
         baseTuitionFee: Number(item.baseTuitionFee ?? 0),
         targetStudentDescription: item.targetStudentDescription ?? item.target_student_description ?? "",
         graduationStandard: item.graduationStandard ?? item.graduation_standard ?? "",
+        extraSubjectList,
 
         offeringCount: Number(item.offeringCount ?? 0),
         effectiveOfferingCount: Number(item.effectiveOfferingCount ?? 0),
@@ -286,6 +298,8 @@ function mapProgramBackendMessageToVi(message) {
         "Graduation standard already exists in this curriculum": "Chuẩn đầu ra đã tồn tại trong cùng một khung chương trình.",
         "Invalid language of instruction. Must be one of: [VIETNAMESE, ENGLISH, BILINGUAL, FRENCH, JAPANESE, CHINESE, KOREAN]":
             "Ngôn ngữ giảng dạy không hợp lệ.",
+        "Invalid language of instruction list. Must be one of: [VIETNAMESE, ENGLISH, BILINGUAL, FRENCH, JAPANESE, CHINESE, KOREAN, GERMAN]":
+            "Danh sách ngôn ngữ giảng dạy không hợp lệ.",
         "Invalid program category. Must be one of: [MOET, MOET_INTEGRATED, CAMBRIDGE, IB, AMERICAN_AP, OXFORD, VOCATIONAL_ORIENTED]":
             "Loại chương trình không hợp lệ.",
         "Invalid fee unit. Must be one of: [YEAR, SEMESTER, QUARTER, MONTH]": "Đơn vị học phí không hợp lệ.",
@@ -293,7 +307,9 @@ function mapProgramBackendMessageToVi(message) {
 
     if (map[msg]) return map[msg];
 
+    if (msg.startsWith("Invalid language of instruction list.")) return "Danh sách ngôn ngữ giảng dạy không hợp lệ.";
     if (msg.startsWith("Invalid language of instruction.")) return "Ngôn ngữ giảng dạy không hợp lệ.";
+    if (msg.startsWith("Language of instruction list is required")) return "Ngôn ngữ giảng dạy là bắt buộc.";
     if (msg.startsWith("Language of instruction is required")) return "Ngôn ngữ giảng dạy là bắt buộc.";
     if (msg.startsWith("Invalid program category.")) return "Loại chương trình không hợp lệ.";
     if (msg.startsWith("Program category is required")) return "Loại chương trình là bắt buộc.";
@@ -336,6 +352,7 @@ export default function SchoolPrograms() {
 
     const [formErrors, setFormErrors] = useState({});
     const nameInputRef = useRef(null);
+    const formDialogContentRef = useRef(null);
 
     // Clone flow
     const [cloneConfirmOpen, setCloneConfirmOpen] = useState(false);
@@ -352,12 +369,12 @@ export default function SchoolPrograms() {
 
     const [formValues, setFormValues] = useState({
         name: "",
-        languageOfInstruction: "",
-        programCategory: "",
+        languageOfInstructionList: [],
         baseTuitionFee: "",
         feeUnit: "",
         graduationStandard: "",
         targetStudentDescription: "",
+        extraSubjectList: [],
     });
 
     const enrollmentYearOptions = useMemo(() => {
@@ -396,7 +413,7 @@ export default function SchoolPrograms() {
         return list;
     }, [programs, search, enrollmentYearFilter, curriculumTypeFilter, statusFilter]);
 
-    const tableColSpan = isPrimaryBranch ? 6 : 5;
+    const tableColSpan = isPrimaryBranch ? 5 : 4;
 
     const loadData = async (pageParam = page, pageSizeParam = rowsPerPage) => {
         setLoading(true);
@@ -545,12 +562,12 @@ export default function SchoolPrograms() {
         setFormErrors({});
         setFormValues({
             name: "",
-            languageOfInstruction: "",
-            programCategory: "",
+            languageOfInstructionList: [],
             baseTuitionFee: "",
             graduationStandard: "",
             targetStudentDescription: "",
             feeUnit: "",
+            extraSubjectList: [],
         });
         setProgramModalOpen(true);
         await ensureCurriculumOptionsLoaded();
@@ -579,12 +596,20 @@ export default function SchoolPrograms() {
         setFormErrors({});
         setFormValues({
             name: program.name ?? "",
-            languageOfInstruction: program.languageOfInstruction ?? "",
-            programCategory: program.programCategory ?? "",
+            languageOfInstructionList: Array.isArray(program.languageOfInstructionList)
+                ? program.languageOfInstructionList
+                : [],
             baseTuitionFee: tuitionFeeToDigitString(program.baseTuitionFee),
             feeUnit: program.feeUnit ?? "",
             graduationStandard: program.graduationStandard ?? "",
             targetStudentDescription: program.targetStudentDescription ?? "",
+            extraSubjectList: Array.isArray(program.extraSubjectList)
+                ? program.extraSubjectList.map((s) => ({
+                      name: s?.name ?? "",
+                      description: s?.description ?? "",
+                      isMandatory: !!s?.isMandatory,
+                  }))
+                : [],
         });
         setProgramModalOpen(true);
         await ensureCurriculumOptionsLoaded();
@@ -604,12 +629,20 @@ export default function SchoolPrograms() {
         setFormErrors({});
         setFormValues({
             name: program.name ?? "",
-            languageOfInstruction: program.languageOfInstruction ?? "",
-            programCategory: program.programCategory ?? "",
+            languageOfInstructionList: Array.isArray(program.languageOfInstructionList)
+                ? program.languageOfInstructionList
+                : [],
             baseTuitionFee: tuitionFeeToDigitString(program.baseTuitionFee),
             feeUnit: program.feeUnit ?? "",
             graduationStandard: program.graduationStandard ?? "",
             targetStudentDescription: program.targetStudentDescription ?? "",
+            extraSubjectList: Array.isArray(program.extraSubjectList)
+                ? program.extraSubjectList.map((s) => ({
+                      name: s?.name ?? "",
+                      description: s?.description ?? "",
+                      isMandatory: !!s?.isMandatory,
+                  }))
+                : [],
         });
         setProgramModalOpen(true);
     };
@@ -628,12 +661,12 @@ export default function SchoolPrograms() {
         setFormErrors({});
         setFormValues({
             name: "",
-            languageOfInstruction: "",
-            programCategory: "",
+            languageOfInstructionList: [],
             baseTuitionFee: "",
             graduationStandard: "",
             targetStudentDescription: "",
             feeUnit: "",
+            extraSubjectList: [],
         });
     };
 
@@ -653,11 +686,10 @@ export default function SchoolPrograms() {
         else if (nm.length > MAX_PROGRAM_NAME_LEN)
             errors.name = `Tên vượt quá ${MAX_PROGRAM_NAME_LEN} ký tự.`;
 
-        const lang = safeString(formValues.languageOfInstruction).trim();
-        if (!lang) errors.languageOfInstruction = "Ngôn ngữ giảng dạy là bắt buộc.";
-
-        const cat = safeString(formValues.programCategory).trim();
-        if (!cat) errors.programCategory = "Loại chương trình là bắt buộc.";
+        const languageOfInstructionList = Array.isArray(formValues.languageOfInstructionList)
+            ? formValues.languageOfInstructionList
+            : [];
+        if (languageOfInstructionList.length === 0) errors.languageOfInstructionList = "Ngôn ngữ giảng dạy là bắt buộc.";
 
         const feeUnit = safeString(formValues.feeUnit).trim();
         if (!feeUnit) errors.feeUnit = "Đơn vị học phí là bắt buộc.";
@@ -674,6 +706,12 @@ export default function SchoolPrograms() {
         if (!td) errors.targetStudentDescription = "Đối tượng học sinh là bắt buộc.";
         else if (td.length > MAX_TEXT_FIELD_LEN)
             errors.targetStudentDescription = `Tối đa ${MAX_TEXT_FIELD_LEN} ký tự.`;
+
+        const extraSubjectList = Array.isArray(formValues.extraSubjectList) ? formValues.extraSubjectList : [];
+        const invalidExtraSubject = extraSubjectList.find((s) => !safeString(s?.name).trim());
+        if (invalidExtraSubject) {
+            errors.extraSubjectList = "Môn bổ sung phải có tên môn.";
+        }
         setFormErrors((prev) => ({ ...prev, ...errors }));
         return Object.keys(errors).length === 0;
     };
@@ -691,18 +729,32 @@ export default function SchoolPrograms() {
 
     const handleBack = () => setActiveStep((s) => Math.max(0, s - 1));
 
+    useEffect(() => {
+        if (!programModalOpen) return;
+        if (modalMode === "view") return;
+        const el = formDialogContentRef.current;
+        if (!el) return;
+        el.scrollTo({ top: 0, behavior: "smooth" });
+    }, [activeStep, programModalOpen, modalMode]);
+
     const buildPayload = (curriculumIdOverride) => {
         const curriculumId = curriculumIdOverride ?? effectiveCurriculumId;
         const feeDigits = safeString(formValues.baseTuitionFee).replace(/\D/g, "");
         const payload = {
             curriculumId,
             name: safeString(formValues.name).trim(),
-            languageOfInstruction: safeString(formValues.languageOfInstruction).trim(),
-            programCategory: safeString(formValues.programCategory).trim(),
+            languageOfInstructionList: (formValues.languageOfInstructionList || []).filter(Boolean),
             graduationStandard: safeString(formValues.graduationStandard).trim(),
             targetStudentDescription: safeString(formValues.targetStudentDescription).trim(),
             baseTuitionFee: feeDigits === "" ? 0 : Number(feeDigits),
             feeUnit: safeString(formValues.feeUnit).trim(),
+            extraSubjectList: (formValues.extraSubjectList || [])
+                .map((s) => ({
+                    name: safeString(s?.name).trim(),
+                    description: safeString(s?.description).trim(),
+                    isMandatory: !!s?.isMandatory,
+                }))
+                .filter((s) => s.name),
         };
         if (modalMode === "edit" && selectedProgram?.id != null) {
             const pid = Number(selectedProgram.id);
@@ -964,7 +1016,6 @@ export default function SchoolPrograms() {
                         <TableHead>
                             <TableRow sx={{ bgcolor: "#f1f5f9" }}>
                                 <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Program / Khung CT</TableCell>
-                                <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Năm tuyển sinh</TableCell>
                                 <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Loại khung chương trình</TableCell>
                                 <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Học phí gốc</TableCell>
                                 <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Trạng thái</TableCell>
@@ -981,9 +1032,6 @@ export default function SchoolPrograms() {
                                     <TableRow key={i}>
                                         <TableCell>
                                             <Skeleton variant="text" width="55%" />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Skeleton variant="text" width="35%" />
                                         </TableCell>
                                         <TableCell>
                                             <Skeleton variant="text" width="45%" />
@@ -1066,7 +1114,6 @@ export default function SchoolPrograms() {
                                                 </Box>
                                             </Tooltip>
                                         </TableCell>
-                                        <TableCell sx={{ color: "#64748b" }}>{row.enrollmentYear || "—"}</TableCell>
                                         <TableCell sx={{ color: "#64748b" }}>{toCurriculumTypeLabel(row.curriculumType)}</TableCell>
                                         <TableCell sx={{ color: "#64748b" }}>{formatVND(row.baseTuitionFee)}</TableCell>
                                         <TableCell>
@@ -1199,7 +1246,7 @@ export default function SchoolPrograms() {
                     </Box>
                 </DialogTitle>
 
-                <DialogContent dividers={false} sx={{ px: 3, pt: 1.6, pb: 1 }}>
+                <DialogContent ref={formDialogContentRef} dividers={false} sx={{ px: 3, pt: 1.6, pb: 1 }}>
                     {modalMode === "view" && selectedProgram ? (
                         <Stack spacing={2.2} sx={{ mt: 0.5 }}>
                             {!isPrimaryBranch ? (
@@ -1225,14 +1272,14 @@ export default function SchoolPrograms() {
                                             justifyContent="space-between"
                                         >
                                             <Box sx={{ flex: 1, minWidth: 0 }}>
-                                                <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                <Typography variant="caption" sx={{ color: "#0D64DE", display: "block", mb: 0.6, fontWeight: 900 }}>
                                                     Khung chương trình
                                                 </Typography>
                                                 <Typography sx={{ fontWeight: 900, color: "#1e293b" }}>
                                                     {selectedProgram.curriculumName || "—"}
                                                 </Typography>
                                                 <Typography variant="body2" sx={{ color: "#64748b" }}>
-                                                    {selectedProgram.enrollmentYear || "—"} • {toCurriculumTypeLabel(selectedProgram.curriculumType)}
+                                                    {selectedProgram.enrollmentYear || "—"}  {toCurriculumTypeLabel(selectedProgram.curriculumType)}
                                                 </Typography>
                                             </Box>
                                             {isPrimaryBranch ? (
@@ -1290,7 +1337,7 @@ export default function SchoolPrograms() {
                                         <Divider />
 
                                         <Box>
-                                            <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                            <Typography variant="caption" sx={{ color: "#0D64DE", display: "block", mb: 0.6, fontWeight: 900 }}>
                                                 Tên program
                                             </Typography>
                                             <Typography sx={{ fontWeight: 900, color: "#1e293b" }}>
@@ -1299,25 +1346,16 @@ export default function SchoolPrograms() {
                                         </Box>
 
                                             <Box>
-                                                <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                <Typography variant="caption" sx={{ color: "#0D64DE", display: "block", mb: 0.6, fontWeight: 900 }}>
                                                     Ngôn ngữ giảng dạy
                                                 </Typography>
                                                 <Typography sx={{ fontWeight: 900, color: "#1e293b" }}>
-                                                    {getEnumLabel(LANGUAGE_OPTIONS, formValues.languageOfInstruction)}
-                                                </Typography>
-                                            </Box>
-
-                                            <Box>
-                                                <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
-                                                    Loại chương trình
-                                                </Typography>
-                                                <Typography sx={{ fontWeight: 900, color: "#1e293b" }}>
-                                                    {getEnumLabel(PROGRAM_CATEGORY_OPTIONS, formValues.programCategory)}
+                                                    {getEnumListLabel(LANGUAGE_OPTIONS, formValues.languageOfInstructionList)}
                                                 </Typography>
                                             </Box>
 
                                         <Box>
-                                            <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                            <Typography variant="caption" sx={{ color: "#0D64DE", display: "block", mb: 0.6, fontWeight: 900 }}>
                                                 Học phí gốc
                                             </Typography>
                                                 <Typography sx={{ fontWeight: 950, color: "#1e293b" }}>
@@ -1326,7 +1364,7 @@ export default function SchoolPrograms() {
                                         </Box>
 
                                         <Box>
-                                            <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                            <Typography variant="caption" sx={{ color: "#0D64DE", display: "block", mb: 0.6, fontWeight: 900 }}>
                                                 Đối tượng học sinh
                                             </Typography>
                                             <Typography sx={{ color: "#334155", whiteSpace: "pre-wrap" }}>
@@ -1335,7 +1373,7 @@ export default function SchoolPrograms() {
                                         </Box>
 
                                         <Box>
-                                            <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                            <Typography variant="caption" sx={{ color: "#0D64DE", display: "block", mb: 0.6, fontWeight: 900 }}>
                                                 Tiêu chuẩn đầu ra
                                             </Typography>
                                             <Typography sx={{ color: "#334155", whiteSpace: "pre-wrap" }}>
@@ -1344,7 +1382,14 @@ export default function SchoolPrograms() {
                                         </Box>
 
                                         <Box>
-                                            <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                            <Typography variant="caption" sx={{ color: "#0D64DE", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                Môn bổ sung
+                                            </Typography>
+                                            <ExtraSubjectReadOnlyList value={formValues.extraSubjectList} />
+                                        </Box>
+
+                                        <Box>
+                                            <Typography variant="caption" sx={{ color: "#0D64DE", display: "block", mb: 0.6, fontWeight: 900 }}>
                                                 Trạng thái
                                             </Typography>
                                             <ProgramStatusBadge
@@ -1558,34 +1603,15 @@ export default function SchoolPrograms() {
                                     }
                                 />
 
-                                <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                                    <Box sx={{ flex: 1 }}>
-                                        <SelectLike
-                                            label="Ngôn ngữ giảng dạy"
-                                            value={formValues.languageOfInstruction}
-                                            options={LANGUAGE_OPTIONS}
-                                            onChange={(v) => {
-                                                setFormValues((prev) => ({ ...prev, languageOfInstruction: v }));
-                                                setFormErrors((prev) => ({ ...prev, languageOfInstruction: undefined }));
-                                            }}
-                                            error={!!formErrors.languageOfInstruction}
-                                            helperText={formErrors.languageOfInstruction || ""}
-                                        />
-                                    </Box>
-                                    <Box sx={{ flex: 1 }}>
-                                        <SelectLike
-                                            label="Loại chương trình"
-                                            value={formValues.programCategory}
-                                            options={PROGRAM_CATEGORY_OPTIONS}
-                                            onChange={(v) => {
-                                                setFormValues((prev) => ({ ...prev, programCategory: v }));
-                                                setFormErrors((prev) => ({ ...prev, programCategory: undefined }));
-                                            }}
-                                            error={!!formErrors.programCategory}
-                                            helperText={formErrors.programCategory || ""}
-                                        />
-                                    </Box>
-                                </Stack>
+                                <LanguageInstructionSelector
+                                    value={formValues.languageOfInstructionList}
+                                    options={LANGUAGE_OPTIONS}
+                                    onChange={(next) => {
+                                        setFormValues((prev) => ({ ...prev, languageOfInstructionList: next }));
+                                        setFormErrors((prev) => ({ ...prev, languageOfInstructionList: undefined }));
+                                    }}
+                                    error={formErrors.languageOfInstructionList}
+                                />
 
                                 <Tooltip
                                     title={coreLockedByActive ? "Không thể sửa thông tin cốt lõi của chương trình đang hoạt động" : ""}
@@ -1678,6 +1704,16 @@ export default function SchoolPrograms() {
                                     }
                                 />
 
+                                <ExtraSubjectEditor
+                                    value={formValues.extraSubjectList}
+                                    onChange={(next) => {
+                                        setFormValues((prev) => ({ ...prev, extraSubjectList: next }));
+                                        setFormErrors((prev) => ({ ...prev, extraSubjectList: undefined }));
+                                    }}
+                                    error={formErrors.extraSubjectList}
+                                    disabled={false}
+                                />
+
                                 {coreLockedByActive ? (
                                     <Alert severity="info" sx={{ py: 1, mt: 1.2 }}>
                                         Không thể sửa thông tin cốt lõi của chương trình đang hoạt động.
@@ -1714,7 +1750,7 @@ export default function SchoolPrograms() {
                                                     {curriculumPreview?.subTypeName || selectedCurriculum?.subTypeName || "—"}
                                                 </Typography>
                                                 <Typography variant="body2" sx={{ color: "#64748b" }}>
-                                                    {curriculumPreview?.enrollmentYear || selectedCurriculum?.enrollmentYear || "—"} •{" "}
+                                                    {curriculumPreview?.enrollmentYear || selectedCurriculum?.enrollmentYear || "—"} {" "}
                                                     {toCurriculumTypeLabel(curriculumPreview?.curriculumType || selectedCurriculum?.curriculumType)}
                                                 </Typography>
                                             </Box>
@@ -1735,16 +1771,7 @@ export default function SchoolPrograms() {
                                                     Ngôn ngữ giảng dạy
                                                 </Typography>
                                                 <Typography sx={{ fontWeight: 900, color: "#1e293b" }}>
-                                                    {getEnumLabel(LANGUAGE_OPTIONS, formValues.languageOfInstruction)}
-                                                </Typography>
-                                            </Box>
-
-                                            <Box>
-                                                <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
-                                                    Loại chương trình
-                                                </Typography>
-                                                <Typography sx={{ fontWeight: 900, color: "#1e293b" }}>
-                                                    {getEnumLabel(PROGRAM_CATEGORY_OPTIONS, formValues.programCategory)}
+                                                    {getEnumListLabel(LANGUAGE_OPTIONS, formValues.languageOfInstructionList)}
                                                 </Typography>
                                             </Box>
 
@@ -1773,6 +1800,13 @@ export default function SchoolPrograms() {
                                                 <Typography sx={{ color: "#334155", whiteSpace: "pre-wrap" }}>
                                                     {formValues.graduationStandard || "—"}
                                                 </Typography>
+                                            </Box>
+
+                                            <Box>
+                                                <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                    Môn bổ sung
+                                                </Typography>
+                                                <ExtraSubjectReadOnlyList value={formValues.extraSubjectList} />
                                             </Box>
 
                                             <Box>
@@ -2124,6 +2158,303 @@ function SelectLike({ value, options, onChange, label, error, helperText, disabl
                 </MenuItem>
             ))}
         </TextField>
+    );
+}
+
+function LanguageInstructionSelector({ value, options, onChange, error }) {
+    const selectedValues = Array.isArray(value) ? value : [];
+
+    const toggleValue = (nextValue) => {
+        const exists = selectedValues.includes(nextValue);
+        onChange(exists ? selectedValues.filter((v) => v !== nextValue) : [...selectedValues, nextValue]);
+    };
+
+    return (
+        <Box>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                <Typography sx={{ fontWeight: 800, color: "#1e293b" }}>Ngôn ngữ giảng dạy</Typography>
+                <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700 }}>
+                    Có thể chọn nhiều
+                </Typography>
+            </Stack>
+
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 1.5 }}>
+                {selectedValues.length > 0 ? (
+                    selectedValues.map((item) => (
+                        <Chip
+                            key={item}
+                            label={getEnumLabel(options, item)}
+                            onDelete={() => toggleValue(item)}
+                            sx={{
+                                borderRadius: 2,
+                                bgcolor: "rgba(13, 100, 222, 0.1)",
+                                color: "#0D64DE",
+                                fontWeight: 700,
+                            }}
+                        />
+                    ))
+                ) : (
+                    <Typography variant="caption" sx={{ color: "#94a3b8" }}>
+                        Chưa chọn ngôn ngữ giảng dạy
+                    </Typography>
+                )}
+            </Box>
+
+            <Box
+                sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" },
+                    gap: 1.75,
+                }}
+            >
+                {(options || []).map((item) => {
+                    const selected = selectedValues.includes(item.value);
+                    return (
+                        <Tooltip key={item.value} title={item.label} arrow placement="top">
+                            <Box
+                                role="checkbox"
+                                aria-checked={selected}
+                                aria-label={item.label}
+                                tabIndex={0}
+                                onClick={() => toggleValue(item.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        toggleValue(item.value);
+                                    }
+                                }}
+                                sx={{
+                                    position: "relative",
+                                    p: 1.5,
+                                    minHeight: 78,
+                                    borderRadius: 3,
+                                    border: selected ? "1.5px solid #0D64DE" : "1px solid #e2e8f0",
+                                    bgcolor: selected ? "rgba(13, 100, 222, 0.07)" : "rgba(255,255,255,0.8)",
+                                    boxShadow: selected ? "0 8px 20px rgba(13, 100, 222, 0.16)" : "0 4px 12px rgba(15, 23, 42, 0.06)",
+                                    cursor: "pointer",
+                                    transition: "all 180ms ease",
+                                    "&:hover": {
+                                        borderColor: "#0D64DE",
+                                        boxShadow: "0 10px 24px rgba(13, 100, 222, 0.18)",
+                                        transform: "translateY(-1px)",
+                                    },
+                                    "&:focus-visible": {
+                                        outline: "2px solid rgba(13, 100, 222, 0.5)",
+                                        outlineOffset: 2,
+                                    },
+                                }}
+                            >
+                                {selected ? (
+                                    <CheckCircleOutlineIcon
+                                        sx={{
+                                            position: "absolute",
+                                            top: 8,
+                                            right: 8,
+                                            fontSize: 18,
+                                            color: "#0D64DE",
+                                        }}
+                                    />
+                                ) : null}
+                                <Typography sx={{ mt: 0.2, fontWeight: 800, color: "#1e293b", fontSize: 13.5 }}>
+                                    {item.label}
+                                </Typography>
+                                <Typography variant="caption" sx={{ color: "#64748b", mt: 0.2, display: "block" }}>
+                                    {item.value}
+                                </Typography>
+                            </Box>
+                        </Tooltip>
+                    );
+                })}
+            </Box>
+
+            {error ? (
+                <Typography variant="caption" sx={{ color: "#d32f2f", ml: 0.2, mt: 1, display: "block" }}>
+                    {error}
+                </Typography>
+            ) : null}
+        </Box>
+    );
+}
+
+function ExtraSubjectEditor({ value, onChange, error, disabled = false }) {
+    const subjects = Array.isArray(value) ? value : [];
+    const extraSubjectItemRefs = useRef([]);
+    const [pendingScrollIndex, setPendingScrollIndex] = useState(null);
+
+    useEffect(() => {
+        if (pendingScrollIndex == null) return;
+        const target = extraSubjectItemRefs.current[pendingScrollIndex];
+        if (!target) return;
+        requestAnimationFrame(() => {
+            target.scrollIntoView({ behavior: "smooth", block: "center" });
+        });
+        setPendingScrollIndex(null);
+    }, [subjects.length, pendingScrollIndex]);
+
+    const addItem = () => {
+        setPendingScrollIndex(subjects.length);
+        onChange([...subjects, createEmptyExtraSubject()]);
+    };
+    const removeItem = (index) => onChange(subjects.filter((_, idx) => idx !== index));
+    const updateItem = (index, field, nextValue) => {
+        onChange(
+            subjects.map((item, idx) =>
+                idx === index
+                    ? {
+                          ...item,
+                          [field]: field === "isMandatory" ? !!nextValue : nextValue,
+                      }
+                    : item
+            )
+        );
+    };
+
+    return (
+        <Box sx={{ mt: 0.6 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
+                    Môn bổ sung
+                </Typography>
+                <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<AddIcon />}
+                    onClick={addItem}
+                    disabled={disabled}
+                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                >
+                    Thêm môn
+                </Button>
+            </Stack>
+
+            {error && typeof error === "string" ? (
+                <Typography variant="caption" sx={{ color: "#d32f2f", display: "block", mt: 1.2 }}>
+                    {error}
+                </Typography>
+            ) : null}
+
+            <Stack spacing={1.2} sx={{ mt: 1.2 }}>
+                {subjects.length === 0 ? (
+                    <Typography variant="body2" sx={{ color: "#94a3b8", px: 0.5 }}>
+                        Chưa có môn bổ sung.
+                    </Typography>
+                ) : null}
+
+                {subjects.map((subject, index) => {
+                    const subjectErr = Array.isArray(error) && error[index] ? error[index] : null;
+                    return (
+                        <Grow in={true} style={{ transformOrigin: "0 0 0" }} key={`extra-subject-${index}`}>
+                            <Box
+                                ref={(el) => {
+                                    extraSubjectItemRefs.current[index] = el;
+                                }}
+                                sx={{
+                                    border: "1px solid #e2e8f0",
+                                    borderRadius: 2,
+                                    bgcolor: "#f8fafc",
+                                    px: 2,
+                                    py: 1.6,
+                                }}
+                            >
+                                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+                                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800 }}>
+                                        Môn {index + 1}
+                                    </Typography>
+                                    <IconButton
+                                        size="small"
+                                        onClick={() => removeItem(index)}
+                                        sx={{
+                                            color: "#64748b",
+                                            "&:hover": { color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)" },
+                                        }}
+                                        disabled={disabled}
+                                        title="Xóa"
+                                    >
+                                        <DeleteOutlineIcon fontSize="small" />
+                                    </IconButton>
+                                </Stack>
+
+                                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 1 }}>
+                                    <TextField
+                                        label="Tên môn"
+                                        fullWidth
+                                        value={subject?.name ?? ""}
+                                        onChange={(e) => updateItem(index, "name", e.target.value)}
+                                        error={!!subjectErr?.name}
+                                        helperText={subjectErr?.name}
+                                        required
+                                        disabled={disabled}
+                                    />
+                                    <TextField
+                                        label="Mô tả môn"
+                                        fullWidth
+                                        value={subject?.description ?? ""}
+                                        onChange={(e) => updateItem(index, "description", e.target.value)}
+                                        error={!!subjectErr?.description}
+                                        helperText={subjectErr?.description}
+                                        disabled={disabled}
+                                    />
+                                </Stack>
+
+                                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.2 }}>
+                                    <Typography sx={{ fontWeight: 800, color: "#1e293b" }}>Bắt buộc</Typography>
+                                    <Switch
+                                        checked={!!subject?.isMandatory}
+                                        onChange={(e) => updateItem(index, "isMandatory", e.target.checked)}
+                                        disabled={disabled}
+                                        sx={{
+                                            "& .MuiSwitch-switchBase.Mui-checked": { color: "#16a34a" },
+                                            "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
+                                                backgroundColor: "#16a34a",
+                                            },
+                                        }}
+                                    />
+                                </Stack>
+                            </Box>
+                        </Grow>
+                    );
+                })}
+            </Stack>
+
+            {error && typeof error !== "string" ? (
+                <Typography variant="caption" sx={{ color: "#d32f2f", ml: 0.2, mt: 1, display: "block" }}>
+                    Vui lòng kiểm tra thông tin môn bổ sung.
+                </Typography>
+            ) : (
+                null
+            )}
+        </Box>
+    );
+}
+
+function ExtraSubjectReadOnlyList({ value }) {
+    const subjects = Array.isArray(value) ? value.filter((s) => safeString(s?.name).trim()) : [];
+    if (subjects.length === 0) {
+        return <Typography sx={{ color: "#94a3b8" }}>Không có môn bổ sung.</Typography>;
+    }
+
+    return (
+        <Stack spacing={1}>
+            {subjects.map((subject, index) => (
+                <Box key={`readonly-extra-subject-${index}`} sx={{ border: "1px solid #e2e8f0", borderRadius: 2, p: 1.2, bgcolor: "#fff" }}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                        <Typography sx={{ color: "#1e293b", fontWeight: 800 }}>{subject.name}</Typography>
+                        <Chip
+                            size="small"
+                            label={subject.isMandatory ? "Bắt buộc" : "Tự chọn"}
+                            sx={{
+                                bgcolor: subject.isMandatory ? "rgba(34,197,94,0.12)" : "rgba(148,163,184,0.18)",
+                                color: subject.isMandatory ? "#15803d" : "#475569",
+                                fontWeight: 700,
+                            }}
+                        />
+                    </Stack>
+                    <Typography variant="body2" sx={{ color: "#64748b", mt: 0.6, whiteSpace: "pre-wrap" }}>
+                        {safeString(subject.description).trim() || "—"}
+                    </Typography>
+                </Box>
+            ))}
+        </Stack>
     );
 }
 

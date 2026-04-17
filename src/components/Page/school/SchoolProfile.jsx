@@ -80,6 +80,34 @@ function campusStatusLabel(status) {
     return String(status);
 }
 
+function localizeApiMessage(message) {
+    const normalized = String(message ?? "").trim().toLowerCase();
+    if (!normalized) return "";
+    const viMap = {
+        "only campusdata is allowed for school role": "Với vai trò trường học, chỉ được phép cập nhật campusData",
+        "require campus data": "Vui lòng cung cấp thông tin cơ sở",
+        "require campus phone number": "Vui lòng nhập số điện thoại cơ sở",
+        "campus phone number must contain exactly 10 digits and start with 03, 07, 08, or 09":
+            "Số điện thoại cơ sở phải gồm đúng 10 chữ số và bắt đầu bằng 03, 07, 08 hoặc 09",
+        "require campus city": "Vui lòng chọn thành phố của cơ sở",
+        "require campus district": "Vui lòng chọn quận/huyện cho cơ sở",
+        "require campus boarding type": "Vui lòng chọn hình thức nội trú của cơ sở",
+        "require campus address": "Vui lòng nhập địa chỉ cơ sở",
+        "campus address must not exceed 100 words": "Địa chỉ cơ sở không được vượt quá 100 từ",
+        "require school data for primary branch": "Vui lòng cung cấp thông tin trường cho cơ sở chính",
+        "require school description": "Vui lòng nhập mô tả trường",
+        "school description must not exceed 2000 characters": "Mô tả trường không được vượt quá 2000 ký tự",
+        "school hotline is invalid (should start with 02, 03, 07, 08, 09, 1800, or 1900)":
+            "Hotline trường không hợp lệ (phải bắt đầu bằng 02, 03, 07, 08, 09, 1800 hoặc 1900)",
+        "require school logourl": "Vui lòng cung cấp logo trường",
+        "school logourl must be a valid url": "Logo trường phải là một URL hợp lệ",
+        "require school websiteurl": "Vui lòng cung cấp website trường",
+        "school websiteurl must be a valid url": "Website trường phải là một URL hợp lệ",
+    };
+    if (viMap[normalized]) return viMap[normalized];
+    return String(message);
+}
+
 const toBoolean = (value) => value === true || value === "true" || value === 1 || value === "1";
 
 function syncSchoolFirstLoginInStorage(nextFirstLogin) {
@@ -605,10 +633,10 @@ export default function SchoolProfile() {
                     syncSchoolFirstLoginInStorage(false);
                 }
             } else {
-                enqueueSnackbar("Cập nhật thất bại", { variant: "error" });
+                enqueueSnackbar(localizeApiMessage(res?.data?.message) || "Cập nhật thất bại", { variant: "error" });
             }
         } catch (e) {
-            enqueueSnackbar(e?.response?.data?.message || "Cập nhật thất bại", { variant: "error" });
+            enqueueSnackbar(localizeApiMessage(e?.response?.data?.message) || "Cập nhật thất bại", { variant: "error" });
         } finally {
             setSaving(false);
         }

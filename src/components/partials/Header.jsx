@@ -2038,9 +2038,6 @@ function MainHeader() {
                             <Button color="inherit" sx={navButtonSx('/compare-schools')} onClick={() => goTo('/compare-schools')}>
                                 So sánh trường
                             </Button>
-                            <Button color="inherit" sx={navButtonSx('/about')} onClick={() => goTo('/about')}>
-                                Về chúng tôi
-                            </Button>
                         </Box>
                     ) : isSignedIn && isSchool ? (
                         <Box sx={{display: {xs: 'none', md: 'flex'}, gap: 1}}>
@@ -2100,9 +2097,6 @@ function MainHeader() {
                             <Button color="inherit" sx={navButtonSx('/compare-schools')} onClick={() => goTo('/compare-schools')}>
                                 So sánh trường
                             </Button>
-                            <Button color="inherit" sx={navButtonSx('/about')} onClick={() => goTo('/about')}>
-                                Về chúng tôi
-                            </Button>
                         </Box>
                     ) : !isHomePage && (
                         <Box sx={{display: {xs: 'none', md: 'flex'}, gap: 1}}>
@@ -2133,13 +2127,6 @@ function MainHeader() {
                                 onClick={() => goTo('/compare-schools')}
                             >
                                 So sánh trường
-                            </Button>
-                            <Button
-                                color="inherit"
-                                sx={navButtonSx('/about')}
-                                onClick={() => goTo('/about')}
-                            >
-                                Về Chúng Tôi
                             </Button>
                         </Box>
                     )}
@@ -3151,9 +3138,6 @@ function MainHeader() {
                                     <ListItem onClick={() => goTo('/compare-schools')}>
                                         <ListItemText primary="So sánh trường" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
-                                    <ListItem onClick={() => goTo('/about')}>
-                                        <ListItemText primary="Về chúng tôi" sx={{color: '#333', fontWeight: 600}}/>
-                                    </ListItem>
                                 </>
                             ) : isSignedIn && isSchool ? (
                                 <>
@@ -3205,9 +3189,6 @@ function MainHeader() {
                                     <ListItem onClick={() => goTo('/compare-schools')}>
                                         <ListItemText primary="So sánh trường" sx={{color: '#333', fontWeight: 600}}/>
                                     </ListItem>
-                                    <ListItem onClick={() => goTo('/about')}>
-                                        <ListItemText primary="Về chúng tôi" sx={{color: '#333', fontWeight: 600}}/>
-                                    </ListItem>
                                 </>
                             ) : !isHomePage && (
                                 <>
@@ -3222,9 +3203,6 @@ function MainHeader() {
                                     </ListItem>
                                     <ListItem onClick={() => goTo('/compare-schools')} sx={navMobileItemSx('/compare-schools')}>
                                         <ListItemText primary="So sánh trường" sx={navMobileTextSx('/compare-schools')}/>
-                                    </ListItem>
-                                    <ListItem onClick={() => goTo('/about')} sx={navMobileItemSx('/about')}>
-                                        <ListItemText primary="Về Chúng Tôi" sx={navMobileTextSx('/about')}/>
                                     </ListItem>
                                 </>
                             )}

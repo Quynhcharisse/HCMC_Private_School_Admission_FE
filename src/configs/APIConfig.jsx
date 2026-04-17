@@ -1,24 +1,31 @@
 import axios from "axios";
 import {refreshToken} from "../services/AuthService.jsx";
 
-function resolveApiV1Base() {
-    const raw = (import.meta.env.VITE_SERVER_BE || "http://localhost:8080").trim().replace(/\/+$/, "");
+function resolveApiV1Base(url) {
+    if (!url) return "https://edubridgehcm.onrender.com/api/v1";
+
+    const raw = url.trim().replace(/\/+$/, "");
     const withoutApi = raw.replace(/\/api\/v1$/i, "");
     return `${withoutApi}/api/v1`;
 }
 
-const apiBase = resolveApiV1Base();
+const rawBaseUrl = import.meta.env.DEV
+    ? import.meta.env.VITE_API_LOCAL
+    : import.meta.env.VITE_API_SERVER;
+
+const apiBase = resolveApiV1Base(rawBaseUrl);
 
 axios.defaults.baseURL = apiBase;
 
 const axiosClient = axios.create({
+    // Đảm bảo luôn có /api/v1 ở cuối base URL
     baseURL: apiBase,
     headers: {
         "Content-Type": "application/json",
         "X-Device-Type": "web"
     },
     withCredentials: true
-})
+});
 
 axiosClient.interceptors.request.use((config) => {
     const m = config.method?.toLowerCase();
@@ -40,7 +47,7 @@ axiosClient.interceptors.response.use(
         }
 
         if (error.response && error.response.status === 401) {
-            if (originalRequest.url === "/auth/refresh" || 
+            if (originalRequest.url === "/auth/refresh" ||
                 originalRequest.url === "/account/access" ||
                 originalRequest.url === "/auth/login" ||
                 originalRequest.url === "/auth/register") {
@@ -76,12 +83,12 @@ axiosClient.interceptors.response.use(
                 return Promise.reject(error);
             }
         }
-        
+
         if (error.response && error.response.status === 403) {
             return Promise.reject(error);
         }
         return Promise.reject(error);
     }
-)
+);
 
 export default axiosClient;

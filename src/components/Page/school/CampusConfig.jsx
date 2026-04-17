@@ -1,26 +1,3 @@
-import React from "react";
-import SchoolConfig from "./SchoolConfig.jsx";
-import CampusConfig from "./CampusConfig.jsx";
-
-/**
- * @deprecated Use `SchoolConfig` or `CampusConfig` directly.
- */
-export default function SchoolFacilityOverview({variant = "platform"}) {
-  return variant === "campus" ? <CampusConfig /> : <SchoolConfig />;
-}
-import React from "react";
-import SchoolConfig from "./SchoolConfig.jsx";
-import CampusConfig from "./CampusConfig.jsx";
-
-/**
- * @deprecated Use `SchoolConfig` or `CampusConfig` directly.
- */
-export default function SchoolFacilityOverview({variant = "platform"}) {
-  if (variant === "campus") {
-    return <CampusConfig />;
-  }
-  return <SchoolConfig />;
-}
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {
   Accordion,
@@ -62,7 +39,7 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AddIcon from "@mui/icons-material/Add";
-import {Navigate, useSearchParams} from "react-router-dom";
+import {useSearchParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 
 import {extractCampusListBody, listCampuses} from "../../../services/CampusService.jsx";
@@ -204,6 +181,10 @@ function defaultConfig() {
         weekendDays: ["SAT"],
         isOpenSunday: false,
       },
+      academicCalendar: {
+        term1: {start: "", end: ""},
+        term2: {start: "", end: ""},
+      },
       /** GET `admissionProcesses` / PUT `methodAdmissionProcess` — quy trình theo từng methodCode */
       methodAdmissionProcess: [],
     },
@@ -291,7 +272,6 @@ function buildImageJsonDataForCampusPut(imageData) {
 function campusFacilityPutSlice(fac) {
   const f = fac && typeof fac === "object" ? fac : {};
   return {
-    overview: f.overview != null ? String(f.overview) : "",
     itemList: sanitizeCampusPutItemList(f.itemList),
     imageJsonData: buildImageJsonDataForCampusPut(f.imageData),
   };
@@ -401,6 +381,46 @@ function normalizeMethodAdmissionProcessGroup(g) {
         : "";
   const steps = Array.isArray(g.steps) ? g.steps.map((s, idx) => normalizeAdmissionProcessStep(s, idx)) : [];
   return {methodCode, steps};
+}
+
+function normalizeAcademicDate(value) {
+  if (value == null) return "";
+  if (Array.isArray(value) && value.length >= 3) {
+    const [y, m, d] = value;
+    if (Number.isFinite(Number(y)) && Number.isFinite(Number(m)) && Number.isFinite(Number(d))) {
+      const pad = (n) => String(n).padStart(2, "0");
+      return `${Number(y)}-${pad(Number(m))}-${pad(Number(d))}`;
+    }
+    return "";
+  }
+  const s = String(value).trim();
+  if (!s) return "";
+  const parsed = new Date(s);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  return s.length >= 10 ? s.slice(0, 10) : s;
+}
+
+function normalizeAcademicTerm(term) {
+  if (!term || typeof term !== "object") return {start: "", end: ""};
+  return {
+    start: normalizeAcademicDate(term.start),
+    end: normalizeAcademicDate(term.end),
+  };
+}
+
+function normalizeAcademicCalendar(raw) {
+  const src = raw && typeof raw === "object" ? raw : {};
+  return {
+    term1: normalizeAcademicTerm(src.term1),
+    term2: normalizeAcademicTerm(src.term2),
+  };
+}
+
+function hasAnyAcademicCalendarValue(cal) {
+  if (!cal || typeof cal !== "object") return false;
+  const t1 = cal.term1 && typeof cal.term1 === "object" ? cal.term1 : {};
+  const t2 = cal.term2 && typeof cal.term2 === "object" ? cal.term2 : {};
+  return Boolean(t1.start || t1.end || t2.start || t2.end);
 }
 
 /**
@@ -1084,6 +1104,10 @@ function policyFromCampusCurrent(cur) {
 /** GET campus/config — bản văn tổng hợp BE tạo sau khi lưu PUT (nguồn hiển thị “thật” cho user). */
 function policyFullTextRenderedFromCampusCurrent(cur) {
   if (!cur || typeof cur !== "object") return "";
+  const fullPolicyRendered = cur.fullPolicyRendered ?? cur.full_policy_rendered;
+  if (fullPolicyRendered != null && String(fullPolicyRendered).trim() !== "") {
+    return String(fullPolicyRendered);
+  }
   const pdr = campusCurrentPolicyDetailRendered(cur);
   if (!pdr) return "";
   const ft = pdr.fullTextRendered ?? pdr.full_text_rendered;
@@ -1115,8 +1139,28 @@ function normalizeFromCampusConfigApi(body) {
     return "";
   }
 
+  const curImageData = cur.imageData && typeof cur.imageData === "object" ? cur.imageData : {};
+  const hasCampusCurrentFacility =
+    Array.isArray(cur.itemList) ||
+    (curImageData && (curImageData.coverUrl != null || Array.isArray(curImageData.imageList)));
+
   let mergedFacility;
-  if (fj && typeof fj === "object") {
+  if (hasCampusCurrentFacility) {
+    mergedFacility = {
+      itemList: Array.isArray(cur.itemList) ? cur.itemList : [],
+      overview: "",
+      imageData: {
+        coverUrl:
+          curImageData.coverUrl != null && String(curImageData.coverUrl).trim() !== ""
+            ? String(curImageData.coverUrl).trim()
+            : curImageData.cover != null && String(curImageData.cover).trim() !== ""
+              ? String(curImageData.cover).trim()
+              : "",
+        thumbnailUrl: curImageData.thumbnailUrl != null ? String(curImageData.thumbnailUrl) : "",
+        imageList: imageListFromFacilityImageBlock(curImageData),
+      },
+    };
+  } else if (fj && typeof fj === "object") {
     const fjImg = fj.imageData && typeof fj.imageData === "object" ? fj.imageData : {};
     const ij = fj.imageJsonData && typeof fj.imageJsonData === "object" ? fj.imageJsonData : {};
     const coverUrl =
@@ -1173,8 +1217,14 @@ function normalizeFromCampusConfigApi(body) {
       weekendDays: Array.isArray(wc.weekendDays) ? wc.weekendDays : d.operationSettingsData.workingConfig.weekendDays,
       isOpenSunday: Boolean(wc.isOpenSunday ?? wc.openSunday),
     },
+    academicCalendar: normalizeAcademicCalendar(hqOp.academicCalendar ?? hqOp.academic_calendar),
     methodAdmissionProcess: parseMethodAdmissionProcessFromOperation(hqOp),
   };
+
+  const curAcademicCalendar = normalizeAcademicCalendar(cur.academicCalendar ?? cur.academic_calendar);
+  if (hasAnyAcademicCalendarValue(curAcademicCalendar)) {
+    mergedOp.academicCalendar = curAcademicCalendar;
+  }
 
   const pdr = campusCurrentPolicyDetailRendered(cur);
   if (pdr) {
@@ -1240,7 +1290,7 @@ function normalizeFromCampusConfigApi(body) {
 }
 
 /**
- * PUT /api/v1/campus/{campusId}/config — body phẳng (overview, itemList, imageJsonData, …)
+ * PUT /api/v1/campus/{campusId}/config — body phẳng (itemList, imageJsonData, …)
  * Khi chỉ gửi một nhánh (chỉ vận hành hoặc chỉ CSVC), BE có thể ghi đè mất phần còn lại.
  * Nếu có thay đổi bất kỳ: luôn gửi đủ CSVC + toàn bộ scalar vận hành + override so với HQ.
  *
@@ -1257,7 +1307,6 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
   const curFacPut = campusFacilityPutSlice(fac);
   const iniFacPut = campusFacilityPutSlice(iFac);
   const facilityDirty =
-    curFacPut.overview !== iniFacPut.overview ||
     JSON.stringify(curFacPut.itemList) !== JSON.stringify(iniFacPut.itemList) ||
     JSON.stringify(curFacPut.imageJsonData) !== JSON.stringify(iniFacPut.imageJsonData);
 
@@ -1268,16 +1317,14 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
 
   const payload = {};
 
-  payload.overview = curFacPut.overview;
   payload.itemList = curFacPut.itemList;
   payload.imageJsonData = curFacPut.imageJsonData;
 
-  payload.hotline = op.hotline ?? "";
-  payload.emailSupport = op.emailSupport ?? "";
   payload.maxBookingPerSlot = Number(op.maxBookingPerSlot) || 0;
   payload.minCounsellorPerSlot = Number(op.minCounsellorPerSlot) || 0;
   payload.slotDurationInMinutes = Number(op.slotDurationInMinutes) || 0;
   payload.allowBookingBeforeHours = Number(op.allowBookingBeforeHours) || 0;
+  payload.academicCalendar = normalizeAcademicCalendar(op.academicCalendar);
 
   const wc = op.workingConfig || {};
   const wo = {};
@@ -1332,8 +1379,8 @@ function admissionMethodExtraEntries(m) {
  * - platform: GET/PUT /school/config/{schoolId} (chỉ campus chính / isPrimaryBranch)
  * - campus: GET /campus/config; PUT /campus/{campusId}/config — campus phụ: cơ sở đăng nhập; campus chính: chỉ cơ sở chính (không chọn campus khác).
  */
-export default function SchoolFacilityOverview({variant = "platform"}) {
-  const isCampusVariant = variant === "campus";
+export default function CampusConfig() {
+  const isCampusVariant = true;
   const {isPrimaryBranch, currentCampusId, loading: schoolCtxLoading} = useSchool();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1625,7 +1672,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
         enqueueSnackbar("Không có thay đổi để lưu", {variant: "info"});
         return;
       }
-      if (payload.overview != null || payload.itemList != null || payload.imageJsonData != null) {
+      if (payload.itemList != null || payload.imageJsonData != null) {
         const ok = facilityFormRef.current?.validate?.() ?? true;
         if (!ok) {
           enqueueSnackbar("Vui lòng kiểm tra lại tab Cơ sở vật chất", {variant: "error"});
@@ -1979,9 +2026,6 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
   const showQuotaTab = !useCampusConfigFlow && tabIndex === 5;
   const showResourceDistributionTab = !useCampusConfigFlow && tabIndex === 6;
 
-  if (!schoolCtxLoading && variant === "platform" && !isPrimaryBranch) {
-    return <Navigate to="/school/campus-facility-config" replace />;
-  }
 
   const pageTitle = isCampusVariant ? "Cấu hình của cơ sở" : "Cấu hình chung cho các cơ sở";
   const pageSubtitle = isCampusVariant
@@ -3463,7 +3507,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                           </Typography>
                         ) : (
                           <Typography variant="body2" sx={{color: "#94a3b8"}}>
-                            Chưa có nội dung. Sau khi lưu cấu hình vận hành, máy chủ sẽ trả về nội dung tại đây khi tải lại trang hoặc sau khi Lưu thành công.
+                            Chưa có nội dung.
                           </Typography>
                         )}
                       </Paper>
@@ -3474,32 +3518,6 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>
                   <Stack spacing={2}>
-                    <TextField
-                      label="Hotline"
-                      value={config.operationSettingsData.hotline ?? ""}
-                      onChange={(e) =>
-                        setConfig((c) => ({
-                          ...c,
-                          operationSettingsData: {...c.operationSettingsData, hotline: e.target.value},
-                        }))
-                      }
-                      fullWidth
-                      size="small"
-                      inputProps={{readOnly: fieldDisabled}}
-                    />
-                    <TextField
-                      label="Email hỗ trợ"
-                      value={config.operationSettingsData.emailSupport ?? ""}
-                      onChange={(e) =>
-                        setConfig((c) => ({
-                          ...c,
-                          operationSettingsData: {...c.operationSettingsData, emailSupport: e.target.value},
-                        }))
-                      }
-                      fullWidth
-                      size="small"
-                      inputProps={{readOnly: fieldDisabled}}
-                    />
                     <Stack direction={{xs: "column", sm: "row"}} spacing={2} useFlexGap sx={{flexWrap: "wrap"}}>
                       <TextField
                         label="Số phụ huynh tối đa trong 1 ca"
@@ -3828,6 +3846,54 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                   </Stack>
         </CardContent>
       </Card>
+
+              <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
+                <CardContent sx={{p: 3}}>
+                  <Typography sx={{fontWeight: 800, mb: 2}}>Lịch năm học</Typography>
+                  <Stack spacing={2}>
+                    <Stack direction={{xs: "column", md: "row"}} spacing={2}>
+                      <TextField
+                        label="Học kỳ 1 - Bắt đầu"
+                        type="date"
+                        size="small"
+                        InputLabelProps={{shrink: true}}
+                        value={config.operationSettingsData.academicCalendar?.term1?.start ?? ""}
+                        inputProps={{readOnly: true}}
+                        fullWidth
+                      />
+                      <TextField
+                        label="Học kỳ 1 - Kết thúc"
+                        type="date"
+                        size="small"
+                        InputLabelProps={{shrink: true}}
+                        value={config.operationSettingsData.academicCalendar?.term1?.end ?? ""}
+                        inputProps={{readOnly: true}}
+                        fullWidth
+                      />
+                    </Stack>
+                    <Stack direction={{xs: "column", md: "row"}} spacing={2}>
+                      <TextField
+                        label="Học kỳ 2 - Bắt đầu"
+                        type="date"
+                        size="small"
+                        InputLabelProps={{shrink: true}}
+                        value={config.operationSettingsData.academicCalendar?.term2?.start ?? ""}
+                        inputProps={{readOnly: true}}
+                        fullWidth
+                      />
+                      <TextField
+                        label="Học kỳ 2 - Kết thúc"
+                        type="date"
+                        size="small"
+                        InputLabelProps={{shrink: true}}
+                        value={config.operationSettingsData.academicCalendar?.term2?.end ?? ""}
+                        inputProps={{readOnly: true}}
+                        fullWidth
+                      />
+                    </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
 
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>

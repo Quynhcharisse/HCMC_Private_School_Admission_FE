@@ -2,19 +2,18 @@ import React from "react";
 import {Box, Container, Divider, Grid, Link, Typography} from "@mui/material";
 import PhoneIcon from '@mui/icons-material/Phone';
 import EmailIcon from '@mui/icons-material/Email';
-import {BRAND_AQUA, HOME_PAGE_HERO_BACKDROP} from "../../constants/homeLandingTheme";
-import LayeredMountainSilhouette from "../ui/LayeredMountainSilhouette.jsx";
+import {BRAND_AQUA, HOME_SECTION_TESTIMONIAL_BG} from "../../constants/homeLandingTheme";
 
 const sectionTitleSx = {
-    fontWeight: 800,
+    fontWeight: 700,
     mb: 1.25,
-    color: '#ffffff',
+    color: '#1e293b',
     letterSpacing: '0.06em',
     fontSize: '0.95rem',
     position: 'relative',
     display: 'inline-block',
     pl: {xs: 0, md: 1.5},
-    textShadow: '0 1px 2px rgba(51,65,85,0.35)',
+    textShadow: 'none',
     '&::before': {
         content: '""',
         display: {xs: 'none', md: 'block'},
@@ -24,29 +23,29 @@ const sectionTitleSx = {
         width: 3,
         height: '1em',
         borderRadius: 1,
-        background: `linear-gradient(180deg, ${BRAND_AQUA} 0%, rgba(255,255,255,0.85) 100%)`
+        background: `linear-gradient(180deg, #60a5fa 0%, ${BRAND_AQUA} 100%)`
     }
 };
 
 const linkSx = {
-    color: 'rgba(255,255,255,0.95)',
+    color: '#334155',
     textDecoration: 'none',
     display: 'inline-block',
     py: 0.25,
     borderRadius: 1,
-    textShadow: '0 1px 2px rgba(51,65,85,0.28)',
+    textShadow: 'none',
     transition: 'color 0.2s ease, transform 0.2s ease, background-color 0.2s ease',
     '&:hover': {
-        color: BRAND_AQUA,
+        color: '#1d4ed8',
         transform: 'translateX(2px)',
-        backgroundColor: 'rgba(255,255,255,0.1)'
+        backgroundColor: 'rgba(59,130,246,0.08)'
     }
 };
 
 /** Plain footer lines (no href) — same base look as links without hover/navigation */
 const footerPlainLineSx = {
-    color: 'rgba(255,255,255,0.95)',
-    textShadow: '0 1px 2px rgba(51,65,85,0.28)',
+    color: '#334155',
+    textShadow: 'none',
     py: 0.25,
 };
 
@@ -55,41 +54,20 @@ export default function Footer() {
         <Box
             component="footer"
             sx={{
-                position: 'relative',
                 width: '100%',
-                overflow: 'hidden',
-                bgcolor: HOME_PAGE_HERO_BACKDROP,
-                minHeight: {xs: 320, md: 360}
+                background: HOME_SECTION_TESTIMONIAL_BG,
+                borderTop: 'none'
             }}
         >
-            <LayeredMountainSilhouette variant="footer"/>
             <Container
-                maxWidth={false}
+                maxWidth="lg"
                 sx={{
-                    position: 'relative',
-                    zIndex: 1,
-                    px: {xs: 2, md: 8},
-                    minHeight: {xs: 320, md: 360},
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'flex-end',
-                    py: {xs: 2, md: 2.25}
+                    px: {xs: 2, md: 4},
+                    py: {xs: 3, md: 3.5},
+                    color: '#1e293b',
+                    backgroundColor: 'transparent'
                 }}
             >
-                <Box
-                    sx={{
-                        px: {xs: 2, md: 2.75},
-                        pt: {xs: 1.75, md: 2},
-                        pb: {xs: 1.25, md: 1.5},
-                        borderRadius: {xs: 2.5, md: 3},
-                        bgcolor: 'rgba(30, 58, 100, 0.52)',
-                        backdropFilter: 'blur(16px)',
-                        WebkitBackdropFilter: 'blur(16px)',
-                        border: '1px solid rgba(255,255,255,0.28)',
-                        boxShadow: '0 8px 28px rgba(37,99,235,0.1), inset 0 1px 0 rgba(255,255,255,0.2)',
-                        color: 'rgba(255,255,255,0.96)'
-                    }}
-                >
                 <Grid
                     container
                     spacing={3}
@@ -105,7 +83,7 @@ export default function Footer() {
                         <Typography variant="h6" component="h2" sx={sectionTitleSx}>
                             GIỚI THIỆU
                         </Typography>
-                        <Typography variant="body2" sx={{color: 'rgba(255,255,255,0.88)', lineHeight: 1.65, mb: 1}}>
+                        <Typography variant="body2" sx={{color: '#475569', lineHeight: 1.65, mb: 1}}>
                             EduBridgeHCM là dự án học tập nhằm xây dựng nền tảng tư vấn tuyển sinh thông minh, kết nối phụ huynh với các trường học. Dự án phục vụ mục đích nghiên cứu và không đại diện cho tổ chức thương mại thực tế
                         </Typography>
                     </Grid>
@@ -130,7 +108,7 @@ export default function Footer() {
                             }}
                         >
                             <PhoneIcon sx={{fontSize: 18, color: BRAND_AQUA}}/>
-                            <Typography variant="body2" sx={{color: 'rgba(255,255,255,0.9)'}}>0839-674-767</Typography>
+                            <Typography variant="body2" sx={{color: '#475569'}}>0839-674-767</Typography>
                         </Box>
                         <Box
                             sx={{
@@ -142,7 +120,7 @@ export default function Footer() {
                             }}
                         >
                             <EmailIcon sx={{fontSize: 18, color: BRAND_AQUA}}/>
-                            <Typography variant="body2" sx={{color: 'rgba(255,255,255,0.9)'}}>admissionhcmhighschool@gmail.com</Typography>
+                            <Typography variant="body2" sx={{color: '#475569'}}>admissionhcmhighschool@gmail.com</Typography>
                         </Box>
                     </Grid>
 
@@ -193,11 +171,11 @@ export default function Footer() {
                             <Link href="/home" sx={linkSx}>Trang Chủ</Link>
                             <Link href="/search-schools" sx={linkSx}>Danh Sách Trường</Link>
                             <Link href="/compare-schools" sx={linkSx}>So sánh trường</Link>
-                            <Link href="/about" sx={linkSx}>Về Chúng Tôi</Link>
+                            <Link href="/home#ve-chung-toi" sx={linkSx}>Về Chúng Tôi</Link>
                         </Box>
                     </Grid>
                 </Grid>
-                <Divider sx={{mt: 1.25, mb: 0.75, borderColor: 'rgba(255,255,255,0.26)'}}/>
+                <Divider sx={{mt: 1.25, mb: 0.75, borderColor: 'rgba(148,163,184,0.35)'}}/>
                 <Box sx={{
                     display: 'flex',
                     flexDirection: 'column',
@@ -213,7 +191,7 @@ export default function Footer() {
                         variant="body2"
                         align="center"
                         sx={{
-                            color: 'rgba(255,255,255,0.72)',
+                            color: '#64748b',
                             whiteSpace: 'nowrap',
                             m: 0,
                             px: 0.5,
@@ -221,7 +199,6 @@ export default function Footer() {
                     >
                         © {new Date().getFullYear()} EduBridgeHCM - Dự án học tập. Tất cả thông tin trên hệ thống mang tính minh họa.
                     </Typography>
-                </Box>
                 </Box>
             </Container>
         </Box>

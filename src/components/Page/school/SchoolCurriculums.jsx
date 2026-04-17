@@ -5,6 +5,7 @@ import {
     Button,
     Card,
     CardContent,
+    Chip,
     Dialog,
     DialogActions,
     DialogContent,
@@ -40,10 +41,19 @@ import SchoolIcon from "@mui/icons-material/School";
 import DescriptionIcon from "@mui/icons-material/Description";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
+import ScienceIcon from "@mui/icons-material/Science";
+import GroupsIcon from "@mui/icons-material/Groups";
+import ExploreIcon from "@mui/icons-material/Explore";
+import HandymanIcon from "@mui/icons-material/Handyman";
+import PersonIcon from "@mui/icons-material/Person";
+import ComputerIcon from "@mui/icons-material/Computer";
+import VisibilityIconOutlined from "@mui/icons-material/VisibilityOutlined";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import { enqueueSnackbar } from "notistack";
 
 import { useSchool } from "../../../contexts/SchoolContext.jsx";
-import { activateCurriculum, getCurriculumList, saveCurriculum } from "../../../services/CurriculumService.jsx";
+import { activateCurriculum, getCurriculumList, upsertCurriculum } from "../../../services/CurriculumService.jsx";
 
 const modalPaperSx = {
     borderRadius: "16px",
@@ -57,9 +67,19 @@ const modalBackdropSx = {
     backdropFilter: "blur(6px)",
     backgroundColor: "rgba(15, 23, 42, 0.45)",
 };
+const HEADER_ACCENT = "#0D64DE";
 
 const CURRICULUM_TYPE_OPTIONS = ["INTEGRATED", "NATIONAL", "INTERNATIONAL"];
-const METHOD_LEARNING_OPTIONS = ["TRADITIONAL", "PROJECT_BASED", "INQUIRY_BASED", "STEM_STEAM"];
+const METHOD_LEARNING_OPTIONS = [
+    "PROJECT_BASED",
+    "COOPERATIVE",
+    "EXPERIENTIAL",
+    "PROBLEM_BASED",
+    "PERSONALIZED",
+    "BLENDED",
+    "VISUAL_PRACTICE",
+    "STEM_STEAM",
+];
 const CURRICULUM_STATUS_OPTIONS = ["CUR_ACTIVE", "CUR_DRAFT", "CUR_ARCHIVED"];
 
 const curriculumTypeI18N = {
@@ -69,10 +89,34 @@ const curriculumTypeI18N = {
 };
 
 const methodLearningI18N = {
-    TRADITIONAL: "Truyền thống",
-    PROJECT_BASED: "Dự án (Project-based)",
-    INQUIRY_BASED: "Khám phá (Inquiry-based)",
-    STEM_STEAM: "STEM/STEAM",
+    PROJECT_BASED: "Dạy học dựa trên dự án",
+    COOPERATIVE: "Dạy học hợp tác",
+    EXPERIENTIAL: "Dạy học qua trải nghiệm",
+    PROBLEM_BASED: "Dạy học giải quyết vấn đề",
+    PERSONALIZED: "Cá nhân hóa học tập",
+    BLENDED: "Dạy học tích hợp/Trực tuyến",
+    VISUAL_PRACTICE: "Dạy học trực quan và thực hành",
+    STEM_STEAM: "Tích hợp STEM/STEAM",
+};
+const methodLearningDescriptionI18N = {
+    PROJECT_BASED: "Học sinh thực hiện dự án thực tế để giải quyết vấn đề và nâng cao kỹ năng thực hành.",
+    COOPERATIVE: "Tăng cường làm việc nhóm, trao đổi và tương tác giữa các học sinh.",
+    EXPERIENTIAL: "Học thông qua các hoạt động tham quan, thực hành và mô phỏng thực tế.",
+    PROBLEM_BASED: "Học sinh thảo luận để tìm lời giải cho các tình huống thực tế do giáo viên đưa ra.",
+    PERSONALIZED: "Thiết kế lộ trình học tập riêng, phù hợp với năng lực và nhu cầu từng học sinh.",
+    BLENDED: "Kết hợp học trực tiếp tại lớp với học trực tuyến qua các nền tảng số.",
+    VISUAL_PRACTICE: "Sử dụng hình ảnh, mô hình và luyện tập trực tiếp để tăng khả năng ghi nhớ.",
+    STEM_STEAM: "Tích hợp Khoa học, Công nghệ, Kỹ thuật, Nghệ thuật và Toán học theo hướng liên môn.",
+};
+const methodLearningIconMap = {
+    PROJECT_BASED: HandymanIcon,
+    COOPERATIVE: GroupsIcon,
+    EXPERIENTIAL: ExploreIcon,
+    PROBLEM_BASED: ScienceIcon,
+    PERSONALIZED: PersonIcon,
+    BLENDED: ComputerIcon,
+    VISUAL_PRACTICE: VisibilityIconOutlined,
+    STEM_STEAM: MenuBookIcon,
 };
 
 const normalizeStatus = (status) => String(status || "").toUpperCase();
@@ -93,12 +137,17 @@ const getCurriculumStatusMeta = (status) => {
 
 const isActiveStatus = (status) => normalizeStatus(status) === "CUR_ACTIVE";
 const currentYear = new Date().getFullYear();
-const minEnrollmentYear = currentYear - 2;
-const maxEnrollmentYear = currentYear + 5;
+const minApplicationYear = currentYear - 2;
+const maxApplicationYear = currentYear + 5;
 
 const toCurriculumTypeLabel = (value) => curriculumTypeI18N[value] ?? value ?? "—";
 
 const toMethodLearningLabel = (value) => methodLearningI18N[value] ?? value ?? "—";
+const toMethodLearningListLabel = (methodLearningList) => {
+    const list = Array.isArray(methodLearningList) ? methodLearningList : [];
+    if (list.length === 0) return "—";
+    return list.map((m) => toMethodLearningLabel(m)).join(", ");
+};
 
 const subjectEmpty = () => ({
     name: "",
@@ -110,8 +159,8 @@ const emptyForm = () => ({
     subTypeName: "",
     description: "",
     curriculumType: "",
-    methodLearning: "",
-    enrollmentYear: "",
+    methodLearningList: [],
+    applicationYear: "",
     subjectOptions: [subjectEmpty()],
 });
 
@@ -145,8 +194,14 @@ function mapCurriculumFromApi(item) {
         subTypeName: mapSubTypeNameForForm(item),
         description: item.description || "",
         curriculumType: item.curriculumType,
-        methodLearning: item.methodLearning,
-        enrollmentYear: item.enrollmentYear,
+        methodLearningList: Array.isArray(item.methodLearnings)
+            ? item.methodLearnings.map((m) => m?.code).filter(Boolean)
+            : Array.isArray(item.methodLearningList)
+                ? item.methodLearningList.filter(Boolean)
+                : item.methodLearning
+                    ? [item.methodLearning]
+                    : [],
+        applicationYear: item.applicationYear ?? item.enrollmentYear,
         curriculumStatus: item.curriculumStatus ?? item.status,
         isLatest: item.isLatest,
         versionDisplay: item.versionDisplay,
@@ -221,6 +276,8 @@ function toVietnameseValidationMessage(rawMessage) {
         "Cannot change sub-type name for a curriculum already linked to programs.": "Không thể thay đổi tên phân loại vì đã có chương trình liên kết.",
         "A curriculum with the same type, year, and sub-type already exists (Draft or Active).": "Đã tồn tại khung chương trình trùng Loại + Năm + Phân loại (ở trạng thái Nháp hoặc Hoạt động).",
         "New draft created. Please update your changes.": "Đã tạo bản nháp mới. Vui lòng cập nhật nội dung chỉnh sửa của bạn.",
+        "Updated draft successfully": "Cập nhật bản nháp thành công.",
+        "Published successfully": "Công bố thành công.",
         "Sub-type name is required.": "Tên phân loại là bắt buộc.",
         "Sub-type name is too long (max 50 chars).": "Tên phân loại quá dài (tối đa 50 ký tự).",
         "Invalid Curriculum Type or Learning Method.": "Loại chương trình hoặc phương pháp học không hợp lệ.",
@@ -259,7 +316,7 @@ export default function SchoolCurriculums() {
     const [totalItems, setTotalItems] = useState(0);
     const [search, setSearch] = useState("");
     const [curriculumTypeFilter, setCurriculumTypeFilter] = useState("all");
-    const [enrollmentYearFilter, setEnrollmentYearFilter] = useState("all");
+    const [applicationYearFilter, setApplicationYearFilter] = useState("all");
     const [publishStatusFilter, setPublishStatusFilter] = useState("all");
 
     const [page, setPage] = useState(0);
@@ -276,8 +333,10 @@ export default function SchoolCurriculums() {
     const [evolveLoading, setEvolveLoading] = useState(false);
     const [publishLoading, setPublishLoading] = useState(false);
     const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
-    const [confirmEvolveOpen, setConfirmEvolveOpen] = useState(false);
     const [curriculumToEditAfterConfirm, setCurriculumToEditAfterConfirm] = useState(null);
+    const [activeLockedChoiceOpen, setActiveLockedChoiceOpen] = useState(false);
+    const [selectedActiveLockedOption, setSelectedActiveLockedOption] = useState("");
+    const [programLinkedBlockedOpen, setProgramLinkedBlockedOpen] = useState(false);
     const [pendingScrollSubjectIndex, setPendingScrollSubjectIndex] = useState(null);
     const [pendingScrollModal, setPendingScrollModal] = useState(null);
     const createSubjectItemRefs = useRef({});
@@ -286,8 +345,8 @@ export default function SchoolCurriculums() {
     const [formValues, setFormValues] = useState(emptyForm());
     const [formErrors, setFormErrors] = useState({});
 
-    const enrollmentYearOptions = useMemo(() => {
-        const set = new Set(curriculums.map((c) => c.enrollmentYear).filter((y) => y !== null && y !== undefined));
+    const applicationYearOptions = useMemo(() => {
+        const set = new Set(curriculums.map((c) => c.applicationYear).filter((y) => y !== null && y !== undefined));
         return Array.from(set).sort((a, b) => Number(a) - Number(b));
     }, [curriculums]);
 
@@ -358,9 +417,9 @@ export default function SchoolCurriculums() {
             list = list.filter((c) => c.curriculumType === curriculumTypeFilter);
         }
 
-        if (enrollmentYearFilter !== "all") {
-            const y = Number(enrollmentYearFilter);
-            list = list.filter((c) => Number(c.enrollmentYear) === y);
+        if (applicationYearFilter !== "all") {
+            const y = Number(applicationYearFilter);
+            list = list.filter((c) => Number(c.applicationYear) === y);
         }
 
         if (publishStatusFilter !== "all") {
@@ -393,7 +452,7 @@ export default function SchoolCurriculums() {
 
             return Number(b.id ?? 0) - Number(a.id ?? 0);
         });
-    }, [curriculums, search, curriculumTypeFilter, enrollmentYearFilter, publishStatusFilter]);
+    }, [curriculums, search, curriculumTypeFilter, applicationYearFilter, publishStatusFilter]);
 
     const paginatedCurriculums = filteredCurriculums;
 
@@ -403,8 +462,8 @@ export default function SchoolCurriculums() {
         const normalizedSubType = String(formValues.subTypeName || "").trim();
         const normalizedDescription = String(formValues.description || "").trim();
         const normalizedCurriculumType = String(formValues.curriculumType || "").trim();
-        const normalizedMethodLearning = String(formValues.methodLearning || "").trim();
-        const yearNumber = Number(formValues.enrollmentYear);
+        const methodLearningList = Array.isArray(formValues.methodLearningList) ? formValues.methodLearningList : [];
+        const yearNumber = Number(formValues.applicationYear);
 
         if (!normalizedSubType) errors.subTypeName = "Tên phân loại là bắt buộc";
         else if (normalizedSubType.length > 50) errors.subTypeName = "Tên phân loại tối đa 50 ký tự";
@@ -412,12 +471,12 @@ export default function SchoolCurriculums() {
         if (!normalizedDescription) errors.description = "Mô tả là bắt buộc";
         if (!normalizedCurriculumType) errors.curriculumType = "Loại chương trình là bắt buộc";
         else if (!CURRICULUM_TYPE_OPTIONS.includes(normalizedCurriculumType)) errors.curriculumType = "Loại chương trình không hợp lệ";
-        if (!normalizedMethodLearning) errors.methodLearning = "Phương pháp học là bắt buộc";
-        else if (!METHOD_LEARNING_OPTIONS.includes(normalizedMethodLearning)) errors.methodLearning = "Phương pháp học không hợp lệ";
-        if (formValues.enrollmentYear === "" || Number.isNaN(yearNumber)) {
-            errors.enrollmentYear = "Năm tuyển sinh là bắt buộc";
-        } else if (yearNumber < minEnrollmentYear || yearNumber > maxEnrollmentYear) {
-            errors.enrollmentYear = `Năm tuyển sinh phải trong khoảng ${minEnrollmentYear} - ${maxEnrollmentYear}`;
+        if (methodLearningList.length === 0) errors.methodLearningList = "Phương pháp học là bắt buộc";
+        else if (methodLearningList.some((m) => !METHOD_LEARNING_OPTIONS.includes(m))) errors.methodLearningList = "Phương pháp học không hợp lệ";
+        if (formValues.applicationYear === "" || Number.isNaN(yearNumber)) {
+            errors.applicationYear = "Năm áp dụng là bắt buộc";
+        } else if (yearNumber < minApplicationYear || yearNumber > maxApplicationYear) {
+            errors.applicationYear = `Năm áp dụng phải trong khoảng ${minApplicationYear} - ${maxApplicationYear}`;
         }
 
         const subjects = formValues.subjectOptions || [];
@@ -459,8 +518,8 @@ export default function SchoolCurriculums() {
         subTypeName: String(formValues.subTypeName || "").trim(),
         description: String(formValues.description || "").trim(),
         curriculumType: formValues.curriculumType,
-        methodLearning: formValues.methodLearning,
-        enrollmentYear: Number(formValues.enrollmentYear),
+        methodLearningList: formValues.methodLearningList,
+        applicationYear: Number(formValues.applicationYear),
         subjectOptions: mapSubjectOptionsForApi(formValues.subjectOptions),
     });
 
@@ -471,8 +530,10 @@ export default function SchoolCurriculums() {
 
     const handleOpenCreate = () => {
         if (!isPrimaryBranch) return;
-        const defaultCurriculumType = "INTEGRATED";
-        const defaultMethodLearning = "STEM_STEAM";
+        setProgramLinkedBlockedOpen(false);
+        setActiveLockedChoiceOpen(false);
+        setSelectedActiveLockedOption("");
+        setCurriculumToEditAfterConfirm(null);
         setSelectedCurriculum(null);
         setViewCurriculum(null);
         setFormErrors({});
@@ -480,9 +541,9 @@ export default function SchoolCurriculums() {
         setPendingScrollModal(null);
         setFormValues({
             ...emptyForm(),
-            curriculumType: defaultCurriculumType,
-            methodLearning: defaultMethodLearning,
-            enrollmentYear: new Date().getFullYear(),
+            curriculumType: "",
+            methodLearningList: [],
+            applicationYear: new Date().getFullYear(),
             subjectOptions: [subjectEmpty()],
         });
         setCreateModalOpen(true);
@@ -497,8 +558,8 @@ export default function SchoolCurriculums() {
             subTypeName: curriculum?.subTypeName || "",
             description: curriculum?.description || "",
             curriculumType: curriculum?.curriculumType || "",
-            methodLearning: curriculum?.methodLearning || "",
-            enrollmentYear: curriculum?.enrollmentYear ?? "",
+            methodLearningList: Array.isArray(curriculum?.methodLearningList) ? curriculum.methodLearningList : [],
+            applicationYear: curriculum?.applicationYear ?? "",
             subjectOptions:
                 Array.isArray(curriculum?.subjects) && curriculum.subjects.length > 0
                     ? curriculum.subjects.map((s) => ({
@@ -524,9 +585,19 @@ export default function SchoolCurriculums() {
             enqueueSnackbar("Chương trình đã lưu trữ, không thể chỉnh sửa.", { variant: "warning" });
             return;
         }
-        if (isActiveStatus(curriculum?.curriculumStatus)) {
+        const statusKey = normalizeStatus(curriculum?.curriculumStatus);
+        const linkedProgramCount = Number(curriculum?.programCount || 0);
+
+        if (linkedProgramCount > 0) {
             setCurriculumToEditAfterConfirm(curriculum);
-            setConfirmEvolveOpen(true);
+            setProgramLinkedBlockedOpen(true);
+            return;
+        }
+
+        if (statusKey === "CUR_ACTIVE") {
+            setCurriculumToEditAfterConfirm(curriculum);
+            setSelectedActiveLockedOption("");
+            setActiveLockedChoiceOpen(true);
         } else {
             handleOpenEdit(curriculum);
         }
@@ -563,7 +634,7 @@ export default function SchoolCurriculums() {
             );
         } finally {
             setEvolveLoading(false);
-            setConfirmEvolveOpen(false);
+            setActiveLockedChoiceOpen(false);
         }
     };
 
@@ -619,7 +690,7 @@ export default function SchoolCurriculums() {
         setSubmitLoading(true);
         try {
             const payload = getCreatePayload();
-            const draftRes = await saveCurriculum(payload);
+            const draftRes = await upsertCurriculum(payload);
             enqueueSnackbar(toVietnameseValidationMessage(draftRes?.data?.message) || "Tạo bản nháp curriculum thành công", { variant: "success" });
 
             setCreateModalOpen(false);
@@ -641,7 +712,7 @@ export default function SchoolCurriculums() {
         setSubmitLoading(true);
         try {
             const payload = getUpdatePayload();
-            const draftRes = await saveCurriculum(payload);
+            const draftRes = await upsertCurriculum(payload);
 
             enqueueSnackbar(toVietnameseValidationMessage(draftRes?.data?.message) || "Cập nhật bản nháp thành công", { variant: "success" });
 
@@ -660,12 +731,171 @@ export default function SchoolCurriculums() {
     const handleBasicChange = (e) => {
         const { name, value } = e.target;
         setFormValues((prev) => {
-            if (name === "enrollmentYear") {
-                return { ...prev, enrollmentYear: value === "" ? "" : parseInt(value, 10) };
+            if (name === "applicationYear") {
+                return { ...prev, applicationYear: value === "" ? "" : parseInt(value, 10) };
             }
             return { ...prev, [name]: value };
         });
     };
+
+    const handleToggleMethodLearning = (method) => {
+        setFormValues((prev) => {
+            const current = Array.isArray(prev.methodLearningList) ? prev.methodLearningList : [];
+            const exists = current.includes(method);
+            return {
+                ...prev,
+                methodLearningList: exists ? current.filter((m) => m !== method) : [...current, method],
+            };
+        });
+        setFormErrors((prev) => ({ ...prev, methodLearningList: undefined }));
+    };
+
+    const handleRemoveMethodLearningChip = (method) => {
+        setFormValues((prev) => ({
+            ...prev,
+            methodLearningList: (prev.methodLearningList || []).filter((m) => m !== method),
+        }));
+    };
+
+    const renderMethodLearningCardSelector = (disabled = false) => (
+        <Box>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                <Typography sx={{ fontWeight: 800, color: "#1e293b" }}>
+                    Phương pháp học
+                </Typography>
+                <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700 }}>
+                    Được chọn nhiều phương pháp
+                </Typography>
+            </Stack>
+
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 1.5 }}>
+                {(formValues.methodLearningList || []).length > 0 ? (
+                    (formValues.methodLearningList || []).map((method) => (
+                        <Chip
+                            key={method}
+                            label={toMethodLearningLabel(method)}
+                            onDelete={disabled ? undefined : () => handleRemoveMethodLearningChip(method)}
+                            sx={{
+                                borderRadius: 2,
+                                bgcolor: "rgba(13, 100, 222, 0.1)",
+                                color: "#0D64DE",
+                                fontWeight: 700,
+                            }}
+                        />
+                    ))
+                ) : (
+                    <Typography variant="caption" sx={{ color: "#94a3b8" }}>
+                        Chưa chọn phương pháp học nào
+                    </Typography>
+                )}
+            </Box>
+
+            <Box
+                sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" },
+                    gap: 1.75,
+                }}
+            >
+                {METHOD_LEARNING_OPTIONS.map((method) => {
+                    const selected = (formValues.methodLearningList || []).includes(method);
+                    const IconComp = methodLearningIconMap[method] || MenuBookIcon;
+                    return (
+                        <Tooltip key={method} title={methodLearningDescriptionI18N[method] || ""} arrow placement="top">
+                            <Box
+                                role="checkbox"
+                                aria-checked={selected}
+                                aria-label={toMethodLearningLabel(method)}
+                                tabIndex={disabled ? -1 : 0}
+                                onClick={() => {
+                                    if (!disabled) handleToggleMethodLearning(method);
+                                }}
+                                onKeyDown={(e) => {
+                                    if (disabled) return;
+                                    if (e.key === "Enter" || e.key === " ") {
+                                        e.preventDefault();
+                                        handleToggleMethodLearning(method);
+                                    }
+                                }}
+                                sx={{
+                                    position: "relative",
+                                    p: 1.5,
+                                    minHeight: 120,
+                                    borderRadius: 3,
+                                    border: selected ? "1.5px solid #0D64DE" : "1px solid #e2e8f0",
+                                    bgcolor: selected ? "rgba(13, 100, 222, 0.07)" : "rgba(255,255,255,0.8)",
+                                    boxShadow: selected ? "0 8px 20px rgba(13, 100, 222, 0.16)" : "0 4px 12px rgba(15, 23, 42, 0.06)",
+                                    cursor: disabled ? "not-allowed" : "pointer",
+                                    transition: "all 180ms ease",
+                                    backdropFilter: "blur(4px)",
+                                    "&:hover": disabled
+                                        ? {}
+                                        : {
+                                            borderColor: "#0D64DE",
+                                            boxShadow: "0 10px 24px rgba(13, 100, 222, 0.18)",
+                                            transform: "translateY(-1px)",
+                                        },
+                                    "&:focus-visible": {
+                                        outline: "2px solid rgba(13, 100, 222, 0.5)",
+                                        outlineOffset: 2,
+                                    },
+                                }}
+                            >
+                                {selected && (
+                                    <CheckCircleIcon
+                                        sx={{
+                                            position: "absolute",
+                                            top: 8,
+                                            right: 8,
+                                            fontSize: 18,
+                                            color: "#0D64DE",
+                                        }}
+                                    />
+                                )}
+                                <Box
+                                    sx={{
+                                        width: 34,
+                                        height: 34,
+                                        borderRadius: 2,
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        bgcolor: selected ? "rgba(13, 100, 222, 0.16)" : "rgba(148, 163, 184, 0.15)",
+                                        color: selected ? "#0D64DE" : "#64748b",
+                                    }}
+                                >
+                                    <IconComp sx={{ fontSize: 18 }} />
+                                </Box>
+                                <Typography sx={{ mt: 1.2, fontWeight: 800, color: "#1e293b", fontSize: 13.5, lineHeight: 1.3 }}>
+                                    {toMethodLearningLabel(method)}
+                                </Typography>
+                                <Typography
+                                    variant="caption"
+                                    sx={{
+                                        mt: 0.8,
+                                        display: "-webkit-box",
+                                        overflow: "hidden",
+                                        color: "#64748b",
+                                        WebkitLineClamp: 2,
+                                        WebkitBoxOrient: "vertical",
+                                        lineHeight: 1.4,
+                                    }}
+                                >
+                                    {methodLearningDescriptionI18N[method]}
+                                </Typography>
+                            </Box>
+                        </Tooltip>
+                    );
+                })}
+            </Box>
+
+            {formErrors.methodLearningList ? (
+                <Typography variant="caption" sx={{ color: "#d32f2f", ml: 0.2, mt: 1, display: "block" }}>
+                    {formErrors.methodLearningList}
+                </Typography>
+            ) : null}
+        </Box>
+    );
 
     const handleSubjectChange = (idx, field) => (e) => {
         const value = field === "isMandatory" ? e.target.checked : e.target.value;
@@ -818,18 +1048,18 @@ export default function SchoolCurriculums() {
                         </FormControl>
 
                         <FormControl size="small" sx={{ minWidth: 170 }}>
-                            <InputLabel>Năm tuyển sinh</InputLabel>
+                            <InputLabel>Năm áp dụng</InputLabel>
                             <Select
-                                value={enrollmentYearFilter}
-                                label="Năm tuyển sinh"
+                                value={applicationYearFilter}
+                                label="Năm áp dụng"
                                 onChange={(e) => {
-                                    setEnrollmentYearFilter(e.target.value);
+                                    setApplicationYearFilter(e.target.value);
                                     setPage(0);
                                 }}
                                 sx={{ borderRadius: 2, bgcolor: "white" }}
                             >
                                 <MenuItem value="all">Tất cả</MenuItem>
-                                {enrollmentYearOptions.map((y) => (
+                                {applicationYearOptions.map((y) => (
                                     <MenuItem key={y} value={String(y)}>
                                         {y}
                                     </MenuItem>
@@ -877,8 +1107,7 @@ export default function SchoolCurriculums() {
                             <TableRow sx={{ bgcolor: "#f1f5f9" }}>
                                 <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Tên chương trình</TableCell>
                                 <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Loại chương trình</TableCell>
-                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Phương pháp học</TableCell>
-                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Năm tuyển sinh</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Năm áp dụng</TableCell>
                                 <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Số chương trình</TableCell>
                                 <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Trạng thái</TableCell>
                                 {isPrimaryBranch && (
@@ -894,7 +1123,6 @@ export default function SchoolCurriculums() {
                                     <TableRow key={i}>
                                         <TableCell><Skeleton variant="text" width="60%" /></TableCell>
                                         <TableCell><Skeleton variant="text" width="40%" /></TableCell>
-                                        <TableCell><Skeleton variant="text" width="50%" /></TableCell>
                                         <TableCell><Skeleton variant="text" width={60} /></TableCell>
                                         <TableCell><Skeleton variant="text" width={40} /></TableCell>
                                         <TableCell><Skeleton variant="rounded" width={90} height={24} /></TableCell>
@@ -982,10 +1210,7 @@ export default function SchoolCurriculums() {
                                         <TableCell sx={{ color: "#64748b" }}>
                                             {toCurriculumTypeLabel(row.curriculumType)}
                                         </TableCell>
-                                        <TableCell sx={{ color: "#64748b" }}>
-                                            {toMethodLearningLabel(row.methodLearning)}
-                                        </TableCell>
-                                        <TableCell sx={{ color: "#64748b" }}>{row.enrollmentYear}</TableCell>
+                                        <TableCell sx={{ color: "#64748b" }}>{row.applicationYear}</TableCell>
                                         <TableCell sx={{ color: "#64748b" }}>
                                             {row.programCount > 0 ? (
                                                 <Tooltip
@@ -1075,56 +1300,159 @@ export default function SchoolCurriculums() {
                     )}
             </Card>
 
-            {/* Confirm Edit Active (Evolve) Dialog */}
+            {/* Block Update When Program Linked */}
             <Dialog
-                open={confirmEvolveOpen}
+                open={programLinkedBlockedOpen}
                 onClose={(event, reason) => {
                     if (reason === "backdropClick") return;
                     if (evolveLoading) return;
-                    setConfirmEvolveOpen(false);
+                    setProgramLinkedBlockedOpen(false);
                     setCurriculumToEditAfterConfirm(null);
                 }}
-                maxWidth="xs"
                 fullWidth
-                PaperProps={{ sx: { borderRadius: 3, position: "relative" } }}
+                maxWidth="sm"
+                PaperProps={{ sx: { borderRadius: "16px", position: "relative" } }}
             >
-                <IconButton
-                    aria-label="Đóng"
-                    onClick={() => {
-                        if (evolveLoading) return;
-                        setConfirmEvolveOpen(false);
-                        setCurriculumToEditAfterConfirm(null);
-                    }}
-                    disabled={evolveLoading}
-                    sx={{ position: "absolute", right: 8, top: 8, zIndex: 1, color: "#64748b" }}
-                >
-                    <CloseIcon fontSize="small" />
-                </IconButton>
-                <DialogTitle sx={{ fontWeight: 700, pr: 6 }}>Chỉnh sửa chương trình đã công bố</DialogTitle>
-                <DialogContent>
-                    <Typography>
-                        Bạn đang chỉnh sửa chương trình đang hoạt động. Hệ thống sẽ tạo một bản nháp mới để bạn chỉnh sửa và giữ nguyên bản đang hoạt động hiện tại. Bạn có muốn tiếp tục?
+                <DialogContent sx={{ pt: 2.5 }}>
+                    <Stack direction="row" spacing={1.2} alignItems="center">
+                        <WarningAmberRoundedIcon sx={{ color: "red" }} />
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: "red" }}>
+                            Không thể cập nhật Curriculum
+                        </Typography>
+                    </Stack>
+                    <Typography variant="body1" color="#1e293b" sx={{ mt: 1.25, lineHeight: 1.6 }}>
+                        Không thể cập nhật khi Khung chương trình <Box component="span" sx={{ fontWeight: 700 }}>đang trong trạng thái mở</Box> và{" "}
+                        <Box component="span" sx={{ fontWeight: 700 }}>đã có Program</Box>.
+                    </Typography>
+                    <Typography variant="body1" sx={{ mt: 0.35, lineHeight: 1.6, fontWeight: 700, color: "#1e293b" }}>
+                        Vui lòng tạo mới Khung chương trình.
                     </Typography>
                 </DialogContent>
-                <DialogActions sx={{ px: 3, py: 2 }}>
+                <DialogActions sx={{ px: 3, pb: 2.5, gap: 1, flexWrap: "wrap" }}>
                     <Button
                         onClick={() => {
-                            if (evolveLoading) return;
-                            setConfirmEvolveOpen(false);
+                            setProgramLinkedBlockedOpen(false);
                             setCurriculumToEditAfterConfirm(null);
                         }}
                         disabled={evolveLoading}
-                        sx={{ textTransform: "none" }}
+                        sx={{ textTransform: "none", color: "#64748b" }}
                     >
-                        Hủy
+                        Đóng
                     </Button>
                     <Button
                         variant="contained"
-                        onClick={handleConfirmEvolve}
+                        onClick={handleOpenCreate}
                         disabled={evolveLoading}
-                        sx={{ textTransform: "none", borderRadius: 2 }}
+                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px", bgcolor: HEADER_ACCENT }}
                     >
-                        {evolveLoading ? "Đang tạo..." : "Tiếp tục"}
+                        Tạo Khung chương trình
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Active Curriculum Update Options */}
+            <Dialog
+                open={activeLockedChoiceOpen}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    if (evolveLoading) return;
+                    setActiveLockedChoiceOpen(false);
+                    setSelectedActiveLockedOption("");
+                    setCurriculumToEditAfterConfirm(null);
+                }}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{ sx: { borderRadius: "16px" } }}
+            >
+                <DialogContent sx={{ pt: 2.5 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Không thể cập nhật Curriculum
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25, lineHeight: 1.6 }}>
+                        Không thể cập nhật khi Khung chương trình đang trong trạng thái mở. Vui lòng chọn 2 options dưới đây.
+                    </Typography>
+                    <Stack spacing={1.5} sx={{ mt: 2 }}>
+                        <Card
+                            elevation={0}
+                            onClick={() => setSelectedActiveLockedOption("create")}
+                            sx={{
+                                p: 2,
+                                borderRadius: "12px",
+                                border: "2px solid",
+                                borderColor: selectedActiveLockedOption === "create" ? HEADER_ACCENT : "transparent",
+                                cursor: "pointer",
+                                backgroundColor: selectedActiveLockedOption === "create" ? "rgba(13, 100, 222, 0.08)" : "#fff",
+                                boxShadow:
+                                    selectedActiveLockedOption === "create"
+                                        ? "0 0 0 1px rgba(13, 100, 222, 0.15)"
+                                        : "0 0 0 1px #e2e8f0",
+                                transition: "all 0.2s ease",
+                            }}
+                        >
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#1e293b" }}>
+                                Option 1
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 0.5, color: "#475569" }}>
+                                Bạn có muốn Tạo khung chương trình mới
+                            </Typography>
+                        </Card>
+                        <Card
+                            elevation={0}
+                            onClick={() => setSelectedActiveLockedOption("revise")}
+                            sx={{
+                                p: 2,
+                                borderRadius: "12px",
+                                border: "2px solid",
+                                borderColor: selectedActiveLockedOption === "revise" ? HEADER_ACCENT : "transparent",
+                                cursor: "pointer",
+                                backgroundColor: selectedActiveLockedOption === "revise" ? "rgba(13, 100, 222, 0.08)" : "#fff",
+                                boxShadow:
+                                    selectedActiveLockedOption === "revise"
+                                        ? "0 0 0 1px rgba(13, 100, 222, 0.15)"
+                                        : "0 0 0 1px #e2e8f0",
+                                transition: "all 0.2s ease",
+                            }}
+                        >
+                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#1e293b" }}>
+                                Option 2
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 0.5, color: "#475569" }}>
+                                Bạn vẫn muốn giữ dữ liệu của khung chương trình hiện tại để clone cập nhật
+                            </Typography>
+                        </Card>
+                    </Stack>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2.5, gap: 1, flexWrap: "wrap" }}>
+                    <Button
+                        onClick={() => {
+                            if (evolveLoading) return;
+                            setActiveLockedChoiceOpen(false);
+                            setSelectedActiveLockedOption("");
+                            setCurriculumToEditAfterConfirm(null);
+                        }}
+                        disabled={evolveLoading}
+                        sx={{ textTransform: "none", color: "#64748b" }}
+                    >
+                        Đóng
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={async () => {
+                            if (!selectedActiveLockedOption) return;
+                            if (selectedActiveLockedOption === "create") {
+                                setActiveLockedChoiceOpen(false);
+                                setSelectedActiveLockedOption("");
+                                setCurriculumToEditAfterConfirm(null);
+                                handleOpenCreate();
+                                return;
+                            }
+                            await handleConfirmEvolve();
+                            setSelectedActiveLockedOption("");
+                        }}
+                        disabled={evolveLoading || !selectedActiveLockedOption}
+                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px", bgcolor: HEADER_ACCENT }}
+                    >
+                        {evolveLoading ? "Đang xử lý..." : "Tiếp tục"}
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -1263,17 +1591,15 @@ export default function SchoolCurriculums() {
                                             value: toCurriculumTypeLabel(viewCurriculum.curriculumType),
                                         },
                                         {
-                                            label: "Phương pháp học",
-                                            value: toMethodLearningLabel(viewCurriculum.methodLearning),
-                                        },
-                                        {
-                                            label: "Năm tuyển sinh",
-                                            value: viewCurriculum.enrollmentYear ?? "—",
+                                            label: "Năm áp dụng",
+                                            value: viewCurriculum.applicationYear ?? "—",
+                                            wide: true,
                                         },
                                     ].map((item, idx) => (
                                         <Box
                                             key={`${item.label}-${idx}`}
                                             sx={{
+                                                gridColumn: item.wide ? { xs: "1 / -1", sm: "1 / -1" } : "auto",
                                                 border: "1px solid rgba(226, 232, 240, 1)",
                                                 borderRadius: 3,
                                                 bgcolor: "#ffffff",
@@ -1293,6 +1619,107 @@ export default function SchoolCurriculums() {
                                         </Box>
                                     ))}
                                 </Box>
+
+                                <Card
+                                    elevation={0}
+                                    sx={{
+                                        bgcolor: "#ffffff",
+                                        border: "1px solid rgba(226, 232, 240, 1)",
+                                        borderRadius: 3,
+                                        boxShadow: "0 6px 20px rgba(2, 6, 23, 0.04)",
+                                    }}
+                                >
+                                    <CardContent sx={{ p: 2.5 }}>
+                                        <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.6 }}>
+                                            <Typography sx={{ fontWeight: 950, color: "#1e293b", fontSize: 16 }}>Phương pháp học</Typography>
+                                            <Typography
+                                                variant="caption"
+                                                sx={{
+                                                    px: 1.1,
+                                                    py: 0.4,
+                                                    borderRadius: 999,
+                                                    fontWeight: 800,
+                                                    color: "#0D64DE",
+                                                    bgcolor: "rgba(13, 100, 222, 0.1)",
+                                                }}
+                                            >
+                                                {(viewCurriculum.methodLearningList || []).length} phương pháp
+                                            </Typography>
+                                        </Stack>
+
+                                        {(viewCurriculum.methodLearningList || []).length > 0 ? (
+                                            <Box
+                                                sx={{
+                                                    display: "grid",
+                                                    gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" },
+                                                    gap: 1.6,
+                                                }}
+                                            >
+                                                {(viewCurriculum.methodLearningList || []).map((method) => {
+                                                    const IconComp = methodLearningIconMap[method] || MenuBookIcon;
+                                                    return (
+                                                        <Tooltip key={method} title={methodLearningDescriptionI18N[method] || ""} arrow placement="top">
+                                                            <Box
+                                                                sx={{
+                                                                    height: "100%",
+                                                                    minHeight: 120,
+                                                                    borderRadius: 3,
+                                                                    border: "1px solid rgba(226, 232, 240, 1)",
+                                                                    bgcolor: "linear-gradient(145deg, #ffffff 0%, #f8fbff 100%)",
+                                                                    px: 1.6,
+                                                                    py: 1.4,
+                                                                    boxShadow: "0 4px 14px rgba(15, 23, 42, 0.05)",
+                                                                    transition: "transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease",
+                                                                    "&:hover": {
+                                                                        transform: "translateY(-2px)",
+                                                                        boxShadow: "0 14px 28px rgba(2, 6, 23, 0.10)",
+                                                                        borderColor: "rgba(13, 100, 222, 0.28)",
+                                                                    },
+                                                                }}
+                                                            >
+                                                                <Box
+                                                                    sx={{
+                                                                        width: 34,
+                                                                        height: 34,
+                                                                        borderRadius: 2,
+                                                                        display: "inline-flex",
+                                                                        alignItems: "center",
+                                                                        justifyContent: "center",
+                                                                        bgcolor: "rgba(13, 100, 222, 0.1)",
+                                                                        color: "#0D64DE",
+                                                                    }}
+                                                                >
+                                                                    <IconComp sx={{ fontSize: 18 }} />
+                                                                </Box>
+                                                                <Typography sx={{ mt: 1.1, fontWeight: 850, color: "#1e293b", lineHeight: 1.35 }}>
+                                                                    {toMethodLearningLabel(method)}
+                                                                </Typography>
+                                                                <Typography
+                                                                    variant="caption"
+                                                                    sx={{
+                                                                        mt: 0.75,
+                                                                        display: "-webkit-box",
+                                                                        overflow: "hidden",
+                                                                        color: "#64748b",
+                                                                        lineHeight: 1.45,
+                                                                        WebkitLineClamp: 2,
+                                                                        WebkitBoxOrient: "vertical",
+                                                                    }}
+                                                                >
+                                                                    {methodLearningDescriptionI18N[method] || "—"}
+                                                                </Typography>
+                                                            </Box>
+                                                        </Tooltip>
+                                                    );
+                                                })}
+                                            </Box>
+                                        ) : (
+                                            <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+                                                Chưa có phương pháp học
+                                            </Typography>
+                                        )}
+                                    </CardContent>
+                                </Card>
 
                                 {/* Description card */}
                                 <Card
@@ -1428,6 +1855,16 @@ export default function SchoolCurriculums() {
                         gap: 1,
                     }}
                 >
+                    <Button
+                        onClick={() => {
+                            if (publishLoading) return;
+                            setViewModalOpen(false);
+                            setConfirmPublishOpen(false);
+                        }}
+                        sx={{ textTransform: "none", fontWeight: 700, color: "#475569" }}
+                    >
+                        Đóng
+                    </Button>
                     {isPrimaryBranch && normalizeStatus(viewCurriculum?.curriculumStatus) === "CUR_DRAFT" && (
                         <Button
                             onClick={() => setConfirmPublishOpen(true)}
@@ -1444,16 +1881,7 @@ export default function SchoolCurriculums() {
                             Công bố
                         </Button>
                     )}
-                    <Button
-                        onClick={() => {
-                            if (publishLoading) return;
-                            setViewModalOpen(false);
-                            setConfirmPublishOpen(false);
-                        }}
-                        sx={{ textTransform: "none", fontWeight: 700, color: "#475569" }}
-                    >
-                        Đóng
-                    </Button>
+                    
                 </DialogActions>
             </Dialog>
 
@@ -1580,63 +2008,41 @@ export default function SchoolCurriculums() {
                             required
                         />
 
-                        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                            <FormControl fullWidth size="small">
-                                <InputLabel>Loại chương trình</InputLabel>
-                                <Select
-                                    name="curriculumType"
-                                    value={formValues.curriculumType}
-                                    label="Loại chương trình"
-                                    onChange={handleBasicChange}
-                                    error={!!formErrors.curriculumType}
-                                >
-                                    {CURRICULUM_TYPE_OPTIONS.map((t) => (
-                                        <MenuItem key={t} value={t}>
-                                            {toCurriculumTypeLabel(t)}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                                {formErrors.curriculumType ? (
-                                    <Typography variant="caption" sx={{ color: "#d32f2f", ml: 1.2, mt: 0.5, display: "block" }}>
-                                        {formErrors.curriculumType}
-                                    </Typography>
-                                ) : null}
-                            </FormControl>
+                        <FormControl fullWidth size="small">
+                            <InputLabel>Loại chương trình</InputLabel>
+                            <Select
+                                name="curriculumType"
+                                value={formValues.curriculumType}
+                                label="Loại chương trình"
+                                onChange={handleBasicChange}
+                                error={!!formErrors.curriculumType}
+                            >
+                                {CURRICULUM_TYPE_OPTIONS.map((t) => (
+                                    <MenuItem key={t} value={t}>
+                                        {toCurriculumTypeLabel(t)}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                            {formErrors.curriculumType ? (
+                                <Typography variant="caption" sx={{ color: "#d32f2f", ml: 1.2, mt: 0.5, display: "block" }}>
+                                    {formErrors.curriculumType}
+                                </Typography>
+                            ) : null}
+                        </FormControl>
 
-                            <FormControl fullWidth size="small">
-                                <InputLabel>Phương pháp học</InputLabel>
-                                <Select
-                                    name="methodLearning"
-                                    value={formValues.methodLearning}
-                                    label="Phương pháp học"
-                                    onChange={handleBasicChange}
-                                    error={!!formErrors.methodLearning}
-                                >
-                                    {METHOD_LEARNING_OPTIONS.map((m) => (
-                                        <MenuItem key={m} value={m}>
-                                            {toMethodLearningLabel(m)}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                                {formErrors.methodLearning ? (
-                                    <Typography variant="caption" sx={{ color: "#d32f2f", ml: 1.2, mt: 0.5, display: "block" }}>
-                                        {formErrors.methodLearning}
-                                    </Typography>
-                                ) : null}
-                            </FormControl>
-                        </Stack>
+                        {renderMethodLearningCardSelector(false)}
 
                         <TextField
-                            label="Năm tuyển sinh"
-                            name="enrollmentYear"
+                            label="Năm áp dụng"
+                            name="applicationYear"
                             type="number"
                             fullWidth
-                            value={formValues.enrollmentYear}
+                            value={formValues.applicationYear}
                             onChange={handleBasicChange}
-                            error={!!formErrors.enrollmentYear}
-                            helperText={formErrors.enrollmentYear}
+                            error={!!formErrors.applicationYear}
+                            helperText={formErrors.applicationYear}
                             required
-                            inputProps={{ min: minEnrollmentYear, max: maxEnrollmentYear, step: 1 }}
+                            inputProps={{ min: minApplicationYear, max: maxApplicationYear, step: 1 }}
                         />
 
                         {/* Subjects */}
@@ -1831,62 +2237,41 @@ export default function SchoolCurriculums() {
                             </Typography>
                         )}
 
-                        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                            <FormControl fullWidth size="small" disabled={isEditFieldsLocked}>
-                                <InputLabel>Loại chương trình</InputLabel>
-                                <Select
-                                    name="curriculumType"
-                                    value={formValues.curriculumType}
-                                    label="Loại chương trình"
-                                    onChange={handleBasicChange}
-                                >
-                                    {CURRICULUM_TYPE_OPTIONS.map((t) => (
-                                        <MenuItem key={t} value={t}>
-                                            {toCurriculumTypeLabel(t)}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                                {formErrors.curriculumType ? (
-                                    <Typography variant="caption" sx={{ color: "#d32f2f", ml: 1.2, mt: 0.5, display: "block" }}>
-                                        {formErrors.curriculumType}
-                                    </Typography>
-                                ) : null}
-                            </FormControl>
+                        <FormControl fullWidth size="small" disabled={isEditFieldsLocked}>
+                            <InputLabel>Loại chương trình</InputLabel>
+                            <Select
+                                name="curriculumType"
+                                value={formValues.curriculumType}
+                                label="Loại chương trình"
+                                onChange={handleBasicChange}
+                            >
+                                {CURRICULUM_TYPE_OPTIONS.map((t) => (
+                                    <MenuItem key={t} value={t}>
+                                        {toCurriculumTypeLabel(t)}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                            {formErrors.curriculumType ? (
+                                <Typography variant="caption" sx={{ color: "#d32f2f", ml: 1.2, mt: 0.5, display: "block" }}>
+                                    {formErrors.curriculumType}
+                                </Typography>
+                            ) : null}
+                        </FormControl>
 
-                            <FormControl fullWidth size="small">
-                                <InputLabel>Phương pháp học</InputLabel>
-                                <Select
-                                    name="methodLearning"
-                                    value={formValues.methodLearning}
-                                    label="Phương pháp học"
-                                    onChange={handleBasicChange}
-                                >
-                                    {METHOD_LEARNING_OPTIONS.map((m) => (
-                                        <MenuItem key={m} value={m}>
-                                            {toMethodLearningLabel(m)}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                                {formErrors.methodLearning ? (
-                                    <Typography variant="caption" sx={{ color: "#d32f2f", ml: 1.2, mt: 0.5, display: "block" }}>
-                                        {formErrors.methodLearning}
-                                    </Typography>
-                                ) : null}
-                            </FormControl>
-                        </Stack>
+                        {renderMethodLearningCardSelector(false)}
 
                         <TextField
-                            label="Năm tuyển sinh"
-                            name="enrollmentYear"
+                            label="Năm áp dụng"
+                            name="applicationYear"
                             type="number"
                             fullWidth
-                            value={formValues.enrollmentYear}
+                            value={formValues.applicationYear}
                             onChange={handleBasicChange}
-                            error={!!formErrors.enrollmentYear}
-                            helperText={formErrors.enrollmentYear}
+                            error={!!formErrors.applicationYear}
+                            helperText={formErrors.applicationYear}
                             required
                             disabled={isEditFieldsLocked}
-                            inputProps={{ min: minEnrollmentYear, max: maxEnrollmentYear, step: 1 }}
+                            inputProps={{ min: minApplicationYear, max: maxApplicationYear, step: 1 }}
                         />
 
                         <Box sx={{ mt: 0.6 }}>

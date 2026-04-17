@@ -34,7 +34,11 @@ import {
     ChevronLeft as ChevronLeftIcon,
     ChevronRight as ChevronRightIcon,
     Search as SearchIcon,
-    AutoAwesome as SparkleIcon
+    AutoAwesome as SparkleIcon,
+    FormatQuote as FormatQuoteIcon,
+    HeadsetMicOutlined as HeadsetMicIcon,
+    CalendarMonthOutlined as CalendarMonthIcon,
+    SmartToyOutlined as SmartToyIcon
 } from "@mui/icons-material";
 import {useLocation, useNavigate} from "react-router-dom";
 import {
@@ -45,15 +49,12 @@ import {
     BRAND_NAVY,
     BRAND_SKY,
     BRAND_SKY_LIGHT,
-    HOME_SCHOOL_SECTION_SURFACE,
-    HOME_CONSULT_SECTION_TOP,
-    HOME_PAGE_SURFACE_GRADIENT,
     landingSectionShadow
 } from "../../constants/homeLandingTheme";
-import SectionWaveEdge from "../ui/SectionWaveEdge.jsx";
 import HomeCreatePostBar from "../ui/HomeCreatePostBar.jsx";
 import topPromoBanner1 from "../../assets/1.png";
 import topPromoBanner2 from "../../assets/2.png";
+import homeBackgroundImage from "../../assets/image.png";
 import {getPublicSchoolList} from "../../services/SchoolPublicService.jsx";
 import {getAdminPackageFees} from "../../services/AdminService.jsx";
 import {createSchoolSubscriptionPayment} from "../../services/SchoolSubscriptionService.jsx";
@@ -70,6 +71,21 @@ const TOP_PROMO_SLIDE_EASE = 'cubic-bezier(0.25, 0.46, 0.45, 0.94)';
 const TOP_PROMO_SLIDES = [
     {src: topPromoBanner1, alt: 'Hỗ trợ tư vấn tuyển sinh — EduBridgeHCM'},
     {src: topPromoBanner2, alt: 'Hỗ trợ tư vấn tuyển sinh — EduBridgeHCM'}
+];
+
+const HOME_ABOUT_MEDIA = [
+    {
+        src: "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=1200&q=80",
+        alt: "Sách và tài liệu học tập"
+    },
+    {
+        src: "https://images.unsplash.com/photo-1524995997946-a1c2e315a42f?auto=format&fit=crop&w=1200&q=80",
+        alt: "Kệ sách và sách giáo khoa"
+    },
+    {
+        src: "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1200&q=80",
+        alt: "Dụng cụ học tập"
+    }
 ];
 
 const DEFAULT_SCHOOL_IMAGE =
@@ -100,6 +116,27 @@ const CONSULT_STEPS = [
         mirror: false,
         variant: 3,
         showSparkle: true
+    }
+];
+
+const HOME_TESTIMONIALS = [
+    {
+        quote: "Nhờ EduBridgeHCM mà gia đình mình tìm được trường phù hợp rất nhanh. Thông tin rõ ràng, dễ so sánh và tư vấn rất tận tâm.",
+        name: "Trần Thị Mai",
+        accent: "#0ea5e9",
+        avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&q=80"
+    },
+    {
+        quote: "Mình thích nhất là có thể xem nhiều trường cùng lúc và đặt lịch tư vấn ngay. Trải nghiệm mượt, tiết kiệm rất nhiều thời gian.",
+        name: "Nguyễn Hoàng Nam",
+        accent: "#2563eb",
+        avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80"
+    },
+    {
+        quote: "Website trình bày khoa học, nội dung thực tế và đáng tin cậy. Con mình đã nhập học đúng nguyện vọng nhờ nền tảng này.",
+        name: "Lê Mỹ Linh",
+        accent: "#1d4ed8",
+        avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=120&q=80"
     }
 ];
 
@@ -685,7 +722,7 @@ function LatestAdmissionNewsSection({refreshTrigger = 0}) {
                     <Typography
                         variant="h3"
                         sx={{
-                            fontWeight: 800,
+                            fontWeight: 700,
                             mb: 2,
                             color: '#1e293b',
                             fontSize: {xs: '1.85rem', md: '2.45rem'},
@@ -1048,8 +1085,8 @@ function HomeTopPromoCarousel({isSignedIn, onRegisterClick, navigate}) {
                         borderRadius: 0,
                         boxShadow: 'none',
                         border: 'none',
-                        bgcolor: '#f0f7ff',
-                        pb: {xs: 1.5, sm: 2}
+                        bgcolor: 'transparent',
+                        pb: 0
                     }}
                 >
                     <Box
@@ -1095,7 +1132,7 @@ function HomeTopPromoCarousel({isSignedIn, onRegisterClick, navigate}) {
                             position: 'absolute',
                             left: 0,
                             right: 0,
-                            bottom: {xs: 'min(14%, 72px)', sm: 'min(12%, 64px)', md: 'min(10%, 56px)'},
+                            bottom: {xs: 'min(10%, 52px)', sm: 'min(9%, 50px)', md: 'min(8%, 46px)'},
                             px: {xs: 2, sm: 3},
                             justifyContent: 'center',
                             alignItems: 'center',
@@ -1257,62 +1294,13 @@ export default function HomePage() {
     const [consultVisible, setConsultVisible] = React.useState(false);
     const servicePackagesSectionRef = React.useRef(null);
     const [servicePackagesVisible, setServicePackagesVisible] = React.useState(false);
+    const aboutSectionRef = React.useRef(null);
+    const [aboutVisible, setAboutVisible] = React.useState(false);
+    const testimonialSectionRef = React.useRef(null);
+    const [testimonialsVisible, setTestimonialsVisible] = React.useState(false);
     const consultMotionEase = 'cubic-bezier(0.22, 0.61, 0.36, 1)';
-    const consultStaggerMs = 140;
-    const consultHeadlineContentSx = {
-        position: {xs: 'static', md: 'absolute'},
-        left: {md: 0},
-        right: {md: 0},
-        top: {md: '50%'},
-        width: {md: '100%'},
-        transition: `opacity 0.9s ${consultMotionEase}, transform 0.9s ${consultMotionEase}`,
-        opacity: consultVisible ? 1 : 0,
-        transform: consultVisible
-            ? {xs: 'translateY(0)', md: 'translateY(-50%)'}
-            : {xs: 'translateY(24px)', md: 'translateY(calc(-50% + 24px))'},
-        textAlign: 'center',
-        maxWidth: 520,
-        mx: 'auto',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: {xs: 1, md: 1.25}
-    };
-    const getConsultStepWrapperSx = (stepNumber, index) => ({
-        gridArea: `step${stepNumber}`,
-        position: 'relative',
-        width: '100%',
-        maxWidth: {xs: '100%', md: 540},
-        justifySelf: {md: index === 1 ? 'end' : 'start'},
-        pl: {xs: 0, md: 3},
-        zIndex: 2,
-        transition: `opacity 0.85s ${consultMotionEase}, transform 0.85s ${consultMotionEase}`,
-        transitionDelay: consultVisible ? `${index * consultStaggerMs}ms` : '0ms',
-        opacity: consultVisible ? 1 : 0,
-        transform: consultVisible
-            ? 'translateX(0)'
-            : {xs: 'translateX(20px)', md: 'translateX(40px)'},
-        overflow: 'visible'
-    });
-    const getConsultCardSx = (isMirror) => ({
-        position: 'relative',
-        zIndex: 1,
-        flex: 1,
-        minWidth: 0,
-        width: {xs: '100%', md: 'auto'},
-        borderRadius: 3,
-        overflow: 'visible',
-        bgcolor: '#fff',
-        border: '1px solid rgba(226,232,240,0.95)',
-        boxShadow: '0 20px 56px rgba(51,65,85,0.08)',
-        ml: {xs: 0, md: isMirror ? 0 : -3.5},
-        mr: {xs: 0, md: isMirror ? -3.5 : 0},
-        transition: 'transform 0.3s ease, box-shadow 0.3s ease',
-        '&:hover': {
-            transform: 'translateY(-3px)',
-            boxShadow: '0 24px 64px rgba(51,65,85,0.1)'
-        }
-    });
+    const consultStaggerMs = 130;
+    const consultIcons = [HeadsetMicIcon, CalendarMonthIcon, SmartToyIcon];
 
     React.useEffect(() => {
         let cancelled = false;
@@ -1494,10 +1482,7 @@ export default function HomePage() {
         if (!el) return;
         const obs = new IntersectionObserver(
             ([entry]) => {
-                if (entry.isIntersecting) {
-                    setConsultVisible(true);
-                    obs.disconnect();
-                }
+                setConsultVisible(entry.isIntersecting);
             },
             {root: null, rootMargin: '-6% 0px -10% 0px', threshold: 0.12}
         );
@@ -1520,6 +1505,32 @@ export default function HomePage() {
         obs.observe(el);
         return () => obs.disconnect();
     }, [isSchoolRole]);
+
+    React.useEffect(() => {
+        const el = testimonialSectionRef.current;
+        if (!el) return;
+        const obs = new IntersectionObserver(
+            ([entry]) => {
+                setTestimonialsVisible(entry.isIntersecting);
+            },
+            {root: null, rootMargin: '-10% 0px -12% 0px', threshold: 0.18}
+        );
+        obs.observe(el);
+        return () => obs.disconnect();
+    }, []);
+
+    React.useEffect(() => {
+        const el = aboutSectionRef.current;
+        if (!el) return;
+        const obs = new IntersectionObserver(
+            ([entry]) => {
+                setAboutVisible(entry.isIntersecting);
+            },
+            {root: null, rootMargin: '-8% 0px -12% 0px', threshold: 0.14}
+        );
+        obs.observe(el);
+        return () => obs.disconnect();
+    }, []);
 
     const handleRegisterClick = () => {
         window.location.href = '/register';
@@ -1669,8 +1680,12 @@ export default function HomePage() {
             sx={{
                 minHeight: '100vh',
                 overflow: 'hidden',
-                pt: 0,
-                background: HOME_PAGE_SURFACE_GRADIENT
+                pt: {xs: '64px', md: '74px'},
+                backgroundImage: `linear-gradient(rgba(245, 249, 255, 0.64), rgba(245, 249, 255, 0.64)), url(${homeBackgroundImage})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                backgroundRepeat: 'no-repeat',
+                backgroundAttachment: 'fixed'
             }}
         >
             <Dialog
@@ -1807,18 +1822,162 @@ export default function HomePage() {
                     </Button>
                 </DialogActions>
             </Dialog>
-            <HomeTopPromoCarousel
-                isSignedIn={isSignedIn}
-                onRegisterClick={handleRegisterClick}
-                navigate={navigate}
-            />
+            <Box
+                id="ve-chung-toi"
+                ref={aboutSectionRef}
+                sx={{
+                    mt: '-1px',
+                    py: {xs: 5, md: 7},
+                    background: 'transparent'
+                }}
+            >
+                <Container maxWidth="lg" sx={{px: {xs: 2, sm: 3, md: 4}}}>
+                    <Box
+                        sx={{
+                            display: 'grid',
+                            gridTemplateColumns: {xs: '1fr', md: 'repeat(12, minmax(0, 1fr))'},
+                            gap: {xs: 3, md: 4},
+                            alignItems: 'center'
+                        }}
+                    >
+                        <Box
+                            sx={{
+                                gridColumn: {md: '1 / span 5'},
+                                opacity: aboutVisible ? 1 : 0,
+                                transform: aboutVisible ? 'translateY(0)' : 'translateY(26px)',
+                                transition: `opacity 700ms ${admissionEase}, transform 700ms ${admissionEase}`
+                            }}
+                        >
+                            <Typography
+                                component="h2"
+                                sx={{
+                                    fontWeight: 800,
+                                    color: '#020617',
+                                    fontSize: {xs: '1.7rem', md: '2.3rem'},
+                                    lineHeight: 1.2,
+                                    letterSpacing: '-0.02em'
+                                }}
+                            >
+                                Về chúng tôi
+                            </Typography>
+                            <Box sx={{width: 64, height: 2, bgcolor: 'rgba(15,23,42,0.18)', my: 2.2}} />
+                            <Typography
+                                sx={{
+                                    color: '#1e293b',
+                                    fontSize: {xs: '0.95rem', md: '1rem'},
+                                    lineHeight: 1.9,
+                                    fontWeight: 600,
+                                    maxWidth: 460
+                                }}
+                            >
+                                <Box component="span" sx={{fontWeight: 800}}>EduBridgeHCM</Box> kết nối phụ huynh với các trường học phù hợp thông qua thông tin minh bạch và quy trình tư vấn dễ tiếp cận. Chúng tôi tập trung vào trải nghiệm rõ ràng, tiết kiệm thời gian và hỗ trợ ra quyết định hiệu quả cho từng gia đình.
+                            </Typography>
+                            <Typography sx={{mt: 1.4, color: '#475569', fontSize: '0.94rem', fontStyle: 'italic', fontWeight: 700}}>
+                                "Lựa chọn đúng trường, bắt đầu từ thông tin đúng."
+                            </Typography>
+                            <Box sx={{mt: 2.6}}>
+                                <Button
+                                    variant="contained"
+                                    startIcon={<SearchIcon sx={{color: 'inherit'}}/>}
+                                    onClick={() => navigate('/search-schools')}
+                                    sx={{
+                                        borderRadius: 999,
+                                        textTransform: 'none',
+                                        fontWeight: 700,
+                                        px: 2.75,
+                                        py: 1.05,
+                                        fontSize: '0.9rem',
+                                        color: BRAND_NAVY,
+                                        bgcolor: '#dbeafe',
+                                        border: `2px solid ${BRAND_SKY}`,
+                                        boxShadow: '0 8px 22px rgba(37, 99, 235, 0.14)',
+                                        '&:hover': {
+                                            bgcolor: '#bfdbfe',
+                                            borderColor: BRAND_NAVY,
+                                            boxShadow: '0 10px 26px rgba(37, 99, 235, 0.2)'
+                                        }
+                                    }}
+                                >
+                                    Tìm trường ngay
+                                </Button>
+                            </Box>
+                        </Box>
+
+                        <Box sx={{gridColumn: {md: '6 / span 7'}}}>
+                            <Box
+                                sx={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+                                    gap: {xs: 1.25, md: 1.6},
+                                    gridTemplateAreas: {
+                                        xs: `"img1 img2" "img3 img2"`,
+                                        md: `"img1 img2" "img3 img2"`
+                                    }
+                                }}
+                            >
+                                <Box
+                                    component="img"
+                                    src={HOME_ABOUT_MEDIA[0].src}
+                                    alt={HOME_ABOUT_MEDIA[0].alt}
+                                    sx={{
+                                        gridArea: 'img1',
+                                        width: '100%',
+                                        height: {xs: 175, md: 300},
+                                        objectFit: 'cover',
+                                        borderRadius: 2,
+                                        boxShadow: '0 14px 30px rgba(15,23,42,0.1)',
+                                        transform: aboutVisible ? {xs: 'translateY(0)', md: 'translateY(22px)'} : 'translateY(34px)',
+                                        opacity: aboutVisible ? 1 : 0,
+                                        transition: `opacity 680ms ${admissionEase}, transform 680ms ${admissionEase}`,
+                                        transitionDelay: aboutVisible ? '80ms' : '0ms'
+                                    }}
+                                />
+                                <Box
+                                    component="img"
+                                    src={HOME_ABOUT_MEDIA[1].src}
+                                    alt={HOME_ABOUT_MEDIA[1].alt}
+                                    sx={{
+                                        gridArea: 'img2',
+                                        width: '100%',
+                                        height: {xs: 295, md: 440},
+                                        objectFit: 'cover',
+                                        borderRadius: 2,
+                                        boxShadow: '0 18px 38px rgba(15,23,42,0.12)',
+                                        transform: aboutVisible ? {xs: 'translateY(0)', md: 'translateY(-10px)'} : 'translateY(28px)',
+                                        opacity: aboutVisible ? 1 : 0,
+                                        transition: `opacity 740ms ${admissionEase}, transform 740ms ${admissionEase}`,
+                                        transitionDelay: aboutVisible ? '170ms' : '0ms'
+                                    }}
+                                />
+                                <Box
+                                    component="img"
+                                    src={HOME_ABOUT_MEDIA[2].src}
+                                    alt={HOME_ABOUT_MEDIA[2].alt}
+                                    sx={{
+                                        gridArea: 'img3',
+                                        width: '100%',
+                                        height: {xs: 112, md: 146},
+                                        objectFit: 'cover',
+                                        borderRadius: 2,
+                                        boxShadow: '0 10px 24px rgba(15,23,42,0.1)',
+                                        transform: aboutVisible ? {xs: 'translateY(0)', md: 'translateY(18px)'} : 'translateY(30px)',
+                                        opacity: aboutVisible ? 1 : 0,
+                                        transition: `opacity 700ms ${admissionEase}, transform 700ms ${admissionEase}`,
+                                        transitionDelay: aboutVisible ? '250ms' : '0ms'
+                                    }}
+                                />
+                            </Box>
+                        </Box>
+                    </Box>
+                </Container>
+            </Box>
             {showHeadCreatePost && (
                 <Box
                     sx={{
                         position: 'relative',
                         zIndex: 4,
-                        bgcolor: '#f0f7ff',
-                        borderTop: '1px solid rgba(59,130,246,0.18)',
+                        bgcolor: 'rgba(255,255,255,0.28)',
+                        borderTop: '1px solid rgba(59,130,246,0.12)',
                         pt: {xs: 2, md: 2.5},
                         pb: {xs: 2, md: 2.5}
                     }}
@@ -1838,12 +1997,10 @@ export default function HomePage() {
                     pb: {xs: 11, md: 13},
                     overflow: 'visible',
                     isolation: 'isolate',
-                    background: `linear-gradient(180deg, ${HOME_SCHOOL_SECTION_SURFACE} 0%, #f0f9ff 32%, #fafcff 68%, ${HOME_CONSULT_SECTION_TOP} 100%)`,
+                    background: 'transparent',
                     scrollMarginTop: '80px'
                 }}
             >
-                <SectionWaveEdge variant="top" fill={HOME_SCHOOL_SECTION_SURFACE}/>
-                <SectionWaveEdge variant="bottom" fill={HOME_CONSULT_SECTION_TOP}/>
                 <Container maxWidth="xl" sx={{px: {xs: 2, sm: 3, md: 4}, position: 'relative', zIndex: 3}}>
                     <Box sx={{mb: 4.5, textAlign: 'center'}}>
                         <Box
@@ -1886,7 +2043,7 @@ export default function HomePage() {
                             <Typography
                                 variant="h2"
                                 sx={{
-                                    fontWeight: 800,
+                                    fontWeight: 700,
                                     mb: 1.25,
                                     color: '#0f172a',
                                     fontSize: {xs: '1.75rem', sm: '2.25rem', md: '2.5rem'},
@@ -1915,7 +2072,7 @@ export default function HomePage() {
                     <Box sx={{mb: 1.5, position: 'relative', zIndex: 3}}>
                         <Typography
                             sx={{
-                                fontWeight: 800,
+                                fontWeight: 700,
                                 color: '#0f172a',
                                 fontSize: '1.12rem',
                                 mb: 1.5,
@@ -1963,206 +2120,141 @@ export default function HomePage() {
                 ref={consultSectionRef}
                 id="quy-trình"
                 sx={{
-                    py: {xs: 10, md: 14},
+                    pt: {xs: 7, md: 8},
+                    pb: {xs: 4, md: 5},
                     scrollMarginTop: '80px',
                     position: 'relative',
                     zIndex: 0,
                     overflow: 'visible',
-                    background: `linear-gradient(165deg, ${HOME_CONSULT_SECTION_TOP} 0%, #f0f9ff 45%, #f8fafc 100%)`
+                    background: 'transparent'
                 }}
             >
                 <Container maxWidth="lg" sx={{px: {xs: 2.5, md: 4}}}>
                     <Box
                         sx={{
-                            display: 'grid',
-                            width: '100%',
-                            pt: {xs: 4, md: 0},
-                            columnGap: {xs: 0, md: 3},
-                            rowGap: {xs: 3, md: 3.5},
-                            gridTemplateColumns: {
-                                xs: 'minmax(0, 1fr)',
-                                md: 'minmax(0, 5fr) minmax(0, 7fr)'
-                            },
-                            gridTemplateAreas: {
-                                xs: `
-                                    "headline"
-                                    "step1"
-                                    "step2"
-                                    "step3"
-                                `,
-                                md: `
-                                    ". step1"
-                                    "headline step2"
-                                    ". step3"
-                                `
-                            },
-                            alignItems: 'stretch'
+                            textAlign: 'center',
+                            transition: `opacity 0.8s ${consultMotionEase}, transform 0.8s ${consultMotionEase}`,
+                            opacity: consultVisible ? 1 : 0,
+                            transform: consultVisible ? 'translateY(0)' : 'translateY(20px)'
                         }}
                     >
-                        <Box
+                        <Typography
+                            component="h2"
                             sx={{
-                                gridArea: 'headline',
-                                position: {xs: 'static', md: 'relative'},
-                                minHeight: {md: 0},
-                                overflow: {md: 'visible'},
-                                zIndex: 3
+                                fontWeight: 700,
+                                fontSize: {xs: '1.8rem', md: '2.5rem'},
+                                lineHeight: 1.14,
+                                color: '#0f172a',
+                                letterSpacing: '-0.02em'
                             }}
                         >
-                            <Box
-                                sx={consultHeadlineContentSx}
-                            >
-                                <Typography
-                                    component="h2"
-                                    sx={{
-                                        fontWeight: 900,
-                                        fontSize: {xs: '1.85rem', sm: '2.25rem', md: '2.65rem'},
-                                        lineHeight: 1.08,
-                                        letterSpacing: {xs: '0.04em', md: '0.06em'},
-                                        textTransform: 'uppercase',
-                                        color: '#1e293b',
-                                        m: 0
-                                    }}
-                                >
-                                    Tư vấn rõ ràng,
-                                    <br />
-                                    giải đáp dễ hiểu
-                                </Typography>
-                                <Typography
-                                    sx={{
-                                        color: '#64748b',
-                                        fontSize: {xs: '0.95rem', md: '1.05rem'},
-                                        lineHeight: 1.7,
-                                        maxWidth: 440,
-                                        mx: 'auto',
-                                        m: 0
-                                    }}
-                                >
-                                    Ba hình thức hỗ trợ quý phụ huynh tìm hiểu nhà trường và nhận tư vấn — kính mời quý vị lựa chọn phương án phù hợp.
-                                </Typography>
-                                <Button
-                                    variant="contained"
-                                    onClick={() => navigate('/search-schools')}
-                                    sx={{
-                                        textTransform: 'none',
-                                        fontWeight: 800,
-                                        fontSize: {xs: '0.95rem', md: '1rem'},
-                                        px: {xs: 4, md: 5},
-                                        py: 1.5,
-                                        borderRadius: 999,
-                                        bgcolor: BRAND_NAVY,
-                                        color: '#fff',
-                                        boxShadow: '0 12px 32px rgba(37,99,235,0.28)',
-                                        mt: {xs: 0.25, md: 0.25},
-                                        '&:hover': {
-                                            bgcolor: APP_PRIMARY_DARK,
-                                            boxShadow: '0 16px 40px rgba(59,130,246,0.32)'
-                                        }
-                                    }}
-                                >
-                                    Tìm hiểu thêm
-                                </Button>
-                            </Box>
-                        </Box>
-                        {CONSULT_STEPS.map((step, i) => (
-                            <Box
-                                key={step.n}
-                                sx={getConsultStepWrapperSx(step.n, i)}
-                            >
-                                <Box
-                                    sx={{
-                                        display: 'flex',
-                                        flexDirection: {
-                                            xs: 'column',
-                                            md: step.mirror ? 'row-reverse' : 'row'
-                                        },
-                                        alignItems: {xs: 'center', md: 'center'},
-                                        width: '100%'
-                                    }}
-                                >
+                            Tư vấn rõ ràng, giải đáp dễ hiểu
+                        </Typography>
+                        <Typography
+                            sx={{
+                                color: '#64748b',
+                                fontSize: {xs: '0.93rem', md: '1rem'},
+                                lineHeight: 1.75,
+                                maxWidth: 620,
+                                mx: 'auto',
+                                mt: 1.5,
+                                mb: {xs: 3.5, md: 4.5}
+                            }}
+                        >
+                            Các hình thức hỗ trợ tư vấn dành cho Quý phụ huynh
+                        </Typography>
+
+                        <Box
+                            sx={{
+                                display: 'grid',
+                                gridTemplateColumns: {xs: '1fr', md: 'repeat(3, minmax(0, 1fr))'},
+                                bgcolor: 'transparent'
+                            }}
+                        >
+                            {CONSULT_STEPS.map((step, i) => {
+                                const StepIcon = consultIcons[i] || HeadsetMicIcon;
+                                return (
                                     <Box
+                                        key={step.n}
                                         sx={{
-                                            display: 'flex',
-                                            justifyContent: 'center',
-                                            width: {xs: '100%', md: 'auto'},
-                                            mb: {xs: 1.5, md: 0},
-                                            zIndex: 2
+                                            px: {xs: 2.5, md: 3.6},
+                                            py: {xs: 3.3, md: 4.25},
+                                            borderRight: {md: i < CONSULT_STEPS.length - 1 ? '1px solid rgba(148,163,184,0.2)' : 'none'},
+                                            borderBottom: {xs: i < CONSULT_STEPS.length - 1 ? '1px solid rgba(148,163,184,0.2)' : 'none', md: 'none'},
+                                            transition: `transform 0.7s ${consultMotionEase}, background-color 0.35s ease, opacity 0.7s ${consultMotionEase}, filter 0.7s ${consultMotionEase}`,
+                                            transitionDelay: consultVisible ? `${i * consultStaggerMs}ms` : '0ms',
+                                            opacity: consultVisible ? 1 : 0,
+                                            transform: consultVisible ? 'translateY(0)' : 'translateY(28px)',
+                                            filter: consultVisible ? 'blur(0px)' : 'blur(2px)',
+                                            '&:hover': {
+                                                transform: 'translateY(-6px)',
+                                                backgroundColor: 'rgba(219,234,254,0.2)'
+                                            }
                                         }}
                                     >
-                                        <ConsultGraphicCluster variant={step.variant} mirror={false} />
-                                    </Box>
-                                    <Card
-                                        elevation={0}
-                                        sx={getConsultCardSx(step.mirror)}
-                                    >
-                                        {step.showSparkle ? (
-                                            <SparkleIcon
+                                        <Box sx={{display: 'flex', justifyContent: 'center', mb: 2.35}}>
+                                            <StepIcon
                                                 sx={{
-                                                    position: 'absolute',
-                                                    bottom: 12,
-                                                    right: 12,
-                                                    fontSize: 22,
-                                                    color: BRAND_NAVY,
-                                                    opacity: 0.35,
-                                                    pointerEvents: 'none'
+                                                    fontSize: 50,
+                                                    color: '#3b82f6',
+                                                    opacity: consultVisible ? 1 : 0,
+                                                    transform: consultVisible ? 'translateY(0) scale(1)' : 'translateY(18px) scale(0.86)',
+                                                    transition: `opacity 680ms ${consultMotionEase}, transform 680ms ${consultMotionEase}`,
+                                                    transitionDelay: consultVisible ? `${i * consultStaggerMs + 170}ms` : '0ms',
+                                                    filter: 'saturate(0.92)',
+                                                    '.MuiBox-root:hover &': {
+                                                        transform: 'translateY(-2px) scale(1.05)'
+                                                    }
                                                 }}
                                             />
-                                        ) : null}
-                                        <CardContent
+                                        </Box>
+                                        <Typography
                                             sx={{
-                                                p: {xs: 2.25, md: 3},
-                                                display: 'flex',
-                                                gap: 2,
-                                                alignItems: 'flex-start',
-                                                pr: step.showSparkle ? {xs: 2.25, md: 4} : undefined
+                                                fontWeight: 700,
+                                                color: '#0f172a',
+                                                fontSize: {xs: '0.98rem', md: '1.03rem'},
+                                                lineHeight: 1.5,
+                                                mb: 1.35
                                             }}
                                         >
-                                            <Box
-                                                sx={{
-                                                    width: 38,
-                                                    height: 38,
-                                                    minWidth: 38,
-                                                    borderRadius: '50%',
-                                                    bgcolor: BRAND_NAVY,
-                                                    color: '#fff',
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    fontWeight: 800,
-                                                    fontSize: '1rem',
-                                                    lineHeight: 1
-                                                }}
-                                            >
-                                                {step.n}
-                                            </Box>
-                                            <Box sx={{minWidth: 0, pr: step.showSparkle ? 1 : 0}}>
-                                                <Typography
-                                                    sx={{
-                                                        fontWeight: 800,
-                                                        fontSize: {xs: '0.98rem', md: '1.06rem'},
-                                                        color: '#1e293b',
-                                                        lineHeight: 1.45,
-                                                        letterSpacing: '-0.01em',
-                                                        mb: 1
-                                                    }}
-                                                >
-                                                    {step.title}
-                                                </Typography>
-                                                <Typography
-                                                    sx={{
-                                                        color: '#64748b',
-                                                        fontSize: {xs: '0.88rem', md: '0.92rem'},
-                                                        lineHeight: 1.65,
-                                                        fontWeight: 400
-                                                    }}
-                                                >
-                                                    {step.subtitle}
-                                                </Typography>
-                                            </Box>
-                                        </CardContent>
-                                    </Card>
-                                </Box>
-                            </Box>
-                        ))}
+                                            {step.title}
+                                        </Typography>
+                                        <Typography
+                                            sx={{
+                                                color: '#64748b',
+                                                fontSize: {xs: '0.88rem', md: '0.91rem'},
+                                                lineHeight: 1.8
+                                            }}
+                                        >
+                                            {step.subtitle}
+                                        </Typography>
+                                    </Box>
+                                );
+                            })}
+                        </Box>
+                        <Box sx={{mt: {xs: 3, md: 3.8}}}>
+                            <Button
+                                variant="contained"
+                                onClick={() => navigate('/search-schools')}
+                                sx={{
+                                    textTransform: 'none',
+                                    fontWeight: 700,
+                                    fontSize: {xs: '0.92rem', md: '0.96rem'},
+                                    px: {xs: 3.5, md: 4.25},
+                                    py: 1.2,
+                                    borderRadius: 999,
+                                    bgcolor: BRAND_NAVY,
+                                    color: '#fff',
+                                    boxShadow: '0 10px 26px rgba(37,99,235,0.22)',
+                                    '&:hover': {
+                                        bgcolor: APP_PRIMARY_DARK,
+                                        boxShadow: '0 14px 32px rgba(37,99,235,0.3)'
+                                    }
+                                }}
+                            >
+                                Tìm hiểu thêm
+                            </Button>
+                        </Box>
                     </Box>
                 </Container>
             </Box>
@@ -2175,7 +2267,7 @@ export default function HomePage() {
                         zIndex: 1,
                         pt: {xs: 5, md: 7},
                         pb: {xs: 5, md: 7},
-                        background: 'linear-gradient(180deg, #f8fafc 0%, #f0f9ff 100%)',
+                        background: 'transparent',
                         opacity: servicePackagesVisible ? 1 : 0,
                         transform: servicePackagesVisible ? 'translateY(0px)' : 'translateY(28px)',
                         transition: 'opacity 0.8s ease, transform 0.8s cubic-bezier(0.22, 0.61, 0.36, 1)',
@@ -2186,7 +2278,7 @@ export default function HomePage() {
                             variant="h4"
                             sx={{
                                 textAlign: 'center',
-                                fontWeight: 800,
+                                fontWeight: 700,
                                 color: BRAND_NAVY,
                                 mb: 1,
                                 fontSize: {xs: '1.6rem', md: '2rem'}
@@ -2215,6 +2307,162 @@ export default function HomePage() {
                     </Container>
                 </Box>
             )}
+            <Box
+                component="section"
+                id="cam-nhan-phu-huynh"
+                ref={testimonialSectionRef}
+                sx={{
+                    pt: {xs: 4.5, md: 5.5},
+                    pb: {xs: 8, md: 10},
+                    background: 'transparent'
+                }}
+            >
+                <Container maxWidth="lg" sx={{px: {xs: 2, md: 4}}}>
+                    <Box sx={{textAlign: 'center', mb: {xs: 4, md: 5.5}}}>
+                        <Typography
+                            component="h2"
+                            sx={{
+                                fontWeight: 800,
+                                color: '#020617',
+                                fontSize: {xs: '1.9rem', md: '2.6rem'},
+                                lineHeight: 1.15,
+                                letterSpacing: '-0.02em'
+                            }}
+                        >
+                            Không chỉ là lời giới thiệu.
+                            <br />
+                            Phụ huynh thật sự tin tưởng <Box component="span" sx={{fontWeight: 800}}>EduBridgeHCM</Box>.
+                        </Typography>
+                    </Box>
+
+                    <Box
+                        sx={{
+                            display: 'grid',
+                            gridTemplateColumns: {xs: '1fr', md: 'repeat(3, minmax(0, 1fr))'},
+                            gap: {xs: 2, md: 2.5},
+                            '@keyframes testimonialFadeInUp': {
+                                from: {
+                                    opacity: 0,
+                                    transform: 'translateY(24px) scale(0.98)'
+                                },
+                                to: {
+                                    opacity: 1,
+                                    transform: 'translateY(0) scale(1)'
+                                }
+                            }
+                        }}
+                    >
+                        {HOME_TESTIMONIALS.map((item, idx) => (
+                            <Card
+                                key={item.name}
+                                elevation={0}
+                                sx={{
+                                    position: 'relative',
+                                    height: '100%',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    borderRadius: 4,
+                                    border: '1px solid rgba(148,163,184,0.18)',
+                                    bgcolor: '#e8eef6',
+                                    overflow: 'hidden',
+                                    boxShadow: '0 12px 30px rgba(15,23,42,0.1)',
+                                    opacity: testimonialsVisible ? 1 : 0,
+                                    transform: testimonialsVisible
+                                        ? {xs: 'translateY(0)', md: idx === 1 ? 'translateY(-4px)' : 'translateY(0)'}
+                                        : 'translateY(26px)',
+                                    transition: `opacity 620ms ${admissionEase}, transform 620ms ${admissionEase}, box-shadow 0.35s ease, background-color 0.35s ease`,
+                                    transitionDelay: testimonialsVisible ? `${idx * 110}ms` : '0ms',
+                                    '&::before': {
+                                        content: '""',
+                                        position: 'absolute',
+                                        inset: 0,
+                                        background: 'linear-gradient(145deg, rgba(255,255,255,0.55) 0%, rgba(37,99,235,0.06) 100%)',
+                                        pointerEvents: 'none'
+                                    },
+                                    '&:hover': {
+                                        transform: 'translateY(-8px)',
+                                        backgroundColor: '#dbe4ef',
+                                        boxShadow: '0 18px 38px rgba(30,58,138,0.2)'
+                                    }
+                                }}
+                            >
+                                <CardContent
+                                    sx={{
+                                        p: {xs: 2.25, md: 2.5},
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 1.5,
+                                        height: '100%',
+                                        position: 'relative',
+                                        zIndex: 1
+                                    }}
+                                >
+                                    <Box sx={{display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: '50%', bgcolor: 'rgba(37,99,235,0.12)', color: '#1d4ed8'}}>
+                                        <FormatQuoteIcon sx={{fontSize: 20}} />
+                                    </Box>
+                                    <Typography
+                                        sx={{
+                                            color: '#020617',
+                                            fontSize: {xs: '0.95rem', md: '1rem'},
+                                            fontWeight: 600,
+                                            lineHeight: 1.75
+                                        }}
+                                    >
+                                        "{item.quote}"
+                                    </Typography>
+
+                                    <Box sx={{mt: 'auto'}}>
+                                        <Typography sx={{color: '#64748b', fontSize: '0.75rem', mt: 0.15, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600}}>
+                                            Cảm nhận từ phụ huynh
+                                        </Typography>
+                                    </Box>
+
+                                    <Box
+                                        sx={{
+                                            pt: 1.4,
+                                            mt: 0.3,
+                                            borderTop: '1px solid rgba(148,163,184,0.22)',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between'
+                                        }}
+                                    >
+                                        <Box sx={{minWidth: 0}}>
+                                            <Typography sx={{fontWeight: 600, color: '#020617', fontSize: '0.95rem', lineHeight: 1.25}}>
+                                                {item.name}
+                                            </Typography>
+                                            <Typography sx={{color: '#334155', fontSize: '0.82rem', mt: 0.25, fontWeight: 500}}>
+                                                {item.role}
+                                            </Typography>
+                                        </Box>
+                                        <Box
+                                            component="img"
+                                            src={item.avatar}
+                                            alt={item.name}
+                                            referrerPolicy="no-referrer"
+                                            sx={{
+                                                width: 28,
+                                                height: 28,
+                                                borderRadius: '50%',
+                                                objectFit: 'cover',
+                                                border: '2px solid #fff',
+                                                boxShadow: '0 2px 8px rgba(15,23,42,0.22)',
+                                                bgcolor: '#e2e8f0',
+                                                p: 0,
+                                                transition: 'transform 0.25s ease, background-color 0.25s ease',
+                                                '.MuiCard-root:hover &': {
+                                                    transform: 'translateY(-1px) scale(1.08)',
+                                                    bgcolor: '#fff'
+                                                }
+                                            }}
+                                        />
+                                    </Box>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </Box>
+                </Container>
+            </Box>
 
         </Box>
     );

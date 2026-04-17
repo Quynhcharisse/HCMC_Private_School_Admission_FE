@@ -42,6 +42,8 @@ import PhoneIcon from "@mui/icons-material/Phone";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import {enqueueSnackbar} from "notistack";
+import { CircleMarker, MapContainer, TileLayer, useMap } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 import {useSchool} from "../../../contexts/SchoolContext.jsx";
 import {extractCampusListBody, listCampuses, createCampus, exportCampusList} from "../../../services/CampusService.jsx";
 import {
@@ -123,6 +125,18 @@ const emptyForm = {
 const PLACEHOLDER_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='60' viewBox='0 0 80 60' fill='%23e2e8f0'%3E%3Crect width='80' height='60' fill='%23f1f5f9'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='10' fill='%2394a3b8'%3ECampus%3C/text%3E%3C/svg%3E";
 const HCM_CODE = 79;
 const HCM_CITY_NAME = "Ho Chi Minh City";
+const DEFAULT_MAP_CENTER = [10.7769, 106.7009];
+
+function RecenterMap({ center, zoom = 15 }) {
+    const map = useMap();
+
+    useEffect(() => {
+        if (!Array.isArray(center) || center.length !== 2) return;
+        map.setView(center, zoom, { animate: true });
+    }, [center, zoom, map]);
+
+    return null;
+}
 
 const formatDate = (d) => {
     if (!d) return "—";
@@ -170,6 +184,10 @@ export default function SchoolCampus() {
     const [page, setPage] = useState(0);
     const rowsPerPage = 10;
     const [exporting, setExporting] = useState(false);
+    const createLatitude = formValues.latitude === "" ? NaN : Number(formValues.latitude);
+    const createLongitude = formValues.longitude === "" ? NaN : Number(formValues.longitude);
+    const hasCreateLatLng = Number.isFinite(createLatitude) && Number.isFinite(createLongitude);
+    const createMapCenter = hasCreateLatLng ? [createLatitude, createLongitude] : DEFAULT_MAP_CENTER;
 
     const districts = useMemo(() => {
         const set = new Set(campuses.map((c) => c.district).filter(Boolean));
@@ -265,7 +283,6 @@ export default function SchoolCampus() {
 
     const validateForm = () => {
         const errors = {};
-        if (!formValues.name?.trim()) errors.name = "Tên cơ sở là bắt buộc";
         if (!formValues.email?.trim()) errors.email = "Email là bắt buộc";
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
@@ -422,7 +439,6 @@ export default function SchoolCampus() {
         try {
             const res = await createCampus({
                 email: formValues.email.trim(),
-                name: formValues.name.trim(),
                 address: formValues.address?.trim() || "",
                 phone: formValues.phone?.trim() || "",
                 city: HCM_CITY_NAME,
@@ -434,9 +450,10 @@ export default function SchoolCampus() {
             });
 
             const body = res?.data?.body;
-            if (res && res.status === 200 && body?.campus) {
-                const account = body.campus.account ?? body.account;
-                const newCampus = mapCampusFromApi(body.campus, account);
+            const campusDto = body?.campus ?? body ?? null;
+            if (campusDto?.id) {
+                const account = campusDto.account ?? body?.account;
+                const newCampus = mapCampusFromApi(campusDto, account);
                 setCampuses((prev) => [newCampus, ...prev]);
                 enqueueSnackbar("Tạo cơ sở thành công", {variant: "success"});
                 handleCloseCreate();
@@ -942,7 +959,7 @@ export default function SchoolCampus() {
                     handleCloseCreate();
                 }}
                 fullWidth
-                maxWidth="sm"
+                maxWidth="md"
                 PaperProps={{sx: modalPaperSx}}
                 slotProps={{backdrop: {sx: modalBackdropSx}}}
             >
@@ -974,17 +991,43 @@ export default function SchoolCampus() {
                     </Box>
                 </Box>
                 <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 1}}>
+                    <Box sx={{ maxWidth: 840, mx: "auto", width: "100%" }}>
                     <Stack spacing={2.5}>
                         <TextField
-                            label="Tên cơ sở"
-                            name="name"
+                            label="Email"
+                            name="email"
+                            type="email"
                             fullWidth
-                            value={formValues.name}
+                            value={formValues.email}
                             onChange={handleChange}
-                            error={!!formErrors.name}
-                            helperText={formErrors.name}
+                            error={!!formErrors.email}
+                            helperText={formErrors.email}
+                            placeholder="truonghongductphcm@gmail.com"
                             required
                         />
+                        <TextField
+                            label="Số điện thoại"
+                            name="phone"
+                            fullWidth
+                            value={formValues.phone}
+                            onChange={handleChange}
+                            placeholder="0983810915"
+                        />
+                        <FormControl fullWidth>
+                            <InputLabel>Loại nội trú</InputLabel>
+                            <Select
+                                name="boardingType"
+                                value={formValues.boardingType}
+                                label="Loại nội trú"
+                                onChange={handleChange}
+                            >
+                                {BOARDING_TYPE_OPTIONS.map((opt) => (
+                                    <MenuItem key={opt.value} value={opt.value}>
+                                        {opt.label}
+                                    </MenuItem>
+                                ))}
+                            </Select>
+                        </FormControl>
                         <TextField
                             label="Địa chỉ"
                             name="address"
@@ -1038,68 +1081,57 @@ export default function SchoolCampus() {
                                 Đang tự động lấy kinh độ / vĩ độ...
                             </Typography>
                         )}
-                        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                            <TextField
-                                label="Vĩ độ"
-                                name="latitude"
-                                type="number"
-                                fullWidth
-                                value={formValues.latitude}
-                                onChange={handleChange}
-                                placeholder="10.8012"
-                                inputProps={{ step: "any" }}
-                            />
-                            <TextField
-                                label="Kinh độ"
-                                name="longitude"
-                                type="number"
-                                fullWidth
-                                value={formValues.longitude}
-                                onChange={handleChange}
-                                placeholder="106.7104"
-                                inputProps={{ step: "any" }}
-                            />
-                        </Stack>
-                        <FormControl fullWidth>
-                            <InputLabel>Loại nội trú</InputLabel>
-                            <Select
-                                name="boardingType"
-                                value={formValues.boardingType}
-                                label="Loại nội trú"
-                                onChange={handleChange}
-                            >
-                                {BOARDING_TYPE_OPTIONS.map((opt) => (
-                                    <MenuItem key={opt.value} value={opt.value}>
-                                        {opt.label}
-                                    </MenuItem>
-                                ))}
-                            </Select>
-                        </FormControl>
-                        <TextField
-                            label="Số điện thoại"
-                            name="phone"
-                            fullWidth
-                            value={formValues.phone}
-                            onChange={handleChange}
-                            placeholder="0983810915"
-                        />
-                        <TextField
-                            label="Email quản lý cơ sở"
-                            name="email"
-                            type="email"
-                            fullWidth
-                            value={formValues.email}
-                            onChange={handleChange}
-                            error={!!formErrors.email}
-                            helperText={formErrors.email}
-                            placeholder="truonghongductphcm@gmail.com"
-                            required
-                        />
+                        <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid #e2e8f0", boxShadow: "0 8px 24px rgba(15,23,42,0.04)" }}>
+                            <CardContent sx={{ p: 2.5 }}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>
+                                    Địa điểm
+                                </Typography>
+                                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
+                                    <TextField
+                                        label="Vĩ độ"
+                                        name="latitude"
+                                        type="number"
+                                        fullWidth
+                                        size="small"
+                                        value={formValues.latitude}
+                                        onChange={handleChange}
+                                        placeholder="10.8012"
+                                        inputProps={{ step: "any" }}
+                                    />
+                                    <TextField
+                                        label="Kinh độ"
+                                        name="longitude"
+                                        type="number"
+                                        fullWidth
+                                        size="small"
+                                        value={formValues.longitude}
+                                        onChange={handleChange}
+                                        placeholder="106.7104"
+                                        inputProps={{ step: "any" }}
+                                    />
+                                </Box>
+                                <Box sx={{ mt: 2, height: 220, border: "1px solid #e2e8f0", borderRadius: 2, overflow: "hidden" }}>
+                                    <MapContainer center={createMapCenter} zoom={hasCreateLatLng ? 15 : 12} style={{ height: "100%", width: "100%" }}>
+                                        <TileLayer
+                                            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                                        />
+                                        {hasCreateLatLng && (
+                                            <>
+                                                <RecenterMap center={createMapCenter} zoom={15} />
+                                                <CircleMarker center={createMapCenter} radius={8} pathOptions={{ color: "#2563eb", fillColor: "#2563eb", fillOpacity: 0.45 }} />
+                                            </>
+                                        )}
+                                    </MapContainer>
+                                </Box>
+                            </CardContent>
+                        </Card>
                         <Typography variant="body2" sx={{color: "#64748b", fontSize: 13}}>
                             Hệ thống sẽ tạo cơ sở mới và tài khoản quản lý tương ứng với role{" "}
                             <strong>SCHOOL</strong> dựa trên email này.
                         </Typography>
                     </Stack>
+                    </Box>
                 </DialogContent>
                 <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
                     <Button
