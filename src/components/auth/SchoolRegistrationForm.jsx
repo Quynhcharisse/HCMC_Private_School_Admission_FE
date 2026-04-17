@@ -16,6 +16,7 @@ import {
 import {ArrowBack, CalendarMonth} from '@mui/icons-material';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import UploadFileOutlinedIcon from '@mui/icons-material/UploadFileOutlined';
+import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
 import {
     checkTaxCode,
     getSchoolLicenseUploadErrorMessage,
@@ -27,7 +28,6 @@ import {useNavigate} from 'react-router-dom';
 import {enqueueSnackbar} from 'notistack';
 import {showErrorSnackbar, showSuccessSnackbar} from '../ui/AppSnackbar.jsx';
 import CloudinaryUpload from '../ui/CloudinaryUpload.jsx';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import {APP_PRIMARY_DARK, BRAND_NAVY, BRAND_SKY, BRAND_SKY_LIGHT} from '../../constants/homeLandingTheme';
 
 const HEADER_MUTED = 'rgba(30, 58, 138, 0.82)';
@@ -59,6 +59,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
     const [formErrors, setFormErrors] = useState({});
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isUploadingBusinessLicense, setIsUploadingBusinessLicense] = useState(false);
+    const [businessLicenseFileName, setBusinessLicenseFileName] = useState('');
     const foundingDatePickerRef = useRef(null);
     const businessLicenseInputRef = useRef(null);
     const taxCodeRequestIdRef = useRef(0);
@@ -377,6 +378,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
         }
 
         setIsUploadingBusinessLicense(true);
+        setBusinessLicenseFileName(file.name || '');
         setFormErrors((prev) => ({...prev, businessLicenseUrl: ''}));
         try {
             const uploadedUrl = await uploadSchoolBusinessLicensePdf(file);
@@ -386,6 +388,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
             console.error('Business license upload error:', error);
             const msg = getSchoolLicenseUploadErrorMessage(error);
             setFormErrors((prev) => ({...prev, businessLicenseUrl: msg}));
+            setBusinessLicenseFileName('');
             showErrorSnackbar(msg);
         } finally {
             setIsUploadingBusinessLicense(false);
@@ -539,6 +542,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         container
                                         rowSpacing={1}
                                         columnSpacing={{xs: 1, sm: 1.25, md: 2}}
+                                        alignItems="stretch"
                                         sx={{
                                             p: {xs: 0.8, sm: 0.95},
                                             borderRadius: 2,
@@ -905,66 +909,16 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                         borderRadius: 2,
                                                     },
                                                 }}
-                                        />
-                                    </Grid>
-                                        <Grid size={{xs: 12, md: 6}}>
-                                            <TextField
-                                                label="Logo URL"
-                                                name="logoUrl"
-                                                value={formData.logoUrl}
-                                                onChange={handleInputChange}
-                                                fullWidth
-                                                size="small"
-                                                placeholder="https://example.com/logo.png"
-                                                sx={{
-                                                    '& .MuiOutlinedInput-root': {
-                                                        borderRadius: 2,
-                                                    },
-                                                }}
-                                                InputProps={{
-                                                    endAdornment: (
-                                                        <InputAdornment position="end">
-                                                            <CloudinaryUpload
-                                                                inputId="school-registration-logo"
-                                                                accept="image/*"
-                                                                multiple={false}
-                                                                onSuccess={([f]) => {
-                                                                    if (f?.url) {
-                                                                        setFormData((p) => ({...p, logoUrl: f.url}));
-                                                                        enqueueSnackbar("Đã tải logo lên Cloudinary", {variant: "success"});
-                                                                    }
-                                                                }}
-                                                                onError={(m) => enqueueSnackbar(m, {variant: "error"})}
-                                                            >
-                                                                {({inputId, loading}) => (
-                                                                    <IconButton
-                                                                        component="label"
-                                                                        htmlFor={inputId}
-                                                                        disabled={loading}
-                                                                        size="small"
-                                                                        sx={{
-                                                                            borderRadius: 1,
-                                                                            color: BRAND_NAVY,
-                                                                            bgcolor: loading ? 'rgba(85,179,217,0.14)' : 'transparent',
-                                                                        }}
-                                                                    >
-                                                                        <CloudUploadIcon fontSize="small" />
-                                                                    </IconButton>
-                                                                )}
-                                                            </CloudinaryUpload>
-                                                        </InputAdornment>
-                                                    ),
-                                                }}
                                             />
-                                    </Grid>
+                                        </Grid>
                                         <Grid size={{xs: 12, md: 6}}>
                                             <TextField
                                                 label="Giấy phép kinh doanh (PDF)"
                                                 name="businessLicenseUrl"
-                                                value={formData.businessLicenseUrl}
+                                                value={businessLicenseFileName}
                                                 fullWidth
                                                 size="small"
-                                                placeholder="Chỉ thay đổi bằng nút upload"
+                                                placeholder="Chưa chọn file PDF"
                                                 error={!!formErrors.businessLicenseUrl}
                                                 helperText={formErrors.businessLicenseUrl}
                                                 inputProps={{
@@ -1007,7 +961,71 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     ),
                                                 }}
                                             />
-                                    </Grid>
+                                        </Grid>
+                                        <Grid size={{xs: 12}}>
+                                            <CloudinaryUpload
+                                                inputId="school-registration-logo"
+                                                accept="image/*"
+                                                multiple={false}
+                                                onSuccess={([f]) => {
+                                                    if (f?.url) {
+                                                        setFormData((p) => ({...p, logoUrl: f.url}));
+                                                        enqueueSnackbar("Đã tải logo lên Cloudinary", {variant: "success"});
+                                                    }
+                                                }}
+                                                onError={(m) => enqueueSnackbar(m, {variant: "error"})}
+                                            >
+                                                {({inputId, loading}) => (
+                                                    <Box
+                                                        component="label"
+                                                        htmlFor={inputId}
+                                                        sx={{
+                                                            width: '100%',
+                                                            minHeight: {xs: 120, md: 96},
+                                                            border: '2px dashed #bfdbfe',
+                                                            borderRadius: 2,
+                                                            bgcolor: '#f8fafc',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            overflow: 'hidden',
+                                                            p: 1.25,
+                                                            cursor: loading ? 'not-allowed' : 'pointer',
+                                                            transition: 'all 0.2s ease',
+                                                            '&:hover': loading ? {} : {
+                                                                borderColor: '#93c5fd',
+                                                                bgcolor: '#f1f5f9',
+                                                            },
+                                                        }}
+                                                    >
+                                                        {formData.logoUrl ? (
+                                                            <Box
+                                                                component="img"
+                                                                src={formData.logoUrl}
+                                                                alt="Logo trường"
+                                                                sx={{
+                                                                    width: 'auto',
+                                                                    height: 'auto',
+                                                                    maxWidth: {xs: 140, md: 120},
+                                                                    maxHeight: {xs: 140, md: 120},
+                                                                    objectFit: 'contain',
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            <Stack alignItems="center" spacing={0.75}>
+                                                                <CloudUploadOutlinedIcon sx={{fontSize: 28, color: '#6b7280'}} />
+                                                                <Typography
+                                                                    variant="body2"
+                                                                    sx={{color: '#64748b', textAlign: 'center', lineHeight: 1.35}}
+                                                                >
+                                                                    Chạm hoặc thả logo vào đây
+                                                                </Typography>
+                                                            </Stack>
+                                                        )}
+                                                    </Box>
+                                                )}
+                                            </CloudinaryUpload>
+                                        </Grid>
                                 </Grid>
                                 </Box>
 
