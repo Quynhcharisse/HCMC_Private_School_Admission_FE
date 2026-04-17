@@ -71,6 +71,48 @@ function boardingTypeLabel(value) {
     return match ? match.label : "—";
 }
 
+/** Mirror BE `AccountValidation.normalize` */
+function normalizeProfileStr(value) {
+    if (value == null) return null;
+    const trimmed = String(value).trim();
+    return trimmed === "" ? null : trimmed;
+}
+
+function campusPhoneDigits(value) {
+    return String(value ?? "").replace(/\D/g, "");
+}
+
+/** Mirror BE `isValidPhoneNumber` (10 digits, leading 0). */
+function isValidCampusPhone(value) {
+    const digits = campusPhoneDigits(value);
+    return digits.length === 10 && /^0\d{9}$/.test(digits);
+}
+
+/** Mirror BE `isValidHotline`: `^(0|18|19)\d{7,10}$` on digits-only. */
+function isValidSchoolHotline(value) {
+    const digits = String(value ?? "").replace(/\D/g, "");
+    if (!digits) return true;
+    return /^(0|18|19)\d{7,10}$/.test(digits);
+}
+
+/** Mirror BE `hasMaxWords` (> 100 words is invalid). */
+function exceedsMaxWords(value, maxWords = 100) {
+    const n = normalizeProfileStr(value);
+    if (!n) return false;
+    return n.split(/\s+/).filter(Boolean).length > maxWords;
+}
+
+function isAllowedBoardingEnum(value) {
+    const v = normalizeProfileStr(value);
+    if (!v) return false;
+    return BOARDING_TYPE_OPTIONS.some((o) => o.value === v || o.value === normalizeBoardingTypeEnum(v));
+}
+
+function isHttpUrlPrefix(value) {
+    const n = normalizeProfileStr(value);
+    return n != null && n.startsWith("http");
+}
+
 function campusStatusLabel(status) {
     const s = String(status ?? "").toUpperCase();
     if (s === "ACTIVE") return "Hoạt động";
@@ -103,6 +145,7 @@ function localizeApiMessage(message) {
         "school logourl must be a valid url": "Logo trường phải là một URL hợp lệ",
         "require school websiteurl": "Vui lòng cung cấp website trường",
         "school websiteurl must be a valid url": "Website trường phải là một URL hợp lệ",
+        "invalid hotline format": "Số Hotline không hợp lệ (phải từ 8-11 chữ số và bắt đầu bằng 0, 18 hoặc 19)",
     };
     if (viMap[normalized]) return viMap[normalized];
     return String(message);
@@ -575,9 +618,10 @@ export default function SchoolProfile() {
             const longitudeNumber = formValues.longitude === "" ? undefined : Number(formValues.longitude);
             const isBranchCampusPayload = profile?.campus?.isPrimaryBranch === false;
             const cityPayload = (formValues.city && String(formValues.city).trim()) || API_CITY_DEFAULT;
+            const campusPhonePayload = campusPhoneDigits(formValues.phoneNumber);
             const campusBase = {
                 name: formValues.campusName?.trim() || "",
-                phoneNumber: (formValues.phoneNumber || "").replace(/[^\d+]/g, "").trim(),
+                phoneNumber: campusPhonePayload,
                 address: formValues.address?.trim() || "",
                 city: cityPayload,
                 district: formValues.district?.trim() || "",
@@ -720,23 +764,79 @@ export default function SchoolProfile() {
     const initialEditSnapshotRef = useRef("");
 
     const formErrors = useMemo(() => {
+        /** Field order = scroll priority (aligned with BE `AccountValidation` for Role.SCHOOL). */
         const errors = {};
-        if (!formValues.campusName?.trim()) errors.campusName = "Vui lòng nhập tên cơ sở";
-        if (!formValues.phoneNumber?.trim()) errors.phoneNumber = "Vui lòng nhập số điện thoại";
-        if (!/^[0-9+\-\s()]{8,15}$/.test(formValues.phoneNumber?.trim() || "")) {
-            errors.phoneNumber = "Số điện thoại chưa hợp lệ";
+
+        const cityNorm = normalizeProfileStr(formValues.city);
+        const districtNorm = normalizeProfileStr(formValues.district);
+        const phoneNorm = normalizeProfileStr(formValues.phoneNumber);
+
+        if (!phoneNorm) {
+            errors.phoneNumber = "Vui lòng nhập số điện thoại cơ sở";
+        } else if (!isValidCampusPhone(formValues.phoneNumber)) {
+            errors.phoneNumber = "Số điện thoại cơ sở không hợp lệ (phải đủ 10 chữ số và bắt đầu bằng số 0)";
         }
-        if (!formValues.address?.trim()) errors.address = "Vui lòng nhập địa chỉ";
-        if (!isBranchCampus && formValues.websiteUrl?.trim()) {
-            try {
-                // eslint-disable-next-line no-new
-                new URL(formValues.websiteUrl.trim());
-            } catch {
-                errors.websiteUrl = "Đường dẫn website không hợp lệ";
+
+        if (!cityNorm) {
+            errors.city = "Vui lòng chọn Tỉnh/Thành phố";
+        }
+
+        if (!districtNorm) {
+            errors.district = "Vui lòng chọn Quận/Huyện";
+        }
+
+        if (!isAllowedBoardingEnum(formValues.boardingType)) {
+            errors.boardingType = "Vui lòng chọn loại hình nội trú";
+        }
+
+        const addressNorm = normalizeProfileStr(formValues.address);
+        if (!addressNorm) {
+            errors.address = "Vui lòng nhập địa chỉ cơ sở";
+        } else if (exceedsMaxWords(formValues.address)) {
+            errors.address = "Địa chỉ cơ sở không được vượt quá 100 từ";
+        }
+
+        if (!isBranchCampus) {
+            const descNorm = normalizeProfileStr(formValues.schoolDescription);
+            if (!descNorm) {
+                errors.schoolDescription = "Vui lòng nhập mô tả giới thiệu trường";
+            } else if (descNorm.length > 2000) {
+                errors.schoolDescription = "Mô tả trường không được vượt quá 2000 ký tự";
+            }
+
+            const hotlineNorm = normalizeProfileStr(formValues.hotline);
+            if (hotlineNorm != null && !isValidSchoolHotline(formValues.hotline)) {
+                errors.hotline = "Số Hotline không hợp lệ (phải từ 8-11 chữ số và bắt đầu bằng 0, 18 hoặc 19)";
+            }
+
+            const logoNorm = normalizeProfileStr(formValues.logoUrl);
+            if (!logoNorm) {
+                errors.logoUrl = "Vui lòng cung cấp Logo trường";
+            } else if (!isHttpUrlPrefix(logoNorm)) {
+                errors.logoUrl = "Logo trường: Đường dẫn phải là một URL hợp lệ";
+            }
+
+            const webNorm = normalizeProfileStr(formValues.websiteUrl);
+            if (!webNorm) {
+                errors.websiteUrl = "Vui lòng nhập địa chỉ Website trường";
+            } else if (!webNorm.startsWith("http")) {
+                errors.websiteUrl = "Địa chỉ Website trường phải là một đường dẫn (URL) hợp lệ";
             }
         }
+
         return errors;
-    }, [formValues.address, formValues.campusName, formValues.phoneNumber, formValues.websiteUrl, isBranchCampus]);
+    }, [
+        formValues.address,
+        formValues.boardingType,
+        formValues.city,
+        formValues.district,
+        formValues.hotline,
+        formValues.logoUrl,
+        formValues.phoneNumber,
+        formValues.schoolDescription,
+        formValues.websiteUrl,
+        isBranchCampus,
+    ]);
 
     const isFormDirty = useMemo(() => {
         const currentSnapshot = JSON.stringify({
@@ -1170,15 +1270,20 @@ export default function SchoolProfile() {
                                         <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>Thông tin cơ bản</Typography>
                                         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
                                             {!isBranchCampus && <TextField label="Tên trường" value={formValues.schoolName} fullWidth size="small" disabled />}
-                                            <TextField id="school-profile-campusName" label="Tên cơ sở" value={formValues.campusName} onChange={(e) => setFormValues((p) => ({ ...p, campusName: e.target.value }))} error={!!formErrors.campusName} helperText={formErrors.campusName || ""} fullWidth size="small" placeholder="Nhập tên cơ sở" sx={isBranchCampus ? { gridColumn: { xs: "auto", sm: "1 / -1" } } : undefined} />
-                                            <TextField id="school-profile-phoneNumber" label="Số điện thoại" value={formValues.phoneNumber} onChange={(e) => setFormValues((p) => ({ ...p, phoneNumber: e.target.value }))} error={!!formErrors.phoneNumber} helperText={formErrors.phoneNumber || ""} fullWidth size="small" placeholder="Ví dụ: 0983 810 915" />
-                                            <FormControl fullWidth size="small">
-                                                <InputLabel id="school-profile-boarding-type">Hình thức nội trú</InputLabel>
-                                                <Select labelId="school-profile-boarding-type" label="Hình thức nội trú" value={formValues.boardingType || BOARDING_TYPE_DEFAULT} onChange={(e) => setFormValues((p) => ({ ...p, boardingType: e.target.value }))}>
+                                            <TextField id="school-profile-campusName" label="Tên cơ sở" value={formValues.campusName} onChange={(e) => setFormValues((p) => ({ ...p, campusName: e.target.value }))} fullWidth size="small" placeholder="Nhập tên cơ sở" sx={isBranchCampus ? { gridColumn: { xs: "auto", sm: "1 / -1" } } : undefined} />
+                                            <TextField id="school-profile-phoneNumber" label="Số điện thoại cơ sở" value={formValues.phoneNumber} onChange={(e) => setFormValues((p) => ({ ...p, phoneNumber: e.target.value }))} error={!!formErrors.phoneNumber} helperText={formErrors.phoneNumber || "10 chữ số, bắt đầu bằng 0"} fullWidth size="small" placeholder="Ví dụ: 0983810915" />
+                                            <FormControl id="school-profile-boardingType" fullWidth size="small" error={!!formErrors.boardingType}>
+                                                <InputLabel id="school-profile-boarding-type-label">Hình thức nội trú</InputLabel>
+                                                <Select labelId="school-profile-boarding-type-label" label="Hình thức nội trú" value={formValues.boardingType || BOARDING_TYPE_DEFAULT} onChange={(e) => setFormValues((p) => ({ ...p, boardingType: e.target.value }))}>
                                                     {BOARDING_TYPE_OPTIONS.map((o) => (
                                                         <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>
                                                     ))}
                                                 </Select>
+                                                {formErrors.boardingType ? (
+                                                    <Typography component="span" variant="caption" sx={{ color: "error.main", mt: 0.5, ml: 1.75, display: "block" }}>
+                                                        {formErrors.boardingType}
+                                                    </Typography>
+                                                ) : null}
                                             </FormControl>
                                             <TextField id="school-profile-address" label="Địa chỉ" value={formValues.address} onChange={(e) => setFormValues((p) => ({ ...p, address: e.target.value }))} error={!!formErrors.address} helperText={formErrors.address || ""} fullWidth size="small" multiline rows={2} sx={{ gridColumn: { xs: "auto", sm: "1 / -1" } }} />
                                         </Box>
@@ -1189,13 +1294,18 @@ export default function SchoolProfile() {
                                     <CardContent sx={{ p: 3 }}>
                                         <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>Địa điểm</Typography>
                                         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" }, gap: 2 }}>
-                                            <TextField label="Thành phố" value={formValues.city || API_CITY_DEFAULT} fullWidth size="small" disabled />
-                                            <FormControl fullWidth size="small">
-                                                <InputLabel id="school-profile-district">Quận</InputLabel>
-                                                <Select labelId="school-profile-district" label="Quận" value={selectedDistrictCode} onChange={(e) => handleDistrictChange(e.target.value)}>
+                                            <TextField id="school-profile-city" label="Thành phố" value={formValues.city || API_CITY_DEFAULT} fullWidth size="small" disabled error={!!formErrors.city} helperText={formErrors.city || ""} />
+                                            <FormControl id="school-profile-district" fullWidth size="small" error={!!formErrors.district}>
+                                                <InputLabel id="school-profile-district-label">Quận</InputLabel>
+                                                <Select labelId="school-profile-district-label" label="Quận" value={selectedDistrictCode} onChange={(e) => handleDistrictChange(e.target.value)}>
                                                     <MenuItem value="">Chọn quận</MenuItem>
                                                     {districts.map((d) => (<MenuItem key={d.code} value={String(d.code)}>{d.name}</MenuItem>))}
                                                 </Select>
+                                                {formErrors.district ? (
+                                                    <Typography component="span" variant="caption" sx={{ color: "error.main", mt: 0.5, ml: 1.75, display: "block" }}>
+                                                        {formErrors.district}
+                                                    </Typography>
+                                                ) : null}
                                             </FormControl>
                                             <FormControl fullWidth size="small" disabled={!selectedDistrictCode}>
                                                 <InputLabel id="school-profile-ward">Phường</InputLabel>
@@ -1241,32 +1351,48 @@ export default function SchoolProfile() {
                                                 <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 2 }}>Thông tin hiển thị trường</Typography>
                                                 <Stack spacing={2}>
                                                     <TextField
-                                                        label="Mô tả trường"
+                                                        id="school-profile-schoolDescription"
+                                                        label="Mô tả giới thiệu trường"
                                                         value={formValues.schoolDescription}
                                                         onChange={(e) => setFormValues((p) => ({ ...p, schoolDescription: e.target.value }))}
+                                                        error={!!formErrors.schoolDescription}
+                                                        helperText={formErrors.schoolDescription || "Tối đa 2000 ký tự"}
                                                         fullWidth
                                                         size="small"
                                                         multiline
                                                         rows={4}
                                                     />
-                                                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-                                                        <TextField
-                                                            id="school-profile-websiteUrl"
-                                                            label="Website"
-                                                            value={formValues.websiteUrl}
-                                                            onChange={(e) => setFormValues((p) => ({ ...p, websiteUrl: e.target.value }))}
-                                                            error={!!formErrors.websiteUrl}
-                                                            helperText={formErrors.websiteUrl || ""}
-                                                            fullWidth
-                                                            size="small"
-                                                            placeholder="https://..."
-                                                        />
-                                                        <TextField label="Hotline" value={formValues.hotline} onChange={(e) => setFormValues((p) => ({ ...p, hotline: e.target.value }))} fullWidth size="small" />
-                                                    </Box>
-                                                    <Box>
+                                                    <TextField
+                                                        id="school-profile-websiteUrl"
+                                                        label="Website trường"
+                                                        value={formValues.websiteUrl}
+                                                        onChange={(e) => setFormValues((p) => ({ ...p, websiteUrl: e.target.value }))}
+                                                        error={!!formErrors.websiteUrl}
+                                                        helperText={formErrors.websiteUrl || "URL phải bắt đầu bằng http (ví dụ https://...)"}
+                                                        fullWidth
+                                                        size="small"
+                                                        placeholder="https://..."
+                                                    />
+                                                    <TextField
+                                                        id="school-profile-hotline"
+                                                        label="Hotline trường (tuỳ chọn)"
+                                                        value={formValues.hotline}
+                                                        onChange={(e) => setFormValues((p) => ({ ...p, hotline: e.target.value }))}
+                                                        error={!!formErrors.hotline}
+                                                        helperText={formErrors.hotline || "Để trống nếu không dùng. Định dạng: 0xxxxxxxxx hoặc 1800/1900..."}
+                                                        fullWidth
+                                                        size="small"
+                                                        placeholder="Ví dụ: 02812345678"
+                                                    />
+                                                    <Box id="school-profile-logoUrl">
                                                         <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600, display: "block", mb: 1 }}>
                                                             Logo
                                                         </Typography>
+                                                        {formErrors.logoUrl ? (
+                                                            <Typography variant="caption" sx={{ color: "error.main", display: "block", mb: 1 }}>
+                                                                {formErrors.logoUrl}
+                                                            </Typography>
+                                                        ) : null}
                                                         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
                                                             <Tooltip title="Nhấn để xem phóng to" disableHoverListener={!formValues.logoUrl?.trim()}>
                                                                 <Box

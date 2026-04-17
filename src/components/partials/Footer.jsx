@@ -120,7 +120,7 @@ export default function Footer() {
                             }}
                         >
                             <EmailIcon sx={{fontSize: 18, color: BRAND_AQUA}}/>
-                            <Typography variant="body2" sx={{color: '#475569'}}>admissionhcmhighschool@gmail.com</Typography>
+                            <Typography variant="body2" sx={{color: '#475569'}}>edubridgehcm@gmail.com</Typography>
                         </Box>
                     </Grid>
 

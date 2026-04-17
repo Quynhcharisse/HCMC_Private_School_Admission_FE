@@ -1279,15 +1279,15 @@ function HomeTopPromoCarousel({isSignedIn, onRegisterClick, navigate}) {
 function readSignedInRoleFlags() {
     try {
         if (typeof window === "undefined") {
-            return {signedIn: false, admin: false, school: false};
+            return {signedIn: false, admin: false, school: false, parent: false};
         }
         const raw = localStorage.getItem("user");
-        if (!raw) return {signedIn: false, admin: false, school: false};
+        if (!raw) return {signedIn: false, admin: false, school: false, parent: false};
         const user = JSON.parse(raw);
         const r = normalizeUserRole(user.role ?? "");
-        return {signedIn: true, admin: r === "ADMIN", school: r === "SCHOOL"};
+        return {signedIn: true, admin: r === "ADMIN", school: r === "SCHOOL", parent: r === "PARENT"};
     } catch {
-        return {signedIn: false, admin: false, school: false};
+        return {signedIn: false, admin: false, school: false, parent: false};
     }
 }
 
@@ -1300,6 +1300,7 @@ export default function HomePage() {
     const [isSignedIn, setIsSignedIn] = React.useState(authSnapshot.signedIn);
     const [isAdminRole, setIsAdminRole] = React.useState(authSnapshot.admin);
     const [isSchoolRole, setIsSchoolRole] = React.useState(authSnapshot.school);
+    const [isParentRole, setIsParentRole] = React.useState(authSnapshot.parent);
     const [schoolServicePackages, setSchoolServicePackages] = React.useState([]);
     const [servicePackagesLoading, setServicePackagesLoading] = React.useState(false);
     const [buyNowLoadingPackageId, setBuyNowLoadingPackageId] = React.useState(null);
@@ -1324,8 +1325,8 @@ export default function HomePage() {
         [homeSchools]
     );
     const maptilerApiKey = import.meta.env.VITE_MAPTILER_API_KEY ?? "";
-    const isParent = false;
-    const canSaveSchool = false;
+    const isParent = isParentRole;
+    const canSaveSchool = isParentRole;
     const detailIsSaved = false;
     const detailInCompare = false;
     const toggleCompare = React.useCallback(() => {}, []);
@@ -1419,14 +1420,17 @@ export default function HomePage() {
                 const r = normalizeUserRole(user.role ?? "");
                 setIsAdminRole(r === "ADMIN");
                 setIsSchoolRole(r === "SCHOOL");
+                setIsParentRole(r === "PARENT");
             } catch (e) {
                 console.error('Error parsing user data:', e);
                 setIsAdminRole(false);
                 setIsSchoolRole(false);
+                setIsParentRole(false);
             }
         } else {
             setIsAdminRole(false);
             setIsSchoolRole(false);
+            setIsParentRole(false);
         }
     }, []);
 

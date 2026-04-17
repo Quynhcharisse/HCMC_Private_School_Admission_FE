@@ -2426,8 +2426,18 @@ function MainHeader() {
                                                     }}
                                                 >
                                                     <Typography
-                                                        sx={{fontSize: 14, fontWeight: 800, color: '#fff', lineHeight: 1.2, m: 0, display: 'block'}}
-                                                        noWrap
+                                                        sx={{
+                                                            fontSize: 14,
+                                                            fontWeight: 600,
+                                                            color: '#fff',
+                                                            lineHeight: 1.25,
+                                                            m: 0,
+                                                            display: 'block',
+                                                            whiteSpace: 'normal',
+                                                            overflowWrap: 'anywhere',
+                                                            wordBreak: 'break-word',
+                                                            maxWidth: '100%'
+                                                        }}
                                                     >
                                                         {selectedConversationTitle}
                                                     </Typography>

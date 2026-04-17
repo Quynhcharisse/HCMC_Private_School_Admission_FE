@@ -29,7 +29,6 @@ import Pagination from "@mui/material/Pagination";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import EditIcon from "@mui/icons-material/Edit";
 import BlockIcon from "@mui/icons-material/Block";
 import ApartmentIcon from "@mui/icons-material/Apartment";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
@@ -46,6 +45,7 @@ import { CircleMarker, MapContainer, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import {useSchool} from "../../../contexts/SchoolContext.jsx";
 import {extractCampusListBody, listCampuses, createCampus, exportCampusList} from "../../../services/CampusService.jsx";
+import {sendWelcomeEmail} from "../../../services/emailService.jsx";
 import {
     BOARDING_TYPE_DEFAULT_VI,
     BOARDING_TYPE_OPTIONS,
@@ -455,7 +455,41 @@ export default function SchoolCampus() {
                 const account = campusDto.account ?? body?.account;
                 const newCampus = mapCampusFromApi(campusDto, account);
                 setCampuses((prev) => [newCampus, ...prev]);
-                enqueueSnackbar("Tạo cơ sở thành công", {variant: "success"});
+
+                const emailAddr = (newCampus.email || formValues.email.trim()).trim();
+                const displayName =
+                    newCampus.name?.trim() ||
+                    campusDto.name?.trim() ||
+                    (typeof account?.fullName === "string" && account.fullName.trim()) ||
+                    emailAddr.split("@")[0] ||
+                    "Quản lý cơ sở";
+
+                let welcomeMailOk = false;
+                if (emailAddr) {
+                    try {
+                        await sendWelcomeEmail({name: displayName, email: emailAddr});
+                        welcomeMailOk = true;
+                    } catch (emailErr) {
+                        console.error("Welcome email error:", emailErr);
+                        const apiText =
+                            typeof emailErr?.text === "string" && emailErr.text.trim()
+                                ? emailErr.text.trim()
+                                : null;
+                        const mailMsg = emailErr?.message?.includes("Thiếu cấu hình EmailJS")
+                            ? emailErr.message
+                            : apiText
+                              ? `Không gửi được email chào mừng: ${apiText}`
+                              : "Không gửi được email chào mừng.";
+                        enqueueSnackbar(mailMsg, {variant: "warning"});
+                    }
+                }
+
+                enqueueSnackbar(
+                    welcomeMailOk
+                        ? "Tạo cơ sở thành công. Đã gửi email chào mừng."
+                        : "Tạo cơ sở thành công",
+                    {variant: "success"}
+                );
                 handleCloseCreate();
             } else {
                 enqueueSnackbar("Không thể tạo cơ sở", {variant: "error"});
@@ -897,39 +931,6 @@ export default function SchoolCampus() {
                                                 >
                                                     <VisibilityIcon fontSize="small"/>
                                                 </IconButton>
-                                                {isPrimaryBranch && (
-                                                    <>
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleOpenEdit(row);
-                                                            }}
-                                                            sx={{
-                                                                color: "#64748b",
-                                                                "&:hover": {color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)"},
-                                                            }}
-                                                            title="Sửa"
-                                                        >
-                                                            <EditIcon fontSize="small"/>
-                                                        </IconButton>
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleOpenDisableConfirm(row);
-                                                            }}
-                                                            disabled={row.status === "inactive"}
-                                                            sx={{
-                                                                color: "#64748b",
-                                                                "&:hover": {color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)"},
-                                                            }}
-                                                            title="Vô hiệu hóa"
-                                                        >
-                                                            <BlockIcon fontSize="small"/>
-                                                        </IconButton>
-                                                    </>
-                                                )}
                                             </Stack>
                                         </TableCell>
                                     </TableRow>
@@ -1642,7 +1643,7 @@ export default function SchoolCampus() {
                         px: 3,
                         py: 2.25,
                         gap: 2,
-                        justifyContent: "space-between",
+                        justifyContent: "flex-end",
                     }}
                 >
                     <Button
@@ -1652,27 +1653,6 @@ export default function SchoolCampus() {
                         sx={{textTransform: "none", fontWeight: 700, px: 1.25}}
                     >
                         Đóng
-                    </Button>
-                    <Button
-                        variant="contained"
-                        startIcon={<EditIcon/>}
-                        onClick={() => {
-                            setViewModalOpen(false);
-                            handleOpenEdit(selectedCampus);
-                        }}
-                        sx={{
-                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
-                            textTransform: "none",
-                            fontWeight: 800,
-                            borderRadius: 2,
-                            px: 2.75,
-                            boxShadow: "0 10px 24px rgba(13, 100, 222, 0.28)",
-                            "&:hover": {
-                                boxShadow: "0 16px 34px rgba(13, 100, 222, 0.34)",
-                            },
-                        }}
-                    >
-                        Sửa
                     </Button>
                 </DialogActions>
             </Dialog>

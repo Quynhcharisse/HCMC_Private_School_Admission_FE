@@ -3823,6 +3823,28 @@ export default function CampusConfig() {
                           }}
                           inputProps={{readOnly: fieldDisabled}}
                         />
+                        <IconButton
+                          size="small"
+                          color="error"
+                          aria-label="Xoá ca làm việc"
+                          disabled={fieldDisabled}
+                          onClick={() =>
+                            setConfig((c) => {
+                              const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
+                              ws.splice(idx, 1);
+                              return {
+                                ...c,
+                                operationSettingsData: {
+                                  ...c.operationSettingsData,
+                                  workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
+                                },
+                              };
+                            })
+                          }
+                          sx={{...blockPointerSx, alignSelf: {xs: "flex-end", sm: "center"}}}
+                        >
+                          <DeleteOutlineIcon fontSize="small"/>
+                        </IconButton>
                       </Stack>
                     ))}
                     <Button

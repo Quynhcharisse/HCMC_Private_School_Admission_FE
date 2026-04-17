@@ -39,7 +39,7 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AddIcon from "@mui/icons-material/Add";
-import {useSearchParams} from "react-router-dom";
+import {useNavigate, useSearchParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 
 import {extractCampusListBody, listCampuses} from "../../../services/CampusService.jsx";
@@ -1354,6 +1354,7 @@ function admissionMethodExtraEntries(m) {
 export default function SchoolConfig() {
   const isCampusVariant = false;
   const {isPrimaryBranch, currentCampusId, loading: schoolCtxLoading} = useSchool();
+  const navigate = useNavigate();
 
   const [searchParams, setSearchParams] = useSearchParams();
   /** Chỉ dùng khi campus chính + variant campus — id cơ sở chính sau listCampuses. */
@@ -1371,6 +1372,12 @@ export default function SchoolConfig() {
   const tabLabels = isCampusVariant ? BRANCH_TAB_LABELS : TAB_LABELS;
   const tabSlug = searchParams.get("tab") || (isCampusVariant ? "operation" : "admission");
   const tabIndex = tabSlugs.includes(tabSlug) ? tabSlugs.indexOf(tabSlug) : 0;
+
+  useEffect(() => {
+    if (!isCampusVariant && searchParams.get("tab") === "holiday") {
+      navigate("/school/holiday-settings", {replace: true});
+    }
+  }, [isCampusVariant, navigate, searchParams]);
 
   const setTabIndex = useCallback(
     (idx) => {
@@ -1951,11 +1958,32 @@ export default function SchoolConfig() {
     }));
   }, []);
 
+  const removeMandatoryDocumentAt = useCallback((idx) => {
+    setConfig((c) => {
+      const list = [...(c.documentRequirementsData.mandatoryAll || [])];
+      if (!list[idx]) return c;
+      list.splice(idx, 1);
+      return {...c, documentRequirementsData: {...c.documentRequirementsData, mandatoryAll: list}};
+    });
+  }, []);
+
   const addDocumentToMethod = useCallback((gIdx) => {
     setConfig((c) => {
       const by = [...(c.documentRequirementsData.byMethod || [])];
       if (!by[gIdx]) return c;
       const docs = [...(by[gIdx].documents || []), {code: "", name: "", required: true}];
+      by[gIdx] = normalizeByMethodGroup({...by[gIdx], documents: docs});
+      return {...c, documentRequirementsData: {...c.documentRequirementsData, byMethod: by}};
+    });
+  }, []);
+
+  const removeDocumentInMethod = useCallback((gIdx, dIdx) => {
+    setConfig((c) => {
+      const by = [...(c.documentRequirementsData.byMethod || [])];
+      if (!by[gIdx]) return c;
+      const docs = [...(by[gIdx].documents || [])];
+      if (!docs[dIdx]) return c;
+      docs.splice(dIdx, 1);
       by[gIdx] = normalizeByMethodGroup({...by[gIdx], documents: docs});
       return {...c, documentRequirementsData: {...c.documentRequirementsData, byMethod: by}};
     });
@@ -1969,6 +1997,15 @@ export default function SchoolConfig() {
         byMethod: [...(c.documentRequirementsData.byMethod || []), {methodCode: "", documents: []}],
       },
     }));
+  }, []);
+
+  const removeByMethodGroupAt = useCallback((gIdx) => {
+    setConfig((c) => {
+      const by = [...(c.documentRequirementsData.byMethod || [])];
+      if (!by[gIdx]) return c;
+      by.splice(gIdx, 1);
+      return {...c, documentRequirementsData: {...c.documentRequirementsData, byMethod: by}};
+    });
   }, []);
 
   const footerCancelSx = {
@@ -1990,13 +2027,13 @@ export default function SchoolConfig() {
     "&:hover": {bgcolor: "#1d4ed8"},
   };
 
-  const showAdmissionTab = !useCampusConfigFlow && tabIndex === 0;
-  const showDocumentsTab = !useCampusConfigFlow && tabIndex === 1;
-  const showOperationTab = (!useCampusConfigFlow && tabIndex === 2) || (useCampusConfigFlow && tabIndex === 0);
-  const showFinanceTab = !useCampusConfigFlow && tabIndex === 3;
-  const showFacilityTab = (!useCampusConfigFlow && tabIndex === 4) || (useCampusConfigFlow && tabIndex === 1);
-  const showQuotaTab = !useCampusConfigFlow && tabIndex === 5;
-  const showResourceDistributionTab = !useCampusConfigFlow && tabIndex === 6;
+  const showAdmissionTab = !useCampusConfigFlow && tabSlug === "admission";
+  const showDocumentsTab = !useCampusConfigFlow && tabSlug === "documents";
+  const showOperationTab = (!useCampusConfigFlow && tabSlug === "operation") || (useCampusConfigFlow && tabSlug === "operation");
+  const showFinanceTab = !useCampusConfigFlow && tabSlug === "finance";
+  const showFacilityTab = (!useCampusConfigFlow && tabSlug === "facility") || (useCampusConfigFlow && tabSlug === "facility");
+  const showQuotaTab = !useCampusConfigFlow && tabSlug === "quota";
+  const showResourceDistributionTab = !useCampusConfigFlow && tabSlug === "resource-distribution";
 
 
   const pageTitle = isCampusVariant ? "Cấu hình của cơ sở" : "Cấu hình chung cho các cơ sở";
@@ -3086,7 +3123,7 @@ export default function SchoolConfig() {
                   
                   <Stack direction={{xs: "column", sm: "row"}} spacing={2}>
                     <TextField
-                      label="Hạn mức giảm tối đa / so với giá gốc"
+                      label="Hạn mức giảm tối đa / so với giá gốc (%)"
                       type="number"
                       value={
                         config.financePolicyData.priceAdjustment?.minPercent === "" ||
@@ -3111,7 +3148,7 @@ export default function SchoolConfig() {
                       inputProps={{readOnly: fieldDisabled}}
                     />
                     <TextField
-                      label="Hạn mức tăng tối đa / so với giá gốc"
+                      label="Hạn mức tăng tối đa / so với giá gốc (%)"
                       type="number"
                       value={
                         config.financePolicyData.priceAdjustment?.maxPercent === "" ||
@@ -3250,6 +3287,16 @@ export default function SchoolConfig() {
                           }}
                           sx={blockPointerSx}
                         />
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => removeMandatoryDocumentAt(idx)}
+                          aria-label="Xoá hồ sơ bắt buộc chung"
+                          disabled={fieldDisabled}
+                          sx={blockPointerSx}
+                        >
+                          <DeleteOutlineIcon fontSize="small"/>
+                        </IconButton>
                       </Stack>
                     </Box>
                   ))}
@@ -3299,7 +3346,22 @@ export default function SchoolConfig() {
                     }}
                   >
                     <AccordionSummary expandIcon={<ExpandMoreIcon/>}>
-                      <Typography sx={{fontWeight: 700}}>{summaryLabel}</Typography>
+                      <Box sx={{display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", pr: 1}}>
+                        <Typography sx={{fontWeight: 700}}>{summaryLabel}</Typography>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeByMethodGroupAt(gIdx);
+                          }}
+                          aria-label="Xoá nhóm phương thức tuyển sinh"
+                          disabled={fieldDisabled}
+                          sx={blockPointerSx}
+                        >
+                          <DeleteOutlineIcon fontSize="small"/>
+                        </IconButton>
+                      </Box>
                     </AccordionSummary>
                     <AccordionDetails>
                       <Stack spacing={1.5}>
@@ -3418,6 +3480,16 @@ export default function SchoolConfig() {
                                 }}
                                 sx={blockPointerSx}
                               />
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => removeDocumentInMethod(gIdx, dIdx)}
+                                aria-label="Xoá hồ sơ theo phương thức"
+                                disabled={fieldDisabled}
+                                sx={blockPointerSx}
+                              >
+                                <DeleteOutlineIcon fontSize="small"/>
+                              </IconButton>
                             </Stack>
                               </Box>
                         ))}
@@ -3821,6 +3893,28 @@ export default function SchoolConfig() {
                           }}
                           inputProps={{readOnly: fieldDisabled}}
                         />
+                        <IconButton
+                          size="small"
+                          color="error"
+                          aria-label="Xoá ca làm việc"
+                          disabled={fieldDisabled}
+                          onClick={() =>
+                            setConfig((c) => {
+                              const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
+                              ws.splice(idx, 1);
+                              return {
+                                ...c,
+                                operationSettingsData: {
+                                  ...c.operationSettingsData,
+                                  workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
+                                },
+                              };
+                            })
+                          }
+                          sx={{...blockPointerSx, alignSelf: {xs: "flex-end", sm: "center"}}}
+                        >
+                          <DeleteOutlineIcon fontSize="small"/>
+                        </IconButton>
                       </Stack>
                     ))}
                     <Button
