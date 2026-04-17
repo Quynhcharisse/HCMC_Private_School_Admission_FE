@@ -32,6 +32,12 @@ const relationshipOptions = [
     {value: 'OTHER', label: 'Khác'},
 ];
 
+const countWords = (value) => {
+    const trimmed = String(value || '').trim();
+    if (!trimmed) return 0;
+    return trimmed.split(/\s+/).length;
+};
+
 const ParentProfile = ({onBack}) => {
     const navigate = useNavigate();
     const [avatarUrl, setAvatarUrl] = useState(null);
@@ -50,6 +56,7 @@ const ParentProfile = ({onBack}) => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [isFirstLogin, setIsFirstLogin] = useState(false);
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -64,6 +71,7 @@ const ParentProfile = ({onBack}) => {
                             : rawBody || {};
 
                     const parent = body.parent || {};
+                    setIsFirstLogin(Boolean(body.firstLogin));
                     const next = {
                         name: parent.name || body.name || '',
                         gender: parent.gender || '',
@@ -119,7 +127,7 @@ const ParentProfile = ({onBack}) => {
 
     const handleInputChange = (e) => {
         const {name, value} = e.target;
-        if (name === 'idCardNumber') {
+        if (name === 'idCardNumber' && !isFirstLogin) {
             return;
         }
         setFormData(prev => ({
@@ -136,6 +144,7 @@ const ParentProfile = ({onBack}) => {
 
     const validateForm = () => {
         const errors = {};
+        const idCardValue = formData.idCardNumber.trim();
 
         if (!formData.name.trim()) {
             errors.name = 'Họ và tên là bắt buộc';
@@ -145,25 +154,31 @@ const ParentProfile = ({onBack}) => {
         }
         if (!formData.phone.trim()) {
             errors.phone = 'Số điện thoại là bắt buộc';
-        } else if (!/^[0-9]{10,11}$/.test(formData.phone.trim())) {
-            errors.phone = 'Số điện thoại không hợp lệ';
+        } else if (!/^0\d{9}$/.test(formData.phone.trim())) {
+            errors.phone = 'Số điện thoại phụ huynh không hợp lệ (phải đủ 10 chữ số và bắt đầu bằng số 0)';
         }
         if (!formData.relationship) {
             errors.relationship = 'Mối quan hệ với học sinh là bắt buộc';
         }
         if (!formData.occupation.trim()) {
             errors.occupation = 'Nghề nghiệp là bắt buộc';
+        } else if (countWords(formData.occupation) > 100) {
+            errors.occupation = 'Thông tin nghề nghiệp không được vượt quá 100 từ';
         }
         if (!formData.workplace.trim()) {
             errors.workplace = 'Nơi làm việc là bắt buộc';
+        } else if (countWords(formData.workplace) > 100) {
+            errors.workplace = 'Thông tin nơi làm việc không được vượt quá 100 từ';
         }
         if (!formData.currentAddress.trim()) {
             errors.currentAddress = 'Địa chỉ hiện tại là bắt buộc';
+        } else if (countWords(formData.currentAddress) > 100) {
+            errors.currentAddress = 'Địa chỉ không được vượt quá 100 từ';
         }
-        if (!formData.idCardNumber.trim()) {
-            errors.idCardNumber = 'Số CMND/CCCD là bắt buộc';
-        } else if (!/^[0-9]{9,12}$/.test(formData.idCardNumber.trim())) {
-            errors.idCardNumber = 'Số CMND/CCCD không hợp lệ (9-12 chữ số)';
+        if (isFirstLogin && !idCardValue) {
+            errors.idCardNumber = 'Vui lòng nhập số CCCD/CMND trong lần đăng nhập đầu tiên';
+        } else if (idCardValue && !/^\d{12}$/.test(idCardValue)) {
+            errors.idCardNumber = 'Số CCCD phải bao gồm chính xác 12 chữ số';
         }
 
         setFormErrors(errors);
@@ -364,7 +379,7 @@ const ParentProfile = ({onBack}) => {
 
                                     <Grid size={6}>
                                         <TextField
-                                            label="Số CMND/CCCD"
+                                            label={`Số CMND/CCCD${isFirstLogin ? ' *' : ''}`}
                                             name="idCardNumber"
                                             value={formData.idCardNumber}
                                             onChange={handleInputChange}
@@ -372,7 +387,7 @@ const ParentProfile = ({onBack}) => {
                                             size="small"
                                             error={!!formErrors.idCardNumber}
                                             helperText={formErrors.idCardNumber}
-                                            disabled
+                                            disabled={!isEditing || !isFirstLogin}
                                             sx={{
                                                 '& .MuiOutlinedInput-root': {
                                                     borderRadius: 2,
