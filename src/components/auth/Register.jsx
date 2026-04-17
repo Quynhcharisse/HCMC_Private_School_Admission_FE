@@ -64,6 +64,11 @@ const Register = () => {
             return;
         }
 
+        if (!picture) {
+            enqueueSnackbar('Ảnh đại diện từ tài khoản Google là bắt buộc', {variant: 'warning'});
+            return;
+        }
+
         setIsSubmitting(true);
 
         try {
