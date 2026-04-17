@@ -535,24 +535,6 @@ export default function CounsellorParentConsultation() {
     return { id: String(id), text, sender, sentAt, raw: m };
   };
 
-  const getOutgoingMessageStatusLabel = (message) => {
-    const raw = message?.raw || {};
-    const statusRaw =
-      raw?.status ??
-      raw?.messageStatus ??
-      raw?.deliveryStatus ??
-      raw?.readStatus ??
-      message?.status ??
-      null;
-    const s = String(statusRaw ?? "").trim().toUpperCase();
-    if (s.includes("SEEN") || s.includes("READ")) return "Seen";
-    if (s.includes("DELIVER")) return "Delivered";
-    if (s.includes("SEND") || s.includes("SENT")) return "Send";
-    if (raw?.seenAt || raw?.readAt || raw?.readTime) return "Seen";
-    if (raw?.deliveredAt || raw?.deliveredTime) return "Delivered";
-    return "Send";
-  };
-
   const getConversationEmails = (conversation) => {
     const parentEmail =
       conversation?.parentEmail ??
@@ -1544,11 +1526,6 @@ export default function CounsellorParentConsultation() {
                               <Typography sx={{ fontSize: 10.5, color: "#64748b", lineHeight: 1.2 }}>
                                 {formatMessageTime(m.sentAt)}
                               </Typography>
-                              {isMine ? (
-                                <Typography sx={{ fontSize: 10.5, color: "#22c55e", fontWeight: 500, lineHeight: 1.2 }}>
-                                  {getOutgoingMessageStatusLabel(m)}
-                                </Typography>
-                              ) : null}
                             </Box>
 
                           </Box>
