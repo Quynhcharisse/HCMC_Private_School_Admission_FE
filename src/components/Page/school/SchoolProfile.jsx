@@ -1249,20 +1249,17 @@ export default function SchoolProfile() {
                                                         multiline
                                                         rows={4}
                                                     />
-                                                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2 }}>
-                                                        <TextField
-                                                            id="school-profile-websiteUrl"
-                                                            label="Website"
-                                                            value={formValues.websiteUrl}
-                                                            onChange={(e) => setFormValues((p) => ({ ...p, websiteUrl: e.target.value }))}
-                                                            error={!!formErrors.websiteUrl}
-                                                            helperText={formErrors.websiteUrl || ""}
-                                                            fullWidth
-                                                            size="small"
-                                                            placeholder="https://..."
-                                                        />
-                                                        <TextField label="Hotline" value={formValues.hotline} onChange={(e) => setFormValues((p) => ({ ...p, hotline: e.target.value }))} fullWidth size="small" />
-                                                    </Box>
+                                                    <TextField
+                                                        id="school-profile-websiteUrl"
+                                                        label="Website"
+                                                        value={formValues.websiteUrl}
+                                                        onChange={(e) => setFormValues((p) => ({ ...p, websiteUrl: e.target.value }))}
+                                                        error={!!formErrors.websiteUrl}
+                                                        helperText={formErrors.websiteUrl || ""}
+                                                        fullWidth
+                                                        size="small"
+                                                        placeholder="https://..."
+                                                    />
                                                     <Box>
                                                         <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600, display: "block", mb: 1 }}>
                                                             Logo
