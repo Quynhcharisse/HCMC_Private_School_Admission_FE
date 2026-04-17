@@ -253,7 +253,6 @@ export default function AdminSchoolVerification() {
             (item) => item.status === "ACCOUNT_PENDING_VERIFY" || item.status === "PENDING"
         ).length,
         verified: registrations.filter((item) => item.status === "VERIFIED").length,
-        rejected: registrations.filter((item) => item.status === "REJECTED").length,
     };
 
     const statCards = [
@@ -283,15 +282,6 @@ export default function AdminSchoolVerification() {
             iconBg: "#dcfce7",
             cardBg: "#effcf5",
             cardBorder: "#d6f5e4",
-        },
-        {
-            label: "Từ chối",
-            value: stats.rejected,
-            icon: <CancelRoundedIcon sx={{fontSize: 22}}/>,
-            iconColor: "#e11d48",
-            iconBg: "#fee2e2",
-            cardBg: "#fff1f5",
-            cardBorder: "#ffd9e0",
         },
     ];
 
@@ -409,7 +399,7 @@ export default function AdminSchoolVerification() {
                     gridTemplateColumns: {
                         xs: "1fr",
                         sm: "repeat(2, minmax(0, 1fr))",
-                        lg: "repeat(4, minmax(0, 1fr))",
+                        lg: "repeat(3, minmax(0, 1fr))",
                     },
                     gap: 2,
                     width: "100%",

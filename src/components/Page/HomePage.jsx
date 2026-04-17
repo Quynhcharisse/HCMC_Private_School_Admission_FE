@@ -55,11 +55,13 @@ import HomeCreatePostBar from "../ui/HomeCreatePostBar.jsx";
 import topPromoBanner1 from "../../assets/1.png";
 import topPromoBanner2 from "../../assets/2.png";
 import homeBackgroundImage from "../../assets/image.png";
-import {getPublicSchoolList} from "../../services/SchoolPublicService.jsx";
+import {getPublicSchoolDetail, getPublicSchoolList, searchNearbyCampuses} from "../../services/SchoolPublicService.jsx";
 import {getAdminPackageFees} from "../../services/AdminService.jsx";
 import {createSchoolSubscriptionPayment} from "../../services/SchoolSubscriptionService.jsx";
 import {getPostList} from "../../services/PostService.jsx";
 import SchoolServicePackagesGrid from "../ui/SchoolServicePackagesGrid.jsx";
+import SchoolSearchDetailView from "./SchoolSearchDetailView.jsx";
+import {mapPublicSchoolDetailToRow} from "../../utils/schoolPublicMapper.js";
 
 const ADMISSION_CAROUSEL_INTERVAL_MS = 7000;
 const ADMISSION_ANIM_MS = 1400;
@@ -513,7 +515,7 @@ function BlogCard({title, description, descriptionHtml, image, date, tags = [], 
     );
 }
 
-function SchoolCard({school}) {
+function SchoolCard({school, onOpenDetail}) {
     const rating = Number(school.rating) || 0;
     return (
         <Card
@@ -602,6 +604,7 @@ function SchoolCard({school}) {
                     <Button
                         size="small"
                         endIcon={<ArrowForwardIcon sx={{fontSize: 16}} />}
+                        onClick={() => onOpenDetail?.(school)}
                         sx={{
                             textTransform: 'none',
                             fontWeight: 700,
@@ -618,6 +621,34 @@ function SchoolCard({school}) {
             </CardContent>
         </Card>
     );
+}
+
+function mapHomeSchoolCardToDetailRow(school) {
+    return {
+        id: school?.id ?? null,
+        school: school?.name || "Trường đang cập nhật",
+        province: "Hồ Chí Minh",
+        ward: "Đang cập nhật",
+        website: "",
+        phone: "",
+        email: "",
+        counsellorEmail: "",
+        consultantEmails: [],
+        address: school?.location || "TP.HCM",
+        locationLabel: school?.district || "TP.HCM",
+        description: "",
+        averageRating: Number(school?.rating) || 0,
+        totalCampus: 0,
+        logoUrl: school?.cover || DEFAULT_SCHOOL_IMAGE,
+        isFavourite: false,
+        foundingDate: "",
+        representativeName: "",
+        campusList: [],
+        curriculumList: [],
+        boardingType: "",
+        primaryCampusId: null,
+        hasDetailLoaded: false
+    };
 }
 
 function LatestAdmissionNewsSection({refreshTrigger = 0}) {
@@ -1274,6 +1305,9 @@ export default function HomePage() {
     const [buyNowLoadingPackageId, setBuyNowLoadingPackageId] = React.useState(null);
     const [showParentFormModal, setShowParentFormModal] = React.useState(false);
     const [isSubmittingParentForm, setIsSubmittingParentForm] = React.useState(false);
+    const [selectedSchoolDetail, setSelectedSchoolDetail] = React.useState(null);
+    const [schoolDetailLoading, setSchoolDetailLoading] = React.useState(false);
+    const [schoolDetailError, setSchoolDetailError] = React.useState("");
     const submitRef = React.useRef(false);
     const [parentFormData, setParentFormData] = React.useState({
         occupation: '',
@@ -1289,6 +1323,45 @@ export default function HomePage() {
         () => [...homeSchools].sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0)).slice(0, 6),
         [homeSchools]
     );
+    const maptilerApiKey = import.meta.env.VITE_MAPTILER_API_KEY ?? "";
+    const isParent = false;
+    const canSaveSchool = false;
+    const detailIsSaved = false;
+    const detailInCompare = false;
+    const toggleCompare = React.useCallback(() => {}, []);
+    const toggleSave = React.useCallback(() => {}, []);
+    const detailKeyRaw = selectedSchoolDetail?.id ? String(selectedSchoolDetail.id) : "";
+
+    const loadSchoolDetailForHome = React.useCallback(async (schoolId, fallbackCard = null) => {
+        if (!schoolId) return;
+        setSchoolDetailError("");
+        setSchoolDetailLoading(true);
+        setSelectedSchoolDetail(mapHomeSchoolCardToDetailRow(fallbackCard || {id: schoolId}));
+        try {
+            const detail = await getPublicSchoolDetail(schoolId);
+            const mapped = mapPublicSchoolDetailToRow(detail);
+            if (mapped) {
+                setSelectedSchoolDetail(mapped);
+            } else if (fallbackCard) {
+                setSelectedSchoolDetail(mapHomeSchoolCardToDetailRow(fallbackCard));
+            }
+        } catch (error) {
+            setSchoolDetailError(error?.response?.data?.message || "Không tải được chi tiết trường.");
+        } finally {
+            setSchoolDetailLoading(false);
+        }
+    }, []);
+
+    const handleOpenSchoolDetail = React.useCallback(async (school) => {
+        if (!school?.id) return;
+        await loadSchoolDetailForHome(school.id, school);
+    }, [loadSchoolDetailForHome]);
+
+    const closeSchoolDetailDialog = React.useCallback(() => {
+        setSelectedSchoolDetail(null);
+        setSchoolDetailLoading(false);
+        setSchoolDetailError("");
+    }, []);
 
     const consultSectionRef = React.useRef(null);
     const [consultVisible, setConsultVisible] = React.useState(false);
@@ -1674,6 +1747,31 @@ export default function HomePage() {
     };
 
     const showHeadCreatePost = isSignedIn && (isAdminRole || isSchoolRole);
+
+    if (selectedSchoolDetail) {
+        return (
+            <SchoolSearchDetailView
+                school={selectedSchoolDetail}
+                detailKeyRaw={detailKeyRaw}
+                detailLoading={schoolDetailLoading}
+                detailError={schoolDetailError}
+                maptilerApiKey={maptilerApiKey}
+                onSearchNearbyCampuses={searchNearbyCampuses}
+                onOpenSchoolById={async (schoolId) => {
+                    const target = homeSchools.find((s) => Number(s?.id) === Number(schoolId)) || null;
+                    await loadSchoolDetailForHome(schoolId, target);
+                }}
+                onClose={closeSchoolDetailDialog}
+                navigate={navigate}
+                isParent={isParent}
+                canSaveSchool={canSaveSchool}
+                detailIsSaved={detailIsSaved}
+                detailInCompare={detailInCompare}
+                toggleCompare={toggleCompare}
+                toggleSave={toggleSave}
+            />
+        );
+    }
 
     return (
         <Box
@@ -2109,7 +2207,7 @@ export default function HomePage() {
                                 }}
                             >
                                 {showcaseSchools.map((school) => (
-                                    <SchoolCard key={school.id || school.name} school={school} />
+                                    <SchoolCard key={school.id || school.name} school={school} onOpenDetail={handleOpenSchoolDetail} />
                                 ))}
                             </Box>
                         )}

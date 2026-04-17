@@ -42,7 +42,8 @@ import {
     School as SchoolIcon,
     Share as ShareIcon,
     Favorite as FavoriteIcon,
-    FavoriteBorder as FavoriteBorderIcon
+    FavoriteBorder as FavoriteBorderIcon,
+    KeyboardArrowUp as KeyboardArrowUpIcon
 } from "@mui/icons-material";
 import {MapContainer, Marker, Popup, TileLayer} from "react-leaflet";
 import L from "leaflet";
@@ -1069,6 +1070,7 @@ export default function SchoolSearchDetailView({
     const [nearbyLoading, setNearbyLoading] = React.useState(false);
     const [nearbyError, setNearbyError] = React.useState("");
     const [nearbyNotice, setNearbyNotice] = React.useState("");
+    const [showScrollTopButton, setShowScrollTopButton] = React.useState(false);
 
     const schoolCampusMarkers = React.useMemo(() => {
         const list = Array.isArray(school?.campusList) ? school.campusList : [];
@@ -1289,6 +1291,7 @@ export default function SchoolSearchDetailView({
                     }
                 }
                 setDetailActiveSection(active);
+                setShowScrollTopButton(root.scrollTop > 260);
             });
         };
 
@@ -1299,6 +1302,12 @@ export default function SchoolSearchDetailView({
             root.removeEventListener("scroll", onScroll);
         };
     }, [school, detailKeyRaw]);
+
+    const scrollToDetailTop = React.useCallback(() => {
+        const root = detailScrollRef.current;
+        if (!root) return;
+        root.scrollTo({top: 0, behavior: "smooth"});
+    }, []);
 
     const detailHeroActionBtnSx = {
         textTransform: "none",
@@ -1400,6 +1409,28 @@ export default function SchoolSearchDetailView({
                 }}
             >
                 <ArrowBackIcon/>
+            </IconButton>
+            <IconButton
+                aria-label="Cuộn lên đầu trang"
+                onClick={scrollToDetailTop}
+                sx={{
+                    position: "fixed",
+                    right: {xs: 12, sm: 20},
+                    bottom: {xs: 14, sm: 20},
+                    zIndex: 1400,
+                    width: 40,
+                    height: 40,
+                    bgcolor: BRAND_NAVY,
+                    color: "#fff",
+                    boxShadow: "0 10px 24px rgba(15,23,42,0.25)",
+                    opacity: showScrollTopButton ? 1 : 0,
+                    transform: showScrollTopButton ? "translateY(0)" : "translateY(12px)",
+                    pointerEvents: showScrollTopButton ? "auto" : "none",
+                    transition: "opacity 0.24s ease, transform 0.24s ease",
+                    "&:hover": {bgcolor: APP_PRIMARY_DARK}
+                }}
+            >
+                <KeyboardArrowUpIcon/>
             </IconButton>
 
             <Box
