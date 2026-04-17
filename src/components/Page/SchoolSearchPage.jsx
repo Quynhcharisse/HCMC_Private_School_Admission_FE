@@ -16,7 +16,6 @@ import {
     Rating,
     Stack,
     TextField,
-    Tooltip,
     Typography,
     CircularProgress
 } from "@mui/material";
@@ -30,7 +29,6 @@ import {
     LocationOn as LocationOnIcon,
     Phone as PhoneIcon,
     Search as SearchIcon,
-    Sort as SortIcon,
     Tune as TuneIcon
 } from "@mui/icons-material";
 import {useLocation, useNavigate} from "react-router-dom";
@@ -49,19 +47,49 @@ import {
     MAX_COMPARE_SCHOOLS,
     setCompareSchools
 } from "../../utils/compareSchoolsStorage";
-import TuitionFilter from "../ui/TuitionFilter";
 import {showSuccessSnackbar, showWarningSnackbar} from "../ui/AppSnackbar.jsx";
 import {
     getSchoolStorageKey,
     getUserIdentity
 } from "../../utils/savedSchoolsStorage";
 import {getPublicSchoolDetail, getPublicSchoolList, searchNearbyCampuses} from "../../services/SchoolPublicService.jsx";
-import {postParentFavouriteSchool} from "../../services/ParentService.jsx";
+import {
+    deleteParentFavouriteSchool,
+    getParentFavouriteSchools,
+    postParentFavouriteSchool
+} from "../../services/ParentService.jsx";
 import SchoolSearchDetailView from "./SchoolSearchDetailView.jsx";
 import {DEFAULT_SCHOOL_IMAGE, mapPublicSchoolDetailToRow, normalizeProvinceName} from "../../utils/schoolPublicMapper.js";
 
 const LOCATION_FALLBACK_PROVINCE = "Tất cả";
 const LOCATION_FALLBACK_WARD = "Tất cả";
+const FAVOURITE_SYNC_PAGE_SIZE = 200;
+
+function parseFavouriteListPayload(res) {
+    const raw = res?.data?.body ?? res?.body ?? res?.data ?? res;
+    if (Array.isArray(raw?.items)) return raw.items;
+    if (Array.isArray(raw?.content)) return raw.content;
+    if (Array.isArray(raw)) return raw;
+    return [];
+}
+
+function buildFavouriteIdBySchool(items) {
+    const map = {};
+    for (const item of items) {
+        const schoolId = Number(
+            item?.schoolId ??
+            item?.school?.schoolId ??
+            item?.school?.id ??
+            item?.id ??
+            null
+        );
+        const favouriteId = Number(item?.id ?? item?.favouriteId ?? null);
+        if (Number.isFinite(schoolId) && Number.isFinite(favouriteId)) {
+            map[schoolId] = favouriteId;
+        }
+    }
+    return map;
+}
 
 function mapPublicSchoolToRow(api) {
     if (!api || typeof api !== "object") return null;
@@ -97,12 +125,13 @@ export default function SchoolSearchPage() {
     const navigate = useNavigate();
     const location = useLocation();
     const rawUser = typeof window !== "undefined" ? localStorage.getItem("user") : null;
-    let userInfo = null;
-    try {
-        userInfo = rawUser ? JSON.parse(rawUser) : null;
-    } catch {
-        userInfo = null;
-    }
+    const userInfo = React.useMemo(() => {
+        try {
+            return rawUser ? JSON.parse(rawUser) : null;
+        } catch {
+            return null;
+        }
+    }, [rawUser]);
 
     const isParent = userInfo?.role === "PARENT";
     const userIdentity = getUserIdentity(userInfo);
@@ -114,9 +143,8 @@ export default function SchoolSearchPage() {
     const [listError, setListError] = React.useState(null);
     const [detailLoading, setDetailLoading] = React.useState(false);
     const [detailError, setDetailError] = React.useState(null);
+    const [favouriteIdBySchool, setFavouriteIdBySchool] = React.useState({});
     const [selectedDistrict, setSelectedDistrict] = React.useState("");
-    const [tuitionMin, setTuitionMin] = React.useState(0);
-    const [tuitionMax, setTuitionMax] = React.useState(30);
     const [selectedProvince, setSelectedProvince] = React.useState("");
     const [selectedBoardingType, setSelectedBoardingType] = React.useState(null);
 
@@ -366,18 +394,67 @@ export default function SchoolSearchPage() {
         return undefined;
     }, [detailSchool]);
 
+    const syncFavouriteLookup = React.useCallback(async () => {
+        if (!isParent) {
+            setFavouriteIdBySchool({});
+            return {};
+        }
+        try {
+            const res = await getParentFavouriteSchools(0, FAVOURITE_SYNC_PAGE_SIZE);
+            const items = parseFavouriteListPayload(res);
+            const nextMap = buildFavouriteIdBySchool(items);
+            setFavouriteIdBySchool(nextMap);
+            return nextMap;
+        } catch {
+            return null;
+        }
+    }, [isParent]);
+
+    React.useEffect(() => {
+        if (!isParent) {
+            setFavouriteIdBySchool({});
+            return;
+        }
+        void syncFavouriteLookup();
+    }, [isParent, userIdentity, syncFavouriteLookup]);
+
     const toggleSave = async (schoolRecord) => {
         if (!isParent || !userInfo) {
             showWarningSnackbar("Bạn phải đăng nhập với vai trò Phụ huynh để yêu thích trường.");
             return;
         }
-        if (!schoolRecord?.id) {
+        const rawId =
+            schoolRecord?.schoolId ??
+            schoolRecord?.id ??
+            (String(schoolRecord?.schoolKey || "").startsWith("id:")
+                ? String(schoolRecord.schoolKey).slice(3)
+                : null);
+        const schoolId = Number(rawId);
+        if (!Number.isFinite(schoolId)) {
             showWarningSnackbar("Không xác định được trường để cập nhật yêu thích.");
             return;
         }
-        const exists = Boolean(schoolRecord?.isFavourite);
+        let favouriteId = Number(favouriteIdBySchool[schoolId]);
+        const exists = Boolean(
+            (Number(detailSchool?.id) === schoolId ? detailSchool?.isFavourite : undefined) ??
+                schools.find((s) => Number(s?.id) === schoolId)?.isFavourite ??
+                schoolRecord?.isFavourite ??
+                Number.isFinite(favouriteId)
+        );
         try {
-            await postParentFavouriteSchool({schoolId: schoolRecord.id});
+            if (exists) {
+                if (!Number.isFinite(favouriteId)) {
+                    const refreshed = await syncFavouriteLookup();
+                    favouriteId = Number(refreshed?.[schoolId]);
+                }
+                if (!Number.isFinite(favouriteId)) {
+                    showWarningSnackbar("Không tìm thấy id yêu thích để bỏ yêu thích.");
+                    return;
+                }
+                await deleteParentFavouriteSchool(favouriteId);
+            } else {
+                await postParentFavouriteSchool({schoolId});
+            }
         } catch (e) {
             const msg =
                 e?.response?.data?.message ||
@@ -388,7 +465,7 @@ export default function SchoolSearchPage() {
         }
         setSchools((prev) =>
             prev.map((item) =>
-                item?.id === schoolRecord.id
+                Number(item?.id) === schoolId
                     ? {
                         ...item,
                         isFavourite: !exists
@@ -396,6 +473,7 @@ export default function SchoolSearchPage() {
                     : item
             )
         );
+        await syncFavouriteLookup();
         showSuccessSnackbar(exists ? "Đã bỏ trường khỏi Trường yêu thích." : "Đã thêm trường vào Trường yêu thích.");
     };
 
@@ -524,7 +602,7 @@ export default function SchoolSearchPage() {
                                 maxWidth: 720
                             }}
                         >
-                            Lọc theo khu vực, học phí và nhu cầu nội trú — giao diện đồng bộ với trang chủ EduBridge HCM.
+                            Lọc theo khu vực và nhu cầu nội trú — giao diện đồng bộ với trang chủ EduBridge HCM.
                         </Typography>
                     </Box>
                 </Card>
@@ -674,17 +752,6 @@ export default function SchoolSearchPage() {
                                     ))}
                                 </Box>
                             </Box>
-                            <Divider sx={{borderColor: 'rgba(226,232,240,0.95)'}}/>
-                            <Box>
-                                <TuitionFilter
-                                    tuitionMin={tuitionMin}
-                                    tuitionMax={tuitionMax}
-                                    onChange={(min, max) => {
-                                        setTuitionMin(min);
-                                        setTuitionMax(max);
-                                    }}
-                                />
-                            </Box>
                         </Stack>
                     </Card>
 
@@ -719,22 +786,22 @@ export default function SchoolSearchPage() {
                                         letterSpacing: '0.02em'
                                     }}
                                 >
-                                    Tìm kiếm & sắp xếp
+                                    Tìm kiếm
                                 </Typography>
                             </Box>
                             <Box
                                 sx={{
                                     p: {xs: 1.75, sm: 2},
                                     pt: {xs: 1.75, sm: 2},
-                                    display: 'grid',
-                                    gridTemplateColumns: {xs: '1fr', md: 'minmax(0, 7fr) minmax(0, 3fr)'},
-                                    gap: {xs: 1.75, md: 2},
-                                    alignItems: 'center'
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: 1.5
                                 }}
                             >
                                 <TextField
                                     placeholder="Tìm kiếm trường học..."
                                     size="small"
+                                    fullWidth
                                     value={searchKeyword}
                                     onChange={(e) => setSearchKeyword(e.target.value)}
                                     InputProps={{
@@ -792,17 +859,8 @@ export default function SchoolSearchPage() {
                                         },
                                     }}
                                 />
-                                <Box
-                                    sx={{
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: {xs: 'flex-start', md: 'flex-end'},
-                                        gap: 1.5,
-                                        flexWrap: 'wrap',
-                                        minWidth: 0
-                                    }}
-                                >
-                                    {compareCount > 0 && (
+                                {compareCount > 0 && (
+                                    <Box sx={{display: 'flex', justifyContent: 'flex-end'}}>
                                         <Button
                                             size="small"
                                             variant="contained"
@@ -818,42 +876,8 @@ export default function SchoolSearchPage() {
                                         >
                                             So sánh ({compareCount})
                                         </Button>
-                                    )}
-                                    <Tooltip title="Sắp xếp theo" enterTouchDelay={0}>
-                                        <Box
-                                            component="span"
-                                            sx={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                flexShrink: 0,
-                                                color: BRAND_NAVY
-                                            }}
-                                        >
-                                            <SortIcon sx={{fontSize: 22}} aria-label="Sắp xếp theo"/>
-                                        </Box>
-                                    </Tooltip>
-                                    <TextField
-                                        select
-                                        size="small"
-                                        defaultValue="fit"
-                                        sx={{
-                                            minWidth: {xs: 160, sm: 178},
-                                            flex: {xs: '1 1 160px', md: '0 1 auto'},
-                                            '& .MuiOutlinedInput-root': {
-                                                borderRadius: 999,
-                                                bgcolor: 'rgba(255,255,255,0.92)',
-                                                '& fieldset': {borderColor: 'rgba(59,130,246,0.2)'},
-                                                '&:hover fieldset': {borderColor: 'rgba(59,130,246,0.38)'},
-                                                '&.Mui-focused fieldset': {borderColor: BRAND_NAVY, borderWidth: 2}
-                                            }
-                                        }}
-                                    >
-                                        <MenuItem value="fit">Phù hợp nhất</MenuItem>
-                                        <MenuItem value="tuitionAsc">Học phí tăng dần</MenuItem>
-                                        <MenuItem value="tuitionDesc">Học phí giảm dần</MenuItem>
-                                    </TextField>
-                                </Box>
+                                    </Box>
+                                )}
                             </Box>
                         </Card>
 
@@ -880,8 +904,8 @@ export default function SchoolSearchPage() {
                                         sx={{
                                             position: "relative",
                                             display: 'grid',
-                                            gridTemplateColumns: {xs: '1fr', sm: 'minmax(0, 2fr) minmax(0, 8fr)'},
-                                            gap: {xs: 1.25, sm: 1.75},
+                                            gridTemplateColumns: {xs: '1fr', sm: 'minmax(0, 2.6fr) minmax(0, 7.4fr)'},
+                                            gap: {xs: 1.25, sm: 2},
                                             p: {xs: 1.25, sm: 1.35},
                                             borderRadius: 3,
                                             border: '1px solid rgba(203,213,225,0.95)',
@@ -903,10 +927,10 @@ export default function SchoolSearchPage() {
                                             alignItems: 'center',
                                             justifyContent: 'center',
                                             width: '100%',
-                                            maxWidth: {xs: '100%', sm: 104},
+                                            maxWidth: {xs: '100%', sm: 148},
                                             justifySelf: {sm: 'center'},
                                             alignSelf: 'stretch',
-                                            minHeight: {xs: 100, sm: 92},
+                                            minHeight: {xs: 128, sm: 132},
                                             py: {xs: 0.35, sm: 0.25}
                                         }}
                                     >
@@ -915,15 +939,15 @@ export default function SchoolSearchPage() {
                                             image={school.logoUrl || DEFAULT_SCHOOL_IMAGE}
                                             alt={`${school.school} logo`}
                                             sx={{
-                                                height: {xs: 100, sm: 88},
-                                                width: {xs: '100%', sm: 88},
+                                                height: {xs: 120, sm: 120},
+                                                width: {xs: '100%', sm: 120},
                                                 maxWidth: '100%',
                                                 borderRadius: {xs: 2.5, sm: '50%'},
                                                 objectFit: 'contain',
                                                 objectPosition: 'center',
                                                 display: 'block',
                                                 bgcolor: {sm: 'rgba(248,250,252,0.95)'},
-                                                p: {sm: 0.5},
+                                                p: {sm: 0.65},
                                                 m: 0
                                             }}
                                         />
@@ -1128,23 +1152,26 @@ export default function SchoolSearchPage() {
                                                 sx={{
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
-                                                    gap: 0.4,
-                                                    color: inCompare ? BRAND_NAVY : '#4a5568',
-                                                    fontSize: '0.6875rem',
+                                                    gap: 0.45,
+                                                    fontSize: '0.75rem',
                                                     fontWeight: 700,
-                                                    borderRadius: 1.5,
-                                                    py: 0.35,
-                                                    px: 0.75,
-                                                    bgcolor: inCompare
-                                                        ? 'rgba(59,130,246,0.12)'
-                                                        : 'rgba(226,232,240,0.85)',
-                                                    '&:hover': {bgcolor: inCompare ? 'rgba(59,130,246,0.18)' : 'rgba(226,232,240,1)'}
+                                                    borderRadius: 999,
+                                                    py: 0.45,
+                                                    px: 1,
+                                                    border: '1px solid',
+                                                    borderColor: inCompare ? 'rgba(59,130,246,0.45)' : 'rgba(203,213,225,0.95)',
+                                                    color: inCompare ? BRAND_NAVY : '#475569',
+                                                    bgcolor: inCompare ? 'rgba(59,130,246,0.12)' : 'rgba(241,245,249,0.98)',
+                                                    '&:hover': {
+                                                        bgcolor: inCompare ? 'rgba(59,130,246,0.18)' : 'rgba(226,232,240,0.95)',
+                                                        borderColor: inCompare ? 'rgba(59,130,246,0.55)' : 'rgba(148,163,184,0.85)'
+                                                    }
                                                 }}
                                             >
                                                 {inCompare ? (
-                                                    <CheckCircleIcon sx={{fontSize: 14, color: BRAND_NAVY}}/>
+                                                    <CheckCircleIcon sx={{fontSize: 16, color: BRAND_NAVY}}/>
                                                 ) : (
-                                                    <AddIcon sx={{fontSize: 14, color: '#4a5568'}}/>
+                                                    <AddIcon sx={{fontSize: 16, color: '#64748b'}}/>
                                                 )}
                                                 So sánh
                                             </ButtonBase>
@@ -1161,22 +1188,27 @@ export default function SchoolSearchPage() {
                                                 sx={{
                                                     display: 'inline-flex',
                                                     alignItems: 'center',
-                                                    gap: 0.4,
-                                                    color: isSaved ? '#e11d48' : '#4a5568',
-                                                    fontSize: '0.6875rem',
+                                                    gap: 0.45,
+                                                    fontSize: '0.75rem',
                                                     fontWeight: 700,
-                                                    borderRadius: 1.5,
-                                                    py: 0.35,
-                                                    px: 0.35,
-                                                    bgcolor: 'transparent',
-                                                    '&:hover': {bgcolor: 'rgba(59,130,246,0.06)'},
+                                                    borderRadius: 999,
+                                                    py: 0.45,
+                                                    px: 1,
+                                                    border: '1px solid',
+                                                    borderColor: isSaved ? 'rgba(244,63,94,0.45)' : 'rgba(203,213,225,0.95)',
+                                                    color: isSaved ? '#e11d48' : '#475569',
+                                                    bgcolor: isSaved ? 'rgba(244,63,94,0.1)' : 'rgba(241,245,249,0.98)',
+                                                    '&:hover': {
+                                                        bgcolor: isSaved ? 'rgba(244,63,94,0.16)' : 'rgba(226,232,240,0.95)',
+                                                        borderColor: isSaved ? 'rgba(244,63,94,0.55)' : 'rgba(148,163,184,0.85)'
+                                                    },
                                                     '&.Mui-disabled': {opacity: 0.5}
                                                 }}
                                             >
                                                 {isSaved ? (
-                                                    <FavoriteIcon sx={{fontSize: 14, color: '#e11d48'}}/>
+                                                    <FavoriteIcon sx={{fontSize: 16, color: '#e11d48'}}/>
                                                 ) : (
-                                                    <FavoriteBorderIcon sx={{fontSize: 14, color: '#4a5568'}}/>
+                                                    <FavoriteBorderIcon sx={{fontSize: 16, color: '#64748b'}}/>
                                                 )}
                                                 {isSaved ? "Đã yêu thích" : "Yêu thích"}
                                             </ButtonBase>
