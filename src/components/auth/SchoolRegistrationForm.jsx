@@ -1,4 +1,4 @@
-import React, {useRef, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {
     Box,
     Button,
@@ -29,8 +29,11 @@ import {enqueueSnackbar} from 'notistack';
 import {showErrorSnackbar, showSuccessSnackbar} from '../ui/AppSnackbar.jsx';
 import CloudinaryUpload from '../ui/CloudinaryUpload.jsx';
 import {APP_PRIMARY_DARK, BRAND_NAVY, BRAND_SKY, BRAND_SKY_LIGHT} from '../../constants/homeLandingTheme';
+import {getSystemConfig} from '../../services/SystemConfigService.jsx';
 
 const HEADER_MUTED = 'rgba(30, 58, 138, 0.82)';
+const PHONE_REGEX = /^\d{10}$/;
+const URL_REGEX = /^(https?|ftp):\/\/[^\s/$.?#].[^\s]*$/i;
 
 const MAX_BUSINESS_LICENSE_PDF_BYTES =
     (() => {
@@ -72,6 +75,44 @@ const SchoolRegistrationForm = ({email, onBack}) => {
         taxCode: '',
         isValid: false
     });
+    const [allowedImgFormats, setAllowedImgFormats] = useState([]);
+    const [allowedDocFormats, setAllowedDocFormats] = useState([]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const normalizeFormat = (value) => {
+            const raw = String(value ?? '').trim().toLowerCase();
+            if (!raw) return '';
+            return raw.startsWith('.') ? raw : `.${raw}`;
+        };
+
+        const extractFormats = (media, keys = []) => {
+            const source = keys.find((key) => Array.isArray(media?.[key]));
+            if (!source) return [];
+            return media[source]
+                .map((item) => (typeof item === 'string' ? item : item?.format))
+                .map(normalizeFormat)
+                .filter(Boolean);
+        };
+
+        const loadMediaFormats = async () => {
+            try {
+                const res = await getSystemConfig();
+                const media = res?.data?.data?.media || res?.data?.media || res?.media;
+                if (!isMounted || !media) return;
+                setAllowedImgFormats(extractFormats(media, ['imgFormats', 'imgFormat']));
+                setAllowedDocFormats(extractFormats(media, ['docFormats', 'docFormat']));
+            } catch (error) {
+                console.error('Failed to load media format config:', error);
+            }
+        };
+
+        loadMediaFormats();
+        return () => {
+            isMounted = false;
+        };
+    }, []);
 
     const formatDisplayDate = (value) => {
         if (!value) return '';
@@ -250,31 +291,59 @@ const SchoolRegistrationForm = ({email, onBack}) => {
 
     const validateForm = () => {
         const errors = {};
+        const trimmedCampusPhone = formData.campusPhone.trim();
+        const trimmedHotline = formData.hotline.trim();
+        const trimmedWebsiteUrl = formData.websiteUrl.trim();
+        const normalizedFoundingDate = normalizeFoundingDate(formData.foundingDate);
+        const today = new Date().toISOString().slice(0, 10);
+        const normalizeSuffix = (value) => String(value ?? '').split('?')[0].split('#')[0].toLowerCase();
+        const hasAllowedSuffix = (value, allowedList) => {
+            if (!value || allowedList.length === 0) return true;
+            const normalized = normalizeSuffix(value);
+            return allowedList.some((suffix) => normalized.endsWith(suffix.toLowerCase()));
+        };
         
         if (!formData.schoolName.trim()) {
-            errors.schoolName = 'Tên trường là bắt buộc';
-        }
-        if (!formData.description.trim()) {
-            errors.description = 'Mô tả trường là bắt buộc';
+            errors.schoolName = 'Tên trường không được để trống';
         }
         if (!formData.campusAddress.trim()) {
-            errors.campusAddress = 'Địa chỉ cơ sở là bắt buộc';
+            errors.campusAddress = 'Địa chỉ cơ sở không được để trống';
         }
-        if (!formData.campusPhone.trim()) {
-            errors.campusPhone = 'Số điện thoại cơ sở là bắt buộc';
+        if (!trimmedCampusPhone) {
+            errors.campusPhone = 'Số điện thoại cơ sở không được để trống';
+        } else if (!PHONE_REGEX.test(trimmedCampusPhone)) {
+            errors.campusPhone = 'Số điện thoại cơ sở phải bao gồm 10 chữ số';
         }
         if (!formData.taxCode.trim()) {
-            errors.taxCode = 'Mã số thuế là bắt buộc';
+            errors.taxCode = 'Mã số thuế không được để trống';
         }
         if (!formData.representativeName.trim()) {
-            errors.representativeName = 'Tên người đại diện là bắt buộc';
+            errors.representativeName = 'Tên người đại diện không được để trống';
         }
-        if (!formData.hotline.trim()) {
-            errors.hotline = 'Hotline là bắt buộc';
+        if (!formData.businessLicenseUrl.trim()) {
+            errors.businessLicenseUrl = 'Ảnh/Tệp giấy phép kinh doanh là bắt buộc';
+        }
+        if (trimmedHotline && !PHONE_REGEX.test(trimmedHotline)) {
+            errors.hotline = 'Số Hotline phải có đủ 10 số';
+        }
+        if (trimmedWebsiteUrl && !URL_REGEX.test(trimmedWebsiteUrl)) {
+            errors.websiteUrl = 'Định dạng địa chỉ Website không hợp lệ (phải bắt đầu bằng http:// hoặc https://)';
         }
         const hasFoundingDateInput = /\d/.test(formData.foundingDate);
-        if (hasFoundingDateInput && !normalizeFoundingDate(formData.foundingDate)) {
+        if (hasFoundingDateInput && !normalizedFoundingDate) {
             errors.foundingDate = 'Ngày thành lập phải đúng định dạng dd/mm/yyyy';
+        } else if (!normalizedFoundingDate) {
+            errors.foundingDate = 'Vui lòng chọn ngày thành lập trường';
+        } else if (normalizedFoundingDate > today) {
+            errors.foundingDate = 'Ngày thành lập không thể lớn hơn ngày hiện tại';
+        }
+
+        if (!errors.logoUrl && !hasAllowedSuffix(formData.logoUrl.trim(), allowedImgFormats)) {
+            errors.logoUrl = `Logo trường: không hỗ trợ. Chỉ chấp nhận: ${allowedImgFormats.join(', ')}`;
+        }
+
+        if (!errors.businessLicenseUrl && !hasAllowedSuffix(formData.businessLicenseUrl.trim(), allowedDocFormats)) {
+            errors.businessLicenseUrl = `Giấy phép kinh doanh: không hỗ trợ. Chỉ chấp nhận: ${allowedDocFormats.join(', ')}`;
         }
 
         setFormErrors(errors);
@@ -312,6 +381,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                 return;
             }
 
+            const normalizedFoundingDate = normalizeFoundingDate(formData.foundingDate);
+
             const registerPayload = {
                 email: email,
                 role: 'SCHOOL',
@@ -323,9 +394,9 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                     taxCode: taxCodeValue,
                     websiteUrl: formData.websiteUrl.trim() || null,
                     logoUrl: formData.logoUrl.trim() || null,
-                    foundingDate: normalizeFoundingDate(formData.foundingDate),
+                    foundingDate: normalizedFoundingDate,
                     representativeName: formData.representativeName.trim(),
-                    hotline: formData.hotline.trim(),
+                    hotline: formData.hotline.trim() || null,
                     businessLicenseUrl: formData.businessLicenseUrl.trim() || null,
                 }
             };
@@ -726,7 +797,6 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                         <Grid size={{xs: 12, md: 6}} sx={{display: 'flex', alignItems: 'flex-start'}}>
                                             <TextField
                                                 label="Mô tả trường"
-                                                required
                                                 name="description"
                                                 value={formData.description}
                                                 onChange={handleInputChange}
@@ -824,7 +894,6 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 />
                                                 <TextField
                                                     label="Hotline"
-                                                    required
                                                     name="hotline"
                                                     value={formData.hotline}
                                                     onChange={handleInputChange}
@@ -850,6 +919,9 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             fullWidth
                                             size="small"
                                             placeholder="https://example.com"
+                                            error={!!formErrors.websiteUrl}
+                                            helperText={formErrors.websiteUrl}
+                                            FormHelperTextProps={{sx: {minHeight: 20}}}
                                                 sx={{
                                                     '& .MuiOutlinedInput-root': {
                                                         borderRadius: 2,
@@ -970,6 +1042,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 onSuccess={([f]) => {
                                                     if (f?.url) {
                                                         setFormData((p) => ({...p, logoUrl: f.url}));
+                                                        setFormErrors((prev) => ({...prev, logoUrl: ''}));
                                                         enqueueSnackbar("Đã tải logo lên Cloudinary", {variant: "success"});
                                                     }
                                                 }}
@@ -1025,6 +1098,11 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     </Box>
                                                 )}
                                             </CloudinaryUpload>
+                                            {!!formErrors.logoUrl && (
+                                                <Typography variant="caption" sx={{color: '#d32f2f', mt: 0.5, display: 'block'}}>
+                                                    {formErrors.logoUrl}
+                                                </Typography>
+                                            )}
                                         </Grid>
                                 </Grid>
                                 </Box>
