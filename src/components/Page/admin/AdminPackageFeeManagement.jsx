@@ -83,7 +83,7 @@ const defaultForm = {
 };
 
 const SUPPORT_LEVELS = ["BASIC", "STANDARD", "ENTERPRISE"];
-const PARENT_POST_PERMISSIONS = ["NONE", "VIEW_ONLY", "CREATE_POST"];
+const PARENT_POST_PERMISSIONS = ["VIEW_ONLY", "CREATE_POST"];
 
 function displayEnum(value) {
     if (value === null || value === undefined || value === "") return "—";
@@ -307,6 +307,9 @@ function PackageFeaturesDetailGrid({ features }) {
 }
 
 function buildPayload(form, isEdit) {
+    const normalizedParentPostPermission = PARENT_POST_PERMISSIONS.includes(form.parentPostPermission)
+        ? form.parentPostPermission
+        : "CREATE_POST";
     const body = {
         name: String(form.name).trim(),
         description: String(form.description).trim(),
@@ -315,7 +318,7 @@ function buildPayload(form, isEdit) {
         featureData: {
             maxCounsellors: Number(form.maxCounsellors),
             allowChat: Boolean(form.allowChat),
-            parentPostPermission: String(form.parentPostPermission || "CREATE_POST"),
+            parentPostPermission: normalizedParentPostPermission,
             isFeatured: Boolean(form.isFeatured),
             topRanking: Number(form.topRanking),
             supportLevel: String(form.supportLevel || "STANDARD"),
@@ -394,7 +397,9 @@ export default function AdminPackageFeeManagement() {
             durationDays: row.durationDays != null && !Number.isNaN(Number(row.durationDays)) ? Number(row.durationDays) : "",
             maxCounsellors: row.features.maxCounsellors,
             allowChat: row.features.allowChat,
-            parentPostPermission: row.features.parentPostPermission,
+            parentPostPermission: PARENT_POST_PERMISSIONS.includes(row.features.parentPostPermission)
+                ? row.features.parentPostPermission
+                : "CREATE_POST",
             isFeatured: row.features.isFeatured,
             topRanking: row.features.topRanking,
             supportLevel: row.features.supportLevel,
@@ -973,10 +978,6 @@ export default function AdminPackageFeeManagement() {
                             <FormControlLabel
                                 control={<Switch checked={Boolean(form.allowChat)} onChange={(e) => setForm((prev) => ({ ...prev, allowChat: e.target.checked }))} />}
                                 label="Cho phép chat"
-                            />
-                            <FormControlLabel
-                                control={<Switch checked={Boolean(form.isFeatured)} onChange={(e) => setForm((prev) => ({ ...prev, isFeatured: e.target.checked }))} />}
-                                label="Đánh dấu nổi bật"
                             />
                         </Stack>
                         {isEdit && (
