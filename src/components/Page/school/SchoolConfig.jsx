@@ -3086,7 +3086,7 @@ export default function SchoolConfig() {
                   
                   <Stack direction={{xs: "column", sm: "row"}} spacing={2}>
                     <TextField
-                      label="Hạn mức giảm tối đa / so với giá gốc"
+                      label="Hạn mức giảm tối đa / so với giá gốc (%)"
                       type="number"
                       value={
                         config.financePolicyData.priceAdjustment?.minPercent === "" ||
@@ -3111,7 +3111,7 @@ export default function SchoolConfig() {
                       inputProps={{readOnly: fieldDisabled}}
                     />
                     <TextField
-                      label="Hạn mức tăng tối đa / so với giá gốc"
+                      label="Hạn mức tăng tối đa / so với giá gốc (%)"
                       type="number"
                       value={
                         config.financePolicyData.priceAdjustment?.maxPercent === "" ||
@@ -3821,6 +3821,28 @@ export default function SchoolConfig() {
                           }}
                           inputProps={{readOnly: fieldDisabled}}
                         />
+                        <IconButton
+                          size="small"
+                          color="error"
+                          aria-label="Xoá ca làm việc"
+                          disabled={fieldDisabled}
+                          onClick={() =>
+                            setConfig((c) => {
+                              const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
+                              ws.splice(idx, 1);
+                              return {
+                                ...c,
+                                operationSettingsData: {
+                                  ...c.operationSettingsData,
+                                  workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
+                                },
+                              };
+                            })
+                          }
+                          sx={{...blockPointerSx, alignSelf: {xs: "flex-end", sm: "center"}}}
+                        >
+                          <DeleteOutlineIcon fontSize="small"/>
+                        </IconButton>
                       </Stack>
                     ))}
                     <Button
