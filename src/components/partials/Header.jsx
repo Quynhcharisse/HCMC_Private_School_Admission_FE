@@ -41,12 +41,19 @@ import Fade from '@mui/material/Fade';
 import Zoom from '@mui/material/Zoom';
 import {enqueueSnackbar} from "notistack";
 import {signout, getProfile} from "../../services/AccountService.jsx";
-import {getParentConversations} from "../../services/ConversationService.jsx";
+import {createParentConversation, getParentConversations} from "../../services/ConversationService.jsx";
 import {getParentMessagesHistory, markParentMessagesRead} from "../../services/MessageService.jsx";
 import {getParentStudent} from "../../services/ParentService.jsx";
-import {buildPrivateChatPayload, connectPrivateMessageSocket, disconnect, sendMessage} from "../../services/WebSocketService.jsx";
+import {
+    buildPrivateChatPayload,
+    connectPrivateMessageSocket,
+    removePrivateMessageListener,
+    normalizeCampusId,
+    sendMessage,
+} from "../../services/WebSocketService.jsx";
 import logo from "../../assets/logo.png";
 import {useLocation, useNavigate} from "react-router-dom";
+import {normalizeUserRole} from "../../utils/userRole.js";
 import {
     APP_PRIMARY_DARK,
     BRAND_NAVY,
@@ -62,10 +69,325 @@ import ParentStudentInfoPanel, {
 } from "../chat/ParentStudentInfoPanel.jsx";
 
 const PARENT_CHAT_POLL_INTERVAL_MS = 3500;
-const SEND_MESSAGE_HISTORY_DELAY_MS = 400;
-const ENABLE_PARENT_CHAT_POLLING = false;
+/** Đồng bộ GET /parent/conversations định kỳ khi WS không cập nhật unread (tab phụ huynh). */
+/** Poll dự phòng; sau mỗi tin WS từ tư vấn còn gọi GET ngắn (debounce) để unread danh sách khớp BE nhanh hơn. */
+const PARENT_CONVERSATION_POLL_INTERVAL_MS = 5500;
+const PARENT_WS_CONVERSATION_REFRESH_DEBOUNCE_MS = 320;
+/** Bật khi BE chưa push tin tới queue /user của phụ huynh (WS chỉ ping, không có MESSAGE) — đồng bộ REST định kỳ. Tắt lại sau khi sửa convertAndSendToUser phía server. */
+const ENABLE_PARENT_CHAT_POLLING = true;
+const ENABLE_PARENT_CONVERSATION_POLL = true;
 
 const isSameConversationId = (a, b) => a != null && b != null && String(a) === String(b);
+
+const sessionCampusLoose = (o) => {
+    const raw = o?.campusId ?? o?.campusID ?? null;
+    if (raw == null || String(raw).trim() === '') return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+};
+
+const sessionStudentIdLoose = (o) => String(o?.studentProfileId ?? o?.studentId ?? o?.student?.id ?? '').trim();
+
+/** Cùng phiên tư vấn (học sinh + campus) khi chưa/đã có conversationId — dùng để khớp WS với selection lệch id hoặc draft. */
+const isSameConversationSessionLoose = (a, b) => {
+    if (!a || !b) return false;
+    const ida = a?.conversationId ?? a?.id;
+    const idb = b?.conversationId ?? b?.id;
+    if (
+        ida != null &&
+        String(ida).trim() !== '' &&
+        idb != null &&
+        String(idb).trim() !== '' &&
+        isSameConversationId(ida, idb)
+    ) {
+        return true;
+    }
+    const sp1 = sessionStudentIdLoose(a);
+    const sp2 = sessionStudentIdLoose(b);
+    const c1 = sessionCampusLoose(a);
+    const c2 = sessionCampusLoose(b);
+    return Boolean(sp1 && sp1 === sp2 && c1 != null && c2 != null && c1 === c2);
+};
+
+const extractConversationIdFromObject = (o) => {
+    if (!o || typeof o !== 'object') return null;
+    const r =
+        o.conversationId ??
+        o.conversation_id ??
+        o.conversationID ??
+        o.threadId ??
+        o.roomId ??
+        o?.conversation?.id ??
+        o?.conversation?.conversationId ??
+        o?.chatMessage?.conversationId ??
+        o?.message?.conversationId ??
+        o?.message?.conversation?.id ??
+        o?.chatMessage?.conversation?.id ??
+        o?.data?.conversationId ??
+        o?.dto?.conversationId ??
+        o?.chatDto?.conversationId ??
+        o?.privateConversationId ??
+        o?.chatRoomId ??
+        o?.privateRoomId ??
+        null;
+    if (r == null || r === '') return null;
+    return r;
+};
+
+const pickIncomingConversationId = (payload) => {
+    if (!payload || typeof payload !== 'object') return null;
+    let body = payload;
+    if (typeof payload.body === 'string') {
+        try {
+            body = JSON.parse(payload.body);
+        } catch {
+            body = payload;
+        }
+    } else if (payload.body && typeof payload.body === 'object') {
+        body = payload.body;
+    }
+    let raw =
+        extractConversationIdFromObject(body) ?? extractConversationIdFromObject(payload) ?? null;
+    if (raw == null && typeof body?.message === 'string') {
+        const t = body.message.trim();
+        if (t.startsWith('{') || t.startsWith('[')) {
+            try {
+                const inner = JSON.parse(body.message);
+                raw = extractConversationIdFromObject(inner);
+            } catch {
+                /* ignore */
+            }
+        }
+    }
+    if (raw == null) {
+        const nested = [body?.data, payload?.data, body?.payload, payload?.payload];
+        for (let i = 0; i < nested.length; i += 1) {
+            const n = nested[i];
+            if (n && typeof n === 'object') {
+                raw = extractConversationIdFromObject(n);
+                if (raw != null) break;
+            }
+        }
+    }
+    if (raw == null && body && typeof body === 'object' && body.data && typeof body.data === 'object') {
+        raw = extractConversationIdFromObject(body.data);
+    }
+    if (raw == null || raw === '') return null;
+    return raw;
+};
+
+const getParentUserEmailLower = () => {
+    try {
+        const raw = localStorage.getItem('user');
+        if (!raw) return '';
+        const u = JSON.parse(raw);
+        return String(u?.email || u?.username || '').trim().toLowerCase();
+    } catch {
+        return '';
+    }
+};
+
+const getParentPrincipalCandidatesLower = () => {
+    const set = new Set();
+    try {
+        const raw = localStorage.getItem('user');
+        if (!raw) return set;
+        const u = JSON.parse(raw);
+        [u?.email, u?.username, u?.userName, u?.sub].forEach((x) => {
+            const s = String(x || '').trim().toLowerCase();
+            if (s) set.add(s);
+        });
+    } catch {
+        /* ignore */
+    }
+    return set;
+};
+
+const normalizeWsPrincipal = (v) =>
+    String(v || '')
+        .trim()
+        .toLowerCase()
+        .replace(/^["'<\s]+|["'>\s]+$/g, '');
+
+/**
+ * receiverName từ BE có thể là email/username principal — khớp với identity phụ huynh.
+ * Nhiều BE khi push qua convertAndSendToUser **không gửi receiverName** trong body (chỉ có sender + nội dung);
+ * frame đã vào queue /user/... của đúng session — khi đó coi là tin cho phụ huynh nếu sender không phải chính mình.
+ */
+const receiverMatchesParent = (payload, emailFallbackLower) => {
+    const recv = normalizeWsPrincipal(payload?.receiverName);
+    const send = normalizeWsPrincipal(payload?.senderName);
+    const candidates = getParentPrincipalCandidatesLower();
+    const fb = String(emailFallbackLower || '').trim().toLowerCase();
+    if (fb) candidates.add(fb);
+
+    if (!recv) {
+        if (send && candidates.has(send)) return false;
+        return true;
+    }
+    if (candidates.has(recv)) return true;
+    /** BE đôi khi ghi nhầm receiver (vd email tư vấn). Tin đã vào queue /user của phụ huynh thì vẫn nhận nếu không phải echo tự gửi. */
+    if (send && candidates.has(send)) return false;
+    return true;
+};
+
+/**
+ * Echo tin tự gửi: chỉ bỏ qua khi mọi trường nhận dạng người gửi (nếu có) đều khớp principal phụ huynh.
+ * Tránh lỗi BE gửi senderName = phụ huynh nhưng senderEmail = tư vấn — chỉ nhìn senderName sẽ tăng unread sai;
+ * và tránh bỏ qua nhầm tin tư vấn khi BE chỉ gửi senderEmail đúng mà senderName trống/sai.
+ */
+const senderLooksLikeParentSelf = (payload) => {
+    const candidates = getParentPrincipalCandidatesLower();
+    const identifiers = [
+        normalizeWsPrincipal(payload?.senderName),
+        normalizeWsPrincipal(payload?.senderEmail),
+        normalizeWsPrincipal(typeof payload?.sender === 'string' ? payload.sender : ''),
+        normalizeWsPrincipal(payload?.fromUser),
+        normalizeWsPrincipal(payload?.username),
+    ].filter(Boolean);
+    if (identifiers.length === 0) return false;
+    return identifiers.every((id) => candidates.has(id));
+};
+
+/**
+ * Khớp tin WS với cuộc đang mở: theo id; hoặc id trên selection lệch nhưng list có dòng đúng id + cùng phiên;
+ * hoặc draft: receiver = phụ huynh, sender khác phụ huynh — không bắt buộc trùng email tư vấn trên thẻ trường (dữ liệu search hay sai).
+ */
+const privateMessageBelongsToParentSelection = (
+    selected,
+    incomingConversationId,
+    payload,
+    userEmail,
+    conversationItems
+) => {
+    if (!selected || incomingConversationId == null || String(incomingConversationId).trim() === '') return false;
+
+    const selectedId = selected?.conversationId ?? selected?.id;
+    const selectedIdStr = selectedId != null ? String(selectedId).trim() : '';
+
+    if (selectedIdStr !== '' && isSameConversationId(selectedId, incomingConversationId)) {
+        return true;
+    }
+
+    const items = Array.isArray(conversationItems) ? conversationItems : [];
+    if (selectedIdStr !== '') {
+        const listAligns = items.some((item) => {
+            if (!isSameConversationId(item?.conversationId ?? item?.id, incomingConversationId)) return false;
+            if (isSameConversationSessionLoose(selected, item)) return true;
+            const cSel = sessionCampusLoose(selected);
+            const cIt = sessionCampusLoose(item);
+            if (cSel != null && cIt != null && cSel !== cIt) return false;
+            if (cSel != null && cIt == null) return true;
+            const spSel = sessionStudentIdLoose(selected);
+            const spIt = sessionStudentIdLoose(item);
+            if (cSel == null && cIt == null) return !spSel || !spIt || spSel === spIt;
+            return !spSel || !spIt || spSel === spIt;
+        });
+        if (listAligns) return true;
+        // Không mở rộng "đang xem" sang mọi tin tới parent: đang mở cuộc A mà tin thuộc cuộc B vẫn phải tăng unread.
+        return false;
+    }
+
+    if (!receiverMatchesParent(payload, userEmail)) return false;
+    const send = normalizeWsPrincipal(payload?.senderName);
+    if (!send || senderLooksLikeParentSelf(payload)) return false;
+
+    const selCampus = sessionCampusLoose(selected);
+    if (
+        selCampus != null &&
+        payload?.campusId != null &&
+        String(payload.campusId).trim() !== '' &&
+        normalizeCampusId(payload.campusId) !== selCampus
+    ) {
+        return false;
+    }
+
+    const payloadSession = {
+        conversationId: incomingConversationId,
+        campusId: payload?.campusId ?? payload?.campusID ?? null,
+        studentProfileId: payload?.studentProfileId ?? payload?.studentId ?? payload?.student?.id ?? null,
+    };
+
+    const counsellor = (
+        selected?.counsellorEmail ||
+        selected?.participantEmail ||
+        selected?.otherUser ||
+        ''
+    )
+        .toString()
+        .trim()
+        .toLowerCase();
+    /** Cùng email tư vấn ≠ cùng cuộc (nhánh draft): chỉ coi “đang xem” khi khớp session hoặc đúng id trên list. */
+    if (counsellor && send === counsellor) {
+        if (isSameConversationSessionLoose(selected, payloadSession)) return true;
+        if (items.some((item) => isSameConversationId(item?.conversationId ?? item?.id, incomingConversationId))) {
+            return true;
+        }
+        return false;
+    }
+
+    if (items.some((item) => isSameConversationId(item?.conversationId ?? item?.id, incomingConversationId))) {
+        return true;
+    }
+
+    if (isSameConversationSessionLoose(selected, payloadSession)) return true;
+
+    return false;
+};
+
+const tryParseJsonObject = (value) => {
+    if (value == null) return {};
+    if (typeof value === 'string') {
+        try {
+            const o = JSON.parse(value);
+            return o && typeof o === 'object' && !Array.isArray(o) ? o : {};
+        } catch {
+            return {};
+        }
+    }
+    if (typeof value === 'object' && !Array.isArray(value)) return value;
+    return {};
+};
+
+const unwrapEnvelopePayload = (response) => {
+    let node = response?.data?.body?.body ?? response?.data?.body ?? response?.data ?? {};
+    if (typeof node === 'string') {
+        node = tryParseJsonObject(node);
+    }
+    if (node && typeof node === 'object' && !Array.isArray(node) && node.body != null) {
+        const inner = typeof node.body === 'string' ? tryParseJsonObject(node.body) : node.body;
+        if (inner && typeof inner === 'object' && !Array.isArray(inner)) {
+            return inner;
+        }
+    }
+    return node && typeof node === 'object' && !Array.isArray(node) ? node : {};
+};
+
+const pickListItemsFromPayload = (p) => {
+    if (p == null) return [];
+    if (Array.isArray(p)) return p;
+    if (typeof p !== 'object') return [];
+    if (Array.isArray(p.items)) return p.items;
+    if (Array.isArray(p.content)) return p.content;
+    if (Array.isArray(p.conversations)) return p.conversations;
+    if (Array.isArray(p.data)) return p.data;
+    if (Array.isArray(p.result)) return p.result;
+    if (p.data && typeof p.data === 'object') {
+        if (Array.isArray(p.data.items)) return p.data.items;
+        if (Array.isArray(p.data.content)) return p.data.content;
+    }
+    return [];
+};
+
+/** Chuẩn hóa envelope GET /parent/conversations (body string, items/content, v.v.). */
+const parseParentConversationsEnvelope = (response) => {
+    const top = unwrapEnvelopePayload(response);
+    return {
+        items: pickListItemsFromPayload(top),
+        nextCursorId: top?.nextCursorId ?? top?.cursorId ?? null,
+        hasMore: !!top?.hasMore,
+    };
+};
 
 const formatSectionDateLabel = (value) => {
     if (!value) return "Hôm nay";
@@ -243,6 +565,7 @@ function MainHeader() {
     const [messageItems, setMessageItems] = useState([]);
     const [messageLoading, setMessageLoading] = useState(false);
     const [messageError, setMessageError] = useState('');
+    const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
     const [messageNextCursorId, setMessageNextCursorId] = useState(null);
     const [messageHasMore, setMessageHasMore] = useState(false);
     const [chatInput, setChatInput] = useState('');
@@ -255,13 +578,33 @@ function MainHeader() {
     const [studentSelectLoading, setStudentSelectLoading] = useState(false);
     const [studentSelectOptions, setStudentSelectOptions] = useState([]);
     const [pendingChatTarget, setPendingChatTarget] = useState(null);
+    /** Badge khi BE không gửi conversationId trên WS nhưng tin đã vào queue phụ huynh. */
+    const [parentWsUnreadBump, setParentWsUnreadBump] = useState(0);
 
     const chatListRef = React.useRef(null);
     const loadingMoreRef = React.useRef(false);
     const hasMarkedReadRef = React.useRef(false);
+    const markReadInFlightRef = React.useRef(false);
+    const lastParentInputMarkReadAtRef = React.useRef(0);
+    const parentWsPostRefreshTimerRef = React.useRef(null);
     const selectedConversationRef = React.useRef(null);
+    const chatWindowOpenRef = React.useRef(false);
+    const chatWindowMinimizedRef = React.useRef(false);
+    const conversationItemsRef = React.useRef([]);
     const loadMessageHistoryRef = React.useRef(null);
+    const loadConversationsRef = React.useRef(null);
     const forbiddenHistoryConversationIdsRef = React.useRef(new Set());
+    const parentStickToBottomRef = React.useRef(true);
+    const messageHasMoreRef = React.useRef(false);
+    const messageNextCursorIdRef = React.useRef(null);
+    /** Chỉ true sau khi phụ huynh tương tác ô nhập (pointer/key) — tránh mở chat là coi như đã đọc, WS không tăng unread. */
+    const parentComposerEngagedRef = React.useRef(false);
+    conversationItemsRef.current = conversationItems;
+    chatWindowOpenRef.current = chatWindowOpen;
+    chatWindowMinimizedRef.current = chatWindowMinimized;
+    selectedConversationRef.current = selectedConversation;
+    messageHasMoreRef.current = messageHasMore;
+    messageNextCursorIdRef.current = messageNextCursorId;
 
     const location = useLocation();
     const navigate = useNavigate();
@@ -282,9 +625,10 @@ function MainHeader() {
     };
     
     const userInfo = getUserInfo();
-    const isParent = userInfo?.role === 'PARENT';
-    const isSchool = userInfo?.role === 'SCHOOL';
-    const isAdmin = userInfo?.role === 'ADMIN';
+    const normalizedRole = normalizeUserRole(userInfo?.role);
+    const isParent = normalizedRole === 'PARENT';
+    const isSchool = normalizedRole === 'SCHOOL';
+    const isAdmin = normalizedRole === 'ADMIN';
     const userIdentitySet = React.useMemo(() => {
         return new Set(
             [
@@ -365,28 +709,57 @@ function MainHeader() {
         const u = pickConversationSchoolLogoUrl(selectedConversation);
         return u || null;
     }, [selectedConversation]);
+    const selectedConversationUnreadCount = useMemo(() => {
+        const unread = Number(
+            selectedConversation?.unreadCount ??
+                selectedConversation?.unreadMessages ??
+                selectedConversation?.unread ??
+                selectedConversation?.unreadMessageCount ??
+                selectedConversation?.numberOfUnread ??
+                0
+        );
+        return Number.isFinite(unread) && unread > 0 ? Math.trunc(unread) : 0;
+    }, [selectedConversation]);
+    const parentChatHasUnread = selectedConversationUnreadCount > 0;
     const isStudentInfoOpen = studentInfoOpen;
-    const unreadMessagesCount = filteredConversationItems.reduce((sum, item) => {
-        const unread = Number(item?.unreadCount ?? item?.unreadMessages ?? 0);
-        return Number.isFinite(unread) ? sum + unread : sum;
+    /** Badge header: số cuộc trò chuyện có tin chưa đọc (không cộng dồn từng tin). */
+    const conversationsWithUnreadCount = filteredConversationItems.reduce((count, item) => {
+        const unread = Number(
+            item?.unreadCount ??
+                item?.unreadMessages ??
+                item?.unread ??
+                item?.unreadMessageCount ??
+                item?.numberOfUnread ??
+                0
+        );
+        return count + (Number.isFinite(unread) && unread > 0 ? 1 : 0);
     }, 0);
+    /** WS thiếu conversationId: coi thêm tối đa 1 cuộc chưa gắn danh sách. */
+    const parentHeaderUnreadDisplay = Math.min(
+        99,
+        conversationsWithUnreadCount + (parentWsUnreadBump > 0 ? 1 : 0)
+    );
 
-    const parseConversationResponse = (response) => {
-        const payload = response?.data?.body?.body || response?.data?.body || response?.data || {};
-        return {
-            items: Array.isArray(payload?.items) ? payload.items : [],
-            nextCursorId: payload?.nextCursorId ?? null,
-            hasMore: !!payload?.hasMore
-        };
-    };
+    const parseConversationResponse = parseParentConversationsEnvelope;
 
     const normalizeConversation = (conversation) => {
         const rawCampusId = conversation?.campusId ?? conversation?.campusID ?? null;
         const campusIdParsed = rawCampusId != null ? Number(rawCampusId) : NaN;
+        const unreadNorm =
+            Number(
+                conversation?.unreadCount ??
+                    conversation?.unreadMessages ??
+                    conversation?.unread ??
+                    conversation?.unreadMessageCount ??
+                    conversation?.numberOfUnread ??
+                    0
+            ) || 0;
         return {
             ...conversation,
             conversationId: conversation?.conversationId ?? conversation?.id ?? conversation?.conversation?.id ?? null,
             campusId: Number.isFinite(campusIdParsed) ? campusIdParsed : null,
+            unreadCount: unreadNorm,
+            unreadMessages: unreadNorm,
             participantEmail: conversation?.otherUser ?? conversation?.participantEmail ?? conversation?.counsellorEmail ?? '',
             counsellorEmail: conversation?.otherUser ?? conversation?.counsellorEmail ?? conversation?.participantEmail ?? '',
             schoolEmail: conversation?.schoolEmail ?? conversation?.otherUser ?? conversation?.participantEmail ?? '',
@@ -451,10 +824,14 @@ function MainHeader() {
 
     const mergeUniqueMessages = (messages) => {
         const map = new Map();
-        messages.forEach((message) => {
-            if (message?.id) {
-                map.set(String(message.id), message);
-            }
+        messages.forEach((message, index) => {
+            if (message == null) return;
+            const idRaw = message.id;
+            const hasStableId = idRaw != null && String(idRaw).trim() !== '';
+            const key = hasStableId
+                ? String(idRaw)
+                : `noid-${index}-${message.sentAt ?? ''}-${String(message.text ?? '').slice(0, 24)}-${Math.random().toString(36).slice(2, 9)}`;
+            map.set(key, message);
         });
         return Array.from(map.values()).sort((a, b) => {
             const aTime = a?.sentAt ? new Date(a.sentAt).getTime() : 0;
@@ -522,28 +899,101 @@ function MainHeader() {
         [userIdentitySet, userInfo]
     );
 
-    const loadConversations = async (cursorId = null) => {
-        setConversationLoading(true);
-        setConversationError('');
+    /** Tránh 2 bubble: optimistic + cùng tin từ API sau poll/refresh history (khác id). */
+    const removeOptimisticShadowedByServer = React.useCallback(
+        (merged, serverNormalized) => {
+            if (!Array.isArray(merged) || !Array.isArray(serverNormalized) || !serverNormalized.length) {
+                return merged;
+            }
+            const textsFromMeOnServer = new Set();
+            for (const sm of serverNormalized) {
+                if (!isParentMessageMine(sm)) continue;
+                const t = String(sm.text ?? '').trim();
+                if (t) textsFromMeOnServer.add(t);
+            }
+            if (!textsFromMeOnServer.size) return merged;
+            return merged.filter((m) => {
+                if (!String(m.id ?? '').startsWith('optimistic-')) return true;
+                const t = String(m.text ?? '').trim();
+                return !textsFromMeOnServer.has(t);
+            });
+        },
+        [isParentMessageMine]
+    );
+
+    const loadConversations = async (cursorId = null, options = {}) => {
+        const silent = Boolean(options.silent);
+        if (!silent) {
+            setConversationLoading(true);
+            setConversationError('');
+        }
 
         try {
             const response = await getParentConversations(cursorId);
             if (response?.status === 200) {
                 const parsed = parseConversationResponse(response);
                 const normalizedItems = parsed.items.map(normalizeConversation);
-                setConversationItems((prev) => (cursorId ? [...prev, ...normalizedItems] : normalizedItems));
+                setConversationItems((prev) => {
+                    if (cursorId) return [...prev, ...normalizedItems];
+                    if (!normalizedItems.length) return prev;
+                    // API thường trả unread=0 — giữ max với state local; giữ dòng chỉ có từ WS (chưa có trong API)
+                    const mergedFromApi = normalizedItems.map((norm) => {
+                        const id = norm?.conversationId ?? norm?.id;
+                        const prevHit = prev.find((p) =>
+                            isSameConversationId(p?.conversationId ?? p?.id, id)
+                        );
+                        if (!prevHit) return norm;
+                        const pu = Number(prevHit.unreadCount ?? prevHit.unreadMessages ?? 0) || 0;
+                        const nu = Number(norm.unreadCount ?? norm.unreadMessages ?? 0) || 0;
+                        const u = Math.max(pu, nu);
+                        return {...norm, unreadCount: u, unreadMessages: u};
+                    });
+                    const apiIdSet = new Set(
+                        mergedFromApi
+                            .map((x) => String(x?.conversationId ?? x?.id ?? '').trim())
+                            .filter(Boolean)
+                    );
+                    const onlyLocal = prev.filter((p) => {
+                        const pid = String(p?.conversationId ?? p?.id ?? '').trim();
+                        return pid && !apiIdSet.has(pid);
+                    });
+                    return [...onlyLocal, ...mergedFromApi];
+                });
                 setNextCursorId(parsed.nextCursorId);
                 setHasMoreConversations(parsed.hasMore);
-            } else {
+                if (!cursorId && !silent) {
+                    setParentWsUnreadBump(0);
+                }
+            } else if (!silent) {
                 setConversationError('Không thể tải danh sách tin nhắn.');
             }
         } catch (error) {
             console.error('Error fetching conversations:', error);
-            setConversationError('Không thể tải danh sách tin nhắn.');
+            if (!silent) {
+                setConversationError('Không thể tải danh sách tin nhắn.');
+            }
         } finally {
-            setConversationLoading(false);
+            if (!silent) {
+                setConversationLoading(false);
+            }
         }
     };
+
+    loadConversationsRef.current = loadConversations;
+
+    useEffect(() => {
+        if (!isSignedIn || !isParent) return;
+        void loadConversations();
+    }, [isSignedIn, isParent]);
+
+    useEffect(() => {
+        if (!ENABLE_PARENT_CONVERSATION_POLL || !isSignedIn || !isParent) return;
+        const intervalId = setInterval(() => {
+            if (document.visibilityState !== 'visible') return;
+            void loadConversationsRef.current?.(null, {silent: true});
+        }, PARENT_CONVERSATION_POLL_INTERVAL_MS);
+        return () => clearInterval(intervalId);
+    }, [isSignedIn, isParent]);
 
     const resolveConversationEmails = (conversation) => {
         const parentEmail = userInfo?.email || conversation?.parentEmail || conversation?.participantParentEmail || '';
@@ -587,6 +1037,21 @@ function MainHeader() {
             return candidate;
         }
         return null;
+    };
+
+    /** Khớp cuộc đang chọn với payload history khi chưa có conversationId (draft). */
+    const isSameConversationSession = (prev, conv) => {
+        if (!prev || !conv) return false;
+        const prevId = prev?.conversationId ?? prev?.id;
+        const convId = conv?.conversationId ?? conv?.id;
+        if (prevId != null && convId != null) {
+            return isSameConversationId(prevId, convId);
+        }
+        const sp1 = String(prev?.studentProfileId ?? prev?.studentId ?? prev?.student?.id ?? '').trim();
+        const sp2 = String(conv?.studentProfileId ?? conv?.studentId ?? conv?.student?.id ?? '').trim();
+        const c1 = resolveHistoryCampusId(prev);
+        const c2 = resolveHistoryCampusId(conv);
+        return Boolean(sp1 && sp1 === sp2 && c1 != null && c1 === c2);
     };
 
     const loadMessageHistory = async ({conversation, cursorId = null, silent = false}) => {
@@ -634,14 +1099,30 @@ function MainHeader() {
                     setConversationItems((prev) =>
                         prev.map((item) => {
                             const id = item?.conversationId ?? item?.id;
-                            if (!isSameConversationId(id, targetConversationId)) return item;
+                            const matchById =
+                                targetConversationId != null &&
+                                String(targetConversationId).trim() !== '' &&
+                                isSameConversationId(id, targetConversationId);
+                            const matchDraft =
+                                (targetConversationId == null || String(targetConversationId).trim() === '') &&
+                                (id == null || String(id).trim() === '') &&
+                                isSameConversationSession(item, conversation);
+                            if (!matchById && !matchDraft) return item;
                             return {...item, campusId: loadedCampusId};
                         })
                     );
                     setSelectedConversation((prev) => {
                         if (!prev) return prev;
                         const selectedId = prev?.conversationId ?? prev?.id;
-                        if (!isSameConversationId(selectedId, targetConversationId)) return prev;
+                        const matchById =
+                            targetConversationId != null &&
+                            String(targetConversationId).trim() !== '' &&
+                            isSameConversationId(selectedId, targetConversationId);
+                        const matchDraft =
+                            (targetConversationId == null || String(targetConversationId).trim() === '') &&
+                            (selectedId == null || String(selectedId).trim() === '') &&
+                            isSameConversationSession(prev, conversation);
+                        if (!matchById && !matchDraft) return prev;
                         const next = {...prev, campusId: loadedCampusId};
                         selectedConversationRef.current = next;
                         return next;
@@ -652,14 +1133,30 @@ function MainHeader() {
                     setConversationItems((prev) =>
                         prev.map((item) => {
                             const id = item?.conversationId ?? item?.id;
-                            if (!isSameConversationId(id, targetConversationId)) return item;
+                            const matchById =
+                                targetConversationId != null &&
+                                String(targetConversationId).trim() !== '' &&
+                                isSameConversationId(id, targetConversationId);
+                            const matchDraft =
+                                (targetConversationId == null || String(targetConversationId).trim() === '') &&
+                                (id == null || String(id).trim() === '') &&
+                                isSameConversationSession(item, conversation);
+                            if (!matchById && !matchDraft) return item;
                             return {...item, conversationId: loadedConversationId, id: loadedConversationId};
                         })
                     );
                     setSelectedConversation((prev) => {
                         if (!prev) return prev;
                         const selectedId = prev?.conversationId ?? prev?.id;
-                        if (!isSameConversationId(selectedId, targetConversationId)) return prev;
+                        const matchById =
+                            targetConversationId != null &&
+                            String(targetConversationId).trim() !== '' &&
+                            isSameConversationId(selectedId, targetConversationId);
+                        const matchDraft =
+                            (targetConversationId == null || String(targetConversationId).trim() === '') &&
+                            (selectedId == null || String(selectedId).trim() === '') &&
+                            isSameConversationSession(prev, conversation);
+                        if (!matchById && !matchDraft) return prev;
                         const next = {...prev, conversationId: loadedConversationId, id: loadedConversationId};
                         selectedConversationRef.current = next;
                         return next;
@@ -670,17 +1167,21 @@ function MainHeader() {
                 );
                 const normalized = parsed.items.map(normalizeMessage);
                 setMessageItems((prev) => {
-                    const next = cursorId
-                        ? mergeUniqueMessages([...normalized, ...prev])
-                        : normalized.length
-                          ? mergeUniqueMessages(normalized)
-                          : prev;
+                    // Merge với prev (WS / optimistic): history lần đầu hoặc silent sau gửi tin có thể
+                    // trả snapshot cũ hơn socket — không replace toàn list để tránh mất tin mới.
+                    const merged =
+                        normalized.length > 0 ? mergeUniqueMessages([...normalized, ...prev]) : prev;
+                    const next = removeOptimisticShadowedByServer(merged, normalized);
                     return areMessageListsEquivalent(prev, next) ? prev : next;
                 });
                 setMessageNextCursorId(parsed.nextCursorId);
                 setMessageHasMore(parsed.hasMore);
+                messageNextCursorIdRef.current = parsed.nextCursorId ?? null;
+                messageHasMoreRef.current = !!parsed.hasMore;
             } else if (response?.status === 403) {
                 if (conversationKey) forbiddenHistoryConversationIdsRef.current.add(conversationKey);
+                messageHasMoreRef.current = false;
+                messageNextCursorIdRef.current = null;
                 if (!silent) setMessageError('Bạn không có quyền xem lịch sử tin nhắn của cuộc trò chuyện này.');
             } else if (!silent) {
                 setMessageError('Không thể tải lịch sử tin nhắn.');
@@ -688,6 +1189,8 @@ function MainHeader() {
         } catch (error) {
             if (error?.response?.status === 403 && conversationKey) {
                 forbiddenHistoryConversationIdsRef.current.add(conversationKey);
+                messageHasMoreRef.current = false;
+                messageNextCursorIdRef.current = null;
             }
             console.error('Error fetching message history:', error);
             if (!silent) setMessageError('Không thể tải lịch sử tin nhắn.');
@@ -696,6 +1199,54 @@ function MainHeader() {
         }
     };
 
+    /**
+     * PUT đánh dấu đã đọc. `syncComposerEngaged: true` khi user chạm ô nhập (WS sẽ không “nuốt” unread khi chỉ mở xem).
+     */
+    const markParentConversationRead = React.useCallback(
+        async (conv, opts = {}) => {
+            const {syncComposerEngaged = false, force = false} = opts;
+            if (syncComposerEngaged === true) {
+                parentComposerEngagedRef.current = true;
+            }
+
+            const target = conv ?? selectedConversation;
+            if (!target) return;
+            if (!force && hasMarkedReadRef.current) return;
+            const conversationId = target?.conversationId ?? target?.id ?? null;
+            const u = getUserInfo();
+            const username = (u?.email || u?.username || '').trim();
+            if (conversationId == null || String(conversationId).trim() === '' || !username) return;
+            if (markReadInFlightRef.current) return;
+
+            markReadInFlightRef.current = true;
+            try {
+                await markParentMessagesRead({conversationId, username});
+                hasMarkedReadRef.current = true;
+                setParentWsUnreadBump(0);
+                setConversationItems((prev) =>
+                    prev.map((item) => {
+                        const id = item?.conversationId || item?.id;
+                        if (!isSameConversationId(id, conversationId)) return item;
+                        return {...item, unreadCount: 0, unreadMessages: 0};
+                    })
+                );
+                setSelectedConversation((prev) => {
+                    if (!prev) return prev;
+                    const id = prev?.conversationId ?? prev?.id;
+                    if (!isSameConversationId(id, conversationId)) return prev;
+                    const next = {...prev, unreadCount: 0, unreadMessages: 0};
+                    selectedConversationRef.current = next;
+                    return next;
+                });
+            } catch (error) {
+                console.error('Error marking messages as read:', error);
+            } finally {
+                markReadInFlightRef.current = false;
+            }
+        },
+        [selectedConversation]
+    );
+
     loadMessageHistoryRef.current = loadMessageHistory;
 
     useEffect(() => {
@@ -703,6 +1254,8 @@ function MainHeader() {
         if (!isSignedIn || !isParent || !chatWindowOpen || !selectedConversation) return;
         const intervalId = setInterval(() => {
             if (document.visibilityState !== 'visible') return;
+            // Đang đọc tin cũ (không ở gần đáy) thì không poll history để tránh gọi API liên tục.
+            if (!parentStickToBottomRef.current) return;
             loadMessageHistoryRef.current?.({
                 conversation: selectedConversationRef.current,
                 cursorId: null,
@@ -715,61 +1268,78 @@ function MainHeader() {
     const handleSelectConversation = async (conversation) => {
         const conversationKey = String(conversation?.conversationId ?? conversation?.id ?? '');
         if (conversationKey) forbiddenHistoryConversationIdsRef.current.delete(conversationKey);
+        parentComposerEngagedRef.current = false;
+        setParentWsUnreadBump(0);
+        parentStickToBottomRef.current = true;
         setSelectedConversationStudent(null);
         setSelectedConversation(conversation);
         selectedConversationRef.current = conversation;
         setMessageItems([]);
         setMessageNextCursorId(null);
         setMessageHasMore(false);
+        messageNextCursorIdRef.current = null;
+        messageHasMoreRef.current = false;
+        setLoadingOlderMessages(false);
         setMessageError('');
         setMessageAnchorEl(null);
         setChatWindowOpen(true);
         setChatWindowMinimized(false);
         hasMarkedReadRef.current = false;
         await loadMessageHistory({conversation});
+        const convAfterHistory = selectedConversationRef.current || conversation;
+        void markParentConversationRead(convAfterHistory, {syncComposerEngaged: false});
     };
 
     const handleChatScroll = async (event) => {
-        if (!messageHasMore || loadingMoreRef.current || !selectedConversation) return;
         const node = event.currentTarget;
-        if (node.scrollTop > 60) return;
+        const distanceFromBottom = node.scrollHeight - node.scrollTop - node.clientHeight;
+        parentStickToBottomRef.current = distanceFromBottom <= 120;
+
+        const conv = selectedConversationRef.current;
+        const hasMore = messageHasMoreRef.current;
+        const nextCursorId = messageNextCursorIdRef.current;
+        if (!hasMore || loadingMoreRef.current || !conv || !nextCursorId) return;
+        if (node.scrollTop > 120) return;
 
         loadingMoreRef.current = true;
+        const loadingStartAt = Date.now();
+        setLoadingOlderMessages(true);
         const previousHeight = node.scrollHeight;
-        await loadMessageHistory({conversation: selectedConversation, cursorId: messageNextCursorId});
-        requestAnimationFrame(() => {
-            const newHeight = node.scrollHeight;
-            node.scrollTop = Math.max(newHeight - previousHeight, 0);
+        try {
+            await loadMessageHistory({conversation: conv, cursorId: nextCursorId, silent: true});
+            requestAnimationFrame(() => {
+                const newHeight = node.scrollHeight;
+                node.scrollTop = Math.max(newHeight - previousHeight, 0);
+            });
+        } finally {
+            const elapsed = Date.now() - loadingStartAt;
+            const minVisibleMs = 280;
+            if (elapsed < minVisibleMs) {
+                await new Promise((resolve) => setTimeout(resolve, minVisibleMs - elapsed));
+            }
+            setLoadingOlderMessages(false);
             loadingMoreRef.current = false;
-        });
+        }
     };
 
-    const handleMarkRead = async () => {
-        if (!selectedConversation || hasMarkedReadRef.current) return;
-        const conversationId = selectedConversation?.conversationId || selectedConversation?.id;
-        const username = userInfo?.email || userInfo?.username;
-        if (!conversationId || !username) return;
-
-        try {
-            await markParentMessagesRead({conversationId, username});
-            hasMarkedReadRef.current = true;
-            setConversationItems((prev) =>
-                prev.map((item) => {
-                    const id = item?.conversationId || item?.id;
-                    if (id !== conversationId) return item;
-                    return {...item, unreadCount: 0, unreadMessages: 0};
-                })
-            );
-        } catch (error) {
-            console.error('Error marking messages as read:', error);
-        }
+    /** Chạm / focus ô nhập: bỏ qua hasMarkedReadRef (sau tin mới vẫn gọi lại API). */
+    const handleMarkRead = () => {
+        const now = Date.now();
+        if (now - lastParentInputMarkReadAtRef.current < 450) return;
+        lastParentInputMarkReadAtRef.current = now;
+        void markParentConversationRead(selectedConversationRef.current, {
+            syncComposerEngaged: true,
+            force: true,
+        });
     };
 
     const handleSendMessage = async () => {
         const trimmed = chatInput.trim();
-        if (!trimmed || !selectedConversation) return;
+        const convFromRef = selectedConversationRef.current;
+        const convEffective = convFromRef || selectedConversation;
+        if (!trimmed || !convEffective) return;
 
-        let workingConversation = selectedConversation;
+        let workingConversation = convEffective;
         const {parentEmail, counsellorEmail} = resolveConversationEmails(workingConversation);
         const senderName = (parentEmail || userInfo?.email || '').trim();
         const receiverName = (counsellorEmail || '').trim();
@@ -784,8 +1354,51 @@ function MainHeader() {
                 selectedConversationStudent?.conversationId ??
                 null;
             if (conversationId == null || String(conversationId).trim() === '') {
-                enqueueSnackbar('Thiếu conversationId để gửi tin nhắn. Vui lòng mở lại cuộc trò chuyện.', {variant: 'warning'});
-                return;
+                const pe = (parentEmail || userInfo?.email || '').trim();
+                const cid = resolveHistoryCampusId(workingConversation);
+                const spid =
+                    workingConversation?.studentProfileId ??
+                    workingConversation?.studentId ??
+                    workingConversation?.student?.id ??
+                    null;
+                const createRes = await createParentConversation({
+                    parentEmail: pe,
+                    campusId: cid,
+                    studentProfileId: spid
+                });
+                const root = createRes?.data;
+                const inner = root?.body;
+                const newIdRaw =
+                    inner != null && typeof inner === 'object'
+                        ? (inner.body ?? inner.conversationId ?? inner.id)
+                        : inner;
+                const newIdNum = newIdRaw != null ? Number(newIdRaw) : NaN;
+                const createOk =
+                    createRes?.status != null && createRes.status >= 200 && createRes.status < 300;
+                if (createOk && Number.isFinite(newIdNum)) {
+                    conversationId = newIdNum;
+                    const merged = {...workingConversation, conversationId: newIdNum, id: newIdNum};
+                    workingConversation = merged;
+                    selectedConversationRef.current = merged;
+                    setSelectedConversation(merged);
+                    setConversationItems((prev) =>
+                        prev.map((item) => {
+                            const existingId = item?.conversationId ?? item?.id;
+                            if (existingId != null && String(existingId).trim() !== '') return item;
+                            const sameSp =
+                                String(item?.studentProfileId ?? item?.studentId ?? '') ===
+                                String(merged.studentProfileId ?? merged.studentId ?? '');
+                            const sameCampus =
+                                resolveHistoryCampusId(item) === resolveHistoryCampusId(merged);
+                            return sameSp && sameCampus
+                                ? {...item, conversationId: newIdNum, id: newIdNum}
+                                : item;
+                        })
+                    );
+                } else {
+                    enqueueSnackbar('Thiếu conversationId để gửi tin nhắn. Vui lòng mở lại cuộc trò chuyện.', {variant: 'warning'});
+                    return;
+                }
             }
         }
        
@@ -803,8 +1416,31 @@ function MainHeader() {
         }
         setChatInput('');
 
-        await new Promise((resolve) => setTimeout(resolve, SEND_MESSAGE_HISTORY_DELAY_MS));
-        await loadMessageHistory({ conversation: selectedConversation, cursorId: null });
+        const optimisticId = `optimistic-${Date.now()}`;
+        const optimisticRaw = {
+            id: optimisticId,
+            messageId: optimisticId,
+            message: trimmed,
+            content: trimmed,
+            senderEmail: senderName,
+            senderName,
+            conversationId,
+            timestamp: payload.timestamp,
+            sentAt: new Date().toISOString(),
+        };
+        setMessageItems((prev) => mergeUniqueMessages([...prev, normalizeMessage(optimisticRaw)]));
+        setConversationItems((prev) =>
+            prev.map((item) => {
+                const id = item?.conversationId || item?.id;
+                if (!isSameConversationId(id, conversationId)) return item;
+                return {
+                    ...item,
+                    lastMessage: trimmed,
+                    time: optimisticRaw.sentAt,
+                    updatedAt: optimisticRaw.sentAt,
+                };
+            })
+        );
     };
 
     useEffect(() => {
@@ -842,51 +1478,177 @@ function MainHeader() {
     useEffect(() => {
         if (!isSignedIn || !isParent) return;
 
-        const client = connectPrivateMessageSocket({
-            onMessage: (payload) => {
-                const conversationId = payload?.conversationId ?? payload?.conversation?.id;
-                if (conversationId == null || conversationId === "") return;
+        const scheduleSilentConversationRefresh = () => {
+            if (parentWsPostRefreshTimerRef.current != null) {
+                clearTimeout(parentWsPostRefreshTimerRef.current);
+            }
+            parentWsPostRefreshTimerRef.current = window.setTimeout(() => {
+                parentWsPostRefreshTimerRef.current = null;
+                loadConversationsRef.current?.(null, {silent: true});
+            }, PARENT_WS_CONVERSATION_REFRESH_DEBOUNCE_MS);
+        };
 
-                const previewText = payload?.message ?? payload?.content ?? "";
-                const previewTime = payload?.timestamp ?? payload?.sentAt ?? payload?.time ?? null;
+        const unwrapWsPayload = (p) => {
+            if (!p || typeof p !== 'object') return p;
+            if (typeof p.body === 'string') {
+                try {
+                    return JSON.parse(p.body);
+                } catch {
+                    return p;
+                }
+            }
+            if (p.body && typeof p.body === 'object') return p.body;
+            return p;
+        };
 
-                setConversationItems((prev) =>
-                    prev.map((item) => {
+        const onPrivateMessage = (payload) => {
+                const root = unwrapWsPayload(payload);
+                const emailForMatch = getParentUserEmailLower() || String(userInfo?.email || '').trim().toLowerCase();
+                if (senderLooksLikeParentSelf(root)) return;
+
+                const conversationId = pickIncomingConversationId(root);
+                if (conversationId == null || String(conversationId).trim() === "") {
+                    if (import.meta.env.DEV) {
+                        console.warn('[parent chat WS] Thiếu conversationId trên payload — chỉ tăng badge header.', root);
+                    }
+                    setParentWsUnreadBump((b) => Math.min(99, b + 1));
+                    scheduleSilentConversationRefresh();
+                    return;
+                }
+
+                /** Không gọi receiverMatchesParent: tin đã vào queue /user/... của phiên phụ huynh là đủ. */
+
+                const previewText = root?.message ?? root?.content ?? payload?.message ?? payload?.content ?? "";
+                const previewTime = root?.timestamp ?? root?.sentAt ?? root?.time ?? payload?.timestamp ?? null;
+
+                const currentSelected = selectedConversationRef.current;
+                const chatOpen = chatWindowOpenRef.current;
+                const chatMinimized = chatWindowMinimizedRef.current;
+                const tabVisible = typeof document === 'undefined' || document.visibilityState === 'visible';
+                /** Mở đúng cuộc: vẫn append bubble tin mới. */
+                const liveViewingThread =
+                    chatOpen &&
+                    !chatMinimized &&
+                    tabVisible &&
+                    currentSelected &&
+                    privateMessageBelongsToParentSelection(
+                        currentSelected,
+                        conversationId,
+                        root,
+                        emailForMatch,
+                        conversationItemsRef.current
+                    );
+                if (liveViewingThread && currentSelected) {
+                    const sid = currentSelected?.conversationId ?? currentSelected?.id;
+                    if (
+                        sid == null ||
+                        String(sid).trim() === '' ||
+                        !isSameConversationId(sid, conversationId)
+                    ) {
+                        const merged = {
+                            ...currentSelected,
+                            conversationId,
+                            id: conversationId,
+                        };
+                        selectedConversationRef.current = merged;
+                        setSelectedConversation(merged);
+                    }
+                }
+
+                setConversationItems((prev) => {
+                    let matched = false;
+                    const mapped = prev.map((item) => {
                         const id = item?.conversationId || item?.id;
                         if (!isSameConversationId(id, conversationId)) return item;
+                        matched = true;
                         const currentUnread = Number(item?.unreadCount ?? item?.unreadMessages ?? 0) || 0;
-                        const currentSelected = selectedConversationRef.current;
-                        const selectedId = currentSelected?.conversationId || currentSelected?.id;
-                        const shouldIncreaseUnread = !(
-                            selectedId != null && isSameConversationId(selectedId, conversationId)
-                        );
+                        const nextUnread = Math.min(99, currentUnread + 1);
                         return {
                             ...item,
                             lastMessage: previewText || item?.lastMessage,
                             ...(previewTime != null ? {time: previewTime, updatedAt: previewTime} : {}),
-                            unreadCount: shouldIncreaseUnread ? currentUnread + 1 : currentUnread,
+                            unreadCount: nextUnread,
+                            unreadMessages: nextUnread,
                         };
-                    })
-                );
+                    });
+                    if (matched) return mapped;
+                    const peerLabel = String(root?.senderName || '').trim() || 'Tư vấn';
+                    const synthetic = normalizeConversation({
+                        conversationId,
+                        id: conversationId,
+                        title: currentSelected?.schoolName || currentSelected?.title || peerLabel,
+                        schoolName: currentSelected?.schoolName,
+                        counsellorEmail: peerLabel.includes('@') ? peerLabel : currentSelected?.counsellorEmail,
+                        participantEmail: currentSelected?.participantEmail || peerLabel,
+                        parentEmail: emailForMatch,
+                        otherUser: peerLabel,
+                        studentProfileId:
+                            currentSelected?.studentProfileId ??
+                            currentSelected?.studentId ??
+                            currentSelected?.student?.id,
+                        childName: currentSelected?.childName,
+                        studentName: currentSelected?.studentName,
+                        campusId: currentSelected?.campusId ?? currentSelected?.campusID ?? null,
+                        lastMessage: previewText,
+                        time: previewTime,
+                        updatedAt: previewTime,
+                        unreadCount: 1,
+                        unreadMessages: 1,
+                    });
+                    return [synthetic, ...mapped];
+                });
 
-                const currentSelected = selectedConversationRef.current;
-                const selectedId = currentSelected?.conversationId || currentSelected?.id;
-                if (selectedId != null && isSameConversationId(selectedId, conversationId)) {
-                    setMessageItems((prev) => mergeUniqueMessages([...prev, normalizeMessage(payload)]));
+                setSelectedConversation((prev) => {
+                    if (!prev) return prev;
+                    const selectedId = prev?.conversationId ?? prev?.id;
+                    if (!isSameConversationId(selectedId, conversationId)) return prev;
+                    const currentUnread = Number(prev?.unreadCount ?? prev?.unreadMessages ?? 0) || 0;
+                    const next = {
+                        ...prev,
+                        lastMessage: previewText || prev?.lastMessage,
+                        ...(previewTime != null ? {time: previewTime, updatedAt: previewTime} : {}),
+                        unreadCount: Math.min(99, currentUnread + 1),
+                        unreadMessages: Math.min(99, currentUnread + 1),
+                    };
+                    selectedConversationRef.current = next;
+                    return next;
+                });
+
+                if (liveViewingThread) {
+                    setMessageItems((prev) => {
+                        const normalizedIncoming = normalizeMessage(root);
+                        let replacedOptimistic = false;
+                        const withoutMatchingOptimistic = prev.filter((m) => {
+                            if (!String(m.id).startsWith('optimistic-')) return true;
+                            if (!normalizedIncoming.text || m.text !== normalizedIncoming.text) return true;
+                            if (replacedOptimistic) return true;
+                            replacedOptimistic = true;
+                            return false;
+                        });
+                        return mergeUniqueMessages([...withoutMatchingOptimistic, normalizedIncoming]);
+                    });
                 }
-            }
-        });
+
+                /** BE đôi khi cập nhật unread trên GET trước/sau WS — refresh ngắn giúp dòng trong menu khớp nhanh (tư vấn → phụ huynh). */
+                scheduleSilentConversationRefresh();
+        };
+
+        connectPrivateMessageSocket({onMessage: onPrivateMessage});
 
         return () => {
-            if (client?.active) {
-                disconnect();
+            if (parentWsPostRefreshTimerRef.current != null) {
+                clearTimeout(parentWsPostRefreshTimerRef.current);
+                parentWsPostRefreshTimerRef.current = null;
             }
+            removePrivateMessageListener(onPrivateMessage);
         };
     }, [isSignedIn, isParent]);
 
     useEffect(() => {
         if (!selectedConversation || messageItems.length === 0) return;
         if (!chatListRef.current) return;
+        if (loadingMoreRef.current) return;
+        if (!parentStickToBottomRef.current) return;
         chatListRef.current.scrollTop = chatListRef.current.scrollHeight;
     }, [selectedConversation, messageItems.length]);
 
@@ -902,9 +1664,8 @@ function MainHeader() {
         setAnchorEl(null);
     };
 
-    const handleMessageMenuOpen = async (event) => {
+    const handleMessageMenuOpen = (event) => {
         setMessageAnchorEl(event.currentTarget);
-        await loadConversations();
     };
 
     const handleMessageMenuClose = () => {
@@ -912,6 +1673,8 @@ function MainHeader() {
     };
 
     const handleCloseChatWindow = () => {
+        parentComposerEngagedRef.current = false;
+        setParentWsUnreadBump(0);
         setChatWindowOpen(false);
         setChatWindowMinimized(false);
         setSelectedConversation(null);
@@ -923,12 +1686,19 @@ function MainHeader() {
     };
 
     const handleMinimizeChatWindow = () => {
+        parentComposerEngagedRef.current = false;
         setChatWindowMinimized(true);
         setStudentInfoOpen(false);
     };
 
     const handleRestoreChatWindow = () => {
+        parentComposerEngagedRef.current = false;
         setChatWindowMinimized(false);
+        hasMarkedReadRef.current = false;
+        const conv = selectedConversationRef.current;
+        if (conv) {
+            void markParentConversationRead(conv, {syncComposerEngaged: false});
+        }
     };
 
     const handleToggleStudentInfo = () => {
@@ -982,10 +1752,14 @@ function MainHeader() {
             setMessageAnchorEl(null);
             setChatWindowOpen(true);
             setChatWindowMinimized(false);
+            parentComposerEngagedRef.current = false;
+            setParentWsUnreadBump(0);
             hasMarkedReadRef.current = false;
             await loadMessageHistory({conversation: draftConversation});
+            const convAfter = selectedConversationRef.current || draftConversation;
+            void markParentConversationRead(convAfter, {syncComposerEngaged: false});
         },
-        [loadMessageHistory, normalizeConversation, userInfo?.email]
+        [loadMessageHistory, markParentConversationRead, normalizeConversation, userInfo?.email]
     );
 
     const openParentChatRef = React.useRef(null);
@@ -1393,10 +2167,10 @@ function MainHeader() {
                             <>
                                 {isParent && (
                                     <Badge
-                                        badgeContent={unreadMessagesCount}
+                                        badgeContent={parentHeaderUnreadDisplay}
                                         color="error"
                                         overlap="circular"
-                                        invisible={unreadMessagesCount === 0}
+                                        invisible={parentHeaderUnreadDisplay === 0}
                                         sx={{
                                             mr: 0.5,
                                             '& .MuiBadge-badge': {
@@ -1513,6 +2287,7 @@ function MainHeader() {
                                                     const conversationName = conversation?.title || conversation?.name || conversation?.schoolName || conversation?.participantName || 'Cuộc trò chuyện';
                                                     const latestMessage = conversation?.lastMessage?.content || conversation?.lastMessage || conversation?.latestMessage || 'Chưa có nội dung';
                                                     const unreadCount = Number(conversation?.unreadCount ?? conversation?.unreadMessages ?? 0) || 0;
+                                                    const hasUnread = unreadCount > 0;
                                                     const listLogoUrl = pickConversationSchoolLogoUrl(conversation) || null;
 
                                                     return (
@@ -1527,9 +2302,11 @@ function MainHeader() {
                                                                 alignItems: 'center',
                                                                 gap: 1.5,
                                                                 cursor: 'pointer',
-                                                                transition: 'background-color 0.2s ease',
+                                                                bgcolor: hasUnread ? 'rgba(37,99,235,0.12)' : 'transparent',
+                                                                borderLeft: hasUnread ? '3px solid #2563eb' : '3px solid transparent',
+                                                                transition: 'background-color 0.2s ease, border-color 0.2s ease',
                                                                 '&:hover': {
-                                                                    bgcolor: 'rgba(59,130,246,0.08)'
+                                                                    bgcolor: hasUnread ? 'rgba(37,99,235,0.16)' : 'rgba(59,130,246,0.08)'
                                                                 }
                                                             }}
                                                         >
@@ -1540,16 +2317,16 @@ function MainHeader() {
                                                                 {conversationName.charAt(0).toUpperCase()}
                                                             </Avatar>
                                                             <Box sx={{minWidth: 0, flex: 1}}>
-                                                                <Typography noWrap sx={{fontSize: 14, fontWeight: 700, color: '#1e293b'}}>
+                                                                <Typography noWrap sx={{fontSize: 14, fontWeight: hasUnread ? 800 : 700, color: '#1e293b'}}>
                                                                     {conversationName}
                                                                 </Typography>
-                                                                <Typography noWrap sx={{fontSize: 13, color: '#475569'}}>
+                                                                <Typography noWrap sx={{fontSize: 13, color: hasUnread ? '#1e3a8a' : '#475569', fontWeight: hasUnread ? 600 : 500}}>
                                                                     {latestMessage}
                                                                 </Typography>
                                                             </Box>
                                                             {unreadCount > 0 && (
                                                                 <Badge
-                                                                    badgeContent={unreadCount}
+                                                                    badgeContent={unreadCount > 99 ? '99+' : unreadCount}
                                                                     color="error"
                                                                     sx={{
                                                                         '& .MuiBadge-badge': {
@@ -1601,9 +2378,13 @@ function MainHeader() {
                                             zIndex: isStudentInfoOpen ? 1550 : 1500,
                                             display: 'flex',
                                             flexDirection: 'column',
-                                            bgcolor: '#f8fafc',
-                                            border: `1px solid ${selectedStudentTheme.border}`,
-                                            boxShadow: '0 24px 56px rgba(51,65,85,0.18), 0 0 0 1px rgba(255,255,255,0.5) inset'
+                                            bgcolor: parentChatHasUnread ? '#fff7ed' : '#f8fafc',
+                                            border: parentChatHasUnread
+                                                ? '1px solid rgba(249,115,22,0.45)'
+                                                : `1px solid ${selectedStudentTheme.border}`,
+                                            boxShadow: parentChatHasUnread
+                                                ? '0 26px 60px rgba(249,115,22,0.22), 0 0 0 1px rgba(255,255,255,0.55) inset'
+                                                : '0 24px 56px rgba(51,65,85,0.18), 0 0 0 1px rgba(255,255,255,0.5) inset'
                                         }}
                                     >
                                         <Box
@@ -1613,7 +2394,9 @@ function MainHeader() {
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 justifyContent: 'space-between',
-                                                background: selectedStudentTheme.headerGradient,
+                                                background: parentChatHasUnread
+                                                    ? 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)'
+                                                    : selectedStudentTheme.headerGradient,
                                                 borderBottom: '1px solid rgba(255,255,255,0.12)',
                                                 flexShrink: 0
                                             }}
@@ -1746,7 +2529,10 @@ function MainHeader() {
                                                 pb: 2,
                                                 overflowY: 'auto',
                                                 overflowX: 'hidden',
-                                                background: `
+                                                background: parentChatHasUnread ? `
+                                                    linear-gradient(180deg, rgba(255,237,213,0.92) 0%, rgba(255,247,237,0.98) 35%, #fff7ed 100%),
+                                                    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(249,115,22,0.14), transparent 55%)
+                                                ` : `
                                                     linear-gradient(180deg, rgba(238,242,255,0.65) 0%, rgba(248,250,252,0.98) 28%, #f1f5f9 100%),
                                                     radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99,102,241,0.12), transparent 55%)
                                                 `,
@@ -1767,89 +2553,114 @@ function MainHeader() {
                                                     </Typography>
                                                 </Box>
                                             ) : (
-                                                groupedParentMessages.map((group) => (
-                                                    <Box key={group.key} sx={{mb: 0.5}}>
-                                                        <Box sx={{display: 'flex', justifyContent: 'center', mb: 1.25, mt: 0.5}}>
-                                                            <Typography
-                                                                component="span"
-                                                                sx={{
-                                                                    fontSize: 11,
-                                                                    fontWeight: 600,
-                                                                    color: '#64748b',
-                                                                    px: 1.5,
-                                                                    py: 0.45,
-                                                                    borderRadius: 999,
-                                                                    bgcolor: 'rgba(255,255,255,0.85)',
-                                                                    border: '1px solid rgba(148,163,184,0.35)',
-                                                                    boxShadow: '0 1px 2px rgba(51,65,85,0.06)'
-                                                                }}
-                                                            >
-                                                                {group.label}
+                                                <>
+                                                    {loadingOlderMessages && (
+                                                        <Box
+                                                            sx={{
+                                                                position: 'sticky',
+                                                                top: 0,
+                                                                zIndex: 1,
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                gap: 1,
+                                                                py: 0.6,
+                                                                mb: 0.6,
+                                                                bgcolor: 'rgba(241,245,249,0.9)',
+                                                                backdropFilter: 'blur(4px)',
+                                                                borderRadius: 999,
+                                                                border: '1px solid rgba(148,163,184,0.25)'
+                                                            }}
+                                                        >
+                                                            <CircularProgress size={13} sx={{color: selectedStudentTheme.accent}}/>
+                                                            <Typography sx={{fontSize: 10.5, color: '#64748b', fontWeight: 600}}>
+                                                                Đang tải tin nhắn
                                                             </Typography>
                                                         </Box>
-                                                        {group.items.map((msg, idx) => {
-                                                            const isMine = isParentMessageMine(msg);
-                                                            const prev = idx > 0 ? group.items[idx - 1] : null;
-                                                            const prevIsMine = prev ? isParentMessageMine(prev) : null;
-                                                            const showPeerAvatar = !isMine && (idx === 0 || prevIsMine === true);
-                                                            const stackTight = idx > 0 && prevIsMine === isMine;
-                                                            return (
-                                                                <Box
-                                                                    key={msg.id}
+                                                    )}
+                                                    {groupedParentMessages.map((group) => (
+                                                        <Box key={group.key} sx={{mb: 0.5}}>
+                                                            <Box sx={{display: 'flex', justifyContent: 'center', mb: 1.25, mt: 0.5}}>
+                                                                <Typography
+                                                                    component="span"
                                                                     sx={{
-                                                                        display: 'flex',
-                                                                        justifyContent: isMine ? 'flex-end' : 'flex-start',
-                                                                        alignItems: 'flex-end',
-                                                                        gap: 0.75,
-                                                                        mb: stackTight ? 0.35 : 1.1,
-                                                                        pl: isMine ? 3 : 0,
-                                                                        pr: isMine ? 0 : 0
+                                                                        fontSize: 11,
+                                                                        fontWeight: 600,
+                                                                        color: '#64748b',
+                                                                        px: 1.5,
+                                                                        py: 0.45,
+                                                                        borderRadius: 999,
+                                                                        bgcolor: 'rgba(255,255,255,0.85)',
+                                                                        border: '1px solid rgba(148,163,184,0.35)',
+                                                                        boxShadow: '0 1px 2px rgba(51,65,85,0.06)'
                                                                     }}
                                                                 >
-                                                                    {!isMine && (
-                                                                        <Box sx={{width: 32, flexShrink: 0, display: 'flex', justifyContent: 'center', pb: 0.25}}>
-                                                                            {showPeerAvatar ? (
-                                                                                <Avatar
-                                                                                    src={peerSchoolLogoUrl || undefined}
-                                                                                    sx={{
-                                                                                        width: 32,
-                                                                                        height: 32,
-                                                                                        fontSize: 13,
-                                                                                        fontWeight: 700,
-                                                                                        bgcolor: selectedStudentTheme.peerAvatar,
-                                                                                        boxShadow: '0 2px 8px rgba(59,130,246,0.35)'
-                                                                                    }}
-                                                                                >
-                                                                                    {peerChatInitial}
-                                                                                </Avatar>
-                                                                            ) : (
-                                                                                <Box sx={{width: 32}}/>
-                                                                            )}
-                                                                        </Box>
-                                                                    )}
-                                                                    <Box sx={{maxWidth: isMine ? '82%' : 'calc(100% - 40px)', minWidth: 0}}>
-                                                                        <Box
-                                                                            sx={{
-                                                                                px: 1.6,
-                                                                                py: 1,
-                                                                                borderRadius: 2.25,
-                                                                                borderTopLeftRadius: !isMine ? (stackTight ? 2.25 : 0.5) : 2.25,
-                                                                                borderTopRightRadius: isMine ? (stackTight ? 2.25 : 0.5) : 2.25,
-                                                                                background: isMine
-                                                                                    ? selectedStudentTheme.bubbleGradient
-                                                                                    : '#ffffff',
-                                                                                color: isMine ? '#ffffff' : '#1e293b',
-                                                                                border: isMine ? 'none' : '1px solid rgba(148,163,184,0.4)',
-                                                                                boxShadow: isMine
-                                                                                    ? '0 2px 8px rgba(59,130,246,0.3), 0 1px 0 rgba(255,255,255,0.12) inset'
-                                                                                    : '0 1px 3px rgba(51,65,85,0.06)'
-                                                                            }}
-                                                                        >
-                                                                            <Typography sx={{fontSize: 13.5, whiteSpace: 'pre-wrap', lineHeight: 1.5, wordBreak: 'break-word'}}>
-                                                                                {msg.text}
-                                                                            </Typography>
-                                                                        </Box>
-                                                                        {msg.sentAt && (
+                                                                    {group.label}
+                                                                </Typography>
+                                                            </Box>
+                                                            {group.items.map((msg, idx) => {
+                                                                const isMine = isParentMessageMine(msg);
+                                                                const prev = idx > 0 ? group.items[idx - 1] : null;
+                                                                const prevIsMine = prev ? isParentMessageMine(prev) : null;
+                                                                const showPeerAvatar = !isMine && (idx === 0 || prevIsMine === true);
+                                                                const stackTight = idx > 0 && prevIsMine === isMine;
+                                                                return (
+                                                                    <Box
+                                                                        key={msg.id}
+                                                                        sx={{
+                                                                            display: 'flex',
+                                                                            justifyContent: isMine ? 'flex-end' : 'flex-start',
+                                                                            alignItems: 'flex-end',
+                                                                            gap: 0.75,
+                                                                            mb: stackTight ? 0.35 : 1.1,
+                                                                            pl: isMine ? 3 : 0,
+                                                                            pr: isMine ? 0 : 0
+                                                                        }}
+                                                                    >
+                                                                        {!isMine && (
+                                                                            <Box sx={{width: 32, flexShrink: 0, display: 'flex', justifyContent: 'center', pb: 0.25}}>
+                                                                                {showPeerAvatar ? (
+                                                                                    <Avatar
+                                                                                        src={peerSchoolLogoUrl || undefined}
+                                                                                        sx={{
+                                                                                            width: 32,
+                                                                                            height: 32,
+                                                                                            fontSize: 13,
+                                                                                            fontWeight: 700,
+                                                                                            bgcolor: selectedStudentTheme.peerAvatar,
+                                                                                            boxShadow: '0 2px 8px rgba(59,130,246,0.35)'
+                                                                                        }}
+                                                                                    >
+                                                                                        {peerChatInitial}
+                                                                                    </Avatar>
+                                                                                ) : (
+                                                                                    <Box sx={{width: 32}}/>
+                                                                                )}
+                                                                            </Box>
+                                                                        )}
+                                                                        <Box sx={{maxWidth: isMine ? '82%' : 'calc(100% - 40px)', minWidth: 0}}>
+                                                                            <Box
+                                                                                sx={{
+                                                                                    px: 1.6,
+                                                                                    py: 1,
+                                                                                    borderRadius: 2.25,
+                                                                                    borderTopLeftRadius: !isMine ? (stackTight ? 2.25 : 0.5) : 2.25,
+                                                                                    borderTopRightRadius: isMine ? (stackTight ? 2.25 : 0.5) : 2.25,
+                                                                                    background: isMine
+                                                                                        ? selectedStudentTheme.bubbleGradient
+                                                                                        : '#ffffff',
+                                                                                    color: isMine ? '#ffffff' : '#1e293b',
+                                                                                    border: isMine ? 'none' : '1px solid rgba(148,163,184,0.4)',
+                                                                                    boxShadow: isMine
+                                                                                        ? '0 2px 8px rgba(59,130,246,0.3), 0 1px 0 rgba(255,255,255,0.12) inset'
+                                                                                        : '0 1px 3px rgba(51,65,85,0.06)'
+                                                                                }}
+                                                                            >
+                                                                                <Typography sx={{fontSize: 13.5, whiteSpace: 'pre-wrap', lineHeight: 1.5, wordBreak: 'break-word'}}>
+                                                                                    {msg.text}
+                                                                                </Typography>
+                                                                            </Box>
+                                                                            {msg.sentAt && (
                                                                             <Typography
                                                                                 sx={{
                                                                                     mt: 0.35,
@@ -1863,13 +2674,14 @@ function MainHeader() {
                                                                             >
                                                                                 {formatMessageTime(msg.sentAt)}
                                                                             </Typography>
-                                                                        )}
+                                                                            )}
+                                                                        </Box>
                                                                     </Box>
-                                                                </Box>
-                                                            );
-                                                        })}
-                                                    </Box>
-                                                ))
+                                                                );
+                                                            })}
+                                                        </Box>
+                                                    ))}
+                                                </>
                                             )}
                                         </Box>
                                         <Box
@@ -1899,9 +2711,15 @@ function MainHeader() {
                                                 >
                                                     <InputBase
                                                         value={chatInput}
-                                                        onChange={(e) => setChatInput(e.target.value)}
+                                                        onPointerDown={handleMarkRead}
+                                                        onChange={(e) => {
+                                                            parentComposerEngagedRef.current = true;
+                                                            setChatInput(e.target.value);
+                                                        }}
+                                                        onClick={handleMarkRead}
                                                         onFocus={handleMarkRead}
                                                         onKeyDown={(e) => {
+                                                            parentComposerEngagedRef.current = true;
                                                             if (e.key === 'Enter') {
                                                                 e.preventDefault();
                                                                 handleSendMessage();

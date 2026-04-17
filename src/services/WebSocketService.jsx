@@ -70,6 +70,10 @@ export const connectPrivateMessageSocket = ({onMessage}) => {
                 stompClient.subscribe(destination, (frame) => {
                     try {
                         const payload = JSON.parse(frame.body || "{}");
+                        if (import.meta.env.DEV) {
+                            // Tab phụ huynh: nếu counsellor gửi mà không thấy log này → BE chưa push vào queue /user của phụ huynh
+                            console.debug("[STOMP ←]", destination, payload);
+                        }
                         messageListeners.forEach((listener) => listener?.(payload));
                     } catch (error) {
                         console.error("Invalid websocket payload:", error);
@@ -87,6 +91,15 @@ export const connectPrivateMessageSocket = ({onMessage}) => {
     return stompClient;
 };
 
+/**
+ * Gỡ một listener (vd unmount CounsellorParentConsultation) mà không đóng socket của listener khác (vd Header phụ huynh).
+ */
+export const removePrivateMessageListener = (listener) => {
+    if (listener == null || typeof listener !== "function") return;
+    messageListeners.delete(listener);
+    /** Không deactivate khi hết listener — các trang unmount lần lượt có thể tắt WS sớm; kết nối giữ để listener khác (sidebar, trang Liên hệ) vẫn nhận tin. */
+};
+
 export const sendMessage = (message) => {
     if (!stompClient?.active) return false;
 
@@ -102,8 +115,13 @@ export const sendMessage = (message) => {
 };
 
 export const disconnect = () => {
-    if (stompClient) {
-        stompClient.deactivate();
-    }
     messageListeners.clear();
+    if (stompClient) {
+        try {
+            if (stompClient.active) stompClient.deactivate();
+        } catch {
+            /* ignore */
+        }
+        stompClient = null;
+    }
 };
