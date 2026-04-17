@@ -1,9 +1,7 @@
 import React from "react";
 import {
     Box,
-    Breadcrumbs,
     Button,
-    ButtonBase,
     Card,
     CardMedia,
     Chip,
@@ -14,12 +12,6 @@ import {
     Stack,
     Tab,
     Tabs,
-    Table,
-    TableBody,
-    TableCell,
-    TableContainer,
-    TableHead,
-    TableRow,
     Typography
 } from "@mui/material";
 import {
@@ -42,7 +34,8 @@ import {
     School as SchoolIcon,
     Share as ShareIcon,
     Favorite as FavoriteIcon,
-    FavoriteBorder as FavoriteBorderIcon
+    FavoriteBorder as FavoriteBorderIcon,
+    KeyboardArrowUp as KeyboardArrowUpIcon
 } from "@mui/icons-material";
 import {MapContainer, Marker, Popup, TileLayer} from "react-leaflet";
 import L from "leaflet";
@@ -298,9 +291,9 @@ function buildSchoolContact(school) {
     };
 }
 
-const CONTACT_BODY = "#64748b";
-const CONTACT_MUTED = "#94a3b8";
-const CURRICULUM_DESCRIPTION_TEXT = "#595959";
+const CONTACT_BODY = "#0f172a";
+const CONTACT_MUTED = "#0f172a";
+const CURRICULUM_DESCRIPTION_TEXT = "#0f172a";
 const contactIconSx = {fontSize: 22, color: CONTACT_BODY, flexShrink: 0, opacity: 0.92};
 const contactRowSx = {
     display: "flex",
@@ -342,7 +335,8 @@ const detailMainColumnCardSx = {
     borderRadius: 2.75,
     border: "1px solid rgba(96,165,250,0.52)",
     background: "linear-gradient(180deg, #edf6ff 0%, #dfeeff 100%)",
-    boxShadow: "0 10px 22px rgba(59,130,246,0.15), 0 2px 6px rgba(15,23,42,0.05)"
+    boxShadow: "0 10px 22px rgba(59,130,246,0.15), 0 2px 6px rgba(15,23,42,0.05)",
+    minWidth: 0
 };
 
 function SchoolGeneralInfoCard({school}) {
@@ -638,8 +632,6 @@ function SchoolCampusInfoCard({school, isParent, onMessageCampus}) {
 
 function SchoolCurriculumInfoCard({school}) {
     const list = Array.isArray(school?.curriculumList) ? school.curriculumList : [];
-    const subjectTableBorder = "1px solid rgba(51,65,85,0.08)";
-    const subjectRowMuted = "rgba(248,250,252,0.85)";
 
     return (
         <Box sx={detailMainColumnCardSx}>
@@ -781,121 +773,70 @@ function SchoolCurriculumInfoCard({school}) {
                                                 Môn học
                                             </Box>
                                         </Typography>
-                                        <TableContainer
-                                            component={Box}
-                                            sx={{
-                                                mt: 1,
-                                                border: subjectTableBorder,
-                                                borderRadius: 2,
-                                                overflow: "auto",
-                                                bgcolor: "#fff"
-                                            }}
-                                        >
-                                            <Table size="small" sx={{minWidth: 520}}>
-                                                <TableHead>
-                                                    <TableRow sx={{bgcolor: subjectRowMuted}}>
-                                                        <TableCell
-                                                            sx={{
-                                                                fontWeight: 800,
-                                                                fontSize: "0.72rem",
-                                                                color: "#64748b",
-                                                                py: 1,
-                                                                borderBottom: subjectTableBorder,
-                                                                width: "32%"
-                                                            }}
-                                                        >
-                                                            Tên môn học
-                                                        </TableCell>
-                                                        <TableCell
-                                                            align="right"
-                                                            sx={{
-                                                                fontWeight: 800,
-                                                                fontSize: "0.72rem",
-                                                                color: "#64748b",
-                                                                py: 1,
-                                                                borderBottom: subjectTableBorder,
-                                                                width: 112,
-                                                                minWidth: 112
-                                                            }}
-                                                        >
-                                                            Trạng thái
-                                                        </TableCell>
-                                                        <TableCell
-                                                            sx={{
-                                                                fontWeight: 800,
-                                                                fontSize: "0.72rem",
-                                                                color: "#64748b",
-                                                                py: 1,
-                                                                borderBottom: subjectTableBorder
-                                                            }}
-                                                        >
-                                                            Mô tả ngắn
-                                                        </TableCell>
-                                                    </TableRow>
-                                                </TableHead>
-                                                <TableBody>
-                                                    {subjects.map((sub, si) => {
-                                                        const sn = String(sub?.name || "").trim() || `Môn ${si + 1}`;
-                                                        const sd = sub?.description != null ? String(sub.description).trim() : "";
-                                                        const mandatory = Boolean(sub?.isMandatory);
-                                                        return (
-                                                            <TableRow
-                                                                key={`${sn}-${si}`}
+                                        <Stack spacing={1.1} sx={{mt: 1.1}}>
+                                            {subjects.map((sub, si) => {
+                                                const sn = String(sub?.name || "").trim() || `Môn ${si + 1}`;
+                                                const sd = sub?.description != null ? String(sub.description).trim() : "";
+                                                const mandatory = Boolean(sub?.isMandatory);
+                                                return (
+                                                    <Box
+                                                        key={`${sn}-${si}`}
+                                                        sx={{
+                                                            borderRadius: {xs: 1.5, sm: 2},
+                                                            border: "1px solid rgba(191,219,254,0.7)",
+                                                            bgcolor: "rgba(248,252,255,0.98)",
+                                                            px: {xs: 1.25, sm: 1.5},
+                                                            py: {xs: 1.15, sm: 1.25}
+                                                        }}
+                                                    >
+                                                        <Stack direction="row" alignItems="center" spacing={0.9} sx={{mb: 0.75, flexWrap: "wrap"}}>
+                                                            <Typography
                                                                 sx={{
-                                                                    bgcolor: si % 2 === 1 ? "rgba(241,245,249,0.55)" : "transparent",
-                                                                    "&:last-child td": {borderBottom: 0}
+                                                                    fontWeight: 800,
+                                                                    fontSize: "1rem",
+                                                                    color: BRAND_NAVY,
+                                                                    lineHeight: 1.35,
+                                                                    overflowWrap: "anywhere",
+                                                                    wordBreak: "break-word"
                                                                 }}
                                                             >
-                                                                <TableCell
-                                                                    sx={{
-                                                                        fontWeight: 700,
-                                                                        fontSize: "0.875rem",
-                                                                        color: "#0f172a",
-                                                                        verticalAlign: "top",
-                                                                        borderColor: "rgba(51,65,85,0.06)",
-                                                                        py: 1.15
-                                                                    }}
-                                                                >
-                                                                    {sn}
-                                                                </TableCell>
-                                                                <TableCell
-                                                                    align="right"
-                                                                    sx={{
-                                                                        verticalAlign: "top",
-                                                                        borderColor: "rgba(51,65,85,0.06)",
-                                                                        py: 1.15,
-                                                                        whiteSpace: "nowrap"
-                                                                    }}
-                                                                >
-                                                                    <Typography
-                                                                        component="span"
-                                                                        sx={{
-                                                                            fontSize: "0.8125rem",
-                                                                            fontWeight: 600,
-                                                                            color: mandatory ? "#2563eb" : "#64748b"
-                                                                        }}
-                                                                    >
-                                                                        ● {mandatory ? "Bắt buộc" : "Tự chọn"}
-                                                                    </Typography>
-                                                                </TableCell>
-                                                                <TableCell
-                                                                    sx={{
-                                                                        fontSize: "0.875rem",
-                                                                        color: CURRICULUM_DESCRIPTION_TEXT,
-                                                                        lineHeight: 1.5,
-                                                                        verticalAlign: "top",
-                                                                        borderColor: "rgba(51,65,85,0.06)",
-                                                                        py: 1.15
-                                                                    }}
-                                                                >
-                                                                    {sd || "—"}
-                                                                </TableCell>
-                                                            </TableRow>
-                                                        );
-                                                    })}
-                                                </TableBody>
-                                            </Table>
-                                        </TableContainer>
+                                                                {sn}
+                                                            </Typography>
+                                                            <Box
+                                                                component="span"
+                                                                sx={{
+                                                                    display: "inline-flex",
+                                                                    alignItems: "center",
+                                                                    justifyContent: "center",
+                                                                    px: 0.72,
+                                                                    py: 0.14,
+                                                                    borderRadius: 999,
+                                                                    fontSize: "0.62rem",
+                                                                    fontWeight: 700,
+                                                                    lineHeight: 1.15,
+                                                                    bgcolor: mandatory ? "rgba(59,130,246,0.16)" : "rgba(148,163,184,0.22)",
+                                                                    color: mandatory ? "#1d4ed8" : "#334155",
+                                                                    minHeight: 17
+                                                                }}
+                                                            >
+                                                                {mandatory ? "Bắt buộc" : "Tự chọn"}
+                                                            </Box>
+                                                        </Stack>
+                                                        <Typography
+                                                            sx={{
+                                                                fontSize: "0.875rem",
+                                                                color: "#4B5563",
+                                                                lineHeight: 1.6,
+                                                                overflowWrap: "anywhere",
+                                                                wordBreak: "break-word"
+                                                            }}
+                                                        >
+                                                            {sd || "—"}
+                                                        </Typography>
+                                                    </Box>
+                                                );
+                                            })}
+                                        </Stack>
                                     </Box>
                                 </Box>
                             ) : null}
@@ -990,7 +931,7 @@ function SchoolContactPanel({school}) {
 
 function SchoolLocationMap({userLocation, fallbackCenter, campuses, maptilerApiKey, onViewSchoolDetail}) {
     const center = userLocation || fallbackCenter || null;
-    if (!center) return <Typography sx={{color: "#64748b"}}>Không có tọa độ để hiển thị bản đồ.</Typography>;
+    if (!center) return <Typography sx={{color: "#0f172a"}}>Không có tọa độ để hiển thị bản đồ.</Typography>;
     const mapUrl = `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${maptilerApiKey}`;
     return (
         <MapContainer
@@ -1012,7 +953,7 @@ function SchoolLocationMap({userLocation, fallbackCenter, campuses, maptilerApiK
                             <Typography sx={{fontWeight: 800, color: "#0f172a", mb: 0.25}}>
                                 {campus.name || "Campus"}
                             </Typography>
-                            <Typography sx={{fontSize: "0.82rem", color: "#475569", mb: 0.5}}>
+                            <Typography sx={{fontSize: "0.82rem", color: "#0f172a", mb: 0.5}}>
                                 {campus.address || "Đang cập nhật địa chỉ"}
                             </Typography>
                             <Typography sx={{fontSize: "0.82rem", color: "#0f172a", mb: 1}}>
@@ -1069,6 +1010,7 @@ export default function SchoolSearchDetailView({
     const [nearbyLoading, setNearbyLoading] = React.useState(false);
     const [nearbyError, setNearbyError] = React.useState("");
     const [nearbyNotice, setNearbyNotice] = React.useState("");
+    const [showScrollTopButton, setShowScrollTopButton] = React.useState(false);
 
     const schoolCampusMarkers = React.useMemo(() => {
         const list = Array.isArray(school?.campusList) ? school.campusList : [];
@@ -1289,6 +1231,7 @@ export default function SchoolSearchDetailView({
                     }
                 }
                 setDetailActiveSection(active);
+                setShowScrollTopButton(root.scrollTop > 260);
             });
         };
 
@@ -1300,6 +1243,16 @@ export default function SchoolSearchDetailView({
         };
     }, [school, detailKeyRaw]);
 
+    const scrollToDetailTop = React.useCallback(() => {
+        const root = detailScrollRef.current;
+        if (!root) return;
+        root.scrollTo({top: 0, behavior: "smooth"});
+    }, []);
+
+    const schoolCategoryLabel = String(school?.schoolTypeLabel || school?.type || "Tư thục")
+        .trim()
+        .toUpperCase();
+
     const detailHeroActionBtnSx = {
         textTransform: "none",
         fontWeight: 700,
@@ -1310,6 +1263,32 @@ export default function SchoolSearchDetailView({
         "&:hover": {
             borderColor: "#fff",
             bgcolor: "rgba(255,255,255,0.12)"
+        }
+    };
+    const detailHeroPrimaryBtnSx = {
+        ...detailHeroActionBtnSx,
+        bgcolor: "rgba(255,255,255,0.2)",
+        borderColor: "rgba(255,255,255,0.72)",
+        boxShadow: "0 8px 20px rgba(15,23,42,0.2)",
+        "&:hover": {
+            borderColor: "#fff",
+            bgcolor: "rgba(255,255,255,0.3)"
+        }
+    };
+    const detailHeroSecondaryIconBtnSx = {
+        width: 32,
+        height: 32,
+        borderRadius: 1.5,
+        border: "1px solid rgba(255,255,255,0.6)",
+        bgcolor: "rgba(255,255,255,0.08)",
+        color: "#fff",
+        "&:hover": {
+            borderColor: "#fff",
+            bgcolor: "rgba(255,255,255,0.16)"
+        },
+        "&.Mui-disabled": {
+            color: "rgba(255,255,255,0.45)",
+            borderColor: "rgba(255,255,255,0.35)"
         }
     };
 
@@ -1401,6 +1380,30 @@ export default function SchoolSearchDetailView({
             >
                 <ArrowBackIcon/>
             </IconButton>
+            <IconButton
+                aria-label="Cuộn lên đầu trang"
+                onClick={scrollToDetailTop}
+                sx={{
+                    position: "fixed",
+                    left: {xs: "50%", sm: 20},
+                    bottom: {xs: 14, sm: 20},
+                    transform: showScrollTopButton
+                        ? {xs: "translateX(-50%) translateY(0)", sm: "translateY(0)"}
+                        : {xs: "translateX(-50%) translateY(12px)", sm: "translateY(12px)"},
+                    zIndex: 1400,
+                    width: 40,
+                    height: 40,
+                    bgcolor: BRAND_NAVY,
+                    color: "#fff",
+                    boxShadow: "0 10px 24px rgba(15,23,42,0.25)",
+                    opacity: showScrollTopButton ? 1 : 0,
+                    pointerEvents: showScrollTopButton ? "auto" : "none",
+                    transition: "opacity 0.24s ease, transform 0.24s ease",
+                    "&:hover": {bgcolor: APP_PRIMARY_DARK}
+                }}
+            >
+                <KeyboardArrowUpIcon/>
+            </IconButton>
 
             <Box
                 ref={detailScrollRef}
@@ -1417,44 +1420,67 @@ export default function SchoolSearchDetailView({
                 <Box
                     sx={{
                         position: "relative",
-                        minHeight: {xs: 280, sm: 320},
-                        backgroundImage: `
-                                linear-gradient(180deg, rgba(51,65,85,0.55) 0%, rgba(51,65,85,0.82) 100%),
-                                url(${school.logoUrl || DEFAULT_SCHOOL_IMAGE})
+                        minHeight: {xs: 156, sm: 176},
+                        background: `
+                            radial-gradient(120% 120% at 10% 0%, rgba(96,165,250,0.54) 0%, rgba(96,165,250,0) 58%),
+                            radial-gradient(100% 120% at 92% 6%, rgba(125,211,252,0.46) 0%, rgba(125,211,252,0) 55%),
+                            linear-gradient(135deg, #60a5fa 0%, #3b82f6 46%, #38bdf8 100%)
+                        `,
+                        color: "#fff",
+                        "&::after": {
+                            content: '""',
+                            position: "absolute",
+                            inset: 0,
+                            pointerEvents: "none",
+                            opacity: 0.14,
+                            backgroundImage: `
+                                linear-gradient(rgba(255,255,255,0.22) 1px, transparent 1px),
+                                linear-gradient(90deg, rgba(255,255,255,0.22) 1px, transparent 1px)
                             `,
-                        backgroundSize: "cover",
-                        backgroundPosition: "center",
-                        color: "#fff"
+                            backgroundSize: "26px 26px"
+                        }
                     }}
                 >
                     <Box
                         sx={{
                             position: "absolute",
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            pt: {xs: 5, sm: 6},
-                            pb: {xs: 2, sm: 3},
-                            px: {xs: "24px", sm: "40px"}
+                            inset: 0,
+                            display: "flex",
+                            alignItems: "center",
+                            px: 0
                         }}
                     >
-                        <Box
-                            sx={{
-                                display: "flex",
-                                flexDirection: {xs: "column", sm: "row"},
-                                alignItems: {xs: "stretch", sm: "center"},
-                                justifyContent: "space-between",
-                                gap: {xs: 0, sm: 2},
-                                width: "100%"
-                            }}
-                        >
+                        <Box sx={{maxWidth: 1100, mx: "auto", width: "100%", px: {xs: 2, sm: 3}, py: {xs: 1, sm: 1.25}}}>
+                            <Box
+                                sx={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "stretch",
+                                    justifyContent: "flex-start",
+                                    gap: 1.2,
+                                    width: "100%"
+                                }}
+                            >
                             <Box sx={{flex: "1 1 auto", minWidth: 0}}>
                                 <Typography
                                     sx={{
+                                        fontSize: "0.66rem",
+                                        fontWeight: 700,
+                                        letterSpacing: "0.12em",
+                                        textTransform: "uppercase",
+                                        color: "#dbeafe",
+                                        mb: 0.6
+                                    }}
+                                >
+                                    {schoolCategoryLabel}
+                                </Typography>
+                                <Typography
+                                    sx={{
                                         fontWeight: 800,
-                                        fontSize: {xs: "1.35rem", sm: "1.75rem"},
+                                        fontSize: {xs: "1.45rem", sm: "1.85rem"},
                                         lineHeight: 1.25,
-                                        textShadow: "0 2px 12px rgba(0,0,0,0.35)"
+                                        color: "#f8fafc",
+                                        textShadow: "0 3px 14px rgba(15,23,42,0.45)"
                                     }}
                                 >
                                     {school.school}
@@ -1464,15 +1490,32 @@ export default function SchoolSearchDetailView({
                                     alignItems="center"
                                     flexWrap="wrap"
                                     useFlexGap
-                                    sx={{mt: 1.25, gap: {xs: 1, sm: 2.5}, rowGap: 1}}
+                                    sx={{mt: 1.1, gap: {xs: 1.5, sm: 2.5}, rowGap: 0.8}}
                                 >
                                     <Stack
                                         direction="row"
                                         alignItems="center"
-                                        spacing={0.5}
-                                        flexWrap="wrap"
-                                        useFlexGap
-                                        sx={{gap: 0.5, minHeight: 28}}
+                                        spacing={0.6}
+                                        sx={{gap: 0.6, minHeight: 24}}
+                                    >
+                                        <LocationOnIcon sx={{fontSize: 16, color: "rgba(191,219,254,0.96)", flexShrink: 0}}/>
+                                        <Typography
+                                            sx={{
+                                                fontSize: "0.84rem",
+                                                color: "#eff6ff",
+                                                lineHeight: 1.2,
+                                                display: "flex",
+                                                alignItems: "center"
+                                            }}
+                                        >
+                                            {school.ward}, {school.province}
+                                        </Typography>
+                                    </Stack>
+                                    <Stack
+                                        direction="row"
+                                        alignItems="center"
+                                        spacing={0.6}
+                                        sx={{gap: 0.6, minHeight: 24}}
                                     >
                                         <Rating
                                             value={Math.min(5, Math.max(0, Number(school.averageRating) || 0))}
@@ -1482,38 +1525,16 @@ export default function SchoolSearchDetailView({
                                             sx={{color: "#fbbf24", display: "flex", alignItems: "center"}}
                                         />
                                         <Typography
-                                            sx={{
-                                                fontSize: "0.85rem",
-                                                opacity: 0.95,
-                                                lineHeight: 1.2,
-                                                display: "flex",
-                                                alignItems: "center"
-                                            }}
-                                        >
-                                            {school.averageRating > 0
-                                                ? school.averageRating.toFixed(1)
-                                                : "—"}
-                                        </Typography>
-                                    </Stack>
-                                    <Stack
-                                        direction="row"
-                                        alignItems="center"
-                                        spacing={0.5}
-                                        useFlexGap
-                                        sx={{gap: 0.5, minHeight: 28}}
-                                    >
-                                        <LocationOnIcon sx={{fontSize: 18, opacity: 0.92, flexShrink: 0}}/>
-                                        <Typography
                                             component="span"
                                             sx={{
-                                                fontSize: "0.85rem",
-                                                opacity: 0.9,
+                                                fontSize: "0.84rem",
+                                                color: "#eff6ff",
                                                 lineHeight: 1.2,
                                                 display: "inline-flex",
                                                 alignItems: "center"
                                             }}
                                         >
-                                            {school.ward}, {school.province}
+                                            {school.averageRating > 0 ? school.averageRating.toFixed(1) : "—"}
                                         </Typography>
                                     </Stack>
                                 </Stack>
@@ -1523,13 +1544,13 @@ export default function SchoolSearchDetailView({
                                 direction="row"
                                 flexWrap="wrap"
                                 useFlexGap
-                                justifyContent="flex-end"
+                                justifyContent="flex-start"
                                 sx={{
-                                    mt: {xs: 2, sm: 0},
-                                    gap: 0.75,
+                                    mt: 0.2,
+                                    gap: 0.65,
                                     flexShrink: 0,
-                                    width: {xs: "100%", sm: "auto"},
-                                    alignSelf: {xs: "stretch", sm: "center"}
+                                    width: "100%",
+                                    alignSelf: "flex-start"
                                 }}
                             >
                                 <Button
@@ -1543,7 +1564,16 @@ export default function SchoolSearchDetailView({
                                     }
                                     target="_blank"
                                     rel="noreferrer"
-                                    sx={detailHeroActionBtnSx}
+                                    sx={{
+                                        ...detailHeroPrimaryBtnSx,
+                                        bgcolor: "#ffffff",
+                                        color: BRAND_NAVY,
+                                        borderColor: "rgba(255,255,255,0.95)",
+                                        "&:hover": {
+                                            bgcolor: "#eff6ff",
+                                            borderColor: "#ffffff"
+                                        }
+                                    }}
                                 >
                                     {(school.website || "").trim() ? "Website trường" : "Tìm trên web"}
                                 </Button>
@@ -1558,14 +1588,23 @@ export default function SchoolSearchDetailView({
                                         )
                                     }
                                     onClick={() => toggleCompare(school)}
-                                    sx={detailHeroActionBtnSx}
+                                    sx={{
+                                        ...detailHeroActionBtnSx,
+                                        borderColor: "rgba(255,255,255,0.9)",
+                                        bgcolor: "rgba(15,23,42,0.18)",
+                                        color: "#f8fafc",
+                                        "&:hover": {
+                                            borderColor: "#fff",
+                                            bgcolor: "rgba(15,23,42,0.3)"
+                                        }
+                                    }}
                                 >
                                     {detailInCompare ? "Đã chọn so sánh" : "So sánh"}
                                 </Button>
-                                <ButtonBase
+                                <IconButton
                                     disabled={!canSaveSchool}
                                     onClick={() => toggleSave(school)}
-                                    title={
+                                    aria-label={
                                         canSaveSchool
                                             ? detailIsSaved
                                                 ? "Bỏ yêu thích trường này"
@@ -1573,28 +1612,9 @@ export default function SchoolSearchDetailView({
                                             : "Đăng nhập với vai trò Phụ huynh để yêu thích trường"
                                     }
                                     sx={{
-                                        ...detailHeroActionBtnSx,
-                                        display: "inline-flex",
-                                        alignItems: "center",
-                                        justifyContent: "center",
-                                        gap: 0.5,
-                                        py: 0.5,
-                                        px: 1.25,
-                                        fontSize: "0.8125rem",
-                                        lineHeight: 1.2,
-                                        color: detailIsSaved ? "#e11d48" : "#fff",
-                                        bgcolor: "transparent",
-                                        "&:hover": {
-                                            borderColor: "#fff",
-                                            bgcolor: detailIsSaved
-                                                ? "rgba(244,63,94,0.2)"
-                                                : "rgba(255,255,255,0.12)"
-                                        },
-                                        "&.Mui-disabled": {
-                                            color: "rgba(255,255,255,0.45)",
-                                            border: "1px solid rgba(255,255,255,0.45)",
-                                            WebkitTextFillColor: "rgba(255,255,255,0.45)"
-                                        }
+                                        ...detailHeroSecondaryIconBtnSx,
+                                        bgcolor: "rgba(15,23,42,0.2)",
+                                        borderColor: "rgba(255,255,255,0.9)"
                                     }}
                                 >
                                     {detailIsSaved ? (
@@ -1602,60 +1622,25 @@ export default function SchoolSearchDetailView({
                                     ) : (
                                         <FavoriteBorderIcon sx={{fontSize: 18, color: "#fff"}}/>
                                     )}
-                                    {detailIsSaved ? "Đã yêu thích" : "Yêu thích"}
-                                </ButtonBase>
-                                <Button
-                                    size="small"
-                                    variant="outlined"
-                                    startIcon={<ShareIcon sx={{fontSize: 18}}/>}
+                                </IconButton>
+                                <IconButton
+                                    aria-label="Chia sẻ trường"
                                     onClick={shareSchoolDetail}
-                                    sx={detailHeroActionBtnSx}
+                                    sx={{
+                                        ...detailHeroSecondaryIconBtnSx,
+                                        bgcolor: "rgba(15,23,42,0.2)",
+                                        borderColor: "rgba(255,255,255,0.9)"
+                                    }}
                                 >
-                                    Chia sẻ
-                                </Button>
+                                    <ShareIcon sx={{fontSize: 18}}/>
+                                </IconButton>
                             </Stack>
+                            </Box>
                         </Box>
                     </Box>
                 </Box>
 
                 <Box sx={{maxWidth: 1100, mx: "auto", width: "100%", px: {xs: 2, sm: 3}, py: 2}}>
-                    <Box sx={{overflowX: "auto", WebkitOverflowScrolling: "touch", pb: 0.25, mx: {xs: -0.5, sm: 0}, px: {xs: 0.5, sm: 0}}}>
-                        <Breadcrumbs
-                            sx={{
-                                mb: 2,
-                                flexWrap: "nowrap",
-                                whiteSpace: "nowrap",
-                                "& a": {color: BRAND_NAVY, fontWeight: 600},
-                                "& .MuiBreadcrumbs-separator": {flexShrink: 0}
-                            }}
-                        >
-                            <Link
-                                component="button"
-                                type="button"
-                                underline="hover"
-                                onClick={() => navigate("/home")}
-                                sx={{cursor: "pointer", border: "none", background: "none", font: "inherit", flexShrink: 0}}
-                            >
-                                Trang chủ
-                            </Link>
-                            <Link
-                                component="button"
-                                type="button"
-                                underline="hover"
-                                onClick={onClose}
-                                sx={{cursor: "pointer", border: "none", background: "none", font: "inherit", flexShrink: 0}}
-                            >
-                                Tìm trường
-                            </Link>
-                            <Typography
-                                color="text.secondary"
-                                component="span"
-                                sx={{fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0}}
-                            >
-                                {school.school}
-                            </Typography>
-                        </Breadcrumbs>
-                    </Box>
 
                     <Box
                         sx={{
@@ -1714,7 +1699,7 @@ export default function SchoolSearchDetailView({
                                     minWidth: "auto",
                                     px: 1.75,
                                     py: 0.75,
-                                    color: "#64748b",
+                                    color: "#0f172a",
                                     transition: "color 0.5s cubic-bezier(0.2, 0, 0, 1)"
                                 },
                                 "& .Mui-selected": {
@@ -1732,7 +1717,7 @@ export default function SchoolSearchDetailView({
                         </Tabs>
                     </Box>
                     {detailLoading && (
-                        <Typography sx={{fontSize: "0.85rem", color: "#64748b", mb: 1}}>
+                        <Typography sx={{fontSize: "0.85rem", color: "#0f172a", mb: 1}}>
                             Đang tải chi tiết trường...
                         </Typography>
                     )}
@@ -1745,13 +1730,13 @@ export default function SchoolSearchDetailView({
                     <Box
                         sx={{
                             display: "grid",
-                            gridTemplateColumns: {xs: "1fr", md: "1fr 320px"},
+                            gridTemplateColumns: {xs: "1fr", md: "minmax(0, 1fr) 320px"},
                             gap: 3,
                             alignItems: "start",
                             pt: 1.5
                         }}
                     >
-                        <Box>
+                        <Box sx={{minWidth: 0}}>
                             <Box
                                 ref={detailIntroRef}
                                 id="school-detail-intro"
@@ -1779,7 +1764,9 @@ export default function SchoolSearchDetailView({
                                                 sx={{
                                                     color: "#0f172a",
                                                     lineHeight: 1.75,
-                                                    fontSize: "0.95rem"
+                                                    fontSize: "0.95rem",
+                                                    overflowWrap: "anywhere",
+                                                    wordBreak: "break-word"
                                                 }}
                                             >
                                                 {school.description
@@ -1847,7 +1834,7 @@ export default function SchoolSearchDetailView({
                             >
                                 <Box sx={detailMainColumnCardSx}>
                                     <Typography sx={mainDetailSectionTitleSx}>Vị trí &amp; bản đồ</Typography>
-                                    <Typography sx={{color: "#64748b", fontSize: "0.92rem", mb: 2}}>
+                                    <Typography sx={{color: "#0f172a", fontSize: "0.92rem", mb: 2}}>
                                         {school.ward}, {school.province}, Việt Nam
                                     </Typography>
                                     {!maptilerApiKey ? (
@@ -1865,7 +1852,7 @@ export default function SchoolSearchDetailView({
                                         />
                                     )}
                                     {nearbyLoading && (
-                                        <Typography sx={{mt: 1, color: "#64748b", fontSize: "0.9rem"}}>
+                                        <Typography sx={{mt: 1, color: "#0f172a", fontSize: "0.9rem"}}>
                                             Đang tìm campus lân cận...
                                         </Typography>
                                     )}
@@ -1875,7 +1862,7 @@ export default function SchoolSearchDetailView({
                                         </Typography>
                                     )}
                                     {!!nearbyNotice && (
-                                        <Typography sx={{mt: 1, color: "#64748b", fontSize: "0.9rem"}}>
+                                        <Typography sx={{mt: 1, color: "#0f172a", fontSize: "0.9rem"}}>
                                             {nearbyNotice}
                                         </Typography>
                                     )}
@@ -1890,7 +1877,7 @@ export default function SchoolSearchDetailView({
                                         </Button>
                                     )}
                                     {!nearbyLoading && !nearbyError && normalizedNearbyCampuses.length === 0 && userLocation ? (
-                                        <Typography sx={{mt: 1, color: "#64748b", fontSize: "0.9rem"}}>
+                                        <Typography sx={{mt: 1, color: "#0f172a", fontSize: "0.9rem"}}>
                                             Không có campus nào trong bán kính {NEARBY_SEARCH_RADIUS_KM}km.
                                         </Typography>
                                     ) : null}
@@ -1941,7 +1928,7 @@ export default function SchoolSearchDetailView({
                                             <Typography sx={mainDetailSectionTitleSx}>
                                                 Đặt lịch tư vấn
                                             </Typography>
-                                            <Typography sx={{color: "#64748b", fontSize: "0.9rem", lineHeight: 1.6, mb: 1.5}}>
+                                            <Typography sx={{color: "#0f172a", fontSize: "0.9rem", lineHeight: 1.6, mb: 1.5}}>
                                                 {(school?.email || "").trim()
                                                     ? "Soạn email đặt lịch với nhà trường hoặc điều chỉnh nội dung trước khi gửi."
                                                     : "Trường chưa công bố email trên hệ thống. Bạn có thể xem các hình thức hỗ trợ trên trang chủ."}
