@@ -1,16 +1,25 @@
 import axios from "axios";
 import {refreshToken} from "../services/AuthService.jsx";
 
-// Vite sẽ tự động load biến này dựa trên môi trường đang chạy
-const apiBase = (import.meta.env.VITE_SERVER_BE || "http://localhost:8080").replace(/\/+$/, "");
+function resolveApiV1Base(url) {
+    if (!url) return "https://edubridgehcm.onrender.com/api/v1";
 
-const baseURL = apiBase.endsWith("/api/v1") ? apiBase : `${apiBase}/api/v1`;
+    const raw = url.trim().replace(/\/+$/, "");
+    const withoutApi = raw.replace(/\/api\/v1$/i, "");
+    return `${withoutApi}/api/v1`;
+}
 
-axios.defaults.baseURL = baseURL;
+const rawBaseUrl = import.meta.env.DEV
+    ? import.meta.env.VITE_API_LOCAL
+    : import.meta.env.VITE_API_SERVER;
+
+const apiBase = resolveApiV1Base(rawBaseUrl);
+
+axios.defaults.baseURL = apiBase;
 
 const axiosClient = axios.create({
     // Đảm bảo luôn có /api/v1 ở cuối base URL
-    baseURL,
+    baseURL: apiBase,
     headers: {
         "Content-Type": "application/json",
         "X-Device-Type": "web"
