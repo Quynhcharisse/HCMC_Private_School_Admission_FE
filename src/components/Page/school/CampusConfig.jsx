@@ -188,6 +188,7 @@ function defaultConfig() {
       },
       /** GET `admissionProcesses` / PUT `methodAdmissionProcess` — quy trình theo từng methodCode */
       methodAdmissionProcess: [],
+      admissionSeasons: [],
     },
     facilityData: {
       itemList: [],
@@ -422,6 +423,68 @@ function hasAnyAcademicCalendarValue(cal) {
   const t1 = cal.term1 && typeof cal.term1 === "object" ? cal.term1 : {};
   const t2 = cal.term2 && typeof cal.term2 === "object" ? cal.term2 : {};
   return Boolean(t1.start || t1.end || t2.start || t2.end);
+}
+
+function normalizeSeasonExtraShift(s) {
+  if (!s || typeof s !== "object") return {name: "", startTime: "", endTime: ""};
+  return {
+    name: s.name != null ? String(s.name) : "",
+    startTime: s.startTime != null ? String(s.startTime) : "",
+    endTime: s.endTime != null ? String(s.endTime) : "",
+  };
+}
+
+function normalizeAdmissionSeasonRow(r) {
+  if (!r || typeof r !== "object") {
+    return {
+      seasonName: "",
+      startDate: "",
+      endDate: "",
+      enableSunday: false,
+      minCounsellorMultiplier: 1,
+      note: "",
+      extraShifts: [],
+    };
+  }
+  const mult = r.minCounsellorMultiplier != null && !Number.isNaN(Number(r.minCounsellorMultiplier))
+    ? Number(r.minCounsellorMultiplier)
+    : 1;
+  const extra =
+    Array.isArray(r.extraShifts)
+      ? r.extraShifts
+      : Array.isArray(r.extra_shifts)
+        ? r.extra_shifts
+        : [];
+  return {
+    seasonName: r.seasonName != null ? String(r.seasonName) : "",
+    startDate: normalizeAcademicDate(r.startDate ?? r.start_date),
+    endDate: normalizeAcademicDate(r.endDate ?? r.end_date),
+    enableSunday: Boolean(r.enableSunday ?? r.enable_sunday),
+    minCounsellorMultiplier: mult >= 1 ? mult : 1,
+    note: r.note != null ? String(r.note) : "",
+    extraShifts: extra.map(normalizeSeasonExtraShift),
+  };
+}
+
+function normalizeAdmissionSeasonsList(raw, fallback) {
+  const fb = Array.isArray(fallback) ? fallback : [];
+  if (!Array.isArray(raw)) return fb.map((x) => normalizeAdmissionSeasonRow(x));
+  return raw.map((x) => normalizeAdmissionSeasonRow(x));
+}
+
+function normalizeAcademicCalendarFromApi(raw, fallback) {
+  const fb = fallback && typeof fallback === "object" ? fallback : {term1: {start: "", end: ""}, term2: {start: "", end: ""}};
+  const src = raw && typeof raw === "object" ? raw : {};
+  return {
+    term1: {
+      start: normalizeAcademicDate(src.term1?.start) || fb.term1?.start || "",
+      end: normalizeAcademicDate(src.term1?.end) || fb.term1?.end || "",
+    },
+    term2: {
+      start: normalizeAcademicDate(src.term2?.start) || fb.term2?.start || "",
+      end: normalizeAcademicDate(src.term2?.end) || fb.term2?.end || "",
+    },
+  };
 }
 
 /**
@@ -758,6 +821,32 @@ function sanitizeOperationSettingsForApi(op) {
         )
     : [];
 
+  const academicCalendar = normalizeAcademicCalendar(op.academicCalendar);
+
+  const admissionSeasons = Array.isArray(op.admissionSeasons)
+    ? op.admissionSeasons
+        .map((r) => normalizeAdmissionSeasonRow(r))
+        .map((nr) => ({
+          seasonName: nr.seasonName,
+          startDate: nr.startDate,
+          endDate: nr.endDate,
+          enableSunday: nr.enableSunday,
+          minCounsellorMultiplier: nr.minCounsellorMultiplier,
+          note: nr.note,
+          extraShifts: (nr.extraShifts || []).map((s) => ({
+            name: s.name != null ? String(s.name) : "",
+            startTime: s.startTime != null ? String(s.startTime) : "",
+            endTime: s.endTime != null ? String(s.endTime) : "",
+          })),
+        }))
+        .filter(
+          (row) =>
+            String(row.seasonName ?? "").trim() !== "" ||
+            String(row.startDate ?? "").trim() !== "" ||
+            String(row.endDate ?? "").trim() !== ""
+        )
+    : [];
+
   return {
     hotline: op.hotline != null ? String(op.hotline) : "",
     emailSupport: op.emailSupport != null ? String(op.emailSupport) : "",
@@ -772,7 +861,9 @@ function sanitizeOperationSettingsForApi(op) {
       weekendDays: Array.isArray(wc.weekendDays) ? wc.weekendDays.map(String) : [],
       openSunday,
     },
+    academicCalendar,
     methodAdmissionProcess,
+    admissionSeasons,
   };
 }
 
@@ -952,6 +1043,14 @@ function normalizeFromApi(body) {
         ),
       },
       methodAdmissionProcess: parseMethodAdmissionProcessFromOperation(op),
+      academicCalendar: normalizeAcademicCalendarFromApi(
+        op.academicCalendar ?? op.academic_calendar,
+        d.operationSettingsData.academicCalendar
+      ),
+      admissionSeasons: normalizeAdmissionSeasonsList(
+        op.admissionSeasons ?? op.admission_seasons,
+        d.operationSettingsData.admissionSeasons
+      ),
     },
     facilityData: {
       itemList: Array.isArray(fac.itemList) ? fac.itemList : [],
