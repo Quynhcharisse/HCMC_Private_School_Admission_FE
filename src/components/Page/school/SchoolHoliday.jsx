@@ -200,7 +200,12 @@ function getMaxHolidayEndDate() {
 const HOLIDAY_IMPACT_LEVEL_VALUES = new Set(Object.values(HOLIDAY_IMPACT_LEVEL));
 
 function isValidHolidayImpactLevel(v) {
-    return v != null && HOLIDAY_IMPACT_LEVEL_VALUES.has(String(v));
+    return v != null && HOLIDAY_IMPACT_LEVEL_VALUES.has(String(v).trim());
+}
+
+/** Giống `Arrays.toString(HolidayImpactLevel.values())` trên BE (thứ tự khai báo enum có thể khác). */
+function formatHolidayImpactLevelsAllowedForBe() {
+    return `[${Object.values(HOLIDAY_IMPACT_LEVEL).join(", ")}]`;
 }
 
 /** Khớp `HolidayValidation.createHolidayValidation` (BE). Trả về chuỗi lỗi hoặc `null`. */
@@ -229,8 +234,7 @@ function validateCreateHolidayRequest(formValues, isPrimaryBranch) {
         return "Ngày nghỉ không được vượt quá 2 năm tính từ thời điểm hiện tại.";
     }
     if (!isValidHolidayImpactLevel(formValues?.holidayImpactLevel)) {
-        const allowed = `[${Object.values(HOLIDAY_IMPACT_LEVEL).join(", ")}]`;
-        return `Mức độ ảnh hưởng (Impact Level) không hợp lệ. Các giá trị cho phép: ${allowed}`;
+        return `Mức độ ảnh hưởng không hợp lệ. Các giá trị cho phép: ${formatHolidayImpactLevelsAllowedForBe()}`;
     }
     const isGlobal = formValues?.scope === HOLIDAY_SCOPE.GLOBAL;
     if (isGlobal) {
@@ -594,7 +598,11 @@ export default function SchoolHoliday() {
             await loadHolidayList();
         } catch (error) {
             console.error("Create holiday failed", error);
-            enqueueSnackbar("Tạo ngày nghỉ thất bại", {variant: "error"});
+            const msg = error?.response?.data?.message;
+            enqueueSnackbar(
+                typeof msg === "string" && msg.trim() ? msg.trim() : "Tạo ngày nghỉ thất bại",
+                {variant: "error"}
+            );
         } finally {
             setSubmitting(false);
         }
