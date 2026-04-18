@@ -18,7 +18,6 @@ import {
     Select,
     Skeleton,
     Stack,
-    Switch,
     Table,
     TableBody,
     TableCell,
@@ -80,6 +79,15 @@ const METHOD_LEARNING_OPTIONS = [
     "VISUAL_PRACTICE",
     "STEM_STEAM",
 ];
+
+/** Đồng bộ với LearningMethod.valueOf(...toUpperCase()) trên BE. */
+function isValidLearningMethodCode(m) {
+    const code = String(m ?? "")
+        .trim()
+        .toUpperCase();
+    if (!code) return false;
+    return METHOD_LEARNING_OPTIONS.includes(code);
+}
 const CURRICULUM_STATUS_OPTIONS = ["CUR_ACTIVE", "CUR_DRAFT", "CUR_ARCHIVED"];
 
 const curriculumTypeI18N = {
@@ -152,7 +160,8 @@ const toMethodLearningListLabel = (methodLearningList) => {
 const subjectEmpty = () => ({
     name: "",
     description: "",
-    isMandatory: false,
+    /** Môn trong curriculum luôn bắt buộc — không cho phép tắt (đồng bộ BE). */
+    isMandatory: true,
 });
 
 const emptyForm = () => ({
@@ -243,7 +252,7 @@ function mapSubjectOptionsForApi(subjectOptions) {
     return (subjectOptions || []).map((s) => ({
         name: String(s.name || "").trim(),
         description: String(s.description || "").trim(),
-        isMandatory: !!s.isMandatory,
+        isMandatory: true,
     }));
 }
 
@@ -252,41 +261,87 @@ function toVietnameseValidationMessage(rawMessage) {
     if (!msg) return "";
 
     const immutableYear = msg.match(/^Cannot change enrollment year because (\d+) programs are using this curriculum\.$/);
-    if (immutableYear) return `Không thể thay đổi năm tuyển sinh vì đang có ${immutableYear[1]} chương trình sử dụng khung chương trình này.`;
+    if (immutableYear) {
+        return `Không thể thay đổi năm áp dụng vì có ${immutableYear[1]} chương trình đang sử dụng khung chương trình này.`;
+    }
+
+    const immutableYearVi = msg.match(/^Không thể thay đổi năm áp dụng vì có (\d+) chương trình đang sử dụng khung chương trình này\.$/);
+    if (immutableYearVi) return msg;
 
     const yearRange = msg.match(/^Enrollment year must be between (\d+) and (\d+)$/);
-    if (yearRange) return `Năm tuyển sinh phải nằm trong khoảng từ ${yearRange[1]} đến ${yearRange[2]}.`;
+    if (yearRange) return `Năm áp dụng phải nằm trong khoảng từ ${yearRange[1]} đến ${yearRange[2]}`;
+
+    const yearRangeVi = msg.match(/^Năm áp dụng phải nằm trong khoảng từ (\d+) đến (\d+)$/);
+    if (yearRangeVi) return msg;
 
     const subjectNameTooLong = msg.match(/^Subject name '(.+)' is too long \(max 100\)\.$/);
-    if (subjectNameTooLong) return `Tên môn học "${subjectNameTooLong[1]}" quá dài (tối đa 100 ký tự).`;
+    if (subjectNameTooLong) return `Tên môn học '${subjectNameTooLong[1]}' quá dài (tối đa 100 ký tự).`;
+
+    const subjectNameTooLongVi = msg.match(/^Tên môn học '(.+)' quá dài \(tối đa 100 ký tự\)\.$/);
+    if (subjectNameTooLongVi) return msg;
 
     const duplicateSubject = msg.match(/^Duplicate subject name found: (.+)$/);
-    if (duplicateSubject) return `Tên môn học bị trùng: "${duplicateSubject[1]}".`;
+    if (duplicateSubject) return `Phát hiện tên môn học bị trùng lặp: ${duplicateSubject[1]}`;
+
+    const duplicateSubjectVi = msg.match(/^Phát hiện tên môn học bị trùng lặp: (.+)$/);
+    if (duplicateSubjectVi) return msg;
 
     const subjectDescRequired = msg.match(/^Description for subject '(.+)' is required\.$/);
-    if (subjectDescRequired) return `Mô tả cho môn "${subjectDescRequired[1]}" là bắt buộc.`;
+    if (subjectDescRequired) return `Mô tả cho môn học '${subjectDescRequired[1]}' không được để trống.`;
 
     const subjectDescTooLong = msg.match(/^Description for subject '(.+)' is too long \(max 1000\)\.$/);
-    if (subjectDescTooLong) return `Mô tả cho môn "${subjectDescTooLong[1]}" quá dài (tối đa 1000 ký tự).`;
+    if (subjectDescTooLong) return `Mô tả cho môn học '${subjectDescTooLong[1]}' quá dài (tối đa 1000 ký tự).`;
+
+    const subjectDescRequiredVi = msg.match(/^Mô tả cho môn học '(.+)' không được để trống\.$/);
+    if (subjectDescRequiredVi) return msg;
+
+    const subjectDescTooLongVi = msg.match(/^Mô tả cho môn học '(.+)' quá dài \(tối đa 1000 ký tự\)\.$/);
+    if (subjectDescTooLongVi) return msg;
 
     const dictionary = {
         "Curriculum not found.": "Không tìm thấy khung chương trình.",
-        "Cannot update an archived curriculum. Please create a new version or use an active one.": "Không thể cập nhật khung chương trình đã lưu trữ. Vui lòng tạo phiên bản mới hoặc dùng bản đang hoạt động.",
-        "Cannot change curriculum type for a curriculum already linked to programs.": "Không thể thay đổi loại chương trình vì đã có chương trình liên kết.",
-        "Cannot change sub-type name for a curriculum already linked to programs.": "Không thể thay đổi tên phân loại vì đã có chương trình liên kết.",
-        "A curriculum with the same type, year, and sub-type already exists (Draft or Active).": "Đã tồn tại khung chương trình trùng Loại + Năm + Phân loại (ở trạng thái Nháp hoặc Hoạt động).",
+        "Cannot update an archived curriculum. Please create a new version or use an active one.":
+            "Không thể cập nhật khung chương trình đã được lưu trữ. Vui lòng tạo phiên bản mới hoặc sử dụng bản đang hoạt động.",
+        "Cannot change curriculum type for a curriculum already linked to programs.":
+            "Không thể thay đổi loại chương trình khi đã có chương trình đào tạo liên kết.",
+        "Cannot change sub-type name for a curriculum already linked to programs.":
+            "Không thể thay đổi tên phân loại phụ (Sub-type) khi đã có chương trình đào tạo liên kết.",
+        "A curriculum with the same type, year, and sub-type already exists (Draft or Active).":
+            "Khung chương trình có cùng loại, năm và phân loại phụ này đã tồn tại (ở dạng Nháp hoặc Đang hoạt động).",
         "New draft created. Please update your changes.": "Đã tạo bản nháp mới. Vui lòng cập nhật nội dung chỉnh sửa của bạn.",
         "Updated draft successfully": "Cập nhật bản nháp thành công.",
         "Published successfully": "Công bố thành công.",
-        "Sub-type name is required.": "Tên phân loại là bắt buộc.",
-        "Sub-type name is too long (max 50 chars).": "Tên phân loại quá dài (tối đa 50 ký tự).",
-        "Invalid Curriculum Type or Learning Method.": "Loại chương trình hoặc phương pháp học không hợp lệ.",
-        "The curriculum must contain at least one subject.": "Khung chương trình phải có ít nhất 1 môn học.",
-        "A curriculum cannot have more than 50 subjects.": "Khung chương trình không được vượt quá 50 môn học.",
+        "Sub-type name is required.": "Tên phân loại phụ (Sub-type) không được để trống.",
+        "Sub-type name is too long (max 50 chars).": "Tên phân loại phụ quá dài (tối đa 50 ký tự).",
+        "Invalid Curriculum Type or Learning Method.": "Loại chương trình hoặc Phương thức học tập không hợp lệ.",
+        "The curriculum must contain at least one subject.": "Khung chương trình phải chứa ít nhất một môn học.",
+        "A curriculum cannot have more than 50 subjects.": "Một khung chương trình không thể có quá 50 môn học.",
         "Subject name cannot be empty.": "Tên môn học không được để trống.",
-        "The curriculum must have at least one mandatory subject.": "Khung chương trình phải có ít nhất 1 môn bắt buộc.",
+        "The curriculum must have at least one mandatory subject.": "Khung chương trình phải có ít nhất một môn học bắt buộc.",
+        // Thông điệp tiếng Việt từ CurriculumValidation (BE)
+        "Không tìm thấy khung chương trình.": "Không tìm thấy khung chương trình.",
+        "Không thể cập nhật khung chương trình đã được lưu trữ. Vui lòng tạo phiên bản mới hoặc sử dụng bản đang hoạt động.":
+            "Không thể cập nhật khung chương trình đã được lưu trữ. Vui lòng tạo phiên bản mới hoặc sử dụng bản đang hoạt động.",
+        "Không thể thay đổi loại chương trình khi đã có chương trình đào tạo liên kết.":
+            "Không thể thay đổi loại chương trình khi đã có chương trình đào tạo liên kết.",
+        "Không thể thay đổi tên phân loại phụ (Sub-type) khi đã có chương trình đào tạo liên kết.":
+            "Không thể thay đổi tên phân loại phụ (Sub-type) khi đã có chương trình đào tạo liên kết.",
+        "Khung chương trình có cùng loại, năm và phân loại phụ này đã tồn tại (ở dạng Nháp hoặc Đang hoạt động).":
+            "Khung chương trình có cùng loại, năm và phân loại phụ này đã tồn tại (ở dạng Nháp hoặc Đang hoạt động).",
+        "Tên phân loại phụ (Sub-type) không được để trống.": "Tên phân loại phụ (Sub-type) không được để trống.",
+        "Tên phân loại phụ quá dài (tối đa 50 ký tự).": "Tên phân loại phụ quá dài (tối đa 50 ký tự).",
+        "Yêu cầu ít nhất một phương thức học tập.": "Yêu cầu ít nhất một phương thức học tập.",
+        "Loại chương trình hoặc Phương thức học tập không hợp lệ.": "Loại chương trình hoặc Phương thức học tập không hợp lệ.",
+        "Khung chương trình phải chứa ít nhất một môn học.": "Khung chương trình phải chứa ít nhất một môn học.",
+        "Một khung chương trình không thể có quá 50 môn học.": "Một khung chương trình không thể có quá 50 môn học.",
+        "Tên môn học không được để trống.": "Tên môn học không được để trống.",
+        "Khung chương trình phải có ít nhất một môn học bắt buộc.": "Khung chương trình phải có ít nhất một môn học bắt buộc.",
     };
-    return dictionary[msg] || msg;
+    if (dictionary[msg]) return dictionary[msg];
+    if (msg.startsWith("Tên môn học '") && msg.includes("' quá dài (tối đa 100 ký tự)")) return msg;
+    if (msg.startsWith("Năm áp dụng phải nằm trong khoảng từ ")) return msg;
+    if (msg.startsWith("Không thể thay đổi năm áp dụng vì có ")) return msg;
+    return msg;
 }
 
 function ChipStatus({ status }) {
@@ -460,54 +515,77 @@ export default function SchoolCurriculums() {
         const errors = {};
         const subjectErrors = (formValues.subjectOptions || []).map(() => ({}));
         const normalizedSubType = String(formValues.subTypeName || "").trim();
-        const normalizedDescription = String(formValues.description || "").trim();
-        const normalizedCurriculumType = String(formValues.curriculumType || "").trim();
+        const normalizedCurriculumType = String(formValues.curriculumType || "").trim().toUpperCase();
         const methodLearningList = Array.isArray(formValues.methodLearningList) ? formValues.methodLearningList : [];
         const yearNumber = Number(formValues.applicationYear);
 
-        if (!normalizedSubType) errors.subTypeName = "Tên phân loại là bắt buộc";
-        else if (normalizedSubType.length > 50) errors.subTypeName = "Tên phân loại tối đa 50 ký tự";
+        const isEdit = editModalOpen && selectedCurriculum != null;
+        if (isEdit && normalizeStatus(selectedCurriculum.curriculumStatus) === "CUR_ARCHIVED") {
+            errors.form =
+                "Không thể cập nhật khung chương trình đã được lưu trữ. Vui lòng tạo phiên bản mới hoặc sử dụng bản đang hoạt động.";
+        }
 
-        if (!normalizedDescription) errors.description = "Mô tả là bắt buộc";
+        if (!normalizedSubType) errors.subTypeName = "Tên phân loại phụ (Sub-type) không được để trống.";
+        else if (normalizedSubType.length > 50) errors.subTypeName = "Tên phân loại phụ quá dài (tối đa 50 ký tự).";
+
         if (!normalizedCurriculumType) errors.curriculumType = "Loại chương trình là bắt buộc";
-        else if (!CURRICULUM_TYPE_OPTIONS.includes(normalizedCurriculumType)) errors.curriculumType = "Loại chương trình không hợp lệ";
-        if (methodLearningList.length === 0) errors.methodLearningList = "Phương pháp học là bắt buộc";
-        else if (methodLearningList.some((m) => !METHOD_LEARNING_OPTIONS.includes(m))) errors.methodLearningList = "Phương pháp học không hợp lệ";
+        else if (!CURRICULUM_TYPE_OPTIONS.includes(normalizedCurriculumType)) errors.curriculumType = "Loại chương trình không hợp lệ.";
+
+        if (methodLearningList.length === 0) errors.methodLearningList = "Yêu cầu ít nhất một phương thức học tập.";
+        else if (methodLearningList.some((m) => !isValidLearningMethodCode(m)))
+            errors.methodLearningList = "Loại chương trình hoặc Phương thức học tập không hợp lệ.";
+
         if (formValues.applicationYear === "" || Number.isNaN(yearNumber)) {
             errors.applicationYear = "Năm áp dụng là bắt buộc";
         } else if (yearNumber < minApplicationYear || yearNumber > maxApplicationYear) {
-            errors.applicationYear = `Năm áp dụng phải trong khoảng ${minApplicationYear} - ${maxApplicationYear}`;
+            errors.applicationYear = `Năm áp dụng phải nằm trong khoảng từ ${minApplicationYear} đến ${maxApplicationYear}`;
+        }
+
+        const linked = isEdit ? Number(selectedCurriculum.programCount || 0) : 0;
+        if (linked > 0) {
+            const origYear = Number(selectedCurriculum.applicationYear);
+            if (Number.isFinite(yearNumber) && Number.isFinite(origYear) && yearNumber !== origYear) {
+                errors.applicationYear = `Không thể thay đổi năm áp dụng vì có ${linked} chương trình đang sử dụng khung chương trình này.`;
+            }
+            const origType = String(selectedCurriculum.curriculumType || "").trim().toUpperCase();
+            if (origType && normalizedCurriculumType && origType !== normalizedCurriculumType) {
+                errors.curriculumType = "Không thể thay đổi loại chương trình khi đã có chương trình đào tạo liên kết.";
+            }
+            const origSub = stripLeadingHePrefix(String(selectedCurriculum.subTypeName || "").trim());
+            const curSub = stripLeadingHePrefix(normalizedSubType);
+            if (origSub !== curSub) {
+                errors.subTypeName = "Không thể thay đổi tên phân loại phụ (Sub-type) khi đã có chương trình đào tạo liên kết.";
+            }
         }
 
         const subjects = formValues.subjectOptions || [];
         if (subjects.length === 0) {
-            errors.subjectOptions = "Phải có ít nhất 1 môn học";
+            errors.subjectOptions = "Khung chương trình phải chứa ít nhất một môn học.";
         } else if (subjects.length > 50) {
-            errors.subjectOptions = "Không được vượt quá 50 môn học";
+            errors.subjectOptions = "Một khung chương trình không thể có quá 50 môn học.";
         } else {
             const subjectNames = new Set();
-            let hasMandatory = false;
             subjects.forEach((s, idx) => {
                 const sName = String(s.name || "").trim();
                 const sDesc = String(s.description || "").trim();
 
-                if (!sName) subjectErrors[idx].name = "Tên môn học là bắt buộc";
-                else if (sName.length > 100) subjectErrors[idx].name = "Tên môn học tối đa 100 ký tự";
-                else {
-                    const lower = sName.toLowerCase();
-                    if (subjectNames.has(lower)) subjectErrors[idx].name = "Tên môn học bị trùng (không phân biệt hoa thường)";
-                    subjectNames.add(lower);
+                if (!sName) {
+                    subjectErrors[idx].name = "Tên môn học không được để trống.";
+                } else {
+                    if (sName.length > 100) subjectErrors[idx].name = `Tên môn học '${sName}' quá dài (tối đa 100 ký tự).`;
+                    else {
+                        const lower = sName.toLowerCase();
+                        if (subjectNames.has(lower)) subjectErrors[idx].name = `Phát hiện tên môn học bị trùng lặp: ${sName}`;
+                        else subjectNames.add(lower);
+                    }
+                    if (!sDesc) subjectErrors[idx].description = `Mô tả cho môn học '${sName}' không được để trống.`;
+                    else if (sDesc.length > 1000)
+                        subjectErrors[idx].description = `Mô tả cho môn học '${sName}' quá dài (tối đa 1000 ký tự).`;
                 }
-
-                if (!sDesc) subjectErrors[idx].description = "Mô tả môn học là bắt buộc";
-                else if (sDesc.length > 1000) subjectErrors[idx].description = "Mô tả môn học tối đa 1000 ký tự";
-
-                if (!!s.isMandatory) hasMandatory = true;
             });
 
             const hasSubjectErrors = subjectErrors.some((se) => Object.keys(se).length > 0);
             if (hasSubjectErrors) errors.subjectOptions = subjectErrors;
-            else if (!hasMandatory) errors.subjectOptions = "Phải có ít nhất 1 môn bắt buộc";
         }
 
         setFormErrors(errors);
@@ -517,8 +595,8 @@ export default function SchoolCurriculums() {
     const getCreatePayload = () => ({
         subTypeName: String(formValues.subTypeName || "").trim(),
         description: String(formValues.description || "").trim(),
-        curriculumType: formValues.curriculumType,
-        methodLearningList: formValues.methodLearningList,
+        curriculumType: String(formValues.curriculumType || "").trim().toUpperCase(),
+        methodLearningList: (formValues.methodLearningList || []).map((m) => String(m).trim().toUpperCase()).filter(Boolean),
         applicationYear: Number(formValues.applicationYear),
         subjectOptions: mapSubjectOptionsForApi(formValues.subjectOptions),
     });
@@ -565,7 +643,7 @@ export default function SchoolCurriculums() {
                     ? curriculum.subjects.map((s) => ({
                         name: s.name || "",
                         description: s.description || "",
-                        isMandatory: !!s.isMandatory,
+                        isMandatory: true,
                     }))
                     : [subjectEmpty()],
         });
@@ -582,7 +660,10 @@ export default function SchoolCurriculums() {
             return;
         }
         if (normalizeStatus(curriculum?.curriculumStatus) === "CUR_ARCHIVED") {
-            enqueueSnackbar("Chương trình đã lưu trữ, không thể chỉnh sửa.", { variant: "warning" });
+            enqueueSnackbar(
+                "Không thể cập nhật khung chương trình đã được lưu trữ. Vui lòng tạo phiên bản mới hoặc sử dụng bản đang hoạt động.",
+                { variant: "warning" }
+            );
             return;
         }
         const statusKey = normalizeStatus(curriculum?.curriculumStatus);
@@ -898,7 +979,7 @@ export default function SchoolCurriculums() {
     );
 
     const handleSubjectChange = (idx, field) => (e) => {
-        const value = field === "isMandatory" ? e.target.checked : e.target.value;
+        const value = e.target.value;
         setFormValues((prev) => ({
             ...prev,
             subjectOptions: prev.subjectOptions.map((s, i) => (i === idx ? { ...s, [field]: value } : s)),
@@ -1984,6 +2065,12 @@ export default function SchoolCurriculums() {
                             Thông tin cơ bản
                         </Typography>
 
+                        {formErrors.form ? (
+                            <Alert severity="error" sx={{ borderRadius: 2 }}>
+                                {formErrors.form}
+                            </Alert>
+                        ) : null}
+
                         <TextField
                             label="Tên phân loại"
                             name="subTypeName"
@@ -2005,7 +2092,6 @@ export default function SchoolCurriculums() {
                             helperText={formErrors.description}
                             multiline
                             rows={3}
-                            required
                         />
 
                         <FormControl fullWidth size="small">
@@ -2126,18 +2212,20 @@ export default function SchoolCurriculums() {
                                                     />
                                                 </Stack>
 
-                                                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.2 }}>
-                                                    <Typography sx={{ fontWeight: 800, color: "#1e293b" }}>Bắt buộc</Typography>
-                                                    <Switch
-                                                        checked={!!subject.isMandatory}
-                                                        onChange={handleSubjectChange(idx, "isMandatory")}
+                                                <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1.2, flexWrap: "wrap" }}>
+                                                    <Chip
+                                                        size="small"
+                                                        label="Bắt buộc"
                                                         sx={{
-                                                            "& .MuiSwitch-switchBase.Mui-checked": { color: "#16a34a" },
-                                                            "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
-                                                                backgroundColor: "#16a34a",
-                                                            },
+                                                            fontWeight: 800,
+                                                            bgcolor: "rgba(34, 197, 94, 0.14)",
+                                                            color: "#15803d",
+                                                            border: "1px solid rgba(34, 197, 94, 0.35)",
                                                         }}
                                                     />
+                                                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
+                                                        Môn trong khung chương trình luôn là môn bắt buộc.
+                                                    </Typography>
                                                 </Stack>
                                             </Box>
                                         </Grow>
@@ -2206,6 +2294,12 @@ export default function SchoolCurriculums() {
                             Thông tin cơ bản
                         </Typography>
 
+                        {formErrors.form ? (
+                            <Alert severity="error" sx={{ borderRadius: 2 }}>
+                                {formErrors.form}
+                            </Alert>
+                        ) : null}
+
                         <TextField
                             label="Tên phân loại"
                             name="subTypeName"
@@ -2228,7 +2322,6 @@ export default function SchoolCurriculums() {
                             helperText={formErrors.description}
                             multiline
                             rows={3}
-                            required
                         />
 
                         {isEditFieldsLocked && (
@@ -2354,18 +2447,20 @@ export default function SchoolCurriculums() {
                                                     />
                                                 </Stack>
 
-                                                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.2 }}>
-                                                    <Typography sx={{ fontWeight: 800, color: "#1e293b" }}>Bắt buộc</Typography>
-                                                    <Switch
-                                                        checked={!!subject.isMandatory}
-                                                        onChange={handleSubjectChange(idx, "isMandatory")}
+                                                <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1.2, flexWrap: "wrap" }}>
+                                                    <Chip
+                                                        size="small"
+                                                        label="Bắt buộc"
                                                         sx={{
-                                                            "& .MuiSwitch-switchBase.Mui-checked": { color: "#16a34a" },
-                                                            "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
-                                                                backgroundColor: "#16a34a",
-                                                            },
+                                                            fontWeight: 800,
+                                                            bgcolor: "rgba(34, 197, 94, 0.14)",
+                                                            color: "#15803d",
+                                                            border: "1px solid rgba(34, 197, 94, 0.35)",
                                                         }}
                                                     />
+                                                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
+                                                        Môn trong curriculum luôn là môn bắt buộc.
+                                                    </Typography>
                                                 </Stack>
                                             </Box>
                                         </Grow>
