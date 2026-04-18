@@ -59,6 +59,7 @@ import {
   normalizeTimeHHmm,
   normalizeWorkShiftForApi,
   validateOperationSettingsWorkShifts,
+  WORK_SHIFT_TIME_WINDOWS,
   WORK_SHIFT_TYPE_CODES,
   WORK_SHIFT_TYPE_LABEL_VI,
 } from "../../../utils/workShiftPolicy.js";
@@ -4224,7 +4225,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                               </MenuItem>
                               {WORK_SHIFT_TYPE_CODES.map((k) => (
                                 <MenuItem key={k} value={k}>
-                                  {WORK_SHIFT_TYPE_LABEL_VI[k]}
+                                  {WORK_SHIFT_TYPE_LABEL_VI[k]} ({k})
                                 </MenuItem>
                               ))}
                             </Select>
@@ -4249,7 +4250,12 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                 };
                               });
                             }}
-                            inputProps={{readOnly: fieldDisabled}}
+                            inputProps={{
+                              readOnly: fieldDisabled,
+                              ...(sel && WORK_SHIFT_TIME_WINDOWS[sel]
+                                ? {min: WORK_SHIFT_TIME_WINDOWS[sel].min, max: WORK_SHIFT_TIME_WINDOWS[sel].max}
+                                : {}),
+                            }}
                           />
                           <TextField
                             label="Kết thúc"
@@ -4271,7 +4277,12 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                 };
                               });
                             }}
-                            inputProps={{readOnly: fieldDisabled}}
+                            inputProps={{
+                              readOnly: fieldDisabled,
+                              ...(sel && WORK_SHIFT_TIME_WINDOWS[sel]
+                                ? {min: WORK_SHIFT_TIME_WINDOWS[sel].min, max: WORK_SHIFT_TIME_WINDOWS[sel].max}
+                                : {}),
+                            }}
                           />
                           <IconButton
                             size="small"
@@ -4658,7 +4669,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                         </MenuItem>
                                         {WORK_SHIFT_TYPE_CODES.map((k) => (
                                           <MenuItem key={k} value={k}>
-                                            {WORK_SHIFT_TYPE_LABEL_VI[k]}
+                                            {WORK_SHIFT_TYPE_LABEL_VI[k]} ({k})
                                           </MenuItem>
                                         ))}
                                       </Select>
@@ -4677,7 +4688,12 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                           normalizeTimeHHmm(e.target.value) || e.target.value
                                         )
                                       }
-                                      inputProps={{readOnly: fieldDisabled}}
+                                      inputProps={{
+                                        readOnly: fieldDisabled,
+                                        ...(sel && WORK_SHIFT_TIME_WINDOWS[sel]
+                                          ? {min: WORK_SHIFT_TIME_WINDOWS[sel].min, max: WORK_SHIFT_TIME_WINDOWS[sel].max}
+                                          : {}),
+                                      }}
                                     />
                                     <TextField
                                       label="Kết thúc"
@@ -4693,7 +4709,12 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                           normalizeTimeHHmm(e.target.value) || e.target.value
                                         )
                                       }
-                                      inputProps={{readOnly: fieldDisabled}}
+                                      inputProps={{
+                                        readOnly: fieldDisabled,
+                                        ...(sel && WORK_SHIFT_TIME_WINDOWS[sel]
+                                          ? {min: WORK_SHIFT_TIME_WINDOWS[sel].min, max: WORK_SHIFT_TIME_WINDOWS[sel].max}
+                                          : {}),
+                                      }}
                                     />
                                     <IconButton
                                       size="small"

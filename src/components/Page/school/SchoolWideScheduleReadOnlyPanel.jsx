@@ -57,13 +57,13 @@ export default function SchoolWideScheduleReadOnlyPanel({ workingConfig, showSch
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }} flexWrap="wrap" useFlexGap>
           <LockOutlinedIcon sx={{ fontSize: 20, color: "#64748B" }} aria-hidden />
           <Typography sx={{ fontWeight: 800, color: "#0f172a" }}>
-            Lịch làm việc và ca — theo cấu hình trường (HQ)
+            Giờ làm việc & ca — theo cấu hình trường (áp dụng cho mọi cơ sở)
           </Typography>
           <Chip size="small" label="Chung trường" sx={{ fontWeight: 700, bgcolor: "rgba(100,116,139,0.12)", color: "#475569" }} />
         </Stack>
         <Typography variant="body2" sx={{ color: "#64748B", lineHeight: 1.65, mb: 2 }}>
-          Không chỉnh tại đây. Dữ liệu hiển thị là bản áp dụng chung (từ HQ); thay đổi tại{" "}
-          <strong>Cài đặt vận hành trường</strong> — ảnh hưởng mọi cơ sở.
+          Cơ sở không cấu hình riêng giờ/ca; thay đổi tại trường sẽ áp dụng đồng bộ. Không chỉnh tại đây — dữ liệu
+          hiển thị là bản áp dụng chung (từ HQ).
         </Typography>
 
         {!has ? (
@@ -78,7 +78,7 @@ export default function SchoolWideScheduleReadOnlyPanel({ workingConfig, showSch
                 onClick={() => navigate("/school/facility-config?tab=operation")}
                 sx={{ textTransform: "none", fontWeight: 600, borderRadius: "10px" }}
               >
-                Mở cấu hình vận hành trường
+                Chỉnh tại Cấu hình vận hành trường
               </Button>
             ) : (
               <Typography variant="caption" sx={{ color: "#94A3B8" }}>
@@ -160,7 +160,7 @@ export default function SchoolWideScheduleReadOnlyPanel({ workingConfig, showSch
                 onClick={() => navigate("/school/facility-config?tab=operation")}
                 sx={{ textTransform: "none", fontWeight: 600, alignSelf: "flex-start", color: "#2563EB" }}
               >
-                Chỉnh tại cấu hình vận hành trường →
+                Chỉnh tại Cấu hình vận hành trường →
               </Button>
             ) : null}
           </Stack>

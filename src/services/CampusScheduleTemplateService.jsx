@@ -43,9 +43,19 @@ export function parseCampusSchedulePolicyFromConfigResponse(res) {
         ? cur.policy_detail
         : {};
 
+  /** BE có thể đặt slot ở `hqDefault.operation.policyDetail` thay vì thẳng trên operation. */
+  const hqPol =
+    hqOp.policyDetail && typeof hqOp.policyDetail === "object"
+      ? hqOp.policyDetail
+      : hqOp.policy_detail && typeof hqOp.policy_detail === "object"
+        ? hqOp.policy_detail
+        : {};
+
   const slotRaw =
     pol.slotDurationInMinutes ??
     pol.slot_duration_in_minutes ??
+    hqPol.slotDurationInMinutes ??
+    hqPol.slot_duration_in_minutes ??
     cur.slotDurationInMinutes ??
     cur.slot_duration_in_minutes ??
     hqOp.slotDurationInMinutes ??
@@ -82,8 +92,6 @@ export function parseCampusSchedulePolicyFromConfigResponse(res) {
  *   templateId?: number | null,
  *   campusId?: number | null,
  *   dayOfWeek: string[],
- *   startTime: string,
- *   endTime: string,
  *   sessionType: string,
  *   active?: boolean,
  *   expandToPolicySlots?: boolean
@@ -91,22 +99,11 @@ export function parseCampusSchedulePolicyFromConfigResponse(res) {
  * @returns {Record<string, unknown>}
  */
 export function buildUpsertCampusScheduleTemplatePayload(input) {
-  const {
-    templateId,
-    campusId,
-    dayOfWeek,
-    startTime,
-    endTime,
-    sessionType,
-    active,
-    expandToPolicySlots,
-  } = input || {};
+  const {templateId, campusId, dayOfWeek, sessionType, active, expandToPolicySlots} = input || {};
 
   /** @type {Record<string, unknown>} */
   const payload = {
     dayOfWeek: Array.isArray(dayOfWeek) ? dayOfWeek.map((d) => String(d || "").toUpperCase()) : [],
-    startTime: normalizeScheduleTimeHHmm(startTime),
-    endTime: normalizeScheduleTimeHHmm(endTime),
     sessionType: String(sessionType || "").trim().toUpperCase(),
   };
 

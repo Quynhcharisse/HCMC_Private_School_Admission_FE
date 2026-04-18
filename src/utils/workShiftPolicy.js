@@ -187,16 +187,36 @@ export function normalizeWorkShiftForApi(s) {
 
 /**
  * Khớp buổi đặt lịch (session) với loại ca — dùng filter gợi ý / validate.
- * morning → [MORNING]; afternoon → [NOON, AFTERNOON]; evening → [EVENING]
+ * morning → [MORNING]; afternoon → ưu tiên AFTERNOON rồi NOON; evening → [EVENING]
  * @param {string} sessionType — ví dụ MORNING | AFTERNOON | EVENING
  * @returns {string[]}
  */
 export function sessionTypeToWorkShiftCodes(sessionType) {
   const u = String(sessionType || "").toUpperCase();
   if (u === "MORNING") return ["MORNING"];
-  if (u === "AFTERNOON") return ["NOON", "AFTERNOON"];
+  if (u === "AFTERNOON") return ["AFTERNOON", "NOON"];
   if (u === "EVENING") return ["EVENING"];
   return [];
+}
+
+/**
+ * Lấy khoảng giờ preview cho buổi đặt lịch (session) từ danh sách ca HQ.
+ * @param {unknown[]} workShifts
+ * @param {string} sessionType
+ * @returns {{ start: string, end: string, shiftCode: string } | null}
+ */
+export function resolveSessionWindowFromWorkShifts(workShifts, sessionType) {
+  const codes = sessionTypeToWorkShiftCodes(sessionType);
+  if (codes.length === 0) return null;
+  const list = Array.isArray(workShifts) ? workShifts : [];
+  for (const code of codes) {
+    const hit = list.find((s) => canonicalizeWorkShiftName(s?.name) === code);
+    if (!hit || typeof hit !== "object") continue;
+    const st = normalizeTimeHHmm(hit.startTime ?? hit.start_time);
+    const en = normalizeTimeHHmm(hit.endTime ?? hit.end_time);
+    if (st && en) return { start: st, end: en, shiftCode: code };
+  }
+  return null;
 }
 
 /**
