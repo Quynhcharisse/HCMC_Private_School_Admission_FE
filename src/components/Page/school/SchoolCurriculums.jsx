@@ -18,7 +18,6 @@ import {
     Select,
     Skeleton,
     Stack,
-    Switch,
     Table,
     TableBody,
     TableCell,
@@ -161,7 +160,8 @@ const toMethodLearningListLabel = (methodLearningList) => {
 const subjectEmpty = () => ({
     name: "",
     description: "",
-    isMandatory: false,
+    /** Môn trong curriculum luôn bắt buộc — không cho phép tắt (đồng bộ BE). */
+    isMandatory: true,
 });
 
 const emptyForm = () => ({
@@ -252,7 +252,7 @@ function mapSubjectOptionsForApi(subjectOptions) {
     return (subjectOptions || []).map((s) => ({
         name: String(s.name || "").trim(),
         description: String(s.description || "").trim(),
-        isMandatory: !!s.isMandatory,
+        isMandatory: true,
     }));
 }
 
@@ -565,7 +565,6 @@ export default function SchoolCurriculums() {
             errors.subjectOptions = "Một khung chương trình không thể có quá 50 môn học.";
         } else {
             const subjectNames = new Set();
-            let hasMandatory = false;
             subjects.forEach((s, idx) => {
                 const sName = String(s.name || "").trim();
                 const sDesc = String(s.description || "").trim();
@@ -583,13 +582,10 @@ export default function SchoolCurriculums() {
                     else if (sDesc.length > 1000)
                         subjectErrors[idx].description = `Mô tả cho môn học '${sName}' quá dài (tối đa 1000 ký tự).`;
                 }
-
-                if (!!s.isMandatory) hasMandatory = true;
             });
 
             const hasSubjectErrors = subjectErrors.some((se) => Object.keys(se).length > 0);
             if (hasSubjectErrors) errors.subjectOptions = subjectErrors;
-            else if (!hasMandatory) errors.subjectOptions = "Khung chương trình phải có ít nhất một môn học bắt buộc.";
         }
 
         setFormErrors(errors);
@@ -647,7 +643,7 @@ export default function SchoolCurriculums() {
                     ? curriculum.subjects.map((s) => ({
                         name: s.name || "",
                         description: s.description || "",
-                        isMandatory: !!s.isMandatory,
+                        isMandatory: true,
                     }))
                     : [subjectEmpty()],
         });
@@ -983,7 +979,7 @@ export default function SchoolCurriculums() {
     );
 
     const handleSubjectChange = (idx, field) => (e) => {
-        const value = field === "isMandatory" ? e.target.checked : e.target.value;
+        const value = e.target.value;
         setFormValues((prev) => ({
             ...prev,
             subjectOptions: prev.subjectOptions.map((s, i) => (i === idx ? { ...s, [field]: value } : s)),
@@ -2216,18 +2212,20 @@ export default function SchoolCurriculums() {
                                                     />
                                                 </Stack>
 
-                                                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.2 }}>
-                                                    <Typography sx={{ fontWeight: 800, color: "#1e293b" }}>Bắt buộc</Typography>
-                                                    <Switch
-                                                        checked={!!subject.isMandatory}
-                                                        onChange={handleSubjectChange(idx, "isMandatory")}
+                                                <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1.2, flexWrap: "wrap" }}>
+                                                    <Chip
+                                                        size="small"
+                                                        label="Bắt buộc"
                                                         sx={{
-                                                            "& .MuiSwitch-switchBase.Mui-checked": { color: "#16a34a" },
-                                                            "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
-                                                                backgroundColor: "#16a34a",
-                                                            },
+                                                            fontWeight: 800,
+                                                            bgcolor: "rgba(34, 197, 94, 0.14)",
+                                                            color: "#15803d",
+                                                            border: "1px solid rgba(34, 197, 94, 0.35)",
                                                         }}
                                                     />
+                                                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
+                                                        Môn trong khung chương trình luôn là môn bắt buộc.
+                                                    </Typography>
                                                 </Stack>
                                             </Box>
                                         </Grow>
@@ -2449,18 +2447,20 @@ export default function SchoolCurriculums() {
                                                     />
                                                 </Stack>
 
-                                                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.2 }}>
-                                                    <Typography sx={{ fontWeight: 800, color: "#1e293b" }}>Bắt buộc</Typography>
-                                                    <Switch
-                                                        checked={!!subject.isMandatory}
-                                                        onChange={handleSubjectChange(idx, "isMandatory")}
+                                                <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1.2, flexWrap: "wrap" }}>
+                                                    <Chip
+                                                        size="small"
+                                                        label="Bắt buộc"
                                                         sx={{
-                                                            "& .MuiSwitch-switchBase.Mui-checked": { color: "#16a34a" },
-                                                            "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
-                                                                backgroundColor: "#16a34a",
-                                                            },
+                                                            fontWeight: 800,
+                                                            bgcolor: "rgba(34, 197, 94, 0.14)",
+                                                            color: "#15803d",
+                                                            border: "1px solid rgba(34, 197, 94, 0.35)",
                                                         }}
                                                     />
+                                                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
+                                                        Môn trong curriculum luôn là môn bắt buộc.
+                                                    </Typography>
                                                 </Stack>
                                             </Box>
                                         </Grow>
