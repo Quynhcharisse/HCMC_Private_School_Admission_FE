@@ -52,6 +52,8 @@ import {
   updateSchoolConfig,
 } from "../../../services/SchoolFacilityService.jsx";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
+import SchoolWideScheduleReadOnlyPanel from "./SchoolWideScheduleReadOnlyPanel.jsx";
+import {resolveSchoolWideWorkingConfigDisplay} from "../../../utils/schoolWideWorkingConfig.js";
 
 const TAB_SLUGS = ["admission", "documents", "operation", "finance", "facility", "quota", "resource-distribution"];
 const TAB_LABELS = [
@@ -1269,25 +1271,6 @@ function applyCampusCurrentFlatBookingScalars(cur, mergedOp) {
 }
 
 /**
- * `campusCurrent.workingConfig` — ca/giờ hiệu lực sau merge BE (ưu tiên sau `facilityJson.workingOverride`).
- */
-function applyCampusCurrentEffectiveWorkingConfig(cur, mergedOp) {
-  if (!cur || typeof cur !== "object" || !mergedOp?.workingConfig) return;
-  const cw = cur.workingConfig ?? cur.working_config;
-  if (!cw || typeof cw !== "object") return;
-  mergedOp.workingConfig = {
-    ...mergedOp.workingConfig,
-    ...(cw.note != null ? {note: String(cw.note)} : {}),
-    ...(cw.isOpenSunday != null || cw.openSunday != null
-      ? {isOpenSunday: Boolean(cw.isOpenSunday ?? cw.openSunday)}
-      : {}),
-    ...(Array.isArray(cw.regularDays) ? {regularDays: cw.regularDays} : {}),
-    ...(Array.isArray(cw.weekendDays) ? {weekendDays: cw.weekendDays} : {}),
-    ...(Array.isArray(cw.workShifts) ? {workShifts: cw.workShifts} : {}),
-  };
-}
-
-/**
  * Phản hồi GET /api/v1/campus/config (campus theo phiên) — cả trụ sở và campus phụ.
  * CSVC + vận hành từ `campusCurrent.facilityJson` + merge HQ `hqDefault`.
  */
@@ -1372,7 +1355,6 @@ function normalizeFromCampusConfigApi(body) {
     };
   }
 
-  const wc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
   const numHq = (v, fallback) =>
     v != null && !Number.isNaN(Number(v)) ? Number(v) : fallback;
   const mergedOp = {
@@ -1382,13 +1364,7 @@ function normalizeFromCampusConfigApi(body) {
     minCounsellorPerSlot: numHq(hqOp.minCounsellorPerSlot, d.operationSettingsData.minCounsellorPerSlot),
     slotDurationInMinutes: numHq(hqOp.slotDurationInMinutes, d.operationSettingsData.slotDurationInMinutes),
     allowBookingBeforeHours: numHq(hqOp.allowBookingBeforeHours, d.operationSettingsData.allowBookingBeforeHours),
-    workingConfig: {
-      note: wc.note != null ? String(wc.note) : "",
-      workShifts: Array.isArray(wc.workShifts) ? wc.workShifts : [],
-      regularDays: Array.isArray(wc.regularDays) ? wc.regularDays : d.operationSettingsData.workingConfig.regularDays,
-      weekendDays: Array.isArray(wc.weekendDays) ? wc.weekendDays : d.operationSettingsData.workingConfig.weekendDays,
-      isOpenSunday: Boolean(wc.isOpenSunday ?? wc.openSunday),
-    },
+    workingConfig: resolveSchoolWideWorkingConfigDisplay(hqOp, cur),
     academicCalendar: normalizeAcademicCalendar(hqOp.academicCalendar ?? hqOp.academic_calendar),
     methodAdmissionProcess: parseMethodAdmissionProcessFromOperation(hqOp),
   };
@@ -1419,20 +1395,7 @@ function normalizeFromCampusConfigApi(body) {
   if (fj && typeof fj === "object") {
     if (fj.hotline != null) mergedOp.hotline = String(fj.hotline);
     if (fj.emailSupport != null) mergedOp.emailSupport = String(fj.emailSupport);
-    if (fj.workingOverride && typeof fj.workingOverride === "object") {
-      const wo = fj.workingOverride;
-      mergedOp.workingConfig = {
-        ...mergedOp.workingConfig,
-        ...(wo.note != null ? {note: String(wo.note)} : {}),
-        ...(typeof wo.isOpenSunday === "boolean" ? {isOpenSunday: wo.isOpenSunday} : {}),
-        ...(Array.isArray(wo.regularDays) ? {regularDays: wo.regularDays} : {}),
-        ...(Array.isArray(wo.weekendDays) ? {weekendDays: wo.weekendDays} : {}),
-        ...(Array.isArray(wo.workShifts) ? {workShifts: wo.workShifts} : {}),
-      };
-    }
   }
-
-  applyCampusCurrentEffectiveWorkingConfig(cur, mergedOp);
 
   const effectiveAdmission = parseCampusCurrentEffectiveAdmissionProcesses(cur);
   if (effectiveAdmission != null) {
@@ -1473,9 +1436,9 @@ function normalizeFromCampusConfigApi(body) {
 
 /**
  * PUT /api/v1/campus/{campusId}/config — body phẳng partial (UpdateCampusConfigRequest).
- * BE merge partial (vd. thiếu workingOverride giữ merge từ policy hiện tại); chỉ gửi field nhánh đã đổi.
+ * BE merge partial; chỉ gửi field nhánh đã đổi (không gửi workingOverride — giờ/ca do trường cấu hình).
  *
- * @param hqOperation — `hqDefault.operation` từ GET; dùng để tính workingOverride / admissionStepsOverride
+ * @param hqOperation — `hqDefault.operation` từ GET; dùng so sánh admissionStepsOverride
  */
 function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, policy) {
   const fac = config.facilityData;
@@ -1483,7 +1446,6 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
   const op = config.operationSettingsData;
   const iOp = initial.operationSettingsData;
   const hqOp = hqOperation && typeof hqOperation === "object" ? hqOperation : {};
-  const hqWc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
 
   const curFacPut = campusFacilityPutSlice(fac);
   const iniFacPut = campusFacilityPutSlice(iFac);
@@ -1504,13 +1466,10 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
   const calIo = normalizeAcademicCalendar(iOp.academicCalendar);
   const academicDirty = JSON.stringify(calOp) !== JSON.stringify(calIo);
 
-  const workingDirty =
-    JSON.stringify(op.workingConfig || {}) !== JSON.stringify(iOp.workingConfig || {});
-
   const admissionDirty =
     JSON.stringify(op.methodAdmissionProcess || []) !== JSON.stringify(iOp.methodAdmissionProcess || []);
 
-  const anyDirty = facilityDirty || policyDirty || scalarsDirty || academicDirty || workingDirty || admissionDirty;
+  const anyDirty = facilityDirty || policyDirty || scalarsDirty || academicDirty || admissionDirty;
   if (!anyDirty) return {};
 
   const payload = {};
@@ -1533,20 +1492,6 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
 
   if (academicDirty) {
     payload.academicCalendar = calOp;
-  }
-
-  if (workingDirty) {
-    const wc = op.workingConfig || {};
-    const wo = {};
-    if ((wc.note ?? "") !== (hqWc.note ?? "")) wo.note = wc.note ?? "";
-    if (Boolean(wc.isOpenSunday) !== Boolean(hqWc.isOpenSunday)) wo.isOpenSunday = Boolean(wc.isOpenSunday);
-    if (JSON.stringify(wc.regularDays || []) !== JSON.stringify(hqWc.regularDays || []))
-      wo.regularDays = wc.regularDays || [];
-    if (JSON.stringify(wc.weekendDays || []) !== JSON.stringify(hqWc.weekendDays || []))
-      wo.weekendDays = wc.weekendDays || [];
-    if (JSON.stringify(wc.workShifts || []) !== JSON.stringify(hqWc.workShifts || []))
-      wo.workShifts = wc.workShifts || [];
-    if (Object.keys(wo).length > 0) payload.workingOverride = wo;
   }
 
   if (admissionDirty) {
@@ -1591,7 +1536,6 @@ function buildCampusFlatPutPayloadFallbackFull(config, hqOperation, policy) {
   const fac = config.facilityData;
   const op = config.operationSettingsData;
   const hqOp = hqOperation && typeof hqOperation === "object" ? hqOperation : {};
-  const hqWc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
   const curFacPut = campusFacilityPutSlice(fac);
   const payload = {
     itemList: curFacPut.itemList,
@@ -1603,17 +1547,6 @@ function buildCampusFlatPutPayloadFallbackFull(config, hqOperation, policy) {
     academicCalendar: normalizeAcademicCalendar(op.academicCalendar),
     policyDetail: policy ?? "",
   };
-  const wc = op.workingConfig || {};
-  const wo = {};
-  if ((wc.note ?? "") !== (hqWc.note ?? "")) wo.note = wc.note ?? "";
-  if (Boolean(wc.isOpenSunday) !== Boolean(hqWc.isOpenSunday)) wo.isOpenSunday = Boolean(wc.isOpenSunday);
-  if (JSON.stringify(wc.regularDays || []) !== JSON.stringify(hqWc.regularDays || []))
-    wo.regularDays = wc.regularDays || [];
-  if (JSON.stringify(wc.weekendDays || []) !== JSON.stringify(hqWc.weekendDays || []))
-    wo.weekendDays = wc.weekendDays || [];
-  if (JSON.stringify(wc.workShifts || []) !== JSON.stringify(hqWc.workShifts || []))
-    wo.workShifts = wc.workShifts || [];
-  if (Object.keys(wo).length > 0) payload.workingOverride = wo;
   const hqHasAdmissionProcesses =
     Array.isArray(hqOp.admissionProcesses) && hqOp.admissionProcesses.length > 0;
   const hqProc = parseMethodAdmissionProcessFromOperation(hqOp);
@@ -3946,251 +3879,10 @@ export default function CampusConfig() {
                 </CardContent>
               </Card>
 
-              <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
-                <CardContent sx={{p: 3}}>
-                  <Typography sx={{fontWeight: 800, mb: 2}}>Giờ làm việc</Typography>
-                  <Typography variant="body2" sx={{mb: 1.25, color: "#64748b"}}>
-                    Ngày trong tuần (regular / weekend)
-                  </Typography>
-                  <Stack
-                    direction="row"
-                    flexWrap="wrap"
-                    useFlexGap
-                    sx={{gap: 1.25, mb: 2, alignItems: "center"}}
-                  >
-                    <ToggleButtonGroup
-                      exclusive={false}
-                      value={config.operationSettingsData.workingConfig.regularDays || []}
-                      onChange={(e, v) => {
-                        if (fieldDisabled || !v) return;
-                        setConfig((c) => ({
-                          ...c,
-                          operationSettingsData: {
-                            ...c.operationSettingsData,
-                            workingConfig: {...c.operationSettingsData.workingConfig, regularDays: v},
-                          },
-                        }));
-                      }}
-                      sx={{
-                        flexWrap: "wrap",
-                        gap: 1.25,
-                        ...blockPointerSx,
-                        "& .MuiToggleButton-root": {
-                          textTransform: "none",
-                          border: "1px solid #e2e8f0 !important",
-                          borderRadius: "10px !important",
-                          px: 1.75,
-                          py: 0.75,
-                          color: "#475569",
-                          "&.Mui-selected": {
-                            color: "#2563eb",
-                            bgcolor: "rgba(37,99,235,0.08)",
-                            borderColor: "#2563eb !important",
-                          },
-                        },
-                        "& .MuiToggleButtonGroup-grouped": {
-                          borderRadius: "10px !important",
-                        },
-                      }}
-                    >
-                      {DAY_CODES.slice(0, 5).map((d) => (
-                        <ToggleButton key={d.code} value={d.code}>
-                          {d.label}
-                        </ToggleButton>
-                      ))}
-                    </ToggleButtonGroup>
-                    <ToggleButtonGroup
-                      exclusive={false}
-                      value={config.operationSettingsData.workingConfig.weekendDays || []}
-                      onChange={(e, v) => {
-                        if (fieldDisabled || !v) return;
-                        setConfig((c) => ({
-                          ...c,
-                          operationSettingsData: {
-                            ...c.operationSettingsData,
-                            workingConfig: {...c.operationSettingsData.workingConfig, weekendDays: v},
-                          },
-                        }));
-                      }}
-                      sx={{
-                        flexWrap: "wrap",
-                        gap: 1.25,
-                        ...blockPointerSx,
-                        "& .MuiToggleButton-root": {
-                          textTransform: "none",
-                          border: "1px solid #e2e8f0 !important",
-                          borderRadius: "10px !important",
-                          px: 1.75,
-                          py: 0.75,
-                          color: "#475569",
-                          "&.Mui-selected": {
-                            color: "#2563eb",
-                            bgcolor: "rgba(37,99,235,0.08)",
-                            borderColor: "#2563eb !important",
-                          },
-                        },
-                        "& .MuiToggleButtonGroup-grouped": {
-                          borderRadius: "10px !important",
-                        },
-                      }}
-                    >
-                      <ToggleButton value="SAT">T7</ToggleButton>
-                    </ToggleButtonGroup>
-                  </Stack>
-                  <Box sx={{width: "100%", mt: 2}}>
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={Boolean(config.operationSettingsData.workingConfig.isOpenSunday)}
-                          onChange={(e) => {
-                            if (fieldDisabled) return;
-                            setConfig((c) => ({
-                              ...c,
-                              operationSettingsData: {
-                                ...c.operationSettingsData,
-                                workingConfig: {...c.operationSettingsData.workingConfig, isOpenSunday: e.target.checked},
-                              },
-                            }));
-                          }}
-                          sx={blockPointerSx}
-                        />
-                      }
-                      label="Mở Chủ nhật"
-                      sx={{ml: 0, alignItems: "center"}}
-                    />
-                    </Box>
-                  <TextField
-                    label="Ghi chú lịch"
-                    multiline
-                    minRows={2}
-                    value={config.operationSettingsData.workingConfig.note ?? ""}
-                    onChange={(e) =>
-                      setConfig((c) => ({
-                        ...c,
-                        operationSettingsData: {
-                          ...c.operationSettingsData,
-                          workingConfig: {...c.operationSettingsData.workingConfig, note: e.target.value},
-                        },
-                      }))
-                    }
-                    fullWidth
-                    sx={{mt: 2}}
-                    inputProps={{readOnly: fieldDisabled}}
-                  />
-
-                  <Typography sx={{fontWeight: 800, mt: 3, mb: 1}}>Ca làm việc</Typography>
-                  <Stack spacing={1}>
-                    {(config.operationSettingsData.workingConfig.workShifts || []).map((sh, idx) => (
-                      <Stack key={idx} direction={{xs: "column", sm: "row"}} spacing={1}>
-                        <TextField
-                          label="Tên ca"
-                          size="small"
-                          value={sh.name ?? ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setConfig((c) => {
-                              const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
-                              ws[idx] = {...ws[idx], name: v};
-                              return {
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
-                                },
-                              };
-                            });
-                          }}
-                          inputProps={{readOnly: fieldDisabled}}
-                        />
-                        <TextField
-                          label="Bắt đầu"
-                          type="time"
-                          size="small"
-                          InputLabelProps={{shrink: true}}
-                          value={sh.startTime ?? ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setConfig((c) => {
-                              const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
-                              ws[idx] = {...ws[idx], startTime: v};
-                              return {
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
-                                },
-                              };
-                            });
-                          }}
-                          inputProps={{readOnly: fieldDisabled}}
-                        />
-                        <TextField
-                          label="Kết thúc"
-                          type="time"
-                          size="small"
-                          InputLabelProps={{shrink: true}}
-                          value={sh.endTime ?? ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setConfig((c) => {
-                              const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
-                              ws[idx] = {...ws[idx], endTime: v};
-                              return {
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
-                                },
-                              };
-                            });
-                          }}
-                          inputProps={{readOnly: fieldDisabled}}
-                        />
-                        <IconButton
-                          size="small"
-                          color="error"
-                          aria-label="Xoá ca làm việc"
-                          disabled={fieldDisabled}
-                          onClick={() =>
-                            setConfig((c) => {
-                              const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
-                              ws.splice(idx, 1);
-                              return {
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
-                                },
-                              };
-                            })
-                          }
-                          sx={{...blockPointerSx, alignSelf: {xs: "flex-end", sm: "center"}}}
-                        >
-                          <DeleteOutlineIcon fontSize="small"/>
-                        </IconButton>
-                      </Stack>
-                    ))}
-                    <Button
-                      startIcon={<AddIcon/>}
-                      onClick={() =>
-                        setConfig((c) => {
-                          const ws = [...(c.operationSettingsData.workingConfig.workShifts || []), {name: "", startTime: "08:00", endTime: "17:00"}];
-                          return {
-                            ...c,
-                            operationSettingsData: {
-                              ...c.operationSettingsData,
-                              workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
-                            },
-                          };
-                        })
-                      }
-                      sx={{textTransform: "none", alignSelf: "flex-start", ...blockPointerSx}}
-                    >
-                      Thêm ca
-                    </Button>
-                  </Stack>
-        </CardContent>
-      </Card>
+              <SchoolWideScheduleReadOnlyPanel
+                workingConfig={config.operationSettingsData.workingConfig}
+                showSchoolOperationCta={isPrimaryBranch}
+              />
 
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>

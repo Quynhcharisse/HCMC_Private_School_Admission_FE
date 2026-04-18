@@ -206,12 +206,12 @@ const menuGroupsBase = [
         ],
     },
     {
-        title: "HỖ TRỢ",
-        items: [{ text: "Liên hệ", icon: <ContactSupportOutlinedIcon />, path: "/school/contact" }],
-    },
-    {
         title: "CẤU HÌNH",
         items: [],
+    },
+    {
+        title: "HỖ TRỢ",
+        items: [{ text: "Liên hệ", icon: <ContactSupportOutlinedIcon />, path: "/school/contact" }],
     },
 ];
 

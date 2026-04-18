@@ -12,7 +12,9 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Checkbox,
   FormControl,
+  FormControlLabel,
   IconButton,
   InputLabel,
   ListItemIcon,
@@ -43,15 +45,18 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import { enqueueSnackbar } from "notistack";
 import {
+  buildUpsertCampusScheduleTemplatePayload,
   getCampusScheduleTemplateList,
   fetchSchoolCampusScheduleTemplateListAll,
   getSchoolCampusScheduleTemplateList,
   normalizeScheduleTemplateDayMap,
+  parseCampusSchedulePolicyFromConfigResponse,
   parseCampusScheduleTemplateListBody,
   parseSchoolCampusScheduleTemplateListBody,
   upsertCampusScheduleTemplate,
 } from "../../../services/CampusScheduleTemplateService.jsx";
 import {
+  getCampusConfig,
   getSchoolCampusConfigList,
   parseSchoolCampusConfigListBody,
 } from "../../../services/SchoolFacilityService.jsx";
@@ -206,10 +211,45 @@ function sessionTypeLabel(s) {
   return s || "—";
 }
 
+function formatWorkShiftLine(s) {
+  if (!s || typeof s !== "object") return "";
+  const name = s.name ?? s.shiftName ?? s.shift_name ?? s.label ?? "Ca";
+  const st = s.startTime ?? s.start_time ?? "";
+  const en = s.endTime ?? s.end_time ?? "";
+  if (st && en) return `${name}: ${st}–${en}`;
+  return String(name);
+}
+
 function timeToMinutes(t) {
-  const [h, m] = String(t || "0:0").split(":").map((x) => parseInt(x, 10));
+  const parts = String(t || "0:0").split(":");
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1] ?? "0", 10);
   if (Number.isNaN(h) || Number.isNaN(m)) return 0;
   return h * 60 + m;
+}
+
+function minutesToHHmm(total) {
+  const n = Math.max(0, Math.round(total));
+  const h = Math.floor(n / 60) % 24;
+  const m = n % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** Preview khi bật tách theo slot (phút / khung). */
+function computePolicySlotPreview(startTime, endTime, slotMinutes) {
+  const span = timeToMinutes(endTime) - timeToMinutes(startTime);
+  if (!slotMinutes || slotMinutes <= 0 || span <= 0) return { count: 0, labels: [] };
+  if (span % slotMinutes !== 0) return { count: 0, labels: [], remainder: true };
+  const n = span / slotMinutes;
+  const labels = [];
+  let cur = timeToMinutes(startTime);
+  for (let i = 0; i < Math.min(n, 24); i += 1) {
+    const a = cur;
+    const b = cur + slotMinutes;
+    labels.push(`${minutesToHHmm(a)}–${minutesToHHmm(b)}`);
+    cur = b;
+  }
+  return { count: n, labels, remainder: false };
 }
 
 function intervalsOverlap(aStart, aEnd, bStart, bEnd) {
@@ -387,6 +427,7 @@ const emptyForm = () => ({
   startTime: "08:00",
   endTime: "10:00",
   sessionType: "MORNING",
+  expandToPolicySlots: false,
 });
 
 /** Map message từ BE (tiếng Anh) → tiếng Việt cho template lịch tư vấn */
@@ -431,6 +472,16 @@ export default function SchoolCounselorSchedule() {
   const [form, setForm] = useState(emptyForm);
   const [formErrors, setFormErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+
+  /** Đọc từ GET /campus/config — ca, slot, ngày mở (bước 0 theo contract). */
+  const [schedulePolicy, setSchedulePolicy] = useState({
+    loading: false,
+    error: null,
+    slotDurationMinutes: 0,
+    workShifts: [],
+    regularDays: [],
+    workingNote: "",
+  });
 
   const [deleteDialog, setDeleteDialog] = useState({ open: false, slot: null, day: null });
 
@@ -529,6 +580,37 @@ export default function SchoolCounselorSchedule() {
       loadOverview();
     }
   }, [viewMode, loadOverview, isPrimaryBranch]);
+
+  useEffect(() => {
+    if (schoolCtxLoading || viewMode !== "manage") return;
+    let cancelled = false;
+    setSchedulePolicy((p) => ({ ...p, loading: true, error: null }));
+    (async () => {
+      try {
+        const res = await getCampusConfig();
+        if (cancelled) return;
+        if (res?.status !== 200) {
+          throw new Error(res?.data?.message || "Không tải được cấu hình cơ sở");
+        }
+        const parsed = parseCampusSchedulePolicyFromConfigResponse(res);
+        setSchedulePolicy({ loading: false, error: null, ...parsed });
+      } catch (e) {
+        if (!cancelled) {
+          setSchedulePolicy({
+            loading: false,
+            error: e?.message || "Lỗi",
+            slotDurationMinutes: 0,
+            workShifts: [],
+            regularDays: [],
+            workingNote: "",
+          });
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [viewMode, schoolCtxLoading]);
 
   /**
    * Campus đang thao tác: campus phụ → `currentCampusId`; campus chính → cơ sở đầu danh sách
@@ -738,6 +820,19 @@ export default function SchoolCounselorSchedule() {
 
   const isEditing = (form.templateId || 0) > 0;
 
+  const openDaySet = useMemo(() => new Set(schedulePolicy.regularDays || []), [schedulePolicy.regularDays]);
+
+  const slotSplitPreview = useMemo(() => {
+    if (!form.expandToPolicySlots || isEditing) return { count: 0, labels: [], remainder: false };
+    return computePolicySlotPreview(form.startTime, form.endTime, schedulePolicy.slotDurationMinutes);
+  }, [
+    form.endTime,
+    form.expandToPolicySlots,
+    form.startTime,
+    isEditing,
+    schedulePolicy.slotDurationMinutes,
+  ]);
+
   const openCreate = () => {
     setForm(emptyForm());
     setFormErrors({});
@@ -756,12 +851,14 @@ export default function SchoolCounselorSchedule() {
       startTime: slot?.startTime || "08:00",
       endTime: slot?.endTime || "10:00",
       sessionType: String(slot?.sessionType || "MORNING").toUpperCase(),
+      expandToPolicySlots: false,
     });
     setFormErrors({});
     setDialogOpen(true);
   };
 
   const toggleDay = (day) => {
+    if (!isEditing && openDaySet.size > 0 && !openDaySet.has(day)) return;
     if (isEditing) {
       setForm((prev) => ({ ...prev, dayOfWeek: [day] }));
       return;
@@ -776,12 +873,16 @@ export default function SchoolCounselorSchedule() {
 
   const selectWeekdays = () => {
     if (isEditing) return;
-    setForm((prev) => ({ ...prev, dayOfWeek: ["MON", "TUE", "WED", "THU", "FRI"] }));
+    const base = ["MON", "TUE", "WED", "THU", "FRI"];
+    const days = openDaySet.size > 0 ? base.filter((d) => openDaySet.has(d)) : base;
+    setForm((prev) => ({ ...prev, dayOfWeek: days }));
   };
 
   const selectWeekend = () => {
     if (isEditing) return;
-    setForm((prev) => ({ ...prev, dayOfWeek: ["SAT", "SUN"] }));
+    const base = ["SAT", "SUN"];
+    const days = openDaySet.size > 0 ? base.filter((d) => openDaySet.has(d)) : base;
+    setForm((prev) => ({ ...prev, dayOfWeek: days }));
   };
 
   const checkOverlap = useCallback(
@@ -811,6 +912,23 @@ export default function SchoolCounselorSchedule() {
     }
     if (!form.sessionType?.trim()) err.sessionType = "Bắt buộc";
 
+    if (isEditing && form.dayOfWeek?.length !== 1) {
+      err.dayOfWeek = "Sửa khung chỉ áp dụng đúng một thứ trong tuần";
+    }
+
+    if (!isEditing && form.expandToPolicySlots) {
+      if (!schedulePolicy.slotDurationMinutes || schedulePolicy.slotDurationMinutes <= 0) {
+        err.expandSlots = "Chưa có độ dài slot (slotDurationInMinutes) trong cấu hình cơ sở.";
+      } else {
+        const span = timeToMinutes(form.endTime) - timeToMinutes(form.startTime);
+        if (span <= 0) {
+          err.expandSlots = "Khoảng thời gian không hợp lệ để tách slot.";
+        } else if (span % schedulePolicy.slotDurationMinutes !== 0) {
+          err.expandSlots = `Tổng ${span} phút phải chia hết cho ${schedulePolicy.slotDurationMinutes} phút/slot.`;
+        }
+      }
+    }
+
     if (
       !err.startTime &&
       !err.endTime &&
@@ -832,14 +950,15 @@ export default function SchoolCounselorSchedule() {
     if (!validate() || activeCampusId == null) return;
     setSubmitting(true);
     try {
-      const payload = {
-        templateId: form.templateId || 0,
+      const payload = buildUpsertCampusScheduleTemplatePayload({
+        templateId: form.templateId,
         campusId: Number(activeCampusId),
         dayOfWeek: form.dayOfWeek,
         startTime: form.startTime,
         endTime: form.endTime,
         sessionType: String(form.sessionType).trim(),
-      };
+        expandToPolicySlots: !isEditing && form.expandToPolicySlots,
+      });
       const res = await upsertCampusScheduleTemplate(payload);
       const ok = res && res.status >= 200 && res.status < 300;
       if (ok) {
@@ -860,7 +979,7 @@ export default function SchoolCounselorSchedule() {
 
   const deactivateSlot = async (slot, day) => {
     if (activeCampusId == null || !slot?.id) return;
-    const payload = {
+    const payload = buildUpsertCampusScheduleTemplatePayload({
       templateId: Number(slot.id),
       campusId: Number(activeCampusId),
       dayOfWeek: [String(day).toUpperCase()],
@@ -868,7 +987,7 @@ export default function SchoolCounselorSchedule() {
       endTime: slot.endTime,
       sessionType: String(slot.sessionType || "").trim(),
       active: false,
-    };
+    });
     const res = await upsertCampusScheduleTemplate(payload);
     const ok = res && res.status >= 200 && res.status < 300;
     if (!ok) {
@@ -1490,6 +1609,70 @@ export default function SchoolCounselorSchedule() {
         ) : null}
 
         {viewMode === "manage" ? (
+          <Box
+            sx={{
+              px: { xs: 2, sm: 3 },
+              pt: 2,
+              pb: 1.5,
+              borderBottom: `1px solid ${BORDER_SOFT}`,
+              bgcolor: "rgba(248,250,252,0.9)",
+            }}
+          >
+            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#0f172a", mb: 1 }}>
+              Cấu hình ca & slot (đọc từ cơ sở)
+            </Typography>
+            {schedulePolicy.loading ? (
+              <Skeleton variant="rounded" height={56} sx={{ borderRadius: "10px" }} />
+            ) : schedulePolicy.error ? (
+              <Typography variant="body2" sx={{ color: "#B91C1C" }}>
+                {schedulePolicy.error}
+              </Typography>
+            ) : (
+              <Stack spacing={1}>
+                <Typography variant="body2" sx={{ color: "#475569", lineHeight: 1.55 }}>
+                  <strong>Độ dài slot:</strong>{" "}
+                  {schedulePolicy.slotDurationMinutes > 0
+                    ? `${schedulePolicy.slotDurationMinutes} phút`
+                    : "Chưa cấu hình"}
+                </Typography>
+                {schedulePolicy.regularDays?.length ? (
+                  <Typography variant="body2" sx={{ color: "#475569", lineHeight: 1.55 }}>
+                    <strong>Ngày làm việc:</strong>{" "}
+                    {schedulePolicy.regularDays.map((d) => DAY_LABELS[d] || d).join(", ")}
+                  </Typography>
+                ) : (
+                  <Typography variant="caption" sx={{ color: "#94A3B8", display: "block" }}>
+                    Chưa có danh sách thứ làm việc — có thể chọn mọi ngày khi thêm khung.
+                  </Typography>
+                )}
+                {schedulePolicy.workShifts?.length ? (
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: "#64748B", display: "block", mb: 0.5 }}>
+                      Ca vận hành
+                    </Typography>
+                    <Stack component="ul" sx={{ m: 0, pl: 2.25, color: "#475569", fontSize: "0.875rem" }} spacing={0.35}>
+                      {schedulePolicy.workShifts.map((sh, i) => {
+                        const line = formatWorkShiftLine(sh);
+                        return line ? (
+                          <Typography key={i} component="li" variant="body2" sx={{ color: "#475569" }}>
+                            {line}
+                          </Typography>
+                        ) : null;
+                      })}
+                    </Stack>
+                  </Box>
+                ) : null}
+                {schedulePolicy.workingNote ? (
+                  <Typography variant="caption" sx={{ color: "#64748B", display: "block", fontStyle: "italic" }}>
+                    {schedulePolicy.workingNote}
+                  </Typography>
+                ) : null}
+              </Stack>
+            )}
+          </Box>
+        ) : null}
+
+        {viewMode === "manage" ? (
           <>
             <Box sx={{ px: { xs: 2, sm: 3 }, pt: 2, pb: 2 }}>
               <Box
@@ -1854,6 +2037,54 @@ export default function SchoolCounselorSchedule() {
                     })()}
                   </Select>
                 </FormControl>
+                {!isEditing && schedulePolicy.slotDurationMinutes > 0 ? (
+                  <Box>
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={Boolean(form.expandToPolicySlots)}
+                          onChange={(e) => {
+                            const v = e.target.checked;
+                            setForm((p) => ({ ...p, expandToPolicySlots: v }));
+                            setFormErrors((er) => ({ ...er, expandSlots: undefined }));
+                          }}
+                          size="small"
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: "#374151" }}>
+                            Tách theo slot ({schedulePolicy.slotDurationMinutes} phút)
+                          </Typography>
+                          <Typography variant="caption" sx={{ color: "#6B7280", display: "block" }}>
+                            Gửi cả khoảng ca; BE tạo nhiều khung liên tiếp. Chỉ dùng khi thêm mới.
+                          </Typography>
+                        </Box>
+                      }
+                    />
+                    {form.expandToPolicySlots ? (
+                      <Box sx={{ pl: 4, pt: 0.5 }}>
+                        {formErrors.expandSlots ? (
+                          <Typography variant="caption" color="error" sx={{ display: "block", mb: 0.5 }}>
+                            {formErrors.expandSlots}
+                          </Typography>
+                        ) : null}
+                        {slotSplitPreview.count > 0 ? (
+                          <>
+                            <Typography variant="caption" sx={{ color: "#0f766e", fontWeight: 600, display: "block" }}>
+                              Dự kiến {slotSplitPreview.count} khung: {slotSplitPreview.labels.join(", ")}
+                              {slotSplitPreview.count > slotSplitPreview.labels.length ? " …" : ""}
+                            </Typography>
+                          </>
+                        ) : form.expandToPolicySlots && !formErrors.expandSlots ? (
+                          <Typography variant="caption" sx={{ color: "#94A3B8" }}>
+                            Nhập giờ bắt đầu / kết thúc sao cho tổng phút chia hết cho {schedulePolicy.slotDurationMinutes}.
+                          </Typography>
+                        ) : null}
+                      </Box>
+                    ) : null}
+                  </Box>
+                ) : null}
               </Stack>
             </Box>
 
@@ -1880,10 +2111,12 @@ export default function SchoolCounselorSchedule() {
               >
                 {DAYS.map((d) => {
                   const selected = form.dayOfWeek.includes(d);
+                  const dayClosed = !isEditing && openDaySet.size > 0 && !openDaySet.has(d);
                   return (
                     <Button
                       key={d}
                       onClick={() => toggleDay(d)}
+                      disabled={dayClosed}
                       variant={selected ? "contained" : "outlined"}
                       sx={{
                         minWidth: 0,

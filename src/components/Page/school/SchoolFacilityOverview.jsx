@@ -52,6 +52,8 @@ import {
   updateSchoolConfig,
 } from "../../../services/SchoolFacilityService.jsx";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
+import SchoolWideScheduleReadOnlyPanel from "./SchoolWideScheduleReadOnlyPanel.jsx";
+import {resolveSchoolWideWorkingConfigDisplay} from "../../../utils/schoolWideWorkingConfig.js";
 
 const TAB_SLUGS = ["admission", "documents", "operation", "finance", "facility", "quota", "resource-distribution"];
 const TAB_LABELS = [
@@ -1136,22 +1138,6 @@ function applyCampusCurrentFlatBookingScalars(cur, mergedOp) {
   if (ab != null) mergedOp.allowBookingBeforeHours = ab;
 }
 
-function applyCampusCurrentEffectiveWorkingConfig(cur, mergedOp) {
-  if (!cur || typeof cur !== "object" || !mergedOp?.workingConfig) return;
-  const cw = cur.workingConfig ?? cur.working_config;
-  if (!cw || typeof cw !== "object") return;
-  mergedOp.workingConfig = {
-    ...mergedOp.workingConfig,
-    ...(cw.note != null ? {note: String(cw.note)} : {}),
-    ...(cw.isOpenSunday != null || cw.openSunday != null
-      ? {isOpenSunday: Boolean(cw.isOpenSunday ?? cw.openSunday)}
-      : {}),
-    ...(Array.isArray(cw.regularDays) ? {regularDays: cw.regularDays} : {}),
-    ...(Array.isArray(cw.weekendDays) ? {weekendDays: cw.weekendDays} : {}),
-    ...(Array.isArray(cw.workShifts) ? {workShifts: cw.workShifts} : {}),
-  };
-}
-
 /**
  * Phản hồi GET /api/v1/campus/config (campus theo phiên) — cả trụ sở và campus phụ.
  * CSVC + vận hành từ `campusCurrent.facilityJson` + merge HQ `hqDefault`.
@@ -1217,7 +1203,6 @@ function normalizeFromCampusConfigApi(body) {
     };
   }
 
-  const wc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
   const numHq = (v, fallback) =>
     v != null && !Number.isNaN(Number(v)) ? Number(v) : fallback;
   const mergedOp = {
@@ -1227,13 +1212,7 @@ function normalizeFromCampusConfigApi(body) {
     minCounsellorPerSlot: numHq(hqOp.minCounsellorPerSlot, d.operationSettingsData.minCounsellorPerSlot),
     slotDurationInMinutes: numHq(hqOp.slotDurationInMinutes, d.operationSettingsData.slotDurationInMinutes),
     allowBookingBeforeHours: numHq(hqOp.allowBookingBeforeHours, d.operationSettingsData.allowBookingBeforeHours),
-    workingConfig: {
-      note: wc.note != null ? String(wc.note) : "",
-      workShifts: Array.isArray(wc.workShifts) ? wc.workShifts : [],
-      regularDays: Array.isArray(wc.regularDays) ? wc.regularDays : d.operationSettingsData.workingConfig.regularDays,
-      weekendDays: Array.isArray(wc.weekendDays) ? wc.weekendDays : d.operationSettingsData.workingConfig.weekendDays,
-      isOpenSunday: Boolean(wc.isOpenSunday ?? wc.openSunday),
-    },
+    workingConfig: resolveSchoolWideWorkingConfigDisplay(hqOp, cur),
     methodAdmissionProcess: parseMethodAdmissionProcessFromOperation(hqOp),
     academicCalendar: (() => {
       const convertDate = (v) => {
@@ -1279,17 +1258,6 @@ function normalizeFromCampusConfigApi(body) {
   if (fj && typeof fj === "object") {
     if (fj.hotline != null) mergedOp.hotline = String(fj.hotline);
     if (fj.emailSupport != null) mergedOp.emailSupport = String(fj.emailSupport);
-    if (fj.workingOverride && typeof fj.workingOverride === "object") {
-      const wo = fj.workingOverride;
-      mergedOp.workingConfig = {
-        ...mergedOp.workingConfig,
-        ...(wo.note != null ? {note: String(wo.note)} : {}),
-        ...(typeof wo.isOpenSunday === "boolean" ? {isOpenSunday: wo.isOpenSunday} : {}),
-        ...(Array.isArray(wo.regularDays) ? {regularDays: wo.regularDays} : {}),
-        ...(Array.isArray(wo.weekendDays) ? {weekendDays: wo.weekendDays} : {}),
-        ...(Array.isArray(wo.workShifts) ? {workShifts: wo.workShifts} : {}),
-      };
-    }
     const hqHasAdmissionProcesses =
       Array.isArray(hqOp.admissionProcesses) && hqOp.admissionProcesses.length > 0;
     if (Array.isArray(fj.admissionStepsOverride) && !hqHasAdmissionProcesses) {
@@ -1316,8 +1284,6 @@ function normalizeFromCampusConfigApi(body) {
     }
   }
 
-  applyCampusCurrentEffectiveWorkingConfig(cur, mergedOp);
-
   return {
     ...d,
     facilityData: mergedFacility,
@@ -1330,7 +1296,7 @@ function normalizeFromCampusConfigApi(body) {
  * Khi chỉ gửi một nhánh (chỉ vận hành hoặc chỉ CSVC), BE có thể ghi đè mất phần còn lại.
  * Nếu có thay đổi bất kỳ: luôn gửi đủ CSVC + toàn bộ scalar vận hành + override so với HQ.
  *
- * @param hqOperation — `hqDefault.operation` từ GET; dùng để tính workingOverride / admissionStepsOverride
+ * @param hqOperation — `hqDefault.operation` từ GET
  */
 function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, policy) {
   const fac = config.facilityData;
@@ -1338,7 +1304,6 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
   const op = config.operationSettingsData;
   const iOp = initial.operationSettingsData;
   const hqOp = hqOperation && typeof hqOperation === "object" ? hqOperation : {};
-  const hqWc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
 
   const curFacPut = campusFacilityPutSlice(fac);
   const iniFacPut = campusFacilityPutSlice(iFac);
@@ -1364,18 +1329,6 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
   payload.minCounsellorPerSlot = Number(op.minCounsellorPerSlot) || 0;
   payload.slotDurationInMinutes = Number(op.slotDurationInMinutes) || 0;
   payload.allowBookingBeforeHours = Number(op.allowBookingBeforeHours) || 0;
-
-  const wc = op.workingConfig || {};
-  const wo = {};
-  if ((wc.note ?? "") !== (hqWc.note ?? "")) wo.note = wc.note ?? "";
-  if (Boolean(wc.isOpenSunday) !== Boolean(hqWc.isOpenSunday)) wo.isOpenSunday = Boolean(wc.isOpenSunday);
-  if (JSON.stringify(wc.regularDays || []) !== JSON.stringify(hqWc.regularDays || []))
-    wo.regularDays = wc.regularDays || [];
-  if (JSON.stringify(wc.weekendDays || []) !== JSON.stringify(hqWc.weekendDays || []))
-    wo.weekendDays = wc.weekendDays || [];
-  if (JSON.stringify(wc.workShifts || []) !== JSON.stringify(hqWc.workShifts || []))
-    wo.workShifts = wc.workShifts || [];
-  if (Object.keys(wo).length > 0) payload.workingOverride = wo;
 
   const hqHasAdmissionProcesses =
     Array.isArray(hqOp.admissionProcesses) && hqOp.admissionProcesses.length > 0;
@@ -3755,6 +3708,13 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
 
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>
+                  {useCampusConfigFlow ? (
+                    <SchoolWideScheduleReadOnlyPanel
+                      workingConfig={config.operationSettingsData.workingConfig}
+                      showSchoolOperationCta={isPrimaryBranch}
+                    />
+                  ) : (
+                  <>
                   <Typography sx={{fontWeight: 800, mb: 2}}>Giờ làm việc</Typography>
                   <Typography variant="body2" sx={{mb: 1.25, color: "#64748b"}}>
                     Ngày trong tuần (regular / weekend)
@@ -3984,6 +3944,8 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                       Thêm ca
                     </Button>
                   </Stack>
+                  </>
+                  )}
 
                   <Typography sx={{fontWeight: 800, mt: 3, mb: 1}}>Lịch năm học</Typography>
                   <Stack spacing={2}>

@@ -52,6 +52,16 @@ import {
   updateSchoolConfig,
 } from "../../../services/SchoolFacilityService.jsx";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
+import SchoolWideScheduleReadOnlyPanel from "./SchoolWideScheduleReadOnlyPanel.jsx";
+import {resolveSchoolWideWorkingConfigDisplay} from "../../../utils/schoolWideWorkingConfig.js";
+import {
+  canonicalizeWorkShiftName,
+  normalizeTimeHHmm,
+  normalizeWorkShiftForApi,
+  validateOperationSettingsWorkShifts,
+  WORK_SHIFT_TYPE_CODES,
+  WORK_SHIFT_TYPE_LABEL_VI,
+} from "../../../utils/workShiftPolicy.js";
 
 const TAB_SLUGS = ["admission", "documents", "operation", "finance", "facility", "quota", "resource-distribution"];
 const TAB_LABELS = [
@@ -422,10 +432,12 @@ function normalizeAcademicCalendar(raw, fallback) {
 
 function normalizeSeasonExtraShift(s) {
   if (!s || typeof s !== "object") return {name: "", startTime: "", endTime: ""};
+  const rawName = s.name != null ? String(s.name) : "";
+  const c = canonicalizeWorkShiftName(rawName);
   return {
-    name: s.name != null ? String(s.name) : "",
-    startTime: s.startTime != null ? String(s.startTime) : "",
-    endTime: s.endTime != null ? String(s.endTime) : "",
+    name: WORK_SHIFT_TYPE_CODES.includes(c) ? c : rawName.trim(),
+    startTime: normalizeTimeHHmm(s.startTime),
+    endTime: normalizeTimeHHmm(s.endTime),
   };
 }
 
@@ -530,7 +542,18 @@ function normalizeOperationSettingsFromApi(op, fallback) {
     workingConfig: {
       ...fb.workingConfig,
       note: workingRaw.note != null ? String(workingRaw.note) : fb.workingConfig.note,
-      workShifts: Array.isArray(workingRaw.workShifts) ? workingRaw.workShifts : fb.workingConfig.workShifts,
+      workShifts: Array.isArray(workingRaw.workShifts)
+        ? workingRaw.workShifts.map((row) => {
+            const r = row && typeof row === "object" ? row : {};
+            const rawName = r.name != null ? String(r.name) : "";
+            const c = canonicalizeWorkShiftName(rawName);
+            return {
+              name: WORK_SHIFT_TYPE_CODES.includes(c) ? c : rawName.trim(),
+              startTime: normalizeTimeHHmm(r.startTime),
+              endTime: normalizeTimeHHmm(r.endTime),
+            };
+          })
+        : fb.workingConfig.workShifts,
       regularDays: Array.isArray(workingRaw.regularDays) ? workingRaw.regularDays : fb.workingConfig.regularDays,
       weekendDays: Array.isArray(workingRaw.weekendDays) ? workingRaw.weekendDays : fb.workingConfig.weekendDays,
       isOpenSunday: Boolean(
@@ -853,13 +876,7 @@ function mapFeeItemsExclusiveReservation(items, index, checked) {
 function sanitizeOperationSettingsForApi(op) {
   if (!op || typeof op !== "object") return op;
   const wc = op.workingConfig && typeof op.workingConfig === "object" ? op.workingConfig : {};
-  const shifts = Array.isArray(wc.workShifts)
-    ? wc.workShifts.map((s) => ({
-        name: s.name != null ? String(s.name) : "",
-        startTime: s.startTime != null ? String(s.startTime) : "",
-        endTime: s.endTime != null ? String(s.endTime) : "",
-      }))
-    : [];
+  const shifts = Array.isArray(wc.workShifts) ? wc.workShifts.map((s) => normalizeWorkShiftForApi(s)) : [];
   const numOr = (v, fallback) =>
     v != null && !Number.isNaN(Number(v)) ? Number(v) : fallback;
 
@@ -894,11 +911,7 @@ function sanitizeOperationSettingsForApi(op) {
           enableSunday: nr.enableSunday,
           minCounsellorMultiplier: nr.minCounsellorMultiplier,
           note: nr.note,
-          extraShifts: (nr.extraShifts || []).map((s) => ({
-            name: s.name != null ? String(s.name) : "",
-            startTime: s.startTime != null ? String(s.startTime) : "",
-            endTime: s.endTime != null ? String(s.endTime) : "",
-          })),
+          extraShifts: (nr.extraShifts || []).map((s) => normalizeWorkShiftForApi(s)),
         }))
         .filter(
           (row) =>
@@ -1278,22 +1291,6 @@ function applyCampusCurrentFlatBookingScalars(cur, mergedOp) {
   if (ab != null) mergedOp.allowBookingBeforeHours = ab;
 }
 
-function applyCampusCurrentEffectiveWorkingConfig(cur, mergedOp) {
-  if (!cur || typeof cur !== "object" || !mergedOp?.workingConfig) return;
-  const cw = cur.workingConfig ?? cur.working_config;
-  if (!cw || typeof cw !== "object") return;
-  mergedOp.workingConfig = {
-    ...mergedOp.workingConfig,
-    ...(cw.note != null ? {note: String(cw.note)} : {}),
-    ...(cw.isOpenSunday != null || cw.openSunday != null
-      ? {isOpenSunday: Boolean(cw.isOpenSunday ?? cw.openSunday)}
-      : {}),
-    ...(Array.isArray(cw.regularDays) ? {regularDays: cw.regularDays} : {}),
-    ...(Array.isArray(cw.weekendDays) ? {weekendDays: cw.weekendDays} : {}),
-    ...(Array.isArray(cw.workShifts) ? {workShifts: cw.workShifts} : {}),
-  };
-}
-
 /**
  * Phản hồi GET /api/v1/campus/config (campus theo phiên) — cả trụ sở và campus phụ.
  * CSVC + vận hành từ `campusCurrent.facilityJson` + merge HQ `hqDefault`.
@@ -1359,7 +1356,6 @@ function normalizeFromCampusConfigApi(body) {
     };
   }
 
-  const wc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
   const numHq = (v, fallback) =>
     v != null && !Number.isNaN(Number(v)) ? Number(v) : fallback;
   const mergedOp = {
@@ -1369,13 +1365,7 @@ function normalizeFromCampusConfigApi(body) {
     minCounsellorPerSlot: numHq(hqOp.minCounsellorPerSlot, d.operationSettingsData.minCounsellorPerSlot),
     slotDurationInMinutes: numHq(hqOp.slotDurationInMinutes, d.operationSettingsData.slotDurationInMinutes),
     allowBookingBeforeHours: numHq(hqOp.allowBookingBeforeHours, d.operationSettingsData.allowBookingBeforeHours),
-    workingConfig: {
-      note: wc.note != null ? String(wc.note) : "",
-      workShifts: Array.isArray(wc.workShifts) ? wc.workShifts : [],
-      regularDays: Array.isArray(wc.regularDays) ? wc.regularDays : d.operationSettingsData.workingConfig.regularDays,
-      weekendDays: Array.isArray(wc.weekendDays) ? wc.weekendDays : d.operationSettingsData.workingConfig.weekendDays,
-      isOpenSunday: Boolean(wc.isOpenSunday ?? wc.openSunday),
-    },
+    workingConfig: resolveSchoolWideWorkingConfigDisplay(hqOp, cur),
     methodAdmissionProcess: parseMethodAdmissionProcessFromOperation(hqOp),
   };
 
@@ -1400,20 +1390,7 @@ function normalizeFromCampusConfigApi(body) {
   if (fj && typeof fj === "object") {
     if (fj.hotline != null) mergedOp.hotline = String(fj.hotline);
     if (fj.emailSupport != null) mergedOp.emailSupport = String(fj.emailSupport);
-    if (fj.workingOverride && typeof fj.workingOverride === "object") {
-      const wo = fj.workingOverride;
-      mergedOp.workingConfig = {
-        ...mergedOp.workingConfig,
-        ...(wo.note != null ? {note: String(wo.note)} : {}),
-        ...(typeof wo.isOpenSunday === "boolean" ? {isOpenSunday: wo.isOpenSunday} : {}),
-        ...(Array.isArray(wo.regularDays) ? {regularDays: wo.regularDays} : {}),
-        ...(Array.isArray(wo.weekendDays) ? {weekendDays: wo.weekendDays} : {}),
-        ...(Array.isArray(wo.workShifts) ? {workShifts: wo.workShifts} : {}),
-      };
-    }
   }
-
-  applyCampusCurrentEffectiveWorkingConfig(cur, mergedOp);
 
   const effectiveAdmission = parseCampusCurrentEffectiveAdmissionProcesses(cur);
   if (effectiveAdmission != null) {
@@ -1456,7 +1433,7 @@ function normalizeFromCampusConfigApi(body) {
  * PUT /api/v1/campus/{campusId}/config — body phẳng partial (UpdateCampusConfigRequest).
  * BE merge partial; chỉ gửi field nhánh đã đổi (overview/itemList/imageJsonData/hotline/email/scalar/…).
  *
- * @param hqOperation — `hqDefault.operation` từ GET; dùng để tính workingOverride / admissionStepsOverride
+ * @param hqOperation — `hqDefault.operation` từ GET; dùng so sánh admissionStepsOverride
  */
 function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, policy) {
   const fac = config.facilityData;
@@ -1464,7 +1441,6 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
   const op = config.operationSettingsData;
   const iOp = initial.operationSettingsData;
   const hqOp = hqOperation && typeof hqOperation === "object" ? hqOperation : {};
-  const hqWc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
 
   const curFacPut = campusFacilityPutSlice(fac);
   const iniFacPut = campusFacilityPutSlice(iFac);
@@ -1485,14 +1461,11 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
   const hotlineDirty = String(op.hotline ?? "") !== String(iOp.hotline ?? "");
   const emailDirty = String(op.emailSupport ?? "") !== String(iOp.emailSupport ?? "");
 
-  const workingDirty =
-    JSON.stringify(op.workingConfig || {}) !== JSON.stringify(iOp.workingConfig || {});
-
   const admissionDirty =
     JSON.stringify(op.methodAdmissionProcess || []) !== JSON.stringify(iOp.methodAdmissionProcess || []);
 
   const anyDirty =
-    facilityDirty || policyDirty || scalarsDirty || hotlineDirty || emailDirty || workingDirty || admissionDirty;
+    facilityDirty || policyDirty || scalarsDirty || hotlineDirty || emailDirty || admissionDirty;
   if (!anyDirty) return {};
 
   const payload = {};
@@ -1519,20 +1492,6 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
       payload.slotDurationInMinutes = num0(op.slotDurationInMinutes);
     if (num0(op.allowBookingBeforeHours) !== num0(iOp.allowBookingBeforeHours))
       payload.allowBookingBeforeHours = num0(op.allowBookingBeforeHours);
-  }
-
-  if (workingDirty) {
-    const wc = op.workingConfig || {};
-    const wo = {};
-    if ((wc.note ?? "") !== (hqWc.note ?? "")) wo.note = wc.note ?? "";
-    if (Boolean(wc.isOpenSunday) !== Boolean(hqWc.isOpenSunday)) wo.isOpenSunday = Boolean(wc.isOpenSunday);
-    if (JSON.stringify(wc.regularDays || []) !== JSON.stringify(hqWc.regularDays || []))
-      wo.regularDays = wc.regularDays || [];
-    if (JSON.stringify(wc.weekendDays || []) !== JSON.stringify(hqWc.weekendDays || []))
-      wo.weekendDays = wc.weekendDays || [];
-    if (JSON.stringify(wc.workShifts || []) !== JSON.stringify(hqWc.workShifts || []))
-      wo.workShifts = wc.workShifts || [];
-    if (Object.keys(wo).length > 0) payload.workingOverride = wo;
   }
 
   if (admissionDirty) {
@@ -1577,7 +1536,6 @@ function buildCampusFlatPutPayloadFallbackFull(config, hqOperation, policy) {
   const fac = config.facilityData;
   const op = config.operationSettingsData;
   const hqOp = hqOperation && typeof hqOperation === "object" ? hqOperation : {};
-  const hqWc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
   const curFacPut = campusFacilityPutSlice(fac);
   const payload = {
     overview: curFacPut.overview,
@@ -1591,17 +1549,6 @@ function buildCampusFlatPutPayloadFallbackFull(config, hqOperation, policy) {
     allowBookingBeforeHours: Number(op.allowBookingBeforeHours) || 0,
     policyDetail: policy ?? "",
   };
-  const wc = op.workingConfig || {};
-  const wo = {};
-  if ((wc.note ?? "") !== (hqWc.note ?? "")) wo.note = wc.note ?? "";
-  if (Boolean(wc.isOpenSunday) !== Boolean(hqWc.isOpenSunday)) wo.isOpenSunday = Boolean(wc.isOpenSunday);
-  if (JSON.stringify(wc.regularDays || []) !== JSON.stringify(hqWc.regularDays || []))
-    wo.regularDays = wc.regularDays || [];
-  if (JSON.stringify(wc.weekendDays || []) !== JSON.stringify(hqWc.weekendDays || []))
-    wo.weekendDays = wc.weekendDays || [];
-  if (JSON.stringify(wc.workShifts || []) !== JSON.stringify(hqWc.workShifts || []))
-    wo.workShifts = wc.workShifts || [];
-  if (Object.keys(wo).length > 0) payload.workingOverride = wo;
   const hqHasAdmissionProcesses =
     Array.isArray(hqOp.admissionProcesses) && hqOp.admissionProcesses.length > 0;
   const hqProc = parseMethodAdmissionProcessFromOperation(hqOp);
@@ -2073,6 +2020,15 @@ export default function SchoolConfig({variant = "platform"} = {}) {
       return;
     }
 
+    const shiftValidation = validateOperationSettingsWorkShifts(config.operationSettingsData);
+    if (!shiftValidation.ok) {
+      enqueueSnackbar(shiftValidation.message || "Ca làm việc không hợp lệ (loại ca + khung giờ theo quy định).", {
+        variant: "error",
+      });
+      setTabIndex(2);
+      return;
+    }
+
     setSaving(true);
     try {
       const resSchool = await updateSchoolConfig(schoolId, schoolPayload);
@@ -2265,7 +2221,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
       const arr = [...(c.operationSettingsData.admissionSeasons || [])];
       const row = arr[seasonIdx];
       if (!row) return c;
-      const extra = [...(row.extraShifts || []), {name: "", startTime: "08:00", endTime: "17:00"}];
+      const extra = [...(row.extraShifts || []), {name: "EVENING", startTime: "17:00", endTime: "20:00"}];
       arr[seasonIdx] = {...row, extraShifts: extra};
       return {...c, operationSettingsData: {...c.operationSettingsData, admissionSeasons: arr}};
     });
@@ -4097,6 +4053,12 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                 </CardContent>
               </Card>
 
+              {useCampusConfigFlow ? (
+                <SchoolWideScheduleReadOnlyPanel
+                  workingConfig={config.operationSettingsData.workingConfig}
+                  showSchoolOperationCta={isPrimaryBranch}
+                />
+              ) : (
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>
                   <Typography sx={{fontWeight: 800, mb: 2}}>Giờ làm việc</Typography>
@@ -4229,103 +4191,121 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     inputProps={{readOnly: fieldDisabled}}
                   />
 
-                  <Typography sx={{fontWeight: 800, mt: 3, mb: 1}}>Ca làm việc</Typography>
+                  <Typography sx={{fontWeight: 800, mt: 3, mb: 1.25}}>Ca làm việc (chuẩn trường)</Typography>
                   <Stack spacing={1}>
-                    {(config.operationSettingsData.workingConfig.workShifts || []).map((sh, idx) => (
-                      <Stack key={idx} direction={{xs: "column", sm: "row"}} spacing={1}>
-                        <TextField
-                          label="Tên ca"
-                          size="small"
-                          value={sh.name ?? ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setConfig((c) => {
-                              const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
-                              ws[idx] = {...ws[idx], name: v};
-                              return {
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
-                                },
-                              };
-                            });
-                          }}
-                          inputProps={{readOnly: fieldDisabled}}
-                        />
-                        <TextField
-                          label="Bắt đầu"
-                          type="time"
-                          size="small"
-                          InputLabelProps={{shrink: true}}
-                          value={sh.startTime ?? ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setConfig((c) => {
-                              const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
-                              ws[idx] = {...ws[idx], startTime: v};
-                              return {
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
-                                },
-                              };
-                            });
-                          }}
-                          inputProps={{readOnly: fieldDisabled}}
-                        />
-                        <TextField
-                          label="Kết thúc"
-                          type="time"
-                          size="small"
-                          InputLabelProps={{shrink: true}}
-                          value={sh.endTime ?? ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setConfig((c) => {
-                              const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
-                              ws[idx] = {...ws[idx], endTime: v};
-                              return {
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
-                                },
-                              };
-                            });
-                          }}
-                          inputProps={{readOnly: fieldDisabled}}
-                        />
-                        <IconButton
-                          size="small"
-                          color="error"
-                          aria-label="Xoá ca làm việc"
-                          disabled={fieldDisabled}
-                          onClick={() =>
-                            setConfig((c) => {
-                              const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
-                              ws.splice(idx, 1);
-                              return {
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
-                                },
-                              };
-                            })
-                          }
-                          sx={{...blockPointerSx, alignSelf: {xs: "flex-end", sm: "center"}}}
-                        >
-                          <DeleteOutlineIcon fontSize="small"/>
-                        </IconButton>
-                      </Stack>
-                    ))}
+                    {(config.operationSettingsData.workingConfig.workShifts || []).map((sh, idx) => {
+                      const code = canonicalizeWorkShiftName(sh.name);
+                      const sel = WORK_SHIFT_TYPE_CODES.includes(code) ? code : "";
+                      return (
+                        <Stack key={idx} direction={{xs: "column", sm: "row"}} spacing={1} alignItems={{sm: "flex-start"}}>
+                          <FormControl size="small" sx={{minWidth: {sm: 200}, flex: {sm: "0 0 auto"}}}>
+                            <InputLabel>Loại ca</InputLabel>
+                            <Select
+                              label="Loại ca"
+                              value={sel}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setConfig((c) => {
+                                  const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
+                                  ws[idx] = {...ws[idx], name: v};
+                                  return {
+                                    ...c,
+                                    operationSettingsData: {
+                                      ...c.operationSettingsData,
+                                      workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
+                                    },
+                                  };
+                                });
+                              }}
+                              disabled={fieldDisabled}
+                            >
+                              <MenuItem value="">
+                                <em>Chọn loại ca</em>
+                              </MenuItem>
+                              {WORK_SHIFT_TYPE_CODES.map((k) => (
+                                <MenuItem key={k} value={k}>
+                                  {WORK_SHIFT_TYPE_LABEL_VI[k]}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                          <TextField
+                            label="Bắt đầu"
+                            type="time"
+                            size="small"
+                            InputLabelProps={{shrink: true}}
+                            value={sh.startTime ?? ""}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setConfig((c) => {
+                                const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
+                                ws[idx] = {...ws[idx], startTime: normalizeTimeHHmm(v) || v};
+                                return {
+                                  ...c,
+                                  operationSettingsData: {
+                                    ...c.operationSettingsData,
+                                    workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
+                                  },
+                                };
+                              });
+                            }}
+                            inputProps={{readOnly: fieldDisabled}}
+                          />
+                          <TextField
+                            label="Kết thúc"
+                            type="time"
+                            size="small"
+                            InputLabelProps={{shrink: true}}
+                            value={sh.endTime ?? ""}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setConfig((c) => {
+                                const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
+                                ws[idx] = {...ws[idx], endTime: normalizeTimeHHmm(v) || v};
+                                return {
+                                  ...c,
+                                  operationSettingsData: {
+                                    ...c.operationSettingsData,
+                                    workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
+                                  },
+                                };
+                              });
+                            }}
+                            inputProps={{readOnly: fieldDisabled}}
+                          />
+                          <IconButton
+                            size="small"
+                            color="error"
+                            aria-label="Xoá ca làm việc"
+                            disabled={fieldDisabled}
+                            onClick={() =>
+                              setConfig((c) => {
+                                const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
+                                ws.splice(idx, 1);
+                                return {
+                                  ...c,
+                                  operationSettingsData: {
+                                    ...c.operationSettingsData,
+                                    workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
+                                  },
+                                };
+                              })
+                            }
+                            sx={{...blockPointerSx, alignSelf: {xs: "flex-end", sm: "center"}}}
+                          >
+                            <DeleteOutlineIcon fontSize="small"/>
+                          </IconButton>
+                        </Stack>
+                      );
+                    })}
                     <Button
                       startIcon={<AddIcon/>}
                       onClick={() =>
                         setConfig((c) => {
-                          const ws = [...(c.operationSettingsData.workingConfig.workShifts || []), {name: "", startTime: "08:00", endTime: "17:00"}];
+                          const ws = [
+                            ...(c.operationSettingsData.workingConfig.workShifts || []),
+                            {name: "MORNING", startTime: "07:00", endTime: "11:30"},
+                          ];
                           return {
                             ...c,
                             operationSettingsData: {
@@ -4342,6 +4322,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                   </Stack>
         </CardContent>
       </Card>
+              )}
 
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>
@@ -4645,15 +4626,18 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                 Ca làm việc tăng cường
                               </Typography>
                               <Typography variant="body2" sx={{color: "text.secondary", mb: 1.5, lineHeight: 1.55}}>
-                                Ca tối / ca thêm chỉ trong mùa (khác ca hành chính ở trên). Thêm nhanh ca tư vấn tối hoặc online.
+                                Cùng quy tắc loại ca và khung giờ như ca chuẩn ở trên.
                               </Typography>
                               <Stack spacing={1.25}>
-                                {(season.extraShifts || []).map((sh, ei) => (
+                                {(season.extraShifts || []).map((sh, ei) => {
+                                  const code = canonicalizeWorkShiftName(sh.name);
+                                  const sel = WORK_SHIFT_TYPE_CODES.includes(code) ? code : "";
+                                  return (
                                   <Stack
                                     key={`season-${si}-shift-${ei}`}
                                     direction={{xs: "column", md: "row"}}
                                     spacing={1}
-                                    alignItems={{md: "center"}}
+                                    alignItems={{md: "flex-start"}}
                                     sx={{
                                       p: 1.25,
                                       borderRadius: 1.5,
@@ -4661,22 +4645,38 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                       border: "1px solid rgba(37, 99, 235, 0.22)",
                                     }}
                                   >
-                                    <TextField
-                                      label="Mã ca"
-                                      size="small"
-                                      placeholder="Mã theo quy ước (ví dụ ca tối tăng cường)"
-                                      value={sh.name ?? ""}
-                                      onChange={(e) => updateExtraShiftInAdmissionSeason(si, ei, "name", e.target.value)}
-                                      inputProps={{readOnly: fieldDisabled}}
-                                      sx={{flex: 1, minWidth: 140}}
-                                    />
+                                    <FormControl size="small" sx={{minWidth: 200, flex: 1}}>
+                                      <InputLabel>Loại ca</InputLabel>
+                                      <Select
+                                        label="Loại ca"
+                                        value={sel}
+                                        onChange={(e) => updateExtraShiftInAdmissionSeason(si, ei, "name", e.target.value)}
+                                        disabled={fieldDisabled}
+                                      >
+                                        <MenuItem value="">
+                                          <em>Chọn</em>
+                                        </MenuItem>
+                                        {WORK_SHIFT_TYPE_CODES.map((k) => (
+                                          <MenuItem key={k} value={k}>
+                                            {WORK_SHIFT_TYPE_LABEL_VI[k]}
+                                          </MenuItem>
+                                        ))}
+                                      </Select>
+                                    </FormControl>
                                     <TextField
                                       label="Bắt đầu"
                                       size="small"
                                       type="time"
                                       InputLabelProps={{shrink: true}}
                                       value={sh.startTime ?? ""}
-                                      onChange={(e) => updateExtraShiftInAdmissionSeason(si, ei, "startTime", e.target.value)}
+                                      onChange={(e) =>
+                                        updateExtraShiftInAdmissionSeason(
+                                          si,
+                                          ei,
+                                          "startTime",
+                                          normalizeTimeHHmm(e.target.value) || e.target.value
+                                        )
+                                      }
                                       inputProps={{readOnly: fieldDisabled}}
                                     />
                                     <TextField
@@ -4685,7 +4685,14 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                       type="time"
                                       InputLabelProps={{shrink: true}}
                                       value={sh.endTime ?? ""}
-                                      onChange={(e) => updateExtraShiftInAdmissionSeason(si, ei, "endTime", e.target.value)}
+                                      onChange={(e) =>
+                                        updateExtraShiftInAdmissionSeason(
+                                          si,
+                                          ei,
+                                          "endTime",
+                                          normalizeTimeHHmm(e.target.value) || e.target.value
+                                        )
+                                      }
                                       inputProps={{readOnly: fieldDisabled}}
                                     />
                                     <IconButton
@@ -4698,7 +4705,8 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                       <DeleteOutlineIcon fontSize="small"/>
                                     </IconButton>
                                   </Stack>
-                                ))}
+                                  );
+                                })}
                               </Stack>
                               <Button
                                 size="small"
