@@ -582,7 +582,7 @@ function sanitizeDocumentRequirementsForApi(data) {
   const mandatoryAll = Array.isArray(data.mandatoryAll)
     ? data.mandatoryAll.map((d) => {
         const x = normalizeDocItem(d);
-        return {code: x.code.trim(), name: x.name.trim(), required: x.required};
+        return {code: x.code.trim(), name: x.name.trim(), required: true};
       })
     : [];
   const byMethod = Array.isArray(data.byMethod)
@@ -1064,7 +1064,9 @@ function normalizeFromApi(body) {
     financePolicyData: normalizeFinancePolicySection(fin, d.financePolicyData),
     documentRequirementsData: {
       ...d.documentRequirementsData,
-      mandatoryAll: Array.isArray(doc.mandatoryAll) ? doc.mandatoryAll.map(normalizeDocItem) : d.documentRequirementsData.mandatoryAll,
+      mandatoryAll: Array.isArray(doc.mandatoryAll)
+        ? doc.mandatoryAll.map((item) => ({...normalizeDocItem(item), required: true}))
+        : d.documentRequirementsData.mandatoryAll,
       byMethod: Array.isArray(doc.byMethod) ? doc.byMethod.map(normalizeByMethodGroup) : d.documentRequirementsData.byMethod,
     },
     operationSettingsData: normalizeOperationSettingsFromApi(op, d.operationSettingsData),
@@ -3643,7 +3645,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                               const v = e.target.value;
                               setConfig((c) => {
                                 const list = [...(c.documentRequirementsData.mandatoryAll || [])];
-                                list[idx] = {...list[idx], code: v};
+                                list[idx] = {...list[idx], code: v, required: true};
                                 return {...c, documentRequirementsData: {...c.documentRequirementsData, mandatoryAll: list}};
                               });
                             }}
@@ -3657,7 +3659,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                               const v = e.target.value;
                               setConfig((c) => {
                                 const list = [...(c.documentRequirementsData.mandatoryAll || [])];
-                                list[idx] = {...list[idx], name: v};
+                                list[idx] = {...list[idx], name: v, required: true};
                                 return {...c, documentRequirementsData: {...c.documentRequirementsData, mandatoryAll: list}};
                               });
                             }}
@@ -3666,20 +3668,9 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                         </Stack>
                       )}
                       <Stack direction="row" alignItems="center" spacing={1} sx={{flexShrink: 0}}>
-                        <Typography variant="caption">Bắt buộc</Typography>
-                        <Switch
-                          checked={Boolean(doc.required)}
-                          onChange={(e) => {
-                            if (fieldDisabled) return;
-                            const v = e.target.checked;
-                            setConfig((c) => {
-                              const list = [...(c.documentRequirementsData.mandatoryAll || [])];
-                              list[idx] = {...list[idx], required: v};
-                              return {...c, documentRequirementsData: {...c.documentRequirementsData, mandatoryAll: list}};
-                            });
-                          }}
-                          sx={blockPointerSx}
-                        />
+                        <Typography variant="caption" sx={{color: "#3b82f6", fontWeight: 700}}>
+                          Bắt buộc
+                        </Typography>
                         <IconButton
                           size="small"
                           color="error"
