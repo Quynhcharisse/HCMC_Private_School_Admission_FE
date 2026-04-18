@@ -702,7 +702,8 @@ export default function SchoolHoliday() {
                             Quản lý ngày nghỉ
                         </Typography>
                         <Typography variant="body2" sx={{mt: 0.5, opacity: 0.95}}>
-                            Thiết lập lịch nghỉ toàn trường và theo từng cơ sở; ảnh hưởng tới lịch tư vấn đã đặt.
+                            Khai báo ngày nghỉ áp dụng cho cả trường hoặc từng địa điểm. Phụ huynh và lịch tư vấn sẽ tự tránh
+                            các ngày này theo mức ảnh hưởng bạn chọn.
                         </Typography>
                     </Box>
                     <Button

@@ -52,21 +52,33 @@ import {
   updateSchoolConfig,
 } from "../../../services/SchoolFacilityService.jsx";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
+import SchoolWideScheduleReadOnlyPanel from "./SchoolWideScheduleReadOnlyPanel.jsx";
+import {HqScalarDiffChip, HqVsCampusSlotBufferSummary, SchoolSlotCycleHint} from "./CampusOperationHqHints.jsx";
+import {resolveSchoolWideWorkingConfigDisplay} from "../../../utils/schoolWideWorkingConfig.js";
+import {
+  canonicalizeWorkShiftName,
+  normalizeTimeHHmm,
+  normalizeWorkShiftForApi,
+  validateOperationSettingsWorkShifts,
+  WORK_SHIFT_TIME_WINDOWS,
+  WORK_SHIFT_TYPE_CODES,
+  WORK_SHIFT_TYPE_LABEL_VI,
+} from "../../../utils/workShiftPolicy.js";
 
 const TAB_SLUGS = ["admission", "documents", "operation", "finance", "facility", "quota", "resource-distribution"];
 const TAB_LABELS = [
-  "Cài Đặt Tuyển Sinh",
-  "Cài Đặt Hồ Sơ",
-  "Cài Đặt Vận Hành",
-  "Cài Đặt Tài Chính",
-  "Cài Đặt Cơ Sở Vật Chất",
-  "Cài Đặt Chỉ Tiêu",
-  "Phân Bổ Nguồn Lực",
+  "Cài đặt tuyển sinh",
+  "Cài đặt hồ sơ",
+  "Cài đặt vận hành",
+  "Cài đặt tài chính",
+  "Cài đặt cơ sở vật chất",
+  "Cài đặt chỉ tiêu",
+  "Phân bổ nguồn lực",
 ];
 
-/** Campus phụ: chỉ vận hành + CSVC (API GET/PUT /campus/{id}/config) */
+/** Campus phụ: chỉ vận hành + cơ sở vật chất (API GET/PUT /campus/{id}/config) */
 const BRANCH_TAB_SLUGS = ["operation", "facility"];
-const BRANCH_TAB_LABELS = ["Cài Đặt Vận Hành", "Cài Đặt Cơ Sở Vật Chất"];
+const BRANCH_TAB_LABELS = ["Cài đặt vận hành", "Cài đặt cơ sở vật chất"];
 
 /**
  * Danh sách phương thức hiển thị checkbox: từ API, không preset FE.
@@ -172,7 +184,9 @@ function defaultConfig() {
       emailSupport: "",
       maxBookingPerSlot: 1,
       minCounsellorPerSlot: 1,
+      maxCounsellorsPerSlot: 0,
       slotDurationInMinutes: 30,
+      bufferBetweenSlotsMinutes: 0,
       allowBookingBeforeHours: 24,
       workingConfig: {
         note: "",
@@ -422,10 +436,12 @@ function normalizeAcademicCalendar(raw, fallback) {
 
 function normalizeSeasonExtraShift(s) {
   if (!s || typeof s !== "object") return {name: "", startTime: "", endTime: ""};
+  const rawName = s.name != null ? String(s.name) : "";
+  const c = canonicalizeWorkShiftName(rawName);
   return {
-    name: s.name != null ? String(s.name) : "",
-    startTime: s.startTime != null ? String(s.startTime) : "",
-    endTime: s.endTime != null ? String(s.endTime) : "",
+    name: WORK_SHIFT_TYPE_CODES.includes(c) ? c : rawName.trim(),
+    startTime: normalizeTimeHHmm(s.startTime),
+    endTime: normalizeTimeHHmm(s.endTime),
   };
 }
 
@@ -519,10 +535,22 @@ function normalizeOperationSettingsFromApi(op, fallback) {
       src.minCounsellorPerSlot != null && !Number.isNaN(Number(src.minCounsellorPerSlot))
         ? Number(src.minCounsellorPerSlot)
         : fb.minCounsellorPerSlot,
+    maxCounsellorsPerSlot:
+      src.maxCounsellorsPerSlot != null && !Number.isNaN(Number(src.maxCounsellorsPerSlot))
+        ? Number(src.maxCounsellorsPerSlot)
+        : src.max_counsellors_per_slot != null && !Number.isNaN(Number(src.max_counsellors_per_slot))
+          ? Number(src.max_counsellors_per_slot)
+          : fb.maxCounsellorsPerSlot,
     slotDurationInMinutes:
       src.slotDurationInMinutes != null && !Number.isNaN(Number(src.slotDurationInMinutes))
         ? Number(src.slotDurationInMinutes)
         : fb.slotDurationInMinutes,
+    bufferBetweenSlotsMinutes:
+      src.bufferBetweenSlotsMinutes != null && !Number.isNaN(Number(src.bufferBetweenSlotsMinutes))
+        ? Number(src.bufferBetweenSlotsMinutes)
+        : src.buffer_between_slots_minutes != null && !Number.isNaN(Number(src.buffer_between_slots_minutes))
+          ? Number(src.buffer_between_slots_minutes)
+          : fb.bufferBetweenSlotsMinutes,
     allowBookingBeforeHours:
       src.allowBookingBeforeHours != null && !Number.isNaN(Number(src.allowBookingBeforeHours))
         ? Number(src.allowBookingBeforeHours)
@@ -530,7 +558,18 @@ function normalizeOperationSettingsFromApi(op, fallback) {
     workingConfig: {
       ...fb.workingConfig,
       note: workingRaw.note != null ? String(workingRaw.note) : fb.workingConfig.note,
-      workShifts: Array.isArray(workingRaw.workShifts) ? workingRaw.workShifts : fb.workingConfig.workShifts,
+      workShifts: Array.isArray(workingRaw.workShifts)
+        ? workingRaw.workShifts.map((row) => {
+            const r = row && typeof row === "object" ? row : {};
+            const rawName = r.name != null ? String(r.name) : "";
+            const c = canonicalizeWorkShiftName(rawName);
+            return {
+              name: WORK_SHIFT_TYPE_CODES.includes(c) ? c : rawName.trim(),
+              startTime: normalizeTimeHHmm(r.startTime),
+              endTime: normalizeTimeHHmm(r.endTime),
+            };
+          })
+        : fb.workingConfig.workShifts,
       regularDays: Array.isArray(workingRaw.regularDays) ? workingRaw.regularDays : fb.workingConfig.regularDays,
       weekendDays: Array.isArray(workingRaw.weekendDays) ? workingRaw.weekendDays : fb.workingConfig.weekendDays,
       isOpenSunday: Boolean(
@@ -853,13 +892,7 @@ function mapFeeItemsExclusiveReservation(items, index, checked) {
 function sanitizeOperationSettingsForApi(op) {
   if (!op || typeof op !== "object") return op;
   const wc = op.workingConfig && typeof op.workingConfig === "object" ? op.workingConfig : {};
-  const shifts = Array.isArray(wc.workShifts)
-    ? wc.workShifts.map((s) => ({
-        name: s.name != null ? String(s.name) : "",
-        startTime: s.startTime != null ? String(s.startTime) : "",
-        endTime: s.endTime != null ? String(s.endTime) : "",
-      }))
-    : [];
+  const shifts = Array.isArray(wc.workShifts) ? wc.workShifts.map((s) => normalizeWorkShiftForApi(s)) : [];
   const numOr = (v, fallback) =>
     v != null && !Number.isNaN(Number(v)) ? Number(v) : fallback;
 
@@ -894,11 +927,7 @@ function sanitizeOperationSettingsForApi(op) {
           enableSunday: nr.enableSunday,
           minCounsellorMultiplier: nr.minCounsellorMultiplier,
           note: nr.note,
-          extraShifts: (nr.extraShifts || []).map((s) => ({
-            name: s.name != null ? String(s.name) : "",
-            startTime: s.startTime != null ? String(s.startTime) : "",
-            endTime: s.endTime != null ? String(s.endTime) : "",
-          })),
+          extraShifts: (nr.extraShifts || []).map((s) => normalizeWorkShiftForApi(s)),
         }))
         .filter(
           (row) =>
@@ -913,7 +942,9 @@ function sanitizeOperationSettingsForApi(op) {
     emailSupport: op.emailSupport != null ? String(op.emailSupport) : "",
     maxBookingPerSlot: numOr(op.maxBookingPerSlot, 1),
     minCounsellorPerSlot: numOr(op.minCounsellorPerSlot, 1),
+    maxCounsellorsPerSlot: numOr(op.maxCounsellorsPerSlot, 0),
     slotDurationInMinutes: numOr(op.slotDurationInMinutes, 30),
+    bufferBetweenSlotsMinutes: numOr(op.bufferBetweenSlotsMinutes, 0),
     allowBookingBeforeHours: numOr(op.allowBookingBeforeHours, 24),
     workingConfig: {
       note: wc.note != null ? String(wc.note) : "",
@@ -1274,26 +1305,14 @@ function applyCampusCurrentFlatBookingScalars(cur, mergedOp) {
   if (mb != null) mergedOp.maxBookingPerSlot = mb;
   const mn = pick("minCounsellorPerSlot", "min_counsellor_per_slot");
   if (mn != null) mergedOp.minCounsellorPerSlot = mn;
+  const mxTv = pick("maxCounsellorsPerSlot", "max_counsellors_per_slot");
+  if (mxTv != null) mergedOp.maxCounsellorsPerSlot = mxTv;
   const sd = pick("slotDurationInMinutes", "slot_duration_in_minutes");
   if (sd != null) mergedOp.slotDurationInMinutes = sd;
   const ab = pick("allowBookingBeforeHours", "allow_booking_before_hours");
   if (ab != null) mergedOp.allowBookingBeforeHours = ab;
-}
-
-function applyCampusCurrentEffectiveWorkingConfig(cur, mergedOp) {
-  if (!cur || typeof cur !== "object" || !mergedOp?.workingConfig) return;
-  const cw = cur.workingConfig ?? cur.working_config;
-  if (!cw || typeof cw !== "object") return;
-  mergedOp.workingConfig = {
-    ...mergedOp.workingConfig,
-    ...(cw.note != null ? {note: String(cw.note)} : {}),
-    ...(cw.isOpenSunday != null || cw.openSunday != null
-      ? {isOpenSunday: Boolean(cw.isOpenSunday ?? cw.openSunday)}
-      : {}),
-    ...(Array.isArray(cw.regularDays) ? {regularDays: cw.regularDays} : {}),
-    ...(Array.isArray(cw.weekendDays) ? {weekendDays: cw.weekendDays} : {}),
-    ...(Array.isArray(cw.workShifts) ? {workShifts: cw.workShifts} : {}),
-  };
+  const bf = pick("bufferBetweenSlotsMinutes", "buffer_between_slots_minutes");
+  if (bf != null) mergedOp.bufferBetweenSlotsMinutes = bf;
 }
 
 /**
@@ -1361,7 +1380,6 @@ function normalizeFromCampusConfigApi(body) {
     };
   }
 
-  const wc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
   const numHq = (v, fallback) =>
     v != null && !Number.isNaN(Number(v)) ? Number(v) : fallback;
   const mergedOp = {
@@ -1369,15 +1387,11 @@ function normalizeFromCampusConfigApi(body) {
     emailSupport: hqOp.emailSupport != null ? String(hqOp.emailSupport) : "",
     maxBookingPerSlot: numHq(hqOp.maxBookingPerSlot, d.operationSettingsData.maxBookingPerSlot),
     minCounsellorPerSlot: numHq(hqOp.minCounsellorPerSlot, d.operationSettingsData.minCounsellorPerSlot),
+    maxCounsellorsPerSlot: numHq(hqOp.maxCounsellorsPerSlot, d.operationSettingsData.maxCounsellorsPerSlot),
     slotDurationInMinutes: numHq(hqOp.slotDurationInMinutes, d.operationSettingsData.slotDurationInMinutes),
+    bufferBetweenSlotsMinutes: numHq(hqOp.bufferBetweenSlotsMinutes, d.operationSettingsData.bufferBetweenSlotsMinutes),
     allowBookingBeforeHours: numHq(hqOp.allowBookingBeforeHours, d.operationSettingsData.allowBookingBeforeHours),
-    workingConfig: {
-      note: wc.note != null ? String(wc.note) : "",
-      workShifts: Array.isArray(wc.workShifts) ? wc.workShifts : [],
-      regularDays: Array.isArray(wc.regularDays) ? wc.regularDays : d.operationSettingsData.workingConfig.regularDays,
-      weekendDays: Array.isArray(wc.weekendDays) ? wc.weekendDays : d.operationSettingsData.workingConfig.weekendDays,
-      isOpenSunday: Boolean(wc.isOpenSunday ?? wc.openSunday),
-    },
+    workingConfig: resolveSchoolWideWorkingConfigDisplay(hqOp, cur),
     methodAdmissionProcess: parseMethodAdmissionProcessFromOperation(hqOp),
   };
 
@@ -1387,8 +1401,12 @@ function normalizeFromCampusConfigApi(body) {
       mergedOp.maxBookingPerSlot = Number(pdr.maxBookingPerSlot);
     if (pdr.minCounsellorPerSlot != null && !Number.isNaN(Number(pdr.minCounsellorPerSlot)))
       mergedOp.minCounsellorPerSlot = Number(pdr.minCounsellorPerSlot);
+    if (pdr.maxCounsellorsPerSlot != null && !Number.isNaN(Number(pdr.maxCounsellorsPerSlot)))
+      mergedOp.maxCounsellorsPerSlot = Number(pdr.maxCounsellorsPerSlot);
     if (pdr.slotDurationInMinutes != null && !Number.isNaN(Number(pdr.slotDurationInMinutes)))
       mergedOp.slotDurationInMinutes = Number(pdr.slotDurationInMinutes);
+    if (pdr.bufferBetweenSlotsMinutes != null && !Number.isNaN(Number(pdr.bufferBetweenSlotsMinutes)))
+      mergedOp.bufferBetweenSlotsMinutes = Number(pdr.bufferBetweenSlotsMinutes);
     if (pdr.allowBookingBeforeHours != null && !Number.isNaN(Number(pdr.allowBookingBeforeHours)))
       mergedOp.allowBookingBeforeHours = Number(pdr.allowBookingBeforeHours);
     if (pdr.hotline != null && String(pdr.hotline).trim() !== "") mergedOp.hotline = String(pdr.hotline);
@@ -1402,20 +1420,7 @@ function normalizeFromCampusConfigApi(body) {
   if (fj && typeof fj === "object") {
     if (fj.hotline != null) mergedOp.hotline = String(fj.hotline);
     if (fj.emailSupport != null) mergedOp.emailSupport = String(fj.emailSupport);
-    if (fj.workingOverride && typeof fj.workingOverride === "object") {
-      const wo = fj.workingOverride;
-      mergedOp.workingConfig = {
-        ...mergedOp.workingConfig,
-        ...(wo.note != null ? {note: String(wo.note)} : {}),
-        ...(typeof wo.isOpenSunday === "boolean" ? {isOpenSunday: wo.isOpenSunday} : {}),
-        ...(Array.isArray(wo.regularDays) ? {regularDays: wo.regularDays} : {}),
-        ...(Array.isArray(wo.weekendDays) ? {weekendDays: wo.weekendDays} : {}),
-        ...(Array.isArray(wo.workShifts) ? {workShifts: wo.workShifts} : {}),
-      };
-    }
   }
-
-  applyCampusCurrentEffectiveWorkingConfig(cur, mergedOp);
 
   const effectiveAdmission = parseCampusCurrentEffectiveAdmissionProcesses(cur);
   if (effectiveAdmission != null) {
@@ -1458,7 +1463,7 @@ function normalizeFromCampusConfigApi(body) {
  * PUT /api/v1/campus/{campusId}/config — body phẳng partial (UpdateCampusConfigRequest).
  * BE merge partial; chỉ gửi field nhánh đã đổi (overview/itemList/imageJsonData/hotline/email/scalar/…).
  *
- * @param hqOperation — `hqDefault.operation` từ GET; dùng để tính workingOverride / admissionStepsOverride
+ * @param hqOperation — `hqDefault.operation` từ GET; dùng so sánh admissionStepsOverride
  */
 function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, policy) {
   const fac = config.facilityData;
@@ -1466,7 +1471,6 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
   const op = config.operationSettingsData;
   const iOp = initial.operationSettingsData;
   const hqOp = hqOperation && typeof hqOperation === "object" ? hqOperation : {};
-  const hqWc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
 
   const curFacPut = campusFacilityPutSlice(fac);
   const iniFacPut = campusFacilityPutSlice(iFac);
@@ -1481,20 +1485,19 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
   const scalarsDirty =
     num0(op.maxBookingPerSlot) !== num0(iOp.maxBookingPerSlot) ||
     num0(op.minCounsellorPerSlot) !== num0(iOp.minCounsellorPerSlot) ||
+    num0(op.maxCounsellorsPerSlot) !== num0(iOp.maxCounsellorsPerSlot) ||
     num0(op.slotDurationInMinutes) !== num0(iOp.slotDurationInMinutes) ||
+    num0(op.bufferBetweenSlotsMinutes) !== num0(iOp.bufferBetweenSlotsMinutes) ||
     num0(op.allowBookingBeforeHours) !== num0(iOp.allowBookingBeforeHours);
 
   const hotlineDirty = String(op.hotline ?? "") !== String(iOp.hotline ?? "");
   const emailDirty = String(op.emailSupport ?? "") !== String(iOp.emailSupport ?? "");
 
-  const workingDirty =
-    JSON.stringify(op.workingConfig || {}) !== JSON.stringify(iOp.workingConfig || {});
-
   const admissionDirty =
     JSON.stringify(op.methodAdmissionProcess || []) !== JSON.stringify(iOp.methodAdmissionProcess || []);
 
   const anyDirty =
-    facilityDirty || policyDirty || scalarsDirty || hotlineDirty || emailDirty || workingDirty || admissionDirty;
+    facilityDirty || policyDirty || scalarsDirty || hotlineDirty || emailDirty || admissionDirty;
   if (!anyDirty) return {};
 
   const payload = {};
@@ -1517,24 +1520,14 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
       payload.maxBookingPerSlot = num0(op.maxBookingPerSlot);
     if (num0(op.minCounsellorPerSlot) !== num0(iOp.minCounsellorPerSlot))
       payload.minCounsellorPerSlot = num0(op.minCounsellorPerSlot);
+    if (num0(op.maxCounsellorsPerSlot) !== num0(iOp.maxCounsellorsPerSlot))
+      payload.maxCounsellorsPerSlot = num0(op.maxCounsellorsPerSlot);
     if (num0(op.slotDurationInMinutes) !== num0(iOp.slotDurationInMinutes))
       payload.slotDurationInMinutes = num0(op.slotDurationInMinutes);
+    if (num0(op.bufferBetweenSlotsMinutes) !== num0(iOp.bufferBetweenSlotsMinutes))
+      payload.bufferBetweenSlotsMinutes = num0(op.bufferBetweenSlotsMinutes);
     if (num0(op.allowBookingBeforeHours) !== num0(iOp.allowBookingBeforeHours))
       payload.allowBookingBeforeHours = num0(op.allowBookingBeforeHours);
-  }
-
-  if (workingDirty) {
-    const wc = op.workingConfig || {};
-    const wo = {};
-    if ((wc.note ?? "") !== (hqWc.note ?? "")) wo.note = wc.note ?? "";
-    if (Boolean(wc.isOpenSunday) !== Boolean(hqWc.isOpenSunday)) wo.isOpenSunday = Boolean(wc.isOpenSunday);
-    if (JSON.stringify(wc.regularDays || []) !== JSON.stringify(hqWc.regularDays || []))
-      wo.regularDays = wc.regularDays || [];
-    if (JSON.stringify(wc.weekendDays || []) !== JSON.stringify(hqWc.weekendDays || []))
-      wo.weekendDays = wc.weekendDays || [];
-    if (JSON.stringify(wc.workShifts || []) !== JSON.stringify(hqWc.workShifts || []))
-      wo.workShifts = wc.workShifts || [];
-    if (Object.keys(wo).length > 0) payload.workingOverride = wo;
   }
 
   if (admissionDirty) {
@@ -1579,7 +1572,6 @@ function buildCampusFlatPutPayloadFallbackFull(config, hqOperation, policy) {
   const fac = config.facilityData;
   const op = config.operationSettingsData;
   const hqOp = hqOperation && typeof hqOperation === "object" ? hqOperation : {};
-  const hqWc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
   const curFacPut = campusFacilityPutSlice(fac);
   const payload = {
     overview: curFacPut.overview,
@@ -1589,21 +1581,12 @@ function buildCampusFlatPutPayloadFallbackFull(config, hqOperation, policy) {
     emailSupport: op.emailSupport ?? "",
     maxBookingPerSlot: Number(op.maxBookingPerSlot) || 0,
     minCounsellorPerSlot: Number(op.minCounsellorPerSlot) || 0,
+    maxCounsellorsPerSlot: Number(op.maxCounsellorsPerSlot) || 0,
     slotDurationInMinutes: Number(op.slotDurationInMinutes) || 0,
+    bufferBetweenSlotsMinutes: Number(op.bufferBetweenSlotsMinutes) || 0,
     allowBookingBeforeHours: Number(op.allowBookingBeforeHours) || 0,
     policyDetail: policy ?? "",
   };
-  const wc = op.workingConfig || {};
-  const wo = {};
-  if ((wc.note ?? "") !== (hqWc.note ?? "")) wo.note = wc.note ?? "";
-  if (Boolean(wc.isOpenSunday) !== Boolean(hqWc.isOpenSunday)) wo.isOpenSunday = Boolean(wc.isOpenSunday);
-  if (JSON.stringify(wc.regularDays || []) !== JSON.stringify(hqWc.regularDays || []))
-    wo.regularDays = wc.regularDays || [];
-  if (JSON.stringify(wc.weekendDays || []) !== JSON.stringify(hqWc.weekendDays || []))
-    wo.weekendDays = wc.weekendDays || [];
-  if (JSON.stringify(wc.workShifts || []) !== JSON.stringify(hqWc.workShifts || []))
-    wo.workShifts = wc.workShifts || [];
-  if (Object.keys(wo).length > 0) payload.workingOverride = wo;
   const hqHasAdmissionProcesses =
     Array.isArray(hqOp.admissionProcesses) && hqOp.admissionProcesses.length > 0;
   const hqProc = parseMethodAdmissionProcessFromOperation(hqOp);
@@ -1689,6 +1672,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   /** policyDetailRendered.fullTextRendered — chỉ đọc từ GET, cập nhật sau mỗi lần load. */
   const [branchPolicyFullTextRendered, setBranchPolicyFullTextRendered] = useState("");
   const [campusHqOperationMissing, setCampusHqOperationMissing] = useState(false);
+  const [branchHqOperation, setBranchHqOperation] = useState({});
   const branchHqOperationRef = useRef(null);
   const initialPolicyRef = useRef("");
   const initialPolicyFullTextRef = useRef("");
@@ -1787,6 +1771,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
             setBranchPolicyFullTextRendered("");
             initialPolicyFullTextRef.current = "";
             branchHqOperationRef.current = {};
+            setBranchHqOperation({});
             setCampusHqOperationMissing(false);
             setSchoolId(pickSchoolIdFromCampuses(campuses));
             setLastLoadedAt(new Date());
@@ -1805,6 +1790,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
             setBranchPolicyFullTextRendered("");
             initialPolicyFullTextRef.current = "";
             branchHqOperationRef.current = {};
+            setBranchHqOperation({});
             setCampusHqOperationMissing(false);
             setSchoolId(pickSchoolIdFromCampuses(campuses));
             setLastLoadedAt(new Date());
@@ -1852,6 +1838,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
       setBranchPolicyFullTextRendered("");
       initialPolicyFullTextRef.current = "";
       branchHqOperationRef.current = {};
+      setBranchHqOperation({});
 
       let next;
       try {
@@ -1973,6 +1960,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
             );
             if (hqDefault?.operation && typeof hqDefault.operation === "object") {
               branchHqOperationRef.current = JSON.parse(JSON.stringify(hqDefault.operation));
+              setBranchHqOperation(branchHqOperationRef.current);
             }
             const pol = policyFromCampusCurrent(campusCurrent);
             setBranchPolicyDetail(pol);
@@ -2071,6 +2059,15 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     });
     if (feeRowMissingCode) {
       enqueueSnackbar("Mỗi khoản phí đã nhập dữ liệu cần có mã (feeCode).", {variant: "error"});
+      setTabIndex(2);
+      return;
+    }
+
+    const shiftValidation = validateOperationSettingsWorkShifts(config.operationSettingsData);
+    if (!shiftValidation.ok) {
+      enqueueSnackbar(shiftValidation.message || "Ca làm việc không hợp lệ (loại ca + khung giờ theo quy định).", {
+        variant: "error",
+      });
       setTabIndex(2);
       return;
     }
@@ -2267,7 +2264,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
       const arr = [...(c.operationSettingsData.admissionSeasons || [])];
       const row = arr[seasonIdx];
       if (!row) return c;
-      const extra = [...(row.extraShifts || []), {name: "", startTime: "08:00", endTime: "17:00"}];
+      const extra = [...(row.extraShifts || []), {name: "EVENING", startTime: "17:00", endTime: "20:00"}];
       arr[seasonIdx] = {...row, extraShifts: extra};
       return {...c, operationSettingsData: {...c.operationSettingsData, admissionSeasons: arr}};
     });
@@ -2431,12 +2428,12 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   const showResourceDistributionTab = !useCampusConfigFlow && tabSlug === "resource-distribution";
 
 
-  const pageTitle = isCampusVariant ? "Cấu hình của cơ sở" : "Cấu hình chung cho các cơ sở";
+  const pageTitle = isCampusVariant ? "Cấu hình cơ sở của bạn" : "Cấu hình toàn trường";
   const pageSubtitle = isCampusVariant
     ? isPrimaryBranch
-      ? "Chỉnh vận hành và CSVC của cơ sở chính. Mỗi cơ sở chỉ sửa được cấu hình của chính mình. Sau khi Lưu, nội dung được phản ánh trong Bản chỉnh sửa từ cơ sở."
-      : "Chỉnh vận hành và CSVC của cơ sở bạn. Sau khi Lưu, xem Bản chỉnh sửa từ cơ sở — bản văn thống nhất BE trả về."
-    : "Cấu hình chung cho tất cả các cơ sở bao gồm: Quản lý tuyển sinh, hồ sơ, vận hành, chỉ tiêu, tài chính, cơ sở vật chất chung và phân bổ nguồn lực.";
+      ? "Bạn đang chỉnh giờ làm, lịch tư vấn và thông tin cơ sở vật chất tại cơ sở chính. Mỗi chi nhánh chỉ sửa được phần của mình. Sau khi Lưu, đoạn mô tả đầy đủ hiển thị trong mục «Nội dung chính sách đã lưu» bên dưới."
+      : "Bạn đang chỉnh giờ làm, lịch tư vấn và cơ sở vật chất cho địa điểm bạn phụ trách. Sau khi Lưu, xem phần «Nội dung chính sách đã lưu» — văn bản do hệ thống ghép từ quy định trụ sở và chỉnh sửa tại cơ sở."
+    : "Thiết lập chung áp dụng cho toàn trường: tuyển sinh, hồ sơ, vận hành, chỉ tiêu, tài chính, cơ sở vật chất và phân bổ nguồn lực giữa các cơ sở.";
 
   return (
       <Box
@@ -3893,20 +3890,21 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                   {campusHqOperationMissing ? (
                     <Alert severity="warning" sx={{borderRadius: 2}}>
                       <Typography variant="body2" sx={{fontWeight: 700, mb: 0.5}}>
-                        Chưa có cấu hình vận hành từ cơ sở chính
+                        Chưa có quy định vận hành từ trụ sở chính
                       </Typography>
                       <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
-                        Trụ sở chưa gửi khối vận hành HQ (hqDefault.operation) hoặc đang rỗng. Vui lòng cấu hình vận hành tại
-                        cơ sở chính trước; campus chỉ chỉnh phần delta khi đã có chuẩn HQ.
+                        Hệ thống chưa nhận được bộ quy tắc vận hành do trụ sở chính thiết lập (hoặc dữ liệu đang trống). Vui lòng
+                        đăng nhập tài khoản trụ sở chính, mở mục <strong>Cài đặt vận hành</strong> và lưu cấu hình trước. Sau đó
+                        cơ sở chi nhánh mới có thể điều chỉnh phần riêng tại từng địa điểm.
                       </Typography>
                     </Alert>
                   ) : null}
                   <Alert severity="info" sx={{borderRadius: 2}}>
                     <Typography variant="body2" component="div" sx={{fontWeight: 700, mb: 0.75}}>
-                      Cấu hình theo cơ sở
+                      Chỉnh sửa riêng cho cơ sở này
                     </Typography>
                     <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
-                      Các thay đổi của cơ sở sẽ được lưu lại trong <strong>Bản chỉnh sửa từ cơ sở</strong> phía dưới.
+                      Các thay đổi được lưu và hiển thị tóm tắt trong phần <strong>Nội dung chính sách đã lưu</strong> bên dưới.
                     </Typography>
                   </Alert>
                   <Card
@@ -3918,7 +3916,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     }}
                   >
                     <CardContent sx={{p: 3}}>
-                      <Typography sx={{fontWeight: 800, mb: 1.5}}>Bản chỉnh sửa từ cơ sở</Typography>
+                      <Typography sx={{fontWeight: 800, mb: 1.5}}>Nội dung chính sách đã lưu</Typography>
                       <Paper
                         variant="outlined"
                         sx={{
@@ -3983,111 +3981,258 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                       size="small"
                       inputProps={{readOnly: fieldDisabled}}
                     />
-                    <Stack direction={{xs: "column", sm: "row"}} spacing={2} useFlexGap sx={{flexWrap: "wrap"}}>
-                      <TextField
-                        label="Số phụ huynh tối đa trong 1 ca"
-                        type="number"
-                        value={
-                          config.operationSettingsData.maxBookingPerSlot === "" ||
-                          config.operationSettingsData.maxBookingPerSlot == null
-                            ? ""
-                            : config.operationSettingsData.maxBookingPerSlot
-                        }
-                        onChange={(e) =>
-                          setConfig((c) => ({
-                            ...c,
-                            operationSettingsData: {
-                              ...c.operationSettingsData,
-                              maxBookingPerSlot: e.target.value === "" ? "" : Number(e.target.value) || 0,
-                            },
-                          }))
-                        }
-                        size="small"
-                        helperText="*Số lượng khách tối đa được phép đặt vào một khung giờ."
-                        FormHelperTextProps={{sx: {fontWeight: 700}}}
-                        inputProps={{readOnly: fieldDisabled, min: 0}}
-                        sx={{minWidth: 200, flex: 1}}
+                    {useCampusConfigFlow ? (
+                      <Box sx={{width: "100%"}}>
+                        <HqVsCampusSlotBufferSummary
+                          effectiveOp={config.operationSettingsData}
+                          hqOp={branchHqOperation}
+                          hqMissing={campusHqOperationMissing}
+                        />
+                      </Box>
+                    ) : null}
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gap: 2,
+                        width: "100%",
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          sm: "repeat(2, minmax(0, 1fr))",
+                          md: "repeat(3, minmax(0, 1fr))",
+                        },
+                      }}
+                    >
+                      <Box sx={{minWidth: 0}}>
+                        {useCampusConfigFlow ? (
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                            <HqScalarDiffChip
+                              fieldKey="maxBookingPerSlot"
+                              effectiveOp={config.operationSettingsData}
+                              hqOp={branchHqOperation}
+                              hqMissing={campusHqOperationMissing}
+                            />
+                          </Stack>
+                        ) : null}
+                        <TextField
+                          label="Số phụ huynh tối đa trong 1 ca"
+                          type="number"
+                          value={
+                            config.operationSettingsData.maxBookingPerSlot === "" ||
+                            config.operationSettingsData.maxBookingPerSlot == null
+                              ? ""
+                              : config.operationSettingsData.maxBookingPerSlot
+                          }
+                          onChange={(e) =>
+                            setConfig((c) => ({
+                              ...c,
+                              operationSettingsData: {
+                                ...c.operationSettingsData,
+                                maxBookingPerSlot: e.target.value === "" ? "" : Number(e.target.value) || 0,
+                              },
+                            }))
+                          }
+                          size="small"
+                          helperText="(*) Số khách đặt tối đa / một khung (booking), khác với trần TV gán cùng khung bên dưới"
+                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          inputProps={{readOnly: fieldDisabled, min: 0}}
+                          fullWidth
+                        />
+                      </Box>
+                      <Box sx={{minWidth: 0}}>
+                        <TextField
+                          label="Tư vấn viên tối thiểu trong 1 ca"
+                          type="number"
+                          value={
+                            config.operationSettingsData.minCounsellorPerSlot === "" ||
+                            config.operationSettingsData.minCounsellorPerSlot == null
+                              ? ""
+                              : config.operationSettingsData.minCounsellorPerSlot
+                          }
+                          onChange={(e) =>
+                            setConfig((c) => ({
+                              ...c,
+                              operationSettingsData: {
+                                ...c.operationSettingsData,
+                                minCounsellorPerSlot: e.target.value === "" ? "" : Number(e.target.value) || 0,
+                              },
+                            }))
+                          }
+                          size="small"
+                          helperText="(*) Số lượng tư vấn viên tối thiểu trực trong một ca"
+                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          inputProps={{readOnly: fieldDisabled, min: 0}}
+                          fullWidth
+                          sx={{color: "red !important"}}
+                        />
+                      </Box>
+                      <Box sx={{minWidth: 0}}>
+                        {useCampusConfigFlow ? (
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                            <HqScalarDiffChip
+                              fieldKey="maxCounsellorsPerSlot"
+                              effectiveOp={config.operationSettingsData}
+                              hqOp={branchHqOperation}
+                              hqMissing={campusHqOperationMissing}
+                            />
+                          </Stack>
+                        ) : null}
+                        <TextField
+                          label="Tư vấn viên tối đa gán cùng khung"
+                          type="number"
+                          value={
+                            config.operationSettingsData.maxCounsellorsPerSlot === "" ||
+                            config.operationSettingsData.maxCounsellorsPerSlot == null
+                              ? ""
+                              : config.operationSettingsData.maxCounsellorsPerSlot
+                          }
+                          onChange={(e) =>
+                            setConfig((c) => ({
+                              ...c,
+                              operationSettingsData: {
+                                ...c.operationSettingsData,
+                                maxCounsellorsPerSlot:
+                                  e.target.value === "" ? "" : Math.max(0, Number(e.target.value) || 0),
+                              },
+                            }))
+                          }
+                          size="small"
+                          helperText="(*) Trần số TV gán cùng một khung lịch + khoảng ngày; 0 = không giới hạn trần trên"
+                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          inputProps={{readOnly: fieldDisabled, min: 0}}
+                          fullWidth
+                        />
+                      </Box>
+                      <Box sx={{minWidth: 0}}>
+                        {useCampusConfigFlow ? (
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                            <HqScalarDiffChip
+                              fieldKey="slotDurationInMinutes"
+                              effectiveOp={config.operationSettingsData}
+                              hqOp={branchHqOperation}
+                              hqMissing={campusHqOperationMissing}
+                            />
+                          </Stack>
+                        ) : null}
+                        <TextField
+                          label="(*) Thời lượng 1 ca (phút)"
+                          type="number"
+                          value={
+                            config.operationSettingsData.slotDurationInMinutes === "" ||
+                            config.operationSettingsData.slotDurationInMinutes == null
+                              ? ""
+                              : config.operationSettingsData.slotDurationInMinutes
+                          }
+                          onChange={(e) =>
+                            setConfig((c) => ({
+                              ...c,
+                              operationSettingsData: {
+                                ...c.operationSettingsData,
+                                slotDurationInMinutes:
+                                  e.target.value === ""
+                                    ? ""
+                                    : Math.max(1, Number(e.target.value) || 0),
+                              },
+                            }))
+                          }
+                          size="small"
+                          helperText="*Thời lượng của một cuộc hẹn tư vấn (ví dụ: 30, 45 phút)."
+                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          inputProps={{readOnly: fieldDisabled, min: 0}}
+                          fullWidth
+                        />
+                      </Box>
+                      <Box sx={{minWidth: 0}}>
+                        {useCampusConfigFlow ? (
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                            <HqScalarDiffChip
+                              fieldKey="bufferBetweenSlotsMinutes"
+                              effectiveOp={config.operationSettingsData}
+                              hqOp={branchHqOperation}
+                              hqMissing={campusHqOperationMissing}
+                            />
+                          </Stack>
+                        ) : null}
+                        <TextField
+                          label="(*) Nghỉ giữa hai tiết (phút)"
+                          type="number"
+                          value={
+                            config.operationSettingsData.bufferBetweenSlotsMinutes === "" ||
+                            config.operationSettingsData.bufferBetweenSlotsMinutes == null
+                              ? ""
+                              : config.operationSettingsData.bufferBetweenSlotsMinutes
+                          }
+                          onChange={(e) =>
+                            setConfig((c) => ({
+                              ...c,
+                              operationSettingsData: {
+                                ...c.operationSettingsData,
+                                bufferBetweenSlotsMinutes:
+                                  e.target.value === ""
+                                    ? ""
+                                    : Math.max(0, Number(e.target.value) || 0),
+                              },
+                            }))
+                          }
+                          size="small"
+                          helperText="(*) Thời gian nghỉ giữa hai tiết tư vấn liên tiếp (0 = không nghỉ). Bước giữa hai bắt đầu tiết = độ dài tiết + nghỉ"
+                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          inputProps={{readOnly: fieldDisabled, min: 0}}
+                          fullWidth
+                        />
+                      </Box>
+                      <Box sx={{minWidth: 0}}>
+                        {useCampusConfigFlow ? (
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                            <HqScalarDiffChip
+                              fieldKey="allowBookingBeforeHours"
+                              effectiveOp={config.operationSettingsData}
+                              hqOp={branchHqOperation}
+                              hqMissing={campusHqOperationMissing}
+                            />
+                          </Stack>
+                        ) : null}
+                        <TextField
+                          label="Đặt lịch trước (giờ)"
+                          type="number"
+                          value={
+                            config.operationSettingsData.allowBookingBeforeHours === "" ||
+                            config.operationSettingsData.allowBookingBeforeHours == null
+                              ? ""
+                              : config.operationSettingsData.allowBookingBeforeHours
+                          }
+                          onChange={(e) =>
+                            setConfig((c) => ({
+                              ...c,
+                              operationSettingsData: {
+                                ...c.operationSettingsData,
+                                allowBookingBeforeHours: e.target.value === "" ? "" : Number(e.target.value) || 0,
+                              },
+                            }))
+                          }
+                          size="small"
+                          helperText="(*) Thời gian tối thiểu phải đặt trước khi cuộc hẹn diễn ra"
+                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          inputProps={{readOnly: fieldDisabled, min: 0}}
+                          fullWidth
+                        />
+                      </Box>
+                    </Box>
+                    {!useCampusConfigFlow ? (
+                      <SchoolSlotCycleHint
+                        slotMinutes={config.operationSettingsData.slotDurationInMinutes}
+                        bufferMinutes={config.operationSettingsData.bufferBetweenSlotsMinutes}
                       />
-                      <TextField
-                        label="Tư vấn viên tối thiểu trong 1 ca"
-                        type="number"
-                        value={
-                          config.operationSettingsData.minCounsellorPerSlot === "" ||
-                          config.operationSettingsData.minCounsellorPerSlot == null
-                            ? ""
-                            : config.operationSettingsData.minCounsellorPerSlot
-                        }
-                        onChange={(e) =>
-                          setConfig((c) => ({
-                            ...c,
-                            operationSettingsData: {
-                              ...c.operationSettingsData,
-                              minCounsellorPerSlot: e.target.value === "" ? "" : Number(e.target.value) || 0,
-                            },
-                          }))
-                        }
-                        size="small"
-                        helperText="*Số lượng tư vấn viên tối thiểu trực trong một ca."
-                        FormHelperTextProps={{sx: {fontWeight: 700}}}
-                        inputProps={{readOnly: fieldDisabled, min: 0}}
-                        sx={{minWidth: 200, flex: 1, color: "red !important"}}
-                      />
-                      <TextField
-                        label="Thời lượng 1 ca (phút)"
-                        type="number"
-                        value={
-                          config.operationSettingsData.slotDurationInMinutes === "" ||
-                          config.operationSettingsData.slotDurationInMinutes == null
-                            ? ""
-                            : config.operationSettingsData.slotDurationInMinutes
-                        }
-                        onChange={(e) =>
-                          setConfig((c) => ({
-                            ...c,
-                            operationSettingsData: {
-                              ...c.operationSettingsData,
-                              slotDurationInMinutes:
-                                e.target.value === ""
-                                  ? ""
-                                  : Math.max(1, Number(e.target.value) || 0),
-                            },
-                          }))
-                        }
-                        size="small"
-                        helperText="*Thời lượng của một cuộc hẹn tư vấn (ví dụ: 30, 45 phút)."
-                        FormHelperTextProps={{sx: {fontWeight: 700}}}
-                        inputProps={{readOnly: fieldDisabled, min: 0}}
-                        sx={{minWidth: 180, flex: 1}}
-                      />
-                      <TextField
-                        label="Đặt lịch trước (giờ)"
-                        type="number"
-                        value={
-                          config.operationSettingsData.allowBookingBeforeHours === "" ||
-                          config.operationSettingsData.allowBookingBeforeHours == null
-                            ? ""
-                            : config.operationSettingsData.allowBookingBeforeHours
-                        }
-                        onChange={(e) =>
-                          setConfig((c) => ({
-                            ...c,
-                            operationSettingsData: {
-                              ...c.operationSettingsData,
-                              allowBookingBeforeHours: e.target.value === "" ? "" : Number(e.target.value) || 0,
-                            },
-                          }))
-                        }
-                        size="small"
-                        helperText="*Thời gian tối thiểu phải đặt trước khi cuộc hẹn diễn ra."
-                        FormHelperTextProps={{sx: {fontWeight: 700}}}
-                        inputProps={{readOnly: fieldDisabled, min: 0}}
-                        sx={{minWidth: 180, flex: 1}}
-                      />
-                    </Stack>
+                    ) : null}
                   </Stack>
                 </CardContent>
               </Card>
 
+              {useCampusConfigFlow ? (
+                <SchoolWideScheduleReadOnlyPanel
+                  workingConfig={config.operationSettingsData.workingConfig}
+                  showSchoolOperationCta={isPrimaryBranch}
+                />
+              ) : (
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>
                   <Typography sx={{fontWeight: 800, mb: 2}}>Giờ làm việc</Typography>
@@ -4220,103 +4365,131 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     inputProps={{readOnly: fieldDisabled}}
                   />
 
-                  <Typography sx={{fontWeight: 800, mt: 3, mb: 1}}>Ca làm việc</Typography>
+                  <Typography sx={{fontWeight: 800, mt: 3, mb: 1.25}}>Ca làm việc (chuẩn trường)</Typography>
                   <Stack spacing={1}>
-                    {(config.operationSettingsData.workingConfig.workShifts || []).map((sh, idx) => (
-                      <Stack key={idx} direction={{xs: "column", sm: "row"}} spacing={1}>
-                        <TextField
-                          label="Tên ca"
-                          size="small"
-                          value={sh.name ?? ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setConfig((c) => {
-                              const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
-                              ws[idx] = {...ws[idx], name: v};
-                              return {
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
-                                },
-                              };
-                            });
-                          }}
-                          inputProps={{readOnly: fieldDisabled}}
-                        />
-                        <TextField
-                          label="Bắt đầu"
-                          type="time"
-                          size="small"
-                          InputLabelProps={{shrink: true}}
-                          value={sh.startTime ?? ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setConfig((c) => {
-                              const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
-                              ws[idx] = {...ws[idx], startTime: v};
-                              return {
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
-                                },
-                              };
-                            });
-                          }}
-                          inputProps={{readOnly: fieldDisabled}}
-                        />
-                        <TextField
-                          label="Kết thúc"
-                          type="time"
-                          size="small"
-                          InputLabelProps={{shrink: true}}
-                          value={sh.endTime ?? ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setConfig((c) => {
-                              const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
-                              ws[idx] = {...ws[idx], endTime: v};
-                              return {
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
-                                },
-                              };
-                            });
-                          }}
-                          inputProps={{readOnly: fieldDisabled}}
-                        />
-                        <IconButton
-                          size="small"
-                          color="error"
-                          aria-label="Xoá ca làm việc"
-                          disabled={fieldDisabled}
-                          onClick={() =>
-                            setConfig((c) => {
-                              const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
-                              ws.splice(idx, 1);
-                              return {
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
-                                },
-                              };
-                            })
-                          }
-                          sx={{...blockPointerSx, alignSelf: {xs: "flex-end", sm: "center"}}}
-                        >
-                          <DeleteOutlineIcon fontSize="small"/>
-                        </IconButton>
-                      </Stack>
-                    ))}
+                    {(config.operationSettingsData.workingConfig.workShifts || []).map((sh, idx) => {
+                      const code = canonicalizeWorkShiftName(sh.name);
+                      const sel = WORK_SHIFT_TYPE_CODES.includes(code) ? code : "";
+                      return (
+                        <Stack key={idx} direction={{xs: "column", sm: "row"}} spacing={1} alignItems={{sm: "flex-start"}}>
+                          <FormControl size="small" sx={{minWidth: {sm: 200}, flex: {sm: "0 0 auto"}}}>
+                            <InputLabel>Loại ca</InputLabel>
+                            <Select
+                              label="Loại ca"
+                              value={sel}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setConfig((c) => {
+                                  const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
+                                  ws[idx] = {...ws[idx], name: v};
+                                  return {
+                                    ...c,
+                                    operationSettingsData: {
+                                      ...c.operationSettingsData,
+                                      workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
+                                    },
+                                  };
+                                });
+                              }}
+                              disabled={fieldDisabled}
+                            >
+                              <MenuItem value="">
+                                <em>Chọn loại ca</em>
+                              </MenuItem>
+                              {WORK_SHIFT_TYPE_CODES.map((k) => (
+                                <MenuItem key={k} value={k}>
+                                  {WORK_SHIFT_TYPE_LABEL_VI[k]} ({k})
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                          <TextField
+                            label="Bắt đầu"
+                            type="time"
+                            size="small"
+                            InputLabelProps={{shrink: true}}
+                            value={sh.startTime ?? ""}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setConfig((c) => {
+                                const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
+                                ws[idx] = {...ws[idx], startTime: normalizeTimeHHmm(v) || v};
+                                return {
+                                  ...c,
+                                  operationSettingsData: {
+                                    ...c.operationSettingsData,
+                                    workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
+                                  },
+                                };
+                              });
+                            }}
+                            inputProps={{
+                              readOnly: fieldDisabled,
+                              ...(sel && WORK_SHIFT_TIME_WINDOWS[sel]
+                                ? {min: WORK_SHIFT_TIME_WINDOWS[sel].min, max: WORK_SHIFT_TIME_WINDOWS[sel].max}
+                                : {}),
+                            }}
+                          />
+                          <TextField
+                            label="Kết thúc"
+                            type="time"
+                            size="small"
+                            InputLabelProps={{shrink: true}}
+                            value={sh.endTime ?? ""}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setConfig((c) => {
+                                const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
+                                ws[idx] = {...ws[idx], endTime: normalizeTimeHHmm(v) || v};
+                                return {
+                                  ...c,
+                                  operationSettingsData: {
+                                    ...c.operationSettingsData,
+                                    workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
+                                  },
+                                };
+                              });
+                            }}
+                            inputProps={{
+                              readOnly: fieldDisabled,
+                              ...(sel && WORK_SHIFT_TIME_WINDOWS[sel]
+                                ? {min: WORK_SHIFT_TIME_WINDOWS[sel].min, max: WORK_SHIFT_TIME_WINDOWS[sel].max}
+                                : {}),
+                            }}
+                          />
+                          <IconButton
+                            size="small"
+                            color="error"
+                            aria-label="Xoá ca làm việc"
+                            disabled={fieldDisabled}
+                            onClick={() =>
+                              setConfig((c) => {
+                                const ws = [...(c.operationSettingsData.workingConfig.workShifts || [])];
+                                ws.splice(idx, 1);
+                                return {
+                                  ...c,
+                                  operationSettingsData: {
+                                    ...c.operationSettingsData,
+                                    workingConfig: {...c.operationSettingsData.workingConfig, workShifts: ws},
+                                  },
+                                };
+                              })
+                            }
+                            sx={{...blockPointerSx, alignSelf: {xs: "flex-end", sm: "center"}}}
+                          >
+                            <DeleteOutlineIcon fontSize="small"/>
+                          </IconButton>
+                        </Stack>
+                      );
+                    })}
                     <Button
                       startIcon={<AddIcon/>}
                       onClick={() =>
                         setConfig((c) => {
-                          const ws = [...(c.operationSettingsData.workingConfig.workShifts || []), {name: "", startTime: "08:00", endTime: "17:00"}];
+                          const ws = [
+                            ...(c.operationSettingsData.workingConfig.workShifts || []),
+                            {name: "MORNING", startTime: "07:00", endTime: "11:30"},
+                          ];
                           return {
                             ...c,
                             operationSettingsData: {
@@ -4333,6 +4506,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                   </Stack>
         </CardContent>
       </Card>
+              )}
 
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>
@@ -4636,15 +4810,18 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                 Ca làm việc tăng cường
                               </Typography>
                               <Typography variant="body2" sx={{color: "text.secondary", mb: 1.5, lineHeight: 1.55}}>
-                                Ca tối / ca thêm chỉ trong mùa (khác ca hành chính ở trên). Thêm nhanh ca tư vấn tối hoặc online.
+                                Cùng quy tắc loại ca và khung giờ như ca chuẩn ở trên.
                               </Typography>
                               <Stack spacing={1.25}>
-                                {(season.extraShifts || []).map((sh, ei) => (
+                                {(season.extraShifts || []).map((sh, ei) => {
+                                  const code = canonicalizeWorkShiftName(sh.name);
+                                  const sel = WORK_SHIFT_TYPE_CODES.includes(code) ? code : "";
+                                  return (
                                   <Stack
                                     key={`season-${si}-shift-${ei}`}
                                     direction={{xs: "column", md: "row"}}
                                     spacing={1}
-                                    alignItems={{md: "center"}}
+                                    alignItems={{md: "flex-start"}}
                                     sx={{
                                       p: 1.25,
                                       borderRadius: 1.5,
@@ -4652,23 +4829,44 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                       border: "1px solid rgba(37, 99, 235, 0.22)",
                                     }}
                                   >
-                                    <TextField
-                                      label="Mã ca"
-                                      size="small"
-                                      placeholder="Mã theo quy ước (ví dụ ca tối tăng cường)"
-                                      value={sh.name ?? ""}
-                                      onChange={(e) => updateExtraShiftInAdmissionSeason(si, ei, "name", e.target.value)}
-                                      inputProps={{readOnly: fieldDisabled}}
-                                      sx={{flex: 1, minWidth: 140}}
-                                    />
+                                    <FormControl size="small" sx={{minWidth: 200, flex: 1}}>
+                                      <InputLabel>Loại ca</InputLabel>
+                                      <Select
+                                        label="Loại ca"
+                                        value={sel}
+                                        onChange={(e) => updateExtraShiftInAdmissionSeason(si, ei, "name", e.target.value)}
+                                        disabled={fieldDisabled}
+                                      >
+                                        <MenuItem value="">
+                                          <em>Chọn</em>
+                                        </MenuItem>
+                                        {WORK_SHIFT_TYPE_CODES.map((k) => (
+                                          <MenuItem key={k} value={k}>
+                                            {WORK_SHIFT_TYPE_LABEL_VI[k]} ({k})
+                                          </MenuItem>
+                                        ))}
+                                      </Select>
+                                    </FormControl>
                                     <TextField
                                       label="Bắt đầu"
                                       size="small"
                                       type="time"
                                       InputLabelProps={{shrink: true}}
                                       value={sh.startTime ?? ""}
-                                      onChange={(e) => updateExtraShiftInAdmissionSeason(si, ei, "startTime", e.target.value)}
-                                      inputProps={{readOnly: fieldDisabled}}
+                                      onChange={(e) =>
+                                        updateExtraShiftInAdmissionSeason(
+                                          si,
+                                          ei,
+                                          "startTime",
+                                          normalizeTimeHHmm(e.target.value) || e.target.value
+                                        )
+                                      }
+                                      inputProps={{
+                                        readOnly: fieldDisabled,
+                                        ...(sel && WORK_SHIFT_TIME_WINDOWS[sel]
+                                          ? {min: WORK_SHIFT_TIME_WINDOWS[sel].min, max: WORK_SHIFT_TIME_WINDOWS[sel].max}
+                                          : {}),
+                                      }}
                                     />
                                     <TextField
                                       label="Kết thúc"
@@ -4676,8 +4874,20 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                       type="time"
                                       InputLabelProps={{shrink: true}}
                                       value={sh.endTime ?? ""}
-                                      onChange={(e) => updateExtraShiftInAdmissionSeason(si, ei, "endTime", e.target.value)}
-                                      inputProps={{readOnly: fieldDisabled}}
+                                      onChange={(e) =>
+                                        updateExtraShiftInAdmissionSeason(
+                                          si,
+                                          ei,
+                                          "endTime",
+                                          normalizeTimeHHmm(e.target.value) || e.target.value
+                                        )
+                                      }
+                                      inputProps={{
+                                        readOnly: fieldDisabled,
+                                        ...(sel && WORK_SHIFT_TIME_WINDOWS[sel]
+                                          ? {min: WORK_SHIFT_TIME_WINDOWS[sel].min, max: WORK_SHIFT_TIME_WINDOWS[sel].max}
+                                          : {}),
+                                      }}
                                     />
                                     <IconButton
                                       size="small"
@@ -4689,7 +4899,8 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                       <DeleteOutlineIcon fontSize="small"/>
                                     </IconButton>
                                   </Stack>
-                                ))}
+                                  );
+                                })}
                               </Stack>
                               <Button
                                 size="small"
