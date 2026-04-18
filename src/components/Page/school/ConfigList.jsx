@@ -30,12 +30,14 @@ import {
   parseSchoolCampusConfigListBody,
   schoolCampusListRowPolicyText,
 } from "../../../services/SchoolFacilityService.jsx";
+import { useSchool } from "../../../contexts/SchoolContext.jsx";
 
 function facilityCoverUrl(imageData) {
   if (!imageData || typeof imageData !== "object") return "";
   const c =
     imageData.coverUrl ??
     imageData.cover ??
+    imageData.mainHall ??
     imageData.thumbnailUrl ??
     imageData.thumbnail ??
     "";
@@ -309,15 +311,35 @@ function CorporateFareIllustration() {
 }
 
 export default function ConfigList() {
+  const { isPrimaryBranch, currentCampusId, loading: schoolCtxLoading } = useSchool();
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [search, setSearch] = useState("");
   const [tabIndex, setTabIndex] = useState(0);
 
+  /** Cơ sở chính: toàn bộ danh sách API. Cơ sở phụ: chỉ bản ghi trùng campus đăng nhập (hoặc campusPrimary === false nếu chưa có id). */
+  const branchScopedRows = useMemo(() => {
+    if (isPrimaryBranch) return rows;
+    const cid =
+      currentCampusId != null && currentCampusId !== "" && !Number.isNaN(Number(currentCampusId))
+        ? Number(currentCampusId)
+        : null;
+    if (cid != null) {
+      const byId = rows.filter((r) => Number(r?.campusId) === cid);
+      if (byId.length > 0) return byId;
+    }
+    const nonPrimary = rows.filter((r) => r && r.campusPrimary === false);
+    return nonPrimary.length > 0 ? nonPrimary : rows;
+  }, [rows, isPrimaryBranch, currentCampusId]);
+
+  const showCampusSearch = isPrimaryBranch;
+  const showCampusTabs = branchScopedRows.length > 1;
+
   const filtered = useMemo(() => {
+    if (!showCampusSearch) return branchScopedRows;
     const q = search.trim().toLowerCase();
-    return !q ? rows : rows.filter((r) => String(r?.campusName || "").toLowerCase().includes(q));
-  }, [rows, search]);
+    return !q ? branchScopedRows : branchScopedRows.filter((r) => String(r?.campusName || "").toLowerCase().includes(q));
+  }, [branchScopedRows, search, showCampusSearch]);
 
   useEffect(() => {
     if (tabIndex >= filtered.length) {
@@ -347,6 +369,10 @@ export default function ConfigList() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!isPrimaryBranch) setSearch("");
+  }, [isPrimaryBranch]);
 
   const active = filtered[tabIndex] || null;
   const facilityConfig = active?.facilityConfig && typeof active.facilityConfig === "object" ? active.facilityConfig : null;
@@ -425,10 +451,12 @@ export default function ConfigList() {
               textShadow: "0 1px 2px rgba(0,0,0,0.1)",
             }}
           >
-            Danh sách cấu hình
+            Xem cấu hình theo từng cơ sở
           </Typography>
           <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.95 }}>
-            Xem nhanh cơ sở vật chất và chính sách vận hành từng cơ sở
+            {isPrimaryBranch
+              ? "Tra cứu nhanh hình ảnh cơ sở, hotline và quy định vận hành (giờ làm, lịch tư vấn…) của trụ sở chính và từng chi nhánh."
+              : "Xem thông tin cơ sở vật chất và quy định vận hành của đúng cơ sở gắn với tài khoản bạn."}
           </Typography>
         </Box>
       </Box>
@@ -459,10 +487,12 @@ export default function ConfigList() {
         <CorporateFareOutlinedIcon sx={{ color: "#0D64DE", fontSize: 28, mt: 0.25 }} />
         <Box>
           <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b", lineHeight: 1.3 }}>
-            Danh sách theo cơ sở
+            Danh sách cơ sở
           </Typography>
           <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5 }}>
-            Chọn cơ sở hoặc lọc theo tên.
+            {isPrimaryBranch
+              ? "Chọn cơ sở ở các tab phía trên, hoặc gõ tên để lọc."
+              : "Chỉ hiển thị cơ sở mà tài khoản của bạn được phép xem."}
           </Typography>
         </Box>
       </Box>
@@ -483,16 +513,18 @@ export default function ConfigList() {
     >
       {gradientHeader}
 
-      {loading ? (
+      {loading || schoolCtxLoading ? (
         mainCardShell(
           <>
             <Box sx={{ px: 2.5 }}>
               <Skeleton variant="rounded" width="100%" height={48} sx={{ borderRadius: 2 }} />
             </Box>
             <Divider sx={{ borderColor: "#e2e8f0" }} />
-            <CardContent sx={{ p: 2.5, pb: 2 }}>
-              <Skeleton variant="rounded" height={40} sx={{ borderRadius: "12px", maxWidth: 280 }} />
-            </CardContent>
+            {isPrimaryBranch ? (
+              <CardContent sx={{ p: 2.5, pb: 2 }}>
+                <Skeleton variant="rounded" height={40} sx={{ borderRadius: "12px", maxWidth: 280 }} />
+              </CardContent>
+            ) : null}
             <Box sx={{ px: 2.5, pb: 3, display: "flex", flexDirection: "column", gap: 3 }}>
               <FacilitySkeletonBlock />
               <PolicySkeleton />
@@ -502,16 +534,90 @@ export default function ConfigList() {
       ) : filtered.length === 0 ? (
         mainCardShell(
           <>
-            <CardContent sx={{ p: 2.5, pb: 2 }}>
-              <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ xs: "stretch", md: "center" }}>
+            {showCampusSearch ? (
+              <CardContent sx={{ p: 2.5, pb: 2 }}>
+                <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ xs: "stretch", md: "center" }}>
+                  <TextField
+                    placeholder="Tìm theo tên cơ sở..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    size="small"
+                    sx={{
+                      flex: 1,
+                      minWidth: 200,
+                      maxWidth: { md: 280 },
+                      "& .MuiOutlinedInput-root": { borderRadius: "12px", bgcolor: "#f8fafc" },
+                    }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <SearchIcon sx={{ color: "#64748b" }} />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Stack>
+              </CardContent>
+            ) : null}
+            <Box sx={{ borderTop: "1px solid #e2e8f0", py: 8, px: 3, textAlign: "center" }}>
+              <CorporateFareOutlinedIcon sx={{ fontSize: 56, color: "#cbd5e1" }} />
+              <Typography variant="h6" sx={{ color: "#64748b", fontWeight: 600, mt: 1.5 }}>
+                {rows.length === 0
+                  ? "Chưa có dữ liệu cơ sở"
+                  : !isPrimaryBranch
+                    ? "Không có dữ liệu cho cơ sở của bạn"
+                    : "Không có cơ sở phù hợp"}
+              </Typography>
+              <Typography variant="body2" sx={{ color: "#94a3b8", mt: 0.5 }}>
+                {rows.length === 0
+                  ? "Chưa có dữ liệu cấu hình cơ sở."
+                  : !isPrimaryBranch
+                    ? "Vui lòng thử tải lại hoặc kiểm tra campus gán cho tài khoản."
+                    : "Thử từ khóa tìm kiếm khác."}
+              </Typography>
+            </Box>
+          </>
+        )
+      ) : (
+        mainCardShell(
+          <>
+            {showCampusTabs ? (
+              <>
+                <Box sx={{ px: 2.5 }}>
+                  <Tabs
+                    value={Math.min(tabIndex, Math.max(filtered.length - 1, 0))}
+                    onChange={(_, v) => setTabIndex(v)}
+                    variant="scrollable"
+                    scrollButtons="auto"
+                    allowScrollButtonsMobile
+                    sx={campaignsTabSx}
+                  >
+                    {filtered.map((c, i) => (
+                      <Tab
+                        key={c.campusId ?? i}
+                        label={displayCampusConfigName(c.campusName ?? c.campus_name, i)}
+                      />
+                    ))}
+                  </Tabs>
+                </Box>
+                <Divider sx={{ borderColor: "#e2e8f0" }} />
+              </>
+            ) : (
+              <Box sx={{ px: 2.5, pt: 2, pb: 0.5 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#1e293b" }}>
+                  {displayCampusConfigName(filtered[0]?.campusName ?? filtered[0]?.campus_name, 0)}
+                </Typography>
+              </Box>
+            )}
+
+            {showCampusSearch ? (
+              <CardContent sx={{ p: 2.5, pb: 2 }}>
                 <TextField
                   placeholder="Tìm theo tên cơ sở..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   size="small"
                   sx={{
-                    flex: 1,
-                    minWidth: 200,
                     maxWidth: { md: 280 },
                     "& .MuiOutlinedInput-root": { borderRadius: "12px", bgcolor: "#f8fafc" },
                   }}
@@ -523,63 +629,8 @@ export default function ConfigList() {
                     ),
                   }}
                 />
-              </Stack>
-            </CardContent>
-            <Box sx={{ borderTop: "1px solid #e2e8f0", py: 8, px: 3, textAlign: "center" }}>
-              <CorporateFareOutlinedIcon sx={{ fontSize: 56, color: "#cbd5e1" }} />
-              <Typography variant="h6" sx={{ color: "#64748b", fontWeight: 600, mt: 1.5 }}>
-                {rows.length === 0 ? "Chưa có dữ liệu cơ sở" : "Không có cơ sở phù hợp"}
-              </Typography>
-              <Typography variant="body2" sx={{ color: "#94a3b8", mt: 0.5 }}>
-                {rows.length === 0
-                  ? "Danh sách cấu hình cơ sở trống."
-                  : "Thử từ khóa tìm kiếm khác."}
-              </Typography>
-            </Box>
-          </>
-        )
-      ) : (
-        mainCardShell(
-          <>
-            <Box sx={{ px: 2.5 }}>
-              <Tabs
-                value={Math.min(tabIndex, Math.max(filtered.length - 1, 0))}
-                onChange={(_, v) => setTabIndex(v)}
-                variant="scrollable"
-                scrollButtons="auto"
-                allowScrollButtonsMobile
-                sx={campaignsTabSx}
-              >
-                {filtered.map((c, i) => (
-                  <Tab
-                    key={c.campusId ?? i}
-                    label={displayCampusConfigName(c.campusName ?? c.campus_name, i)}
-                  />
-                ))}
-              </Tabs>
-            </Box>
-
-            <Divider sx={{ borderColor: "#e2e8f0" }} />
-
-            <CardContent sx={{ p: 2.5, pb: 2 }}>
-              <TextField
-                placeholder="Tìm theo tên cơ sở..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                size="small"
-                sx={{
-                  maxWidth: { md: 280 },
-                  "& .MuiOutlinedInput-root": { borderRadius: "12px", bgcolor: "#f8fafc" },
-                }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <SearchIcon sx={{ color: "#64748b" }} />
-                    </InputAdornment>
-                  ),
-                }}
-              />
-            </CardContent>
+              </CardContent>
+            ) : null}
 
             <Box
               sx={{

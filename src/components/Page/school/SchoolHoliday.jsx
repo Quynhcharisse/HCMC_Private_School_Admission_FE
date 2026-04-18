@@ -200,7 +200,12 @@ function getMaxHolidayEndDate() {
 const HOLIDAY_IMPACT_LEVEL_VALUES = new Set(Object.values(HOLIDAY_IMPACT_LEVEL));
 
 function isValidHolidayImpactLevel(v) {
-    return v != null && HOLIDAY_IMPACT_LEVEL_VALUES.has(String(v));
+    return v != null && HOLIDAY_IMPACT_LEVEL_VALUES.has(String(v).trim());
+}
+
+/** Giống `Arrays.toString(HolidayImpactLevel.values())` trên BE (thứ tự khai báo enum có thể khác). */
+function formatHolidayImpactLevelsAllowedForBe() {
+    return `[${Object.values(HOLIDAY_IMPACT_LEVEL).join(", ")}]`;
 }
 
 /** Khớp `HolidayValidation.createHolidayValidation` (BE). Trả về chuỗi lỗi hoặc `null`. */
@@ -229,8 +234,7 @@ function validateCreateHolidayRequest(formValues, isPrimaryBranch) {
         return "Ngày nghỉ không được vượt quá 2 năm tính từ thời điểm hiện tại.";
     }
     if (!isValidHolidayImpactLevel(formValues?.holidayImpactLevel)) {
-        const allowed = `[${Object.values(HOLIDAY_IMPACT_LEVEL).join(", ")}]`;
-        return `Mức độ ảnh hưởng (Impact Level) không hợp lệ. Các giá trị cho phép: ${allowed}`;
+        return `Mức độ ảnh hưởng không hợp lệ. Các giá trị cho phép: ${formatHolidayImpactLevelsAllowedForBe()}`;
     }
     const isGlobal = formValues?.scope === HOLIDAY_SCOPE.GLOBAL;
     if (isGlobal) {
@@ -371,9 +375,26 @@ export default function SchoolHoliday() {
             const response = await getHolidayList();
             const rows = extractHolidayListBody(response).map(normalizeHolidayRow);
             setHolidays(rows);
+            /** GET 200 + [] là bình thường (chưa có ngày nghỉ) — không báo lỗi. Lỗi chỉ khi request throw (4xx/5xx/mạng). */
         } catch (error) {
             console.error("Load holiday list failed", error);
-            enqueueSnackbar("Không tải được danh sách ngày nghỉ", {variant: "error"});
+            const status = error?.response?.status;
+            const serverMsg =
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                (typeof error?.response?.data === "string" ? error.response.data : "");
+            const detail =
+                serverMsg ||
+                (status === 404
+                    ? "API danh sách ngày nghỉ không tồn tại hoặc sai đường dẫn."
+                    : status === 403
+                      ? "Không có quyền xem danh sách ngày nghỉ."
+                      : status === 401
+                        ? "Phiên đăng nhập hết hạn hoặc chưa đăng nhập."
+                        : "");
+            enqueueSnackbar(detail || "Không tải được danh sách ngày nghỉ (lỗi mạng hoặc máy chủ).", {
+                variant: "error",
+            });
             setHolidays([]);
         } finally {
             setLoadingHolidays(false);
@@ -594,7 +615,11 @@ export default function SchoolHoliday() {
             await loadHolidayList();
         } catch (error) {
             console.error("Create holiday failed", error);
-            enqueueSnackbar("Tạo ngày nghỉ thất bại", {variant: "error"});
+            const msg = error?.response?.data?.message;
+            enqueueSnackbar(
+                typeof msg === "string" && msg.trim() ? msg.trim() : "Tạo ngày nghỉ thất bại",
+                {variant: "error"}
+            );
         } finally {
             setSubmitting(false);
         }
@@ -677,7 +702,8 @@ export default function SchoolHoliday() {
                             Quản lý ngày nghỉ
                         </Typography>
                         <Typography variant="body2" sx={{mt: 0.5, opacity: 0.95}}>
-                            Thiết lập lịch nghỉ toàn trường và theo từng cơ sở; ảnh hưởng tới lịch tư vấn đã đặt.
+                            Khai báo ngày nghỉ áp dụng cho cả trường hoặc từng địa điểm. Phụ huynh và lịch tư vấn sẽ tự tránh
+                            các ngày này theo mức ảnh hưởng bạn chọn.
                         </Typography>
                     </Box>
                     <Button
@@ -689,6 +715,7 @@ export default function SchoolHoliday() {
                             bgcolor: "#ffffff",
                             color: "#0D64DE",
                             textTransform: "none",
+                            whiteSpace: "nowrap",
                             fontWeight: 600,
                             borderRadius: 2,
                             px: 3,
@@ -834,6 +861,7 @@ export default function SchoolHoliday() {
                                                         mt: 1,
                                                         borderRadius: 2,
                                                         textTransform: "none",
+                                                        whiteSpace: "nowrap",
                                                         fontWeight: 600,
                                                         background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                                                     }}

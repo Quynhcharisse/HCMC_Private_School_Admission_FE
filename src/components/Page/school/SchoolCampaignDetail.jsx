@@ -165,27 +165,39 @@ function getTimelineProgress(startDate, endDate) {
 }
 
 const CAMPAIGN_ERROR_VI = {
-    "No school campus account found": "Không tìm thấy tài khoản cơ sở thuộc trường",
+    "No school campus account found": "Không tìm thấy tài khoản cơ sở trường học",
     "Request is required": "Yêu cầu không được để trống",
-    "Name is required": "Tên chiến dịch là bắt buộc",
-    "Name is too long. Maximum length is 100 characters": "Tên chiến dịch quá dài. Tối đa 100 ký tự",
-    "Description is required": "Mô tả là bắt buộc",
-    "Year is required": "Năm học là bắt buộc",
-    "Cannot create a campaign for a past academic year": "Không thể tạo chiến dịch cho năm học đã qua",
-    "Start date are required": "Ngày bắt đầu là bắt buộc",
-    "End date are required": "Ngày kết thúc là bắt buộc",
+    "Name is required": "Tên chiến dịch không được để trống",
+    "Name is too long. Maximum length is 100 characters": "Tên chiến dịch quá dài. Độ dài tối đa là 100 ký tự",
+    "Description is required": "Mô tả chiến dịch không được để trống",
+    "Year is required": "Năm học không được để trống",
+    "Cannot create a campaign for a past academic year": "Không thể tạo chiến dịch cho một năm học trong quá khứ",
+    "Cannot update a campaign for a past academic year": "Không thể cập nhật chiến dịch cho một năm học trong quá khứ",
+    "Start date are required": "Ngày bắt đầu không được để trống",
+    "End date are required": "Ngày kết thúc không được để trống",
     "Start date and end date are required": "Ngày bắt đầu và ngày kết thúc là bắt buộc",
-    "Start date cannot be in the past":
-        "Ngày bắt đầu không được ở quá khứ (cho phép lùi tối đa 1 ngày so với hôm nay)",
-    "End date must be in the future": "Ngày kết thúc phải từ hôm nay trở đi (không được ở quá khứ)",
-    "End date must be after start date":
-        "Ngày kết thúc phải sau ngày bắt đầu (chiến dịch phải kéo dài ít nhất hơn 1 ngày)",
+    "Start date cannot be in the past": "Ngày bắt đầu không được ở trong quá khứ",
+    "End date must be in the future": "Ngày kết thúc phải ở trong tương lai",
+    "End date must be after start date": "Ngày kết thúc phải sau ngày bắt đầu",
     Forbidden: "Bạn không có quyền thực hiện hành động này",
     "Campaign not found": "Dữ liệu không tồn tại hoặc đã bị xóa",
     "Campaign is not in DRAFT status": "Chiến dịch này đã được công bố hoặc đã đóng",
     "Campaign has expired": "Chiến dịch đã hết hạn, vui lòng cập nhật ngày kết thúc trước khi công bố",
     "Campaign already cancelled": "Chiến dịch này đã hủy trước đó",
     "Campaign already inactive": "Chiến dịch đã không còn hoạt động hoặc đã được hủy trước đó.",
+    // validationUpdateAdmissionCampaignTemplate (BE) — tiếng Việt
+    "Dữ liệu yêu cầu không được để trống": "Dữ liệu yêu cầu không được để trống",
+    "Không tìm thấy tài khoản cơ sở trường học": "Không tìm thấy tài khoản cơ sở trường học",
+    "Tên chiến dịch không được để trống": "Tên chiến dịch không được để trống",
+    "Tên chiến dịch quá dài. Độ dài tối đa là 100 ký tự": "Tên chiến dịch quá dài. Độ dài tối đa là 100 ký tự",
+    "Mô tả chiến dịch không được để trống": "Mô tả chiến dịch không được để trống",
+    "Năm học không được để trống": "Năm học không được để trống",
+    "Không thể cập nhật chiến dịch cho một năm học trong quá khứ": "Không thể cập nhật chiến dịch cho một năm học trong quá khứ",
+    "Ngày bắt đầu không được để trống": "Ngày bắt đầu không được để trống",
+    "Ngày kết thúc không được để trống": "Ngày kết thúc không được để trống",
+    "Ngày bắt đầu không được ở trong quá khứ": "Ngày bắt đầu không được ở trong quá khứ",
+    "Ngày kết thúc phải ở trong tương lai": "Ngày kết thúc phải ở trong tương lai",
+    "Ngày kết thúc phải sau ngày bắt đầu": "Ngày kết thúc phải sau ngày bắt đầu",
 };
 
 function getCampaignErrorMessage(backendMessage, fallback) {
@@ -193,24 +205,41 @@ function getCampaignErrorMessage(backendMessage, fallback) {
     const trimmed = String(backendMessage).trim();
     if (CAMPAIGN_ERROR_VI[trimmed]) return CAMPAIGN_ERROR_VI[trimmed];
 
+    const openConflictVi =
+        /^Năm học (\d+) đã có một chiến dịch đang MỞ \(ID: (\d+)\)\. Không thể có nhiều chiến dịch hoạt động cùng lúc\.$/.exec(
+            trimmed
+        );
+    if (openConflictVi) return trimmed;
+
     const earlyBird =
         /^Start date is too early\. Early bird for (\d+) should start from October (\d+)$/.exec(trimmed);
     if (earlyBird) {
         const [, y, octYear] = earlyBird;
-        return `Ngày bắt đầu quá sớm. Chiến dịch năm ${y} chỉ được bắt đầu sớm nhất từ 01/10/${octYear}.`;
+        return `Ngày bắt đầu quá sớm. Đợt tuyển sinh sớm cho năm ${y} nên bắt đầu từ tháng 10 năm ${octYear}`;
     }
+
+    const earlyBirdVi =
+        /^Ngày bắt đầu quá sớm\. Đợt tuyển sinh sớm cho năm (\d+) nên bắt đầu từ tháng 10 năm (\d+)$/.exec(trimmed);
+    if (earlyBirdVi) return trimmed;
 
     const endInvalid =
         /^End date is invalid\. A campaign for (\d+) must at least last until the end of (\d+)$/.exec(trimmed);
     if (endInvalid) {
         const [, y, untilYear] = endInvalid;
-        return `Ngày kết thúc không hợp lệ. Chiến dịch năm ${y} phải kéo dài ít nhất đến hết ngày 31/12/${untilYear}.`;
+        return `Ngày kết thúc không hợp lệ. Chiến dịch cho năm ${y} phải kéo dài ít nhất đến hết năm ${untilYear}`;
     }
+
+    const endInvalidVi =
+        /^Ngày kết thúc không hợp lệ\. Chiến dịch cho năm (\d+) phải kéo dài ít nhất đến hết năm (\d+)$/.exec(trimmed);
+    if (endInvalidVi) return trimmed;
 
     const endWithin = /^End date must be within the academic year (\d+)$/.exec(trimmed);
     if (endWithin) {
-        return `Ngày kết thúc phải nằm trọn trong năm dương lịch ${endWithin[1]} (theo năm học đã chọn).`;
+        return `Ngày kết thúc phải nằm trong năm học ${endWithin[1]}`;
     }
+
+    const endWithinVi = /^Ngày kết thúc phải nằm trong năm học (\d+)$/.exec(trimmed);
+    if (endWithinVi) return trimmed;
 
     const duplicate = /^A campaign template for the year (\d+) already exists$/.exec(trimmed);
     if (duplicate) {
@@ -226,7 +255,7 @@ function getCampaignErrorMessage(backendMessage, fallback) {
             trimmed
         );
     if (openCampaignConflict) {
-        return `Năm học ${openCampaignConflict[1]} đã có chiến dịch đang mở. Vui lòng đóng chiến dịch đó trước khi công bố chiến dịch mới.`;
+        return `Năm học ${openCampaignConflict[1]} đã có một chiến dịch đang MỞ. Không thể có nhiều chiến dịch hoạt động cùng lúc.`;
     }
 
     return trimmed || fallback;
@@ -248,6 +277,8 @@ export default function SchoolCampaignDetail() {
         endDate: "",
     });
     const [formErrors, setFormErrors] = useState({});
+    /** Chiến dịch khác cùng năm đang OPEN (để đồng bộ validationUpdateAdmissionCampaignTemplate). */
+    const [peerOpenSameYear, setPeerOpenSameYear] = useState(null);
     const [submitLoading, setSubmitLoading] = useState(false);
     const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
     const [cancelFlowOpen, setCancelFlowOpen] = useState(false);
@@ -361,7 +392,37 @@ export default function SchoolCampaignDetail() {
     const handleFormChange = (e) => {
         const { name, value } = e.target;
         setFormValues((prev) => ({ ...prev, [name]: value }));
+        setFormErrors((prev) => ({ ...prev, [name]: undefined }));
     };
+
+    useEffect(() => {
+        let cancelled = false;
+        const yearNum = Number(campaign?.year);
+        const selfId = Number(campaign?.admissionCampaignTemplateId ?? campaign?.id ?? 0);
+        if (!Number.isFinite(yearNum) || yearNum <= 0 || !Number.isFinite(selfId) || selfId <= 0) {
+            setPeerOpenSameYear(null);
+            return;
+        }
+        (async () => {
+            try {
+                const res = await getCampaignTemplatesByYear(yearNum);
+                const raw = res?.data?.body ?? res?.data;
+                const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+                const mapped = list.map(mapTemplate).filter(Boolean);
+                const conflict = mapped.find((c) => {
+                    const cid = Number(c.admissionCampaignTemplateId ?? c.id);
+                    const st = normalizeCampaignStatus(c.status);
+                    return st === "OPEN" && cid !== selfId;
+                });
+                if (!cancelled) setPeerOpenSameYear(conflict || null);
+            } catch {
+                if (!cancelled) setPeerOpenSameYear(null);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [campaign?.year, campaign?.admissionCampaignTemplateId, campaign?.id]);
 
     const validateForm = () => {
         const errors = {};
@@ -371,19 +432,19 @@ export default function SchoolCampaignDetail() {
         const startIso = formValues.startDate?.trim() ?? "";
         const endIso = formValues.endDate?.trim() ?? "";
 
-        if (!name) errors.name = "Tên chiến dịch là bắt buộc";
-        else if (name.length > 100) errors.name = "Tên chiến dịch quá dài. Tối đa 100 ký tự";
+        if (!name) errors.name = "Tên chiến dịch không được để trống";
+        else if (name.length > 100) errors.name = "Tên chiến dịch quá dài. Độ dài tối đa là 100 ký tự";
 
-        if (!descriptionPlain) errors.description = "Mô tả là bắt buộc";
+        if (!descriptionPlain) errors.description = "Mô tả chiến dịch không được để trống";
 
         if (!Number.isFinite(yearNum) || yearNum <= 0) {
-            errors.year = "Năm học là bắt buộc";
+            errors.year = "Năm học không được để trống";
         } else if (yearNum < CURRENT_YEAR) {
-            errors.year = "Không thể tạo chiến dịch cho năm học đã qua";
+            errors.year = "Không thể cập nhật chiến dịch cho một năm học trong quá khứ";
         }
 
-        if (!startIso) errors.startDate = "Ngày bắt đầu là bắt buộc";
-        if (!endIso) errors.endDate = "Ngày kết thúc là bắt buộc";
+        if (!startIso) errors.startDate = "Ngày bắt đầu không được để trống";
+        if (!endIso) errors.endDate = "Ngày kết thúc không được để trống";
 
         const start = parseLocalDate(startIso);
         const end = parseLocalDate(endIso);
@@ -394,30 +455,36 @@ export default function SchoolCampaignDetail() {
         const earliestStartAllowed = addLocalDays(today, -1);
 
         if (start && !errors.startDate && start.getTime() < earliestStartAllowed.getTime()) {
-            errors.startDate = "Ngày bắt đầu không được ở quá khứ (cho phép lùi tối đa 1 ngày so với hôm nay)";
+            errors.startDate = "Ngày bắt đầu không được ở trong quá khứ";
         }
         if (end && !errors.endDate && end.getTime() < today.getTime()) {
-            errors.endDate = "Ngày kết thúc phải từ hôm nay trở đi (không được ở quá khứ)";
+            errors.endDate = "Ngày kết thúc phải ở trong tương lai";
         }
         if (start && end && !errors.startDate && !errors.endDate && end.getTime() <= start.getTime()) {
-            errors.endDate = "Ngày kết thúc phải sau ngày bắt đầu (chiến dịch phải kéo dài ít nhất hơn 1 ngày)";
+            errors.endDate = "Ngày kết thúc phải sau ngày bắt đầu";
         }
 
         if (Number.isFinite(yearNum) && yearNum > 0 && start && !errors.startDate) {
             const oct1Prev = new Date(yearNum - 1, 9, 1);
             if (start.getTime() < oct1Prev.getTime()) {
-                errors.startDate = `Ngày bắt đầu quá sớm. Chiến dịch năm ${yearNum} chỉ được bắt đầu sớm nhất từ 01/10/${yearNum - 1}.`;
+                errors.startDate = `Ngày bắt đầu quá sớm. Đợt tuyển sinh sớm cho năm ${yearNum} nên bắt đầu từ tháng 10 năm ${yearNum - 1}`;
             }
         }
 
         if (Number.isFinite(yearNum) && yearNum > 0 && end && !errors.endDate) {
             const dec31Prev = new Date(yearNum - 1, 11, 31);
             if (end.getTime() < dec31Prev.getTime()) {
-                errors.endDate = `Ngày kết thúc không hợp lệ. Chiến dịch năm ${yearNum} phải kéo dài ít nhất đến hết ngày 31/12/${yearNum - 1}.`;
+                errors.endDate = `Ngày kết thúc không hợp lệ. Chiến dịch cho năm ${yearNum} phải kéo dài ít nhất đến hết năm ${yearNum - 1}`;
             } else if (end.getFullYear() !== yearNum) {
-                errors.endDate = `Ngày kết thúc phải nằm trọn trong năm dương lịch ${yearNum} (theo năm học đã chọn).`;
+                errors.endDate = `Ngày kết thúc phải nằm trong năm học ${yearNum}`;
             }
         }
+
+        if (peerOpenSameYear && Number.isFinite(yearNum) && yearNum > 0 && !errors.year) {
+            const oid = peerOpenSameYear.admissionCampaignTemplateId ?? peerOpenSameYear.id;
+            errors.year = `Năm học ${yearNum} đã có một chiến dịch đang MỞ (ID: ${oid}). Không thể có nhiều chiến dịch hoạt động cùng lúc.`;
+        }
+
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -817,9 +884,10 @@ export default function SchoolCampaignDetail() {
                         <CreatePostRichTextEditor
                             key={descriptionFieldKey}
                             initialHtml={campaignDescriptionToInitialHtml(formValues.description)}
-                            onChange={(html) =>
-                                setFormValues((prev) => ({ ...prev, description: html }))
-                            }
+                            onChange={(html) => {
+                                setFormValues((prev) => ({ ...prev, description: html }));
+                                setFormErrors((prev) => ({ ...prev, description: undefined }));
+                            }}
                             disabled={!isCampaignInfoEditable || submitLoading}
                             minEditorHeight={220}
                             maxEditorHeight={400}

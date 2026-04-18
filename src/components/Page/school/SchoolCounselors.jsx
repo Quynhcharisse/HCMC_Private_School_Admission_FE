@@ -137,27 +137,72 @@ const formatDate = (d) => {
     return date.toLocaleDateString("vi-VN");
 };
 
+/** Khớp `CounsellorValidation.normalize` (BE). */
+function normalizeCounsellorField(value) {
+    if (value == null) return null;
+    const trimmed = String(value).trim();
+    return trimmed.length === 0 ? null : trimmed;
+}
+
+/** Khớp `CounsellorValidation.isValidEmail` (BE). */
+function isValidCounsellorEmail(email) {
+    if (typeof email !== "string" || !email) return false;
+    return /^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/.test(email);
+}
+
+const COUNSELLOR_CREATE_VI = {
+    emailEmpty: "Email không được để trống",
+    emailTooLong: "Email không được vượt quá 100 ký tự",
+    emailInvalid: "Địa chỉ email không hợp lệ",
+    emailRegistered: "Email này đã được đăng ký trên hệ thống.",
+    emailAssignedOther: "Email này đã được chỉ định cho một tư vấn viên khác.",
+    featureLocked:
+        "Tính năng bị khóa: Cơ sở này chưa đăng ký gói dịch vụ hoặc chưa được phân bổ hạn ngạch tư vấn viên.",
+    packageNoCounsellor:
+        "Gói dịch vụ hiện tại không hỗ trợ tạo tư vấn viên. Vui lòng nâng cấp gói dịch vụ của bạn.",
+};
+
 /** Khớp thông báo `CounsellorValidation` (BE) → tiếng Việt cho snackbar. */
 function translateCreateCounsellorBackendMessage(raw) {
     if (raw == null) return null;
     const msg = String(raw).trim();
     if (!msg) return null;
+
+    if (msg === COUNSELLOR_CREATE_VI.emailEmpty) return msg;
+    if (msg === COUNSELLOR_CREATE_VI.emailTooLong) return msg;
+    if (msg === COUNSELLOR_CREATE_VI.emailInvalid) return msg;
+    if (msg === COUNSELLOR_CREATE_VI.emailRegistered) return msg;
+    if (msg === COUNSELLOR_CREATE_VI.emailAssignedOther) return msg;
+    if (msg === COUNSELLOR_CREATE_VI.featureLocked) return msg;
+    if (msg === COUNSELLOR_CREATE_VI.packageNoCounsellor) return msg;
+    if (/^Cơ sở đã đạt giới hạn hạn ngạch tư vấn viên \(\d+\)\.$/.test(msg)) return msg;
+
     const exact = {
-        "Email is required": "Email là bắt buộc",
-        "Email exceeds 100 characters": "Email vượt quá 100 ký tự",
-        "Email is invalid": "Email không hợp lệ",
-        "This email is already registered in the system.": "Email này đã được đăng ký trong hệ thống.",
-        "This email is already assigned to another counsellor.": "Email này đã được gán cho tư vấn viên khác.",
-        "This campus has not been allocated a quota for Counsellors.": "Cơ sở này chưa được phân bổ hạn ngạch cho tư vấn viên.",
+        "Email is required": COUNSELLOR_CREATE_VI.emailEmpty,
+        "Email exceeds 100 characters": COUNSELLOR_CREATE_VI.emailTooLong,
+        "Email is invalid": COUNSELLOR_CREATE_VI.emailInvalid,
+        "This email is already registered in the system.": COUNSELLOR_CREATE_VI.emailRegistered,
+        "This email is already assigned to another counsellor.": COUNSELLOR_CREATE_VI.emailAssignedOther,
+        "This campus has not been allocated a quota for Counsellors.": COUNSELLOR_CREATE_VI.featureLocked,
         "Feature Locked: This campus has not subscribed to a service package or has not been allocated a counsellor quota.":
-            "Tính năng bị khóa: Cơ sở này chưa đăng ký gói dịch vụ hoặc chưa được cấp hạn ngạch tư vấn viên.",
+            COUNSELLOR_CREATE_VI.featureLocked,
         "Current service package does not support counsellor creation. Please upgrade your package.":
-            "Gói dịch vụ hiện tại chưa hỗ trợ tạo tư vấn viên. Vui lòng nâng cấp gói.",
+            COUNSELLOR_CREATE_VI.packageNoCounsellor,
+        "Email là bắt buộc": COUNSELLOR_CREATE_VI.emailEmpty,
+        "Email vượt quá 100 ký tự": COUNSELLOR_CREATE_VI.emailTooLong,
+        "Email không hợp lệ": COUNSELLOR_CREATE_VI.emailInvalid,
+        "Email này đã được đăng ký trong hệ thống.": COUNSELLOR_CREATE_VI.emailRegistered,
+        "Email này đã được gán cho tư vấn viên khác.": COUNSELLOR_CREATE_VI.emailAssignedOther,
+        "Cơ sở này chưa được phân bổ hạn ngạch cho tư vấn viên.": COUNSELLOR_CREATE_VI.featureLocked,
+        "Tính năng bị khóa: Cơ sở này chưa đăng ký gói dịch vụ hoặc chưa được cấp hạn ngạch tư vấn viên.":
+            COUNSELLOR_CREATE_VI.featureLocked,
+        "Gói dịch vụ hiện tại chưa hỗ trợ tạo tư vấn viên. Vui lòng nâng cấp gói.": COUNSELLOR_CREATE_VI.packageNoCounsellor,
     };
     if (exact[msg]) return exact[msg];
-    const quotaReached = msg.match(/^The counsellor quota for this campus has been reached \((\d+)\)\.?$/i);
-    if (quotaReached) {
-        return `Đã đạt hạn ngạch tư vấn viên của cơ sở này (${quotaReached[1]}).`;
+
+    const quotaReachedEn = msg.match(/^The counsellor quota for this campus has been reached \((\d+)\)\.?$/i);
+    if (quotaReachedEn) {
+        return `Cơ sở đã đạt giới hạn hạn ngạch tư vấn viên (${quotaReachedEn[1]}).`;
     }
     return msg;
 }
@@ -257,6 +302,14 @@ export default function SchoolCounselors() {
     const handleChange = (e) => {
         const {name, value} = e.target;
         setFormValues((prev) => ({...prev, [name]: value}));
+        if (name === "email") {
+            setFormErrors((prev) => {
+                if (!prev.email) return prev;
+                const next = {...prev};
+                delete next.email;
+                return next;
+            });
+        }
     };
 
     const handleStatusToggle = (e) => {
@@ -283,7 +336,42 @@ export default function SchoolCounselors() {
 
     const validateCreate = () => {
         const errors = {};
-        if (!formValues.email?.trim()) errors.email = "Email là bắt buộc";
+        const emailNorm = normalizeCounsellorField(formValues.email);
+
+        if (!emailNorm) {
+            errors.email = COUNSELLOR_CREATE_VI.emailEmpty;
+        } else if (emailNorm.length > 100) {
+            errors.email = COUNSELLOR_CREATE_VI.emailTooLong;
+        } else if (!isValidCounsellorEmail(emailNorm)) {
+            errors.email = COUNSELLOR_CREATE_VI.emailInvalid;
+        } else {
+            const dupOnPage = counselors.some(
+                (c) =>
+                    c.email &&
+                    c.email.trim().toLowerCase() === emailNorm.toLowerCase()
+            );
+            if (dupOnPage) {
+                errors.email = COUNSELLOR_CREATE_VI.emailAssignedOther;
+            }
+        }
+
+        if (!errors.email) {
+            const maxQ = Number(maxQuota);
+            const usage = Number(currentUsage);
+            const maxOk = Number.isFinite(maxQ) && maxQ > 0;
+            const usageOk = Number.isFinite(usage);
+
+            if (!canCreate) {
+                const dm =
+                    typeof displayMessage === "string" ? displayMessage.trim() : "";
+                errors.email = dm || COUNSELLOR_CREATE_VI.featureLocked;
+            } else if (maxOk && usageOk && usage >= maxQ) {
+                errors.email = `Cơ sở đã đạt giới hạn hạn ngạch tư vấn viên (${maxQ}).`;
+            } else if (Number.isFinite(maxQ) && maxQ <= 0) {
+                errors.email = COUNSELLOR_CREATE_VI.packageNoCounsellor;
+            }
+        }
+
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -306,8 +394,9 @@ export default function SchoolCounselors() {
         if (!validateCreate()) return;
         setCreateSubmitting(true);
         try {
+            const emailPayload = normalizeCounsellorField(formValues.email) || "";
             const res = await createCounsellor({
-                email: formValues.email.trim(),
+                email: emailPayload,
                 avatar: formValues.avatar?.trim() || "",
             });
             const dto = res?.data?.body;
@@ -316,7 +405,7 @@ export default function SchoolCounselors() {
                 await loadCounsellors();
 
                 const mapped = dto ? mapCounsellorFromApi(dto) : null;
-                const emailAddr = mapped?.email || formValues.email.trim();
+                const emailAddr = mapped?.email || emailPayload;
                 const displayName =
                     (mapped?.fullName && mapped.fullName.trim()) ||
                     emailAddr.split("@")[0] ||
