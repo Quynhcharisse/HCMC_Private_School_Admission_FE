@@ -10,7 +10,6 @@ import {
     Chip,
     CircularProgress,
     FormControl,
-    Grid,
     IconButton,
     InputAdornment,
     Link,
@@ -23,12 +22,20 @@ import {
     Select,
     Stack,
     Tab,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
     Tabs,
     TextField,
     Tooltip,
     Typography,
 } from "@mui/material";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import AddIcon from "@mui/icons-material/Add";
+import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
@@ -36,11 +43,13 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { BarChart } from "@mui/x-charts/BarChart";
 import { getSystemConfig, updateSystemConfig } from "../../../services/SystemConfigService.jsx";
 import { enqueueSnackbar } from "notistack";
+import { sanitizeAdmissionSettingsForApi } from "../../../utils/admissionSettingsShared.js";
 
 export default function AdminPlatformSettings() {
     const tabs = useMemo(
         () => [
             { label: "Cài đặt Doanh nghiệp", key: "business" },
+            { label: "Tuyển sinh (mẫu chung)", key: "admission" },
             { label: "Cài đặt Phương tiện", key: "media" },
             { label: "Cài đặt Hạn mức Tuyển sinh", key: "limits" },
             { label: "Cài đặt Chính sách Đăng ký", key: "policies" },
@@ -105,6 +114,13 @@ export default function AdminPlatformSettings() {
     const [selectedQuotaYear, setSelectedQuotaYear] = useState("");
     const [quotaForm, setQuotaForm] = useState({ sourceUrl: "" });
     const [quotaErrors, setQuotaErrors] = useState({});
+
+    const [admissionTemplateForm, setAdmissionTemplateForm] = useState({
+        allowedMethods: [],
+        autoCloseOnFull: true,
+        quotaAlertThresholdPercent: 90,
+    });
+    const [admissionTemplateEditing, setAdmissionTemplateEditing] = useState(false);
 
     const [mediaFormatsTab, setMediaFormatsTab] = useState(0);
     const [imgFormatsDraft, setImgFormatsDraft] = useState([]);
@@ -318,6 +334,27 @@ export default function AdminPlatformSettings() {
         return errors;
     };
 
+    const getAdmissionInitialForm = (cfg) => {
+        const adm = cfg?.admissionSettingsData;
+        if (!adm || typeof adm !== "object") {
+            return { allowedMethods: [], autoCloseOnFull: true, quotaAlertThresholdPercent: 90 };
+        }
+        return {
+            allowedMethods: Array.isArray(adm.allowedMethods)
+                ? adm.allowedMethods.map((m) => ({
+                      code: m?.code != null ? String(m.code) : "",
+                      displayName: m?.displayName != null ? String(m.displayName) : "",
+                      description: m?.description != null ? String(m.description) : "",
+                  }))
+                : [],
+            autoCloseOnFull: typeof adm.autoCloseOnFull === "boolean" ? adm.autoCloseOnFull : true,
+            quotaAlertThresholdPercent:
+                adm.quotaAlertThresholdPercent != null && !Number.isNaN(Number(adm.quotaAlertThresholdPercent))
+                    ? Number(adm.quotaAlertThresholdPercent)
+                    : 90,
+        };
+    };
+
     const fetchConfig = async () => {
         setLoadingConfig(true);
         try {
@@ -395,6 +432,10 @@ export default function AdminPlatformSettings() {
         setMediaEditing(false);
         setReportEditing(false);
         setQuotaEditing(false);
+
+        const admInit = getAdmissionInitialForm(configBody);
+        setAdmissionTemplateForm(admInit);
+        setAdmissionTemplateEditing(false);
     }, [configBody]);
 
     useEffect(() => {
@@ -402,6 +443,7 @@ export default function AdminPlatformSettings() {
         if (activeTabKey !== "policies") setSubscriptionEditing(false);
         if (activeTabKey !== "media") setMediaEditing(false);
         if (activeTabKey !== "limits") setQuotaEditing(false);
+        if (activeTabKey !== "admission") setAdmissionTemplateEditing(false);
     }, [activeTabKey]);
 
     const cancelBusiness = () => {
@@ -889,6 +931,347 @@ export default function AdminPlatformSettings() {
             setSaving(false);
         }
         return ok;
+    };
+
+    const cancelAdmissionTemplate = () => {
+        if (!configBody) return;
+        setAdmissionTemplateForm(getAdmissionInitialForm(configBody));
+        setStatus({ type: "", message: "" });
+    };
+
+    const saveAdmissionTemplate = async () => {
+        if (!configBody) return;
+        const pct = Number(admissionTemplateForm.quotaAlertThresholdPercent ?? 0);
+        if (Number.isNaN(pct) || pct < 0 || pct > 100) {
+            enqueueSnackbar("Ngưỡng cảnh báo phải từ 0 đến 100.", { variant: "error" });
+            return;
+        }
+        setSaving(true);
+        setStatus({ type: "", message: "" });
+        try {
+            const sanitized = sanitizeAdmissionSettingsForApi(admissionTemplateForm);
+            await updateSystemConfig({ admissionSettingsData: sanitized });
+            enqueueSnackbar(
+                "Đã cập nhật mẫu phương thức. Các trường đang dùng bản riêng không tự đổi.",
+                { variant: "success" }
+            );
+            setStatus({ type: "success", message: "Mẫu hệ thống đã lưu." });
+            await fetchConfig();
+            setAdmissionTemplateEditing(false);
+        } catch (e) {
+            console.error("saveAdmissionTemplate failed", e);
+            const msg = e?.response?.data?.message || "Cập nhật thất bại. Vui lòng thử lại.";
+            enqueueSnackbar(msg, { variant: "error" });
+            setStatus({ type: "error", message: msg });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const renderAdmissionTab = () => {
+        const rowDisabled = !admissionTemplateEditing || saving;
+        const methods = admissionTemplateForm.allowedMethods || [];
+        const methodCount = methods.filter((m) => String(m?.code ?? "").trim()).length;
+
+        return (
+            <Stack spacing={2.5} sx={{ width: "100%" }}>
+                <Paper
+                    elevation={0}
+                    sx={{
+                        p: { xs: 2, sm: 2.5 },
+                        borderRadius: 2.5,
+                        border: "1px solid",
+                        borderColor: "divider",
+                        background: (theme) =>
+                            `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.06)} 0%, ${alpha(theme.palette.primary.main, 0.02)} 45%, #fff 100%)`,
+                    }}
+                >
+                    <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "flex-start" }} justifyContent="space-between">
+                        <Stack direction="row" spacing={1.75} alignItems="flex-start">
+                            <Box
+                                sx={{
+                                    width: 44,
+                                    height: 44,
+                                    borderRadius: 2,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.12),
+                                    color: "primary.main",
+                                    flexShrink: 0,
+                                }}
+                            >
+                                <AssignmentOutlinedIcon sx={{ fontSize: 26 }} />
+                            </Box>
+                            <Box sx={{ minWidth: 0 }}>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#0f172a", lineHeight: 1.35 }}>
+                                    Mẫu phương thức tuyển sinh
+                                </Typography>
+                                <Typography variant="body2" sx={{ color: "#64748b", mt: 0.75, maxWidth: 720 }}>
+                                    Định nghĩa danh mục mặc định toàn hệ thống. Trường có thể lấy mẫu này khi cấu hình; mỗi trường vẫn có thể lưu bản riêng sau khi chỉnh.
+                                </Typography>
+                            </Box>
+                        </Stack>
+                        <Chip
+                            size="small"
+                            label={`${methodCount} mã hợp lệ`}
+                            color="primary"
+                            variant="outlined"
+                            sx={{ fontWeight: 700, alignSelf: { xs: "flex-start", sm: "center" } }}
+                        />
+                    </Stack>
+                </Paper>
+
+                <Alert severity="info" variant="outlined" icon={false} sx={{ borderRadius: 2, bgcolor: "rgba(37, 99, 235, 0.04)", borderColor: "rgba(37, 99, 235, 0.22)" }}>
+                    <Typography variant="body2" sx={{ color: "#334155", fontWeight: 600 }}>
+                        Gợi ý cho quản trị
+                    </Typography>
+                    <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5 }}>
+                        <strong>Mã (code)</strong> là khóa tham chiếu (hồ sơ, quy trình). Giữ mã ổn định; chỉnh tên/mô tả an toàn hơn là đổi mã khi đã có trường áp dụng.
+                    </Typography>
+                </Alert>
+
+                <Paper
+                    elevation={0}
+                    sx={{
+                        borderRadius: 2.5,
+                        border: "1px solid",
+                        borderColor: "divider",
+                        overflow: "hidden",
+                    }}
+                >
+                    <Box
+                        sx={{
+                            px: 2,
+                            py: 1.25,
+                            borderBottom: "1px solid",
+                            borderColor: "divider",
+                            bgcolor: "rgba(248, 250, 252, 0.95)",
+                        }}
+                    >
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#0f172a" }}>
+                            Danh sách phương thức
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: "#64748b", display: "block", mt: 0.25 }}>
+                            Mỗi dòng: mã duy nhất (không dấu cách thừa), tên hiển thị và mô tả ngắn. Gõ trực tiếp trong ô — không cần phím Enter; sau khi sửa nhấn <strong>Lưu mẫu</strong> (ngay dưới bảng hoặc cuối tab).
+                        </Typography>
+                    </Box>
+                    <TableContainer sx={{ maxWidth: "100%" }}>
+                        <Table size="small" sx={{ minWidth: 800, tableLayout: "fixed" }}>
+                            <TableHead>
+                                <TableRow sx={{ bgcolor: "rgba(241, 245, 249, 0.85)" }}>
+                                    <TableCell sx={{ fontWeight: 800, color: "#334155", width: "28%", minWidth: 220, py: 1.25 }}>
+                                        Mã (code)
+                                    </TableCell>
+                                    <TableCell sx={{ fontWeight: 800, color: "#334155", width: "28%", minWidth: 180, py: 1.25 }}>
+                                        Tên hiển thị
+                                    </TableCell>
+                                    <TableCell sx={{ fontWeight: 800, color: "#334155", py: 1.25 }}>Mô tả</TableCell>
+                                    <TableCell align="center" sx={{ width: 52, py: 1.25 }} />
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {methods.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={4} sx={{ py: 4, textAlign: "center", border: 0 }}>
+                                            <Typography variant="body2" color="text.secondary">
+                                                Chưa có phương thức. Nhấn <strong>Thêm phương thức</strong> bên dưới để tạo dòng đầu tiên trong mẫu hệ thống.
+                                            </Typography>
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    methods.map((row, idx) => (
+                                        <TableRow
+                                            key={`adm-${idx}-${row.code ?? "row"}`}
+                                            hover
+                                            sx={{ "&:nth-of-type(even)": { bgcolor: "rgba(248, 250, 252, 0.5)" } }}
+                                        >
+                                            <TableCell sx={{ verticalAlign: "top", pt: 1.5, pb: 1.5, minWidth: 220 }}>
+                                                <TextField
+                                                    size="small"
+                                                    fullWidth
+                                                    placeholder="VD: HOC_BA"
+                                                    value={row.code}
+                                                    disabled={rowDisabled}
+                                                    onChange={(e) => {
+                                                        const v = e.target.value;
+                                                        setAdmissionTemplateForm((p) => {
+                                                            const next = [...(p.allowedMethods || [])];
+                                                            next[idx] = { ...next[idx], code: v };
+                                                            return { ...p, allowedMethods: next };
+                                                        });
+                                                    }}
+                                                    onBlur={() => {
+                                                        setAdmissionTemplateForm((p) => {
+                                                            const next = [...(p.allowedMethods || [])];
+                                                            const cur = next[idx];
+                                                            if (!cur) return p;
+                                                            const trimmed = String(cur.code ?? "").trim();
+                                                            if (trimmed === cur.code) return p;
+                                                            next[idx] = { ...cur, code: trimmed };
+                                                            return { ...p, allowedMethods: next };
+                                                        });
+                                                    }}
+                                                    inputProps={{
+                                                        spellCheck: false,
+                                                        autoComplete: "off",
+                                                        autoCapitalize: "off",
+                                                        "aria-label": "Mã phương thức",
+                                                    }}
+                                                    sx={{
+                                                        minWidth: 0,
+                                                        "& .MuiInputBase-root": { py: 0.25 },
+                                                        "& .MuiInputBase-input": {
+                                                            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                                                            fontSize: "0.9375rem",
+                                                            letterSpacing: "0.02em",
+                                                            py: 1,
+                                                        },
+                                                    }}
+                                                />
+                                            </TableCell>
+                                            <TableCell sx={{ verticalAlign: "top", pt: 1.5, pb: 1.5 }}>
+                                                <TextField
+                                                    size="small"
+                                                    fullWidth
+                                                    placeholder="Tên trên giao diện"
+                                                    value={row.displayName}
+                                                    disabled={rowDisabled}
+                                                    onChange={(e) => {
+                                                        const v = e.target.value;
+                                                        setAdmissionTemplateForm((p) => {
+                                                            const next = [...(p.allowedMethods || [])];
+                                                            next[idx] = { ...next[idx], displayName: v };
+                                                            return { ...p, allowedMethods: next };
+                                                        });
+                                                    }}
+                                                />
+                                            </TableCell>
+                                            <TableCell sx={{ verticalAlign: "top", pt: 1.5, pb: 1.5 }}>
+                                                <TextField
+                                                    size="small"
+                                                    fullWidth
+                                                    multiline
+                                                    minRows={2}
+                                                    placeholder="Mô tả ngắn cho tư vấn / trường"
+                                                    value={row.description}
+                                                    disabled={rowDisabled}
+                                                    onChange={(e) => {
+                                                        const v = e.target.value;
+                                                        setAdmissionTemplateForm((p) => {
+                                                            const next = [...(p.allowedMethods || [])];
+                                                            next[idx] = { ...next[idx], description: v };
+                                                            return { ...p, allowedMethods: next };
+                                                        });
+                                                    }}
+                                                />
+                                            </TableCell>
+                                            <TableCell align="center" sx={{ verticalAlign: "top", pt: 1.25 }}>
+                                                <Tooltip title="Xóa dòng" placement="left">
+                                                    <span>
+                                                        <IconButton
+                                                            size="small"
+                                                            color="error"
+                                                            disabled={rowDisabled}
+                                                            aria-label="Xóa dòng"
+                                                            onClick={() =>
+                                                                setAdmissionTemplateForm((p) => {
+                                                                    const next = [...(p.allowedMethods || [])];
+                                                                    next.splice(idx, 1);
+                                                                    return { ...p, allowedMethods: next };
+                                                                })
+                                                            }
+                                                        >
+                                                            <DeleteOutlineIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </span>
+                                                </Tooltip>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+                    <Box
+                        sx={{
+                            px: 2,
+                            py: 1.5,
+                            borderTop: "1px solid",
+                            borderColor: "divider",
+                            bgcolor: "rgba(248, 250, 252, 0.6)",
+                            display: "flex",
+                            justifyContent: "flex-start",
+                        }}
+                    >
+                        <Button
+                            variant="contained"
+                            size="medium"
+                            startIcon={<AddIcon />}
+                            disabled={rowDisabled}
+                            onClick={() =>
+                                setAdmissionTemplateForm((p) => ({
+                                    ...p,
+                                    allowedMethods: [...(p.allowedMethods || []), { code: "", displayName: "", description: "" }],
+                                }))
+                            }
+                            sx={{
+                                textTransform: "none",
+                                fontWeight: 700,
+                                borderRadius: 2,
+                                boxShadow: "none",
+                                bgcolor: "#2563eb",
+                                "&:hover": { boxShadow: "0 4px 14px rgba(37, 99, 235, 0.28)", bgcolor: "#1d4ed8" },
+                            }}
+                        >
+                            Thêm phương thức
+                        </Button>
+                    </Box>
+                </Paper>
+
+                {admissionTemplateEditing ? (
+                    <Paper
+                        elevation={0}
+                        variant="outlined"
+                        sx={{
+                            p: 2,
+                            borderRadius: 2,
+                            borderColor: "rgba(37, 99, 235, 0.28)",
+                            bgcolor: "rgba(37, 99, 235, 0.04)",
+                        }}
+                    >
+                        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }} justifyContent="space-between">
+                            <Typography variant="body2" sx={{ color: "#334155", maxWidth: 640 }}>
+                                Thay đổi trong bảng chỉ lưu trên trình duyệt cho đến khi bạn nhấn{" "}
+                                <strong>Lưu mẫu</strong> hoặc <strong>Lưu</strong> — không có nút «nộp» từng ô mã.
+                            </Typography>
+                            <Stack direction="row" spacing={1} flexShrink={0}>
+                                <Button
+                                    variant="outlined"
+                                    disabled={saving}
+                                    onClick={() => {
+                                        cancelAdmissionTemplate();
+                                        setAdmissionTemplateEditing(false);
+                                    }}
+                                    sx={cancelButtonSx}
+                                >
+                                    Hủy
+                                </Button>
+                                <Button
+                                    variant="contained"
+                                    disabled={saving}
+                                    onClick={() => void saveAdmissionTemplate()}
+                                    sx={saveButtonSx}
+                                >
+                                    Lưu mẫu
+                                </Button>
+                            </Stack>
+                        </Stack>
+                    </Paper>
+                ) : null}
+
+            </Stack>
+        );
     };
 
     const renderBusinessTab = () => (
@@ -2317,9 +2700,47 @@ export default function AdminPlatformSettings() {
                     ) : (
                         <>
                             {activeTabKey === "business" ? renderBusinessTab() : null}
+                            {activeTabKey === "admission" ? renderAdmissionTab() : null}
                             {activeTabKey === "media" ? renderMediaTab() : null}
                             {activeTabKey === "limits" ? renderLimitsTab() : null}
                             {activeTabKey === "policies" ? renderSubscriptionTab() : null}
+
+                            {activeTabKey === "admission" ? (
+                                <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
+                                    {admissionTemplateEditing ? (
+                                        <>
+                                            <Button
+                                                variant="outlined"
+                                                onClick={() => {
+                                                    cancelAdmissionTemplate();
+                                                    setAdmissionTemplateEditing(false);
+                                                }}
+                                                disabled={saving}
+                                                sx={cancelButtonSx}
+                                            >
+                                                Hủy
+                                            </Button>
+                                            <Button
+                                                variant="contained"
+                                                disabled={saving}
+                                                onClick={() => void saveAdmissionTemplate()}
+                                                sx={saveButtonSx}
+                                            >
+                                                Lưu
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <Button
+                                            variant="outlined"
+                                            onClick={() => setAdmissionTemplateEditing(true)}
+                                            disabled={saving}
+                                            sx={cancelButtonSx}
+                                        >
+                                            Chỉnh sửa
+                                        </Button>
+                                    )}
+                                </Box>
+                            ) : null}
 
                             {activeTabKey === "business" ? (
                                 <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
@@ -2380,6 +2801,12 @@ export default function AdminPlatformSettings() {
                             ) : null}
 
                             {activeTabKey === "business" && status.message ? (
+                                <Alert severity={status.type || "success"} sx={{ mt: 2 }}>
+                                    {status.message}
+                                </Alert>
+                            ) : null}
+
+                            {activeTabKey === "admission" && status.message ? (
                                 <Alert severity={status.type || "success"} sx={{ mt: 2 }}>
                                     {status.message}
                                 </Alert>

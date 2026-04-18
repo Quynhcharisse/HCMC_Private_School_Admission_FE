@@ -1,6 +1,224 @@
 import axiosClient from "../configs/APIConfig.jsx";
+import { parseSchoolConfigResponseBody } from "./SchoolFacilityService.jsx";
+import { resolveSchoolWideWorkingConfigDisplay } from "../utils/schoolWideWorkingConfig.js";
+import { isAcademicCalendarLimitActive, normalizeAcademicCalendarShape } from "../utils/academicCalendarUi.js";
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
+
+/**
+ * Chuẩn hoá giờ gửi BE (`LocalTime.parse`): `HH:mm` (bỏ giây nếu có).
+ * @param {string | null | undefined} t
+ * @returns {string}
+ */
+export function normalizeScheduleTimeHHmm(t) {
+  const s = String(t ?? "").trim();
+  if (!s) return "";
+  const parts = s.split(":");
+  const h = parseInt(parts[0], 10);
+  const m = parseInt(parts[1] ?? "0", 10);
+  if (Number.isNaN(h) || Number.isNaN(m)) return s;
+  const hh = String(Math.min(23, Math.max(0, h))).padStart(2, "0");
+  const mm = String(Math.min(59, Math.max(0, m))).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
+/**
+ * Ràng buộc form khung lịch từ GET /campus/config (`campusCurrent` + `hqDefault.operation`).
+ * @returns {{
+ *   slotDurationMinutes: number,
+ *   bufferBetweenSlotsMinutes: number,
+ *   stepMinutes: number,
+ *   minCounsellorsPerSlot: number,
+ *   maxCounsellorsPerSlot: number,
+ *   maxBookingPerSlot: number,
+ *   workShifts: Array<Record<string, unknown>>,
+ *   regularDays: string[],
+ *   workingNote: string,
+ *   academicCalendar: { term1: { start: string, end: string }, term2: { start: string, end: string } },
+ *   academicSemesterLimitActive: boolean
+ * }}
+ */
+export function parseCampusSchedulePolicyFromConfigResponse(res) {
+  const body = parseSchoolConfigResponseBody(res);
+  const cur = body.campusCurrent ?? body.campus_current ?? {};
+  const hq = body.hqDefault ?? body.hq_default ?? {};
+  const hqOp = hq.operation && typeof hq.operation === "object" ? hq.operation : {};
+
+  const pol =
+    cur.policyDetail && typeof cur.policyDetail === "object"
+      ? cur.policyDetail
+      : cur.policy_detail && typeof cur.policy_detail === "object"
+        ? cur.policy_detail
+        : {};
+
+  /** BE có thể đặt slot ở `hqDefault.operation.policyDetail` thay vì thẳng trên operation. */
+  const hqPol =
+    hqOp.policyDetail && typeof hqOp.policyDetail === "object"
+      ? hqOp.policyDetail
+      : hqOp.policy_detail && typeof hqOp.policy_detail === "object"
+        ? hqOp.policy_detail
+        : {};
+
+  const slotRaw =
+    pol.slotDurationInMinutes ??
+    pol.slot_duration_in_minutes ??
+    hqPol.slotDurationInMinutes ??
+    hqPol.slot_duration_in_minutes ??
+    cur.slotDurationInMinutes ??
+    cur.slot_duration_in_minutes ??
+    hqOp.slotDurationInMinutes ??
+    hqOp.slot_duration_in_minutes;
+  const slotDurationMinutes = Number(slotRaw);
+  const slot = Number.isFinite(slotDurationMinutes) && slotDurationMinutes > 0 ? slotDurationMinutes : 0;
+
+  const bufferRaw =
+    pol.bufferBetweenSlotsMinutes ??
+    pol.buffer_between_slots_minutes ??
+    hqPol.bufferBetweenSlotsMinutes ??
+    hqPol.buffer_between_slots_minutes ??
+    cur.bufferBetweenSlotsMinutes ??
+    cur.buffer_between_slots_minutes ??
+    hqOp.bufferBetweenSlotsMinutes ??
+    hqOp.buffer_between_slots_minutes;
+  const bufN = Number(bufferRaw);
+  const bufferBetweenSlotsMinutes =
+    Number.isFinite(bufN) && bufN >= 0 ? Math.floor(bufN) : 0;
+  const stepMinutes = slot > 0 ? slot + bufferBetweenSlotsMinutes : 0;
+
+  const minTvRaw =
+    pol.minCounsellorPerSlot ??
+    pol.min_counsellor_per_slot ??
+    hqPol.minCounsellorPerSlot ??
+    hqPol.min_counsellor_per_slot ??
+    cur.minCounsellorPerSlot ??
+    cur.min_counsellor_per_slot ??
+    hqOp.minCounsellorPerSlot ??
+    hqOp.min_counsellor_per_slot;
+  const minN = Number(minTvRaw);
+  const minCounsellorsPerSlot =
+    Number.isFinite(minN) && minN >= 0 ? Math.floor(minN) : 1;
+
+  const maxTvRaw =
+    pol.maxCounsellorsPerSlot ??
+    pol.max_counsellors_per_slot ??
+    hqPol.maxCounsellorsPerSlot ??
+    hqPol.max_counsellors_per_slot ??
+    cur.maxCounsellorsPerSlot ??
+    cur.max_counsellors_per_slot ??
+    hqOp.maxCounsellorsPerSlot ??
+    hqOp.max_counsellors_per_slot;
+  const mxN = Number(maxTvRaw);
+  const maxCounsellorsPerSlot =
+    maxTvRaw == null || maxTvRaw === "" || Number.isNaN(mxN)
+      ? 0
+      : Math.max(0, Math.floor(mxN));
+
+  const maxBookRaw =
+    pol.maxBookingPerSlot ??
+    pol.max_booking_per_slot ??
+    hqPol.maxBookingPerSlot ??
+    hqPol.max_booking_per_slot ??
+    cur.maxBookingPerSlot ??
+    cur.max_booking_per_slot ??
+    hqOp.maxBookingPerSlot ??
+    hqOp.max_booking_per_slot;
+  const bookN = Number(maxBookRaw);
+  const maxBookingPerSlot =
+    maxBookRaw == null || maxBookRaw === "" || Number.isNaN(bookN)
+      ? 1
+      : Math.max(0, Math.floor(bookN));
+
+  const wc = resolveSchoolWideWorkingConfigDisplay(hqOp, cur);
+
+  const shiftsRaw = wc.workShifts ?? wc.work_shifts;
+  const workShifts = Array.isArray(shiftsRaw) ? shiftsRaw : [];
+
+  const rdRaw = wc.regularDays ?? wc.regular_days;
+  const regularDays = Array.isArray(rdRaw)
+    ? rdRaw.map((d) => String(d || "").toUpperCase()).filter((d) => DAYS.includes(d))
+    : [];
+
+  const workingNote =
+    wc.note != null && String(wc.note).trim() !== ""
+      ? String(wc.note).trim()
+      : wc.working_note != null && String(wc.working_note).trim() !== ""
+        ? String(wc.working_note).trim()
+        : "";
+
+  const rawHqCal = hqOp.academicCalendar ?? hqOp.academic_calendar;
+  const rawCurCal = cur.academicCalendar ?? cur.academic_calendar;
+  const nHq = normalizeAcademicCalendarShape(rawHqCal);
+  const nCur = normalizeAcademicCalendarShape(rawCurCal);
+  /** Trụ sở trước; nếu chưa «siết» thì dùng bản trên campus (nếu có). */
+  const academicCalendar = isAcademicCalendarLimitActive(nHq)
+    ? nHq
+    : isAcademicCalendarLimitActive(nCur)
+      ? nCur
+      : nHq;
+  const academicSemesterLimitActive = isAcademicCalendarLimitActive(academicCalendar);
+
+  return {
+    slotDurationMinutes: slot,
+    bufferBetweenSlotsMinutes,
+    stepMinutes,
+    minCounsellorsPerSlot,
+    maxCounsellorsPerSlot,
+    maxBookingPerSlot,
+    workShifts,
+    regularDays,
+    workingNote,
+    academicCalendar,
+    academicSemesterLimitActive,
+  };
+}
+
+/**
+ * POST /api/v1/campus/schedule/templete — body chuẩn contract:
+ * - Tạo mới: không gửi `templateId` (hoặc null); có thể gửi `expandToPolicySlots: true`.
+ * - Sửa: `templateId` > 0, `dayOfWeek` một phần tử.
+ * - `campusId` giữ khi có (một số triển khai BE vẫn nhận).
+ * @param {{
+ *   templateId?: number | null,
+ *   campusId?: number | null,
+ *   dayOfWeek: string[],
+ *   sessionType: string,
+ *   active?: boolean,
+ *   expandToPolicySlots?: boolean
+ * }} input
+ * @returns {Record<string, unknown>}
+ */
+export function buildUpsertCampusScheduleTemplatePayload(input) {
+  const {templateId, campusId, dayOfWeek, sessionType, active, expandToPolicySlots} = input || {};
+
+  /** @type {Record<string, unknown>} */
+  const payload = {
+    dayOfWeek: Array.isArray(dayOfWeek) ? dayOfWeek.map((d) => String(d || "").toUpperCase()) : [],
+    sessionType: String(sessionType || "").trim().toUpperCase(),
+  };
+
+  if (campusId != null && campusId !== "" && !Number.isNaN(Number(campusId))) {
+    payload.campusId = Number(campusId);
+  }
+
+  const tid = Number(templateId);
+  const isUpdate = Number.isFinite(tid) && tid > 0;
+  if (isUpdate) {
+    payload.templateId = tid;
+  }
+
+  if (active === false) {
+    payload.active = false;
+  }
+
+  if (!isUpdate && expandToPolicySlots === true) {
+    payload.expandToPolicySlots = true;
+  }
+
+  Object.keys(payload).forEach((k) => {
+    if (payload[k] === undefined || payload[k] === "") delete payload[k];
+  });
+  return payload;
+}
 
 /**
  * Chuẩn hoá map thứ trong tuần → mảng template (GET campus list).
@@ -38,16 +256,9 @@ export function parseCampusScheduleTemplateListBody(res) {
 
 /**
  * POST /api/v1/campus/schedule/templete (UPSERT)
- * Create: templateId = 0; Update: templateId = id từ GET list.
- * @param {{
- *   templateId: number,
- *   campusId: number,
- *   dayOfWeek: string[],
- *   startTime: string,
- *   endTime: string,
- *   sessionType: string,
- *   active?: boolean
- * }} payload
+ * Tạo mới: không gửi `templateId` trong body (dùng {@link buildUpsertCampusScheduleTemplatePayload}).
+ * Sửa / vô hiệu: `templateId` > 0; `expandToPolicySlots` chỉ khi tạo mới.
+ * @param {Record<string, unknown>} payload
  */
 export const upsertCampusScheduleTemplate = async (payload) => {
   const response = await axiosClient.post("/campus/schedule/templete", payload);
