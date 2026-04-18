@@ -37,7 +37,7 @@ import {useNavigate} from "react-router-dom";
 
 import {enqueueSnackbar} from "notistack";
 import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
-import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
+import ConfirmDialog, {ConfirmHighlight} from "../../ui/ConfirmDialog.jsx";
 import CreatePostRichTextEditor from "../../ui/CreatePostRichTextEditor.jsx";
 
 const MAX_OVERVIEW_CHARS = 500;
@@ -934,7 +934,11 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
       <ConfirmDialog
         open={confirmDeleteFacilityOpen}
         title="Xoá cơ sở vật chất?"
-        description="Thao tác này sẽ xoá mục khỏi danh sách."
+        description={
+          <>
+            Thao tác này sẽ <ConfirmHighlight>xoá mục</ConfirmHighlight> khỏi danh sách.
+          </>
+        }
         cancelText="Huỷ"
         confirmText="Xoá"
         loading={saving}
@@ -947,7 +951,11 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
       <ConfirmDialog
         open={confirmDeleteImageOpen}
         title="Xoá ảnh?"
-        description="Ảnh sẽ bị xoá khỏi thư viện."
+        description={
+          <>
+            Ảnh sẽ bị <ConfirmHighlight>xoá vĩnh viễn</ConfirmHighlight> khỏi thư viện.
+          </>
+        }
         cancelText="Huỷ"
         confirmText="Xoá"
         loading={saving}
