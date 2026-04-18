@@ -715,6 +715,7 @@ export default function SchoolHoliday() {
                             bgcolor: "#ffffff",
                             color: "#0D64DE",
                             textTransform: "none",
+                            whiteSpace: "nowrap",
                             fontWeight: 600,
                             borderRadius: 2,
                             px: 3,
@@ -860,6 +861,7 @@ export default function SchoolHoliday() {
                                                         mt: 1,
                                                         borderRadius: 2,
                                                         textTransform: "none",
+                                                        whiteSpace: "nowrap",
                                                         fontWeight: 600,
                                                         background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                                                     }}
