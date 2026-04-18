@@ -84,7 +84,8 @@ function campusConfigPathId(campusId) {
 /**
  * GET /api/v1/campus/config — không path/query; campus theo phiên đăng nhập.
  * Response: `{ message, body: { campusCurrent, hqDefault } }` (camelCase; BE có thể dùng snake_case tương ứng).
- * `body.campusCurrent`: `facilityJson`, `policyDetailRendered`, … — xem `normalizeFromCampusConfigApi` trong SchoolFacilityOverview.
+ * `hqDefault.facility` / `hqDefault.operation` — chuẩn trụ sở (read-only so với campus).
+ * `campusCurrent`: `itemList`, `imageData`; bốn số đặt chỗ + `policyDetail` / `fullPolicyRendered`; **`workingConfig`** (ca/giờ đã merge sau PUT); có thể thêm `facilityJson` legacy.
  */
 export const getCampusConfig = async () => {
   const response = await axiosClient.get("/campus/config");
@@ -98,6 +99,7 @@ export const getCampusConfig = async () => {
  * imageJsonData: { coverUrl, imageList: [{ url, name, altName, … }] },
  * hotline, emailSupport, minCounsellorPerSlot, slotDurationInMinutes, maxBookingPerSlot,
  * allowBookingBeforeHours, workingOverride, admissionStepsOverride, policyDetail.
+ * Partial body: BE merge; có thể trả `body: { campusCurrent, hqDefault }` giống GET để FE bớt một vòng GET.
  * @param {number | string} campusId
  * @param {Record<string, unknown>} payload
  */

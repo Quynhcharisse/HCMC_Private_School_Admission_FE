@@ -187,6 +187,8 @@ function defaultConfig() {
       },
       /** GET `admissionProcesses` / PUT `methodAdmissionProcess` — quy trình theo từng methodCode */
       methodAdmissionProcess: [],
+      /** Mùa / chiến dịch tuyển sinh (ca tăng cường, nhân sự…) — PUT `admissionSeasons` */
+      admissionSeasons: [],
     },
     facilityData: {
       itemList: [],
@@ -386,10 +388,18 @@ function normalizeMethodAdmissionProcessGroup(g) {
 
 function normalizeAcademicDate(value) {
   if (value == null) return "";
+  if (Array.isArray(value) && value.length >= 3) {
+    const [y, m, d] = value;
+    if (Number.isFinite(Number(y)) && Number.isFinite(Number(m)) && Number.isFinite(Number(d))) {
+      const pad = (n) => String(Math.trunc(Number(n))).padStart(2, "0");
+      return `${Number(y)}-${pad(m)}-${pad(d)}`;
+    }
+    return "";
+  }
   const s = String(value).trim();
   if (!s) return "";
-  const d = new Date(s);
-  if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  const parsed = new Date(s);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
   return s.length >= 10 ? s.slice(0, 10) : s;
 }
 
@@ -408,6 +418,84 @@ function normalizeAcademicCalendar(raw, fallback) {
     term1: normalizeAcademicTerm(src.term1 ?? fb.term1),
     term2: normalizeAcademicTerm(src.term2 ?? fb.term2),
   };
+}
+
+function normalizeSeasonExtraShift(s) {
+  if (!s || typeof s !== "object") return {name: "", startTime: "", endTime: ""};
+  return {
+    name: s.name != null ? String(s.name) : "",
+    startTime: s.startTime != null ? String(s.startTime) : "",
+    endTime: s.endTime != null ? String(s.endTime) : "",
+  };
+}
+
+function normalizeAdmissionSeasonRow(r) {
+  if (!r || typeof r !== "object") {
+    return {
+      seasonName: "",
+      startDate: "",
+      endDate: "",
+      enableSunday: false,
+      minCounsellorMultiplier: 1,
+      note: "",
+      extraShifts: [],
+    };
+  }
+  const mult = r.minCounsellorMultiplier != null && !Number.isNaN(Number(r.minCounsellorMultiplier))
+    ? Number(r.minCounsellorMultiplier)
+    : 1;
+  const extra =
+    Array.isArray(r.extraShifts)
+      ? r.extraShifts
+      : Array.isArray(r.extra_shifts)
+        ? r.extra_shifts
+        : [];
+  return {
+    seasonName: r.seasonName != null ? String(r.seasonName) : "",
+    startDate: normalizeAcademicDate(r.startDate ?? r.start_date),
+    endDate: normalizeAcademicDate(r.endDate ?? r.end_date),
+    enableSunday: Boolean(r.enableSunday ?? r.enable_sunday),
+    minCounsellorMultiplier: mult >= 1 ? mult : 1,
+    note: r.note != null ? String(r.note) : "",
+    extraShifts: extra.map(normalizeSeasonExtraShift),
+  };
+}
+
+function normalizeAdmissionSeasonsList(raw, fallback) {
+  const fb = Array.isArray(fallback) ? fallback : [];
+  if (!Array.isArray(raw)) return fb.map((x) => normalizeAdmissionSeasonRow(x));
+  return raw.map((x) => normalizeAdmissionSeasonRow(x));
+}
+
+function parseYmdLocalSchoolConfig(ymd) {
+  if (!ymd || typeof ymd !== "string") return null;
+  const p = ymd.trim().split("-").map((x) => Number(x));
+  if (p.length !== 3 || p.some((n) => !Number.isFinite(n))) return null;
+  return new Date(p[0], p[1] - 1, p[2]);
+}
+
+function startOfTodayLocalSchoolConfig() {
+  const d = new Date();
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function formatViDateFromYmd(ymd) {
+  const t = parseYmdLocalSchoolConfig(ymd);
+  if (!t || Number.isNaN(t.getTime())) return "";
+  return t.toLocaleDateString("vi-VN", {day: "2-digit", month: "2-digit", year: "numeric"});
+}
+
+/** So sánh theo ngày local: Đang diễn ra / Sắp tới / Đã kết thúc */
+function admissionSeasonStatusMeta(startStr, endStr) {
+  const s = parseYmdLocalSchoolConfig(startStr);
+  const e = parseYmdLocalSchoolConfig(endStr);
+  if (!s || !e) return {label: "Chưa đủ ngày", color: "default"};
+  const today = startOfTodayLocalSchoolConfig();
+  const sd = new Date(s.getFullYear(), s.getMonth(), s.getDate());
+  const ed = new Date(e.getFullYear(), e.getMonth(), e.getDate());
+  if (ed < today) return {label: "Đã kết thúc", color: "default"};
+  if (sd > today) return {label: "Sắp tới", color: "info"};
+  return {label: "Đang diễn ra", color: "success"};
 }
 
 function normalizeOperationSettingsFromApi(op, fallback) {
@@ -453,6 +541,10 @@ function normalizeOperationSettingsFromApi(op, fallback) {
     },
     academicCalendar: normalizeAcademicCalendar(src.academicCalendar ?? src.academic_calendar, fb.academicCalendar),
     methodAdmissionProcess: parseMethodAdmissionProcessFromOperation(src),
+    admissionSeasons: normalizeAdmissionSeasonsList(
+      src.admissionSeasons ?? src.admission_seasons,
+      fb.admissionSeasons
+    ),
   };
 }
 
@@ -792,6 +884,30 @@ function sanitizeOperationSettingsForApi(op) {
 
   const academicCalendar = normalizeAcademicCalendar(op.academicCalendar);
 
+  const admissionSeasons = Array.isArray(op.admissionSeasons)
+    ? op.admissionSeasons
+        .map((r) => normalizeAdmissionSeasonRow(r))
+        .map((nr) => ({
+          seasonName: nr.seasonName,
+          startDate: nr.startDate,
+          endDate: nr.endDate,
+          enableSunday: nr.enableSunday,
+          minCounsellorMultiplier: nr.minCounsellorMultiplier,
+          note: nr.note,
+          extraShifts: (nr.extraShifts || []).map((s) => ({
+            name: s.name != null ? String(s.name) : "",
+            startTime: s.startTime != null ? String(s.startTime) : "",
+            endTime: s.endTime != null ? String(s.endTime) : "",
+          })),
+        }))
+        .filter(
+          (row) =>
+            String(row.seasonName ?? "").trim() !== "" ||
+            String(row.startDate ?? "").trim() !== "" ||
+            String(row.endDate ?? "").trim() !== ""
+        )
+    : [];
+
   return {
     hotline: op.hotline != null ? String(op.hotline) : "",
     emailSupport: op.emailSupport != null ? String(op.emailSupport) : "",
@@ -808,6 +924,7 @@ function sanitizeOperationSettingsForApi(op) {
     },
     academicCalendar,
     methodAdmissionProcess,
+    admissionSeasons,
   };
 }
 
@@ -1111,6 +1228,73 @@ function policyFullTextRenderedFromCampusCurrent(cur) {
 }
 
 /**
+ * GET /campus/config — quy trình nhập học sau merge (BE), ưu tiên hơn `facilityJson.admissionStepsOverride`.
+ * Hỗ trợ: admissionProcessesEffective / effectiveAdmissionProcesses (nhóm), admissionSteps (flat).
+ */
+function parseCampusCurrentEffectiveAdmissionProcesses(cur) {
+  if (!cur || typeof cur !== "object") return null;
+  const eff =
+    cur.admissionProcessesEffective ??
+    cur.admission_processes_effective ??
+    cur.effectiveAdmissionProcesses ??
+    cur.effective_admission_processes;
+  if (Array.isArray(eff) && eff.length > 0) {
+    return eff.map(normalizeMethodAdmissionProcessGroup);
+  }
+  const flat = cur.admissionSteps ?? cur.admission_steps;
+  if (Array.isArray(flat) && flat.length > 0) {
+    return [
+      {
+        methodCode: "",
+        steps: flat.map((s, idx) => normalizeAdmissionProcessStep(s, idx)),
+      },
+    ];
+  }
+  return null;
+}
+
+/** PUT /campus/{id}/config — nếu BE trả envelope giống GET thì FE hydrate lại không cần GET. */
+function campusConfigEnvelopeFromPutResponse(res) {
+  const body = parseSchoolConfigResponseBody(res);
+  if (!body || typeof body !== "object") return null;
+  if (body.campusCurrent != null || body.campus_current != null) return body;
+  return null;
+}
+
+function applyCampusCurrentFlatBookingScalars(cur, mergedOp) {
+  if (!cur || typeof cur !== "object" || !mergedOp) return;
+  const pick = (camel, snake) => {
+    const raw = cur[camel] ?? cur[snake];
+    if (raw == null || Number.isNaN(Number(raw))) return null;
+    return Number(raw);
+  };
+  const mb = pick("maxBookingPerSlot", "max_booking_per_slot");
+  if (mb != null) mergedOp.maxBookingPerSlot = mb;
+  const mn = pick("minCounsellorPerSlot", "min_counsellor_per_slot");
+  if (mn != null) mergedOp.minCounsellorPerSlot = mn;
+  const sd = pick("slotDurationInMinutes", "slot_duration_in_minutes");
+  if (sd != null) mergedOp.slotDurationInMinutes = sd;
+  const ab = pick("allowBookingBeforeHours", "allow_booking_before_hours");
+  if (ab != null) mergedOp.allowBookingBeforeHours = ab;
+}
+
+function applyCampusCurrentEffectiveWorkingConfig(cur, mergedOp) {
+  if (!cur || typeof cur !== "object" || !mergedOp?.workingConfig) return;
+  const cw = cur.workingConfig ?? cur.working_config;
+  if (!cw || typeof cw !== "object") return;
+  mergedOp.workingConfig = {
+    ...mergedOp.workingConfig,
+    ...(cw.note != null ? {note: String(cw.note)} : {}),
+    ...(cw.isOpenSunday != null || cw.openSunday != null
+      ? {isOpenSunday: Boolean(cw.isOpenSunday ?? cw.openSunday)}
+      : {}),
+    ...(Array.isArray(cw.regularDays) ? {regularDays: cw.regularDays} : {}),
+    ...(Array.isArray(cw.weekendDays) ? {weekendDays: cw.weekendDays} : {}),
+    ...(Array.isArray(cw.workShifts) ? {workShifts: cw.workShifts} : {}),
+  };
+}
+
+/**
  * Phản hồi GET /api/v1/campus/config (campus theo phiên) — cả trụ sở và campus phụ.
  * CSVC + vận hành từ `campusCurrent.facilityJson` + merge HQ `hqDefault`.
  */
@@ -1211,6 +1395,8 @@ function normalizeFromCampusConfigApi(body) {
   if (cur.hotline != null && String(cur.hotline).trim() !== "") mergedOp.hotline = String(cur.hotline);
   if (cur.emailSupport != null && String(cur.emailSupport).trim() !== "") mergedOp.emailSupport = String(cur.emailSupport);
 
+  applyCampusCurrentFlatBookingScalars(cur, mergedOp);
+
   if (fj && typeof fj === "object") {
     if (fj.hotline != null) mergedOp.hotline = String(fj.hotline);
     if (fj.emailSupport != null) mergedOp.emailSupport = String(fj.emailSupport);
@@ -1225,6 +1411,14 @@ function normalizeFromCampusConfigApi(body) {
         ...(Array.isArray(wo.workShifts) ? {workShifts: wo.workShifts} : {}),
       };
     }
+  }
+
+  applyCampusCurrentEffectiveWorkingConfig(cur, mergedOp);
+
+  const effectiveAdmission = parseCampusCurrentEffectiveAdmissionProcesses(cur);
+  if (effectiveAdmission != null) {
+    mergedOp.methodAdmissionProcess = effectiveAdmission;
+  } else if (fj && typeof fj === "object") {
     const hqHasAdmissionProcesses =
       Array.isArray(hqOp.admissionProcesses) && hqOp.admissionProcesses.length > 0;
     if (Array.isArray(fj.admissionStepsOverride) && !hqHasAdmissionProcesses) {
@@ -1259,9 +1453,8 @@ function normalizeFromCampusConfigApi(body) {
 }
 
 /**
- * PUT /api/v1/campus/{campusId}/config — body phẳng (overview, itemList, imageJsonData, …)
- * Khi chỉ gửi một nhánh (chỉ vận hành hoặc chỉ CSVC), BE có thể ghi đè mất phần còn lại.
- * Nếu có thay đổi bất kỳ: luôn gửi đủ CSVC + toàn bộ scalar vận hành + override so với HQ.
+ * PUT /api/v1/campus/{campusId}/config — body phẳng partial (UpdateCampusConfigRequest).
+ * BE merge partial; chỉ gửi field nhánh đã đổi (overview/itemList/imageJsonData/hotline/email/scalar/…).
  *
  * @param hqOperation — `hqDefault.operation` từ GET; dùng để tính workingOverride / admissionStepsOverride
  */
@@ -1280,24 +1473,124 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
     JSON.stringify(curFacPut.itemList) !== JSON.stringify(iniFacPut.itemList) ||
     JSON.stringify(curFacPut.imageJsonData) !== JSON.stringify(iniFacPut.imageJsonData);
 
-  const operationDirty = JSON.stringify(op) !== JSON.stringify(iOp);
   const policyDirty = (policy ?? "") !== (initialPolicy ?? "");
-  const anyDirty = facilityDirty || operationDirty || policyDirty;
+
+  const num0 = (v) => (v != null && !Number.isNaN(Number(v)) ? Number(v) : 0);
+  const scalarsDirty =
+    num0(op.maxBookingPerSlot) !== num0(iOp.maxBookingPerSlot) ||
+    num0(op.minCounsellorPerSlot) !== num0(iOp.minCounsellorPerSlot) ||
+    num0(op.slotDurationInMinutes) !== num0(iOp.slotDurationInMinutes) ||
+    num0(op.allowBookingBeforeHours) !== num0(iOp.allowBookingBeforeHours);
+
+  const hotlineDirty = String(op.hotline ?? "") !== String(iOp.hotline ?? "");
+  const emailDirty = String(op.emailSupport ?? "") !== String(iOp.emailSupport ?? "");
+
+  const workingDirty =
+    JSON.stringify(op.workingConfig || {}) !== JSON.stringify(iOp.workingConfig || {});
+
+  const admissionDirty =
+    JSON.stringify(op.methodAdmissionProcess || []) !== JSON.stringify(iOp.methodAdmissionProcess || []);
+
+  const anyDirty =
+    facilityDirty || policyDirty || scalarsDirty || hotlineDirty || emailDirty || workingDirty || admissionDirty;
   if (!anyDirty) return {};
 
   const payload = {};
 
-  payload.overview = curFacPut.overview;
-  payload.itemList = curFacPut.itemList;
-  payload.imageJsonData = curFacPut.imageJsonData;
+  if (facilityDirty) {
+    payload.overview = curFacPut.overview;
+    payload.itemList = curFacPut.itemList;
+    payload.imageJsonData = curFacPut.imageJsonData;
+  }
 
-  payload.hotline = op.hotline ?? "";
-  payload.emailSupport = op.emailSupport ?? "";
-  payload.maxBookingPerSlot = Number(op.maxBookingPerSlot) || 0;
-  payload.minCounsellorPerSlot = Number(op.minCounsellorPerSlot) || 0;
-  payload.slotDurationInMinutes = Number(op.slotDurationInMinutes) || 0;
-  payload.allowBookingBeforeHours = Number(op.allowBookingBeforeHours) || 0;
+  if (hotlineDirty) {
+    payload.hotline = op.hotline ?? "";
+  }
+  if (emailDirty) {
+    payload.emailSupport = op.emailSupport ?? "";
+  }
 
+  if (scalarsDirty) {
+    if (num0(op.maxBookingPerSlot) !== num0(iOp.maxBookingPerSlot))
+      payload.maxBookingPerSlot = num0(op.maxBookingPerSlot);
+    if (num0(op.minCounsellorPerSlot) !== num0(iOp.minCounsellorPerSlot))
+      payload.minCounsellorPerSlot = num0(op.minCounsellorPerSlot);
+    if (num0(op.slotDurationInMinutes) !== num0(iOp.slotDurationInMinutes))
+      payload.slotDurationInMinutes = num0(op.slotDurationInMinutes);
+    if (num0(op.allowBookingBeforeHours) !== num0(iOp.allowBookingBeforeHours))
+      payload.allowBookingBeforeHours = num0(op.allowBookingBeforeHours);
+  }
+
+  if (workingDirty) {
+    const wc = op.workingConfig || {};
+    const wo = {};
+    if ((wc.note ?? "") !== (hqWc.note ?? "")) wo.note = wc.note ?? "";
+    if (Boolean(wc.isOpenSunday) !== Boolean(hqWc.isOpenSunday)) wo.isOpenSunday = Boolean(wc.isOpenSunday);
+    if (JSON.stringify(wc.regularDays || []) !== JSON.stringify(hqWc.regularDays || []))
+      wo.regularDays = wc.regularDays || [];
+    if (JSON.stringify(wc.weekendDays || []) !== JSON.stringify(hqWc.weekendDays || []))
+      wo.weekendDays = wc.weekendDays || [];
+    if (JSON.stringify(wc.workShifts || []) !== JSON.stringify(hqWc.workShifts || []))
+      wo.workShifts = wc.workShifts || [];
+    if (Object.keys(wo).length > 0) payload.workingOverride = wo;
+  }
+
+  if (admissionDirty) {
+    const hqHasAdmissionProcesses =
+      Array.isArray(hqOp.admissionProcesses) && hqOp.admissionProcesses.length > 0;
+    const hqProc = parseMethodAdmissionProcessFromOperation(hqOp);
+    const curProc = op.methodAdmissionProcess || [];
+    const admissionStepsOverride = [];
+    if (!hqHasAdmissionProcesses) {
+      const hqSteps =
+        hqProc.length === 1 && !String(hqProc[0]?.methodCode ?? "").trim()
+          ? hqProc[0].steps || []
+          : Array.isArray(hqOp.admissionSteps)
+            ? hqOp.admissionSteps
+            : [];
+      const curSteps =
+        curProc.length === 1 && !String(curProc[0]?.methodCode ?? "").trim() ? curProc[0].steps || [] : [];
+      curSteps.forEach((step, idx) => {
+        const ord = Number(step.stepOrder) || idx + 1;
+        const hqS = hqSteps.find((s) => Number(s.stepOrder) === ord);
+        const desc = step.description ?? "";
+        const hqDesc = hqS?.description ?? "";
+        if (desc !== hqDesc) admissionStepsOverride.push({stepOrder: ord, description: desc});
+      });
+    }
+    if (admissionStepsOverride.length > 0) payload.admissionStepsOverride = admissionStepsOverride;
+  }
+
+  if (policyDirty) {
+    payload.policyDetail = policy ?? "";
+  }
+
+  if (Object.keys(payload).length === 0 && anyDirty) {
+    return buildCampusFlatPutPayloadFallbackFull(config, hqOperation, policy);
+  }
+
+  return payload;
+}
+
+/** Gửi đủ nhánh PUT như phiên bản cũ — chỉ khi partial không map được thay đổi (hiếm). */
+function buildCampusFlatPutPayloadFallbackFull(config, hqOperation, policy) {
+  const fac = config.facilityData;
+  const op = config.operationSettingsData;
+  const hqOp = hqOperation && typeof hqOperation === "object" ? hqOperation : {};
+  const hqWc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
+  const curFacPut = campusFacilityPutSlice(fac);
+  const payload = {
+    overview: curFacPut.overview,
+    itemList: curFacPut.itemList,
+    imageJsonData: curFacPut.imageJsonData,
+    hotline: op.hotline ?? "",
+    emailSupport: op.emailSupport ?? "",
+    maxBookingPerSlot: Number(op.maxBookingPerSlot) || 0,
+    minCounsellorPerSlot: Number(op.minCounsellorPerSlot) || 0,
+    slotDurationInMinutes: Number(op.slotDurationInMinutes) || 0,
+    allowBookingBeforeHours: Number(op.allowBookingBeforeHours) || 0,
+    policyDetail: policy ?? "",
+  };
   const wc = op.workingConfig || {};
   const wo = {};
   if ((wc.note ?? "") !== (hqWc.note ?? "")) wo.note = wc.note ?? "";
@@ -1309,7 +1602,6 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
   if (JSON.stringify(wc.workShifts || []) !== JSON.stringify(hqWc.workShifts || []))
     wo.workShifts = wc.workShifts || [];
   if (Object.keys(wo).length > 0) payload.workingOverride = wo;
-
   const hqHasAdmissionProcesses =
     Array.isArray(hqOp.admissionProcesses) && hqOp.admissionProcesses.length > 0;
   const hqProc = parseMethodAdmissionProcessFromOperation(hqOp);
@@ -1333,9 +1625,6 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
     });
   }
   if (admissionStepsOverride.length > 0) payload.admissionStepsOverride = admissionStepsOverride;
-
-  payload.policyDetail = policy ?? "";
-
   return payload;
 }
 
@@ -1351,9 +1640,10 @@ function admissionMethodExtraEntries(m) {
  * - platform: GET/PUT /school/config/{schoolId} (chỉ campus chính / isPrimaryBranch)
  * - campus: GET /campus/config; PUT /campus/{campusId}/config — campus phụ: cơ sở đăng nhập; campus chính: chỉ cơ sở chính (không chọn campus khác).
  */
-export default function SchoolConfig() {
-  const isCampusVariant = false;
+export default function SchoolConfig({variant = "platform"} = {}) {
   const {isPrimaryBranch, currentCampusId, loading: schoolCtxLoading} = useSchool();
+  /** Cơ sở phụ: luôn dùng GET/PUT campus; hoặc ép `variant="campus"` (vd. bọc từ route). */
+  const isCampusVariant = variant === "campus" || !isPrimaryBranch;
   const navigate = useNavigate();
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1396,6 +1686,7 @@ export default function SchoolConfig() {
   const [branchPolicyDetail, setBranchPolicyDetail] = useState("");
   /** policyDetailRendered.fullTextRendered — chỉ đọc từ GET, cập nhật sau mỗi lần load. */
   const [branchPolicyFullTextRendered, setBranchPolicyFullTextRendered] = useState("");
+  const [campusHqOperationMissing, setCampusHqOperationMissing] = useState(false);
   const branchHqOperationRef = useRef(null);
   const initialPolicyRef = useRef("");
   const initialPolicyFullTextRef = useRef("");
@@ -1494,6 +1785,7 @@ export default function SchoolConfig() {
             setBranchPolicyFullTextRendered("");
             initialPolicyFullTextRef.current = "";
             branchHqOperationRef.current = {};
+            setCampusHqOperationMissing(false);
             setSchoolId(pickSchoolIdFromCampuses(campuses));
             setLastLoadedAt(new Date());
             return;
@@ -1511,6 +1803,7 @@ export default function SchoolConfig() {
             setBranchPolicyFullTextRendered("");
             initialPolicyFullTextRef.current = "";
             branchHqOperationRef.current = {};
+            setCampusHqOperationMissing(false);
             setSchoolId(pickSchoolIdFromCampuses(campuses));
             setLastLoadedAt(new Date());
             return;
@@ -1523,6 +1816,10 @@ export default function SchoolConfig() {
         }
         const envelope = parseSchoolConfigResponseBody(cfgRes);
         const {hqDefault, campusCurrent} = pickCampusConfigGetEnvelope(envelope);
+        const hqOpRaw = hqDefault?.operation;
+        setCampusHqOperationMissing(
+          !hqOpRaw || typeof hqOpRaw !== "object" || Object.keys(hqOpRaw).length === 0
+        );
         branchHqOperationRef.current = hqDefault?.operation
           ? JSON.parse(JSON.stringify(hqDefault.operation))
           : {};
@@ -1665,7 +1962,29 @@ export default function SchoolConfig() {
         if (res?.status >= 200 && res?.status < 300) {
           enqueueSnackbar(campusConfigSaveSuccessMessage(res?.data?.message), {variant: "success"});
           setEditing(false);
-          await load({silent: true});
+          const putEnv = campusConfigEnvelopeFromPutResponse(res);
+          if (putEnv) {
+            const {hqDefault, campusCurrent} = pickCampusConfigGetEnvelope(putEnv);
+            const hqOpPut = hqDefault?.operation;
+            setCampusHqOperationMissing(
+              !hqOpPut || typeof hqOpPut !== "object" || Object.keys(hqOpPut).length === 0
+            );
+            if (hqDefault?.operation && typeof hqDefault.operation === "object") {
+              branchHqOperationRef.current = JSON.parse(JSON.stringify(hqDefault.operation));
+            }
+            const pol = policyFromCampusCurrent(campusCurrent);
+            setBranchPolicyDetail(pol);
+            initialPolicyRef.current = pol;
+            const fullText = policyFullTextRenderedFromCampusCurrent(campusCurrent);
+            setBranchPolicyFullTextRendered(fullText);
+            initialPolicyFullTextRef.current = fullText;
+            const next = normalizeFromCampusConfigApi(putEnv);
+            setConfig(next);
+            initialRef.current = JSON.parse(JSON.stringify(next));
+            setLastLoadedAt(new Date());
+          } else {
+            await load({silent: true});
+          }
         } else {
           enqueueSnackbar(res?.data?.message || "Có lỗi khi lưu", {variant: "error"});
         }
@@ -1899,6 +2218,80 @@ export default function SchoolConfig() {
       const steps = (g.steps || []).filter((_, i) => i !== stepIdx).map((s, i) => ({...s, stepOrder: i + 1}));
       arr[groupIdx] = {...g, steps};
       return {...c, operationSettingsData: {...c.operationSettingsData, methodAdmissionProcess: arr}};
+    });
+  }, []);
+
+  const addAdmissionSeason = useCallback(() => {
+    setConfig((c) => {
+      const prev = [...(c.operationSettingsData.admissionSeasons || [])];
+      prev.push({
+        seasonName: "",
+        startDate: "",
+        endDate: "",
+        enableSunday: false,
+        minCounsellorMultiplier: 1,
+        note: "",
+        extraShifts: [],
+      });
+      return {
+        ...c,
+        operationSettingsData: {
+          ...c.operationSettingsData,
+          admissionSeasons: prev,
+        },
+      };
+    });
+  }, []);
+
+  const removeAdmissionSeasonAt = useCallback((idx) => {
+    setConfig((c) => {
+      const arr = [...(c.operationSettingsData.admissionSeasons || [])];
+      arr.splice(idx, 1);
+      return {...c, operationSettingsData: {...c.operationSettingsData, admissionSeasons: arr}};
+    });
+  }, []);
+
+  const updateAdmissionSeasonAt = useCallback((idx, patch) => {
+    setConfig((c) => {
+      const arr = [...(c.operationSettingsData.admissionSeasons || [])];
+      if (!arr[idx]) return c;
+      arr[idx] = {...arr[idx], ...patch};
+      return {...c, operationSettingsData: {...c.operationSettingsData, admissionSeasons: arr}};
+    });
+  }, []);
+
+  const addExtraShiftToAdmissionSeason = useCallback((seasonIdx) => {
+    setConfig((c) => {
+      const arr = [...(c.operationSettingsData.admissionSeasons || [])];
+      const row = arr[seasonIdx];
+      if (!row) return c;
+      const extra = [...(row.extraShifts || []), {name: "", startTime: "08:00", endTime: "17:00"}];
+      arr[seasonIdx] = {...row, extraShifts: extra};
+      return {...c, operationSettingsData: {...c.operationSettingsData, admissionSeasons: arr}};
+    });
+  }, []);
+
+  const updateExtraShiftInAdmissionSeason = useCallback((seasonIdx, shiftIdx, field, value) => {
+    setConfig((c) => {
+      const arr = [...(c.operationSettingsData.admissionSeasons || [])];
+      const row = arr[seasonIdx];
+      if (!row) return c;
+      const extra = [...(row.extraShifts || [])];
+      if (!extra[shiftIdx]) return c;
+      extra[shiftIdx] = {...extra[shiftIdx], [field]: value};
+      arr[seasonIdx] = {...row, extraShifts: extra};
+      return {...c, operationSettingsData: {...c.operationSettingsData, admissionSeasons: arr}};
+    });
+  }, []);
+
+  const removeExtraShiftFromAdmissionSeason = useCallback((seasonIdx, shiftIdx) => {
+    setConfig((c) => {
+      const arr = [...(c.operationSettingsData.admissionSeasons || [])];
+      const row = arr[seasonIdx];
+      if (!row) return c;
+      const extra = (row.extraShifts || []).filter((_, i) => i !== shiftIdx);
+      arr[seasonIdx] = {...row, extraShifts: extra};
+      return {...c, operationSettingsData: {...c.operationSettingsData, admissionSeasons: arr}};
     });
   }, []);
 
@@ -3506,6 +3899,17 @@ export default function SchoolConfig() {
             <Stack spacing={2}>
               {useCampusConfigFlow ? (
                 <>
+                  {campusHqOperationMissing ? (
+                    <Alert severity="warning" sx={{borderRadius: 2}}>
+                      <Typography variant="body2" sx={{fontWeight: 700, mb: 0.5}}>
+                        Chưa có cấu hình vận hành từ cơ sở chính
+                      </Typography>
+                      <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
+                        Trụ sở chưa gửi khối vận hành HQ (hqDefault.operation) hoặc đang rỗng. Vui lòng cấu hình vận hành tại
+                        cơ sở chính trước; campus chỉ chỉnh phần delta khi đã có chuẩn HQ.
+                      </Typography>
+                    </Alert>
+                  ) : null}
                   <Alert severity="info" sx={{borderRadius: 2}}>
                     <Typography variant="body2" component="div" sx={{fontWeight: 700, mb: 0.75}}>
                       Cấu hình theo cơ sở
@@ -3635,7 +4039,7 @@ export default function SchoolConfig() {
                         helperText="*Số lượng tư vấn viên tối thiểu trực trong một ca."
                         FormHelperTextProps={{sx: {fontWeight: 700}}}
                         inputProps={{readOnly: fieldDisabled, min: 0}}
-                        sx={{minWidth: 200, flex: 1}}
+                        sx={{minWidth: 200, flex: 1, color: "red !important"}}
                       />
                       <TextField
                         label="Thời lượng 1 ca (phút)"
@@ -4043,6 +4447,274 @@ export default function SchoolConfig() {
                         fullWidth
                       />
                     </Stack>
+                  </Stack>
+                </CardContent>
+              </Card>
+
+              <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
+                <CardContent sx={{p: 3}}>
+                  <Alert severity="info" sx={{mb: 2, borderRadius: 2}}>
+                    <Typography variant="body2" sx={{fontWeight: 700, mb: 0.5}}>
+                      Ghi đè theo mùa tuyển sinh
+                    </Typography>
+                    <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
+                      Tránh phải sửa đi sửa lại &quot;giờ làm mặc định&quot; cả năm rồi trả về như cũ sau mùa cao điểm. Mỗi chiến dịch chỉ
+                      có hiệu lực trong khoảng ngày đã chọn; hết thời gian đó, hệ thống tự áp dụng lại quy tắc nền. Trong từng mùa có
+                      thể bật lịch Chủ nhật, thêm ca tối và tăng hệ số nhân sự so với ngày thường.
+                    </Typography>
+                  </Alert>
+                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2} mb={1} flexWrap="wrap">
+                    <Box sx={{flex: 1, minWidth: 220}}>
+                      <Typography sx={{fontWeight: 800}}>Chiến dịch / mùa tuyển sinh</Typography>
+                      <Typography variant="body2" sx={{color: "text.secondary", mt: 0.75}}>
+                        Mặc định dùng <strong>giờ làm tiêu chuẩn</strong> ở phần cấu hình phía trên. Chỉ thêm chiến dịch khi cần quy tắc
+                        riêng cho một khoảng thời gian (ví dụ tháng 6–7). Khi bạn nhấn <strong>Lưu thay đổi</strong>, các mùa này được
+                        gửi cùng dữ liệu cấu hình vận hành của trường.
+                      </Typography>
+                    </Box>
+                    <Button startIcon={<AddIcon/>} onClick={addAdmissionSeason} sx={{textTransform: "none", flexShrink: 0, ...blockPointerSx}}>
+                      Thêm chiến dịch
+                    </Button>
+                  </Stack>
+                  <Stack spacing={2.5}>
+                    {(config.operationSettingsData.admissionSeasons || []).length === 0 ? (
+                      <Paper variant="outlined" sx={{p: 2.5, borderStyle: "dashed", color: "text.secondary", borderRadius: 2}}>
+                        Chưa có chiến dịch. Toàn bộ lịch trống cho phụ huynh vẫn theo <strong>giờ làm tiêu chuẩn</strong>. Nhấn &quot;Thêm
+                        chiến dịch&quot; để thiết lập khoảng thời gian đặc biệt.
+                      </Paper>
+                    ) : null}
+                    {(config.operationSettingsData.admissionSeasons || []).map((season, si) => {
+                      const status = admissionSeasonStatusMeta(season.startDate, season.endDate);
+                      const title = (season.seasonName && String(season.seasonName).trim()) || `Chiến dịch ${si + 1}`;
+                      const baseMin = Math.max(1, Number(config.operationSettingsData.minCounsellorPerSlot) || 1);
+                      const mult = Math.max(
+                        1,
+                        season.minCounsellorMultiplier === "" || season.minCounsellorMultiplier == null
+                          ? 1
+                          : Number(season.minCounsellorMultiplier) || 1
+                      );
+                      const exAfter = baseMin * mult;
+                      return (
+                        <Paper
+                          key={`admission-season-${si}`}
+                          elevation={0}
+                          sx={{
+                            p: 2.5,
+                            borderRadius: 2,
+                            border: "1px solid",
+                            borderColor: "divider",
+                            bgcolor: "#fafafa",
+                          }}
+                        >
+                          <Stack spacing={2}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1} flexWrap="wrap">
+                              <Box sx={{minWidth: 0}}>
+                                <Typography sx={{fontWeight: 800, fontSize: "1.05rem", lineHeight: 1.35}}>{title}</Typography>
+                                <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" sx={{mt: 0.75}}>
+                                  <Chip size="small" label={status.label} color={status.color} sx={{fontWeight: 700}}/>
+                                  <Typography variant="body2" sx={{color: "primary.main", fontWeight: 700}}>
+                                    {formatViDateFromYmd(season.startDate) && formatViDateFromYmd(season.endDate)
+                                      ? `${formatViDateFromYmd(season.startDate)} — ${formatViDateFromYmd(season.endDate)}`
+                                      : "Chọn khoảng ngày để xem trạng thái"}
+                                  </Typography>
+                                </Stack>
+                              </Box>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => removeAdmissionSeasonAt(si)}
+                                aria-label="Xóa chiến dịch"
+                                sx={blockPointerSx}
+                              >
+                                <DeleteOutlineIcon fontSize="small"/>
+                              </IconButton>
+                            </Stack>
+
+                            <TextField
+                              label="Tên chiến dịch"
+                              size="small"
+                              placeholder="vd. Tuyển sinh lớp 10 cao điểm"
+                              value={season.seasonName ?? ""}
+                              onChange={(e) => updateAdmissionSeasonAt(si, {seasonName: e.target.value})}
+                              inputProps={{readOnly: fieldDisabled}}
+                              fullWidth
+                            />
+
+                            <Stack
+                              direction={{xs: "column", sm: "row"}}
+                              spacing={2}
+                              sx={{
+                                p: 2,
+                                borderRadius: 2,
+                                bgcolor: "background.paper",
+                                border: "1px solid",
+                                borderColor: "divider",
+                              }}
+                            >
+                              <TextField
+                                label="Ngày bắt đầu"
+                                type="date"
+                                size="small"
+                                InputLabelProps={{shrink: true}}
+                                value={season.startDate ?? ""}
+                                onChange={(e) => updateAdmissionSeasonAt(si, {startDate: e.target.value})}
+                                inputProps={{readOnly: fieldDisabled}}
+                                fullWidth
+                              />
+                              <TextField
+                                label="Ngày kết thúc"
+                                type="date"
+                                size="small"
+                                InputLabelProps={{shrink: true}}
+                                value={season.endDate ?? ""}
+                                onChange={(e) => updateAdmissionSeasonAt(si, {endDate: e.target.value})}
+                                inputProps={{readOnly: fieldDisabled}}
+                                fullWidth
+                              />
+                            </Stack>
+
+                            <Paper variant="outlined" sx={{p: 2, borderRadius: 2, borderColor: "divider", bgcolor: "#fff"}}>
+                              <FormControlLabel
+                                sx={{m: 0, alignItems: "flex-start", width: "100%"}}
+                                control={
+                                  <Switch
+                                    size="medium"
+                                    checked={Boolean(season.enableSunday)}
+                                    onChange={(e) => updateAdmissionSeasonAt(si, {enableSunday: e.target.checked})}
+                                    disabled={fieldDisabled}
+                                    sx={{mt: 0.25}}
+                                  />
+                                }
+                                label={
+                                  <Box>
+                                    <Typography sx={{fontWeight: 700}}>Mở lịch Chủ nhật trong mùa này</Typography>
+                                    <Typography variant="body2" sx={{color: "text.secondary", mt: 0.25, lineHeight: 1.55}}>
+                                      Cho phép phụ huynh đặt lịch vào Chủ nhật chỉ trong khoảng thời gian chiến dịch — không ảnh hưởng các
+                                      ngày ngoài mùa.
+                                    </Typography>
+                                  </Box>
+                                }
+                              />
+                            </Paper>
+
+                            <Box>
+                              <TextField
+                                label="Hệ số nhân lực (nhân với mức tối thiểu mỗi ca)"
+                                type="number"
+                                size="small"
+                                inputProps={{min: 1, readOnly: fieldDisabled}}
+                                value={
+                                  season.minCounsellorMultiplier === "" || season.minCounsellorMultiplier == null
+                                    ? ""
+                                    : season.minCounsellorMultiplier
+                                }
+                                onChange={(e) =>
+                                  updateAdmissionSeasonAt(si, {
+                                    minCounsellorMultiplier:
+                                      e.target.value === "" ? "" : Number(e.target.value) || 1,
+                                  })
+                                }
+                                sx={{maxWidth: {sm: 320}}}
+                                helperText={`Ví dụ: quy tắc nền yêu cầu tối thiểu ${baseMin} tư vấn viên mỗi ca; trong mùa này hệ số nhân ${mult} nên hệ thống yêu cầu ít nhất ${exAfter} tư vấn viên mỗi ca.`}
+                                FormHelperTextProps={{sx: {maxWidth: 560, lineHeight: 1.5}}}
+                              />
+                            </Box>
+
+                            <TextField
+                              label="Ghi chú nội bộ"
+                              size="small"
+                              multiline
+                              minRows={2}
+                              placeholder="vd. Tăng cường gấp đôi nhân sự hỗ trợ"
+                              value={season.note ?? ""}
+                              onChange={(e) => updateAdmissionSeasonAt(si, {note: e.target.value})}
+                              inputProps={{readOnly: fieldDisabled}}
+                              fullWidth
+                            />
+
+                            <Box
+                              sx={{
+                                p: 2,
+                                borderRadius: 2,
+                                border: "1px solid",
+                                borderColor: "rgba(234, 88, 12, 0.35)",
+                                bgcolor: "rgba(234, 88, 12, 0.06)",
+                              }}
+                            >
+                              <Typography sx={{fontWeight: 800, mb: 1, color: "#c2410c"}}>
+                                Ca làm việc tăng cường
+                              </Typography>
+                              <Typography variant="body2" sx={{color: "text.secondary", mb: 1.5, lineHeight: 1.55}}>
+                                Ca tối / ca thêm chỉ trong mùa (khác ca hành chính ở trên). Thêm nhanh ca tư vấn tối hoặc online.
+                              </Typography>
+                              <Stack spacing={1.25}>
+                                {(season.extraShifts || []).map((sh, ei) => (
+                                  <Stack
+                                    key={`season-${si}-shift-${ei}`}
+                                    direction={{xs: "column", md: "row"}}
+                                    spacing={1}
+                                    alignItems={{md: "center"}}
+                                    sx={{
+                                      p: 1.25,
+                                      borderRadius: 1.5,
+                                      bgcolor: "background.paper",
+                                      border: "1px solid rgba(37, 99, 235, 0.22)",
+                                    }}
+                                  >
+                                    <TextField
+                                      label="Mã ca"
+                                      size="small"
+                                      placeholder="Mã theo quy ước (ví dụ ca tối tăng cường)"
+                                      value={sh.name ?? ""}
+                                      onChange={(e) => updateExtraShiftInAdmissionSeason(si, ei, "name", e.target.value)}
+                                      inputProps={{readOnly: fieldDisabled}}
+                                      sx={{flex: 1, minWidth: 140}}
+                                    />
+                                    <TextField
+                                      label="Bắt đầu"
+                                      size="small"
+                                      type="time"
+                                      InputLabelProps={{shrink: true}}
+                                      value={sh.startTime ?? ""}
+                                      onChange={(e) => updateExtraShiftInAdmissionSeason(si, ei, "startTime", e.target.value)}
+                                      inputProps={{readOnly: fieldDisabled}}
+                                    />
+                                    <TextField
+                                      label="Kết thúc"
+                                      size="small"
+                                      type="time"
+                                      InputLabelProps={{shrink: true}}
+                                      value={sh.endTime ?? ""}
+                                      onChange={(e) => updateExtraShiftInAdmissionSeason(si, ei, "endTime", e.target.value)}
+                                      inputProps={{readOnly: fieldDisabled}}
+                                    />
+                                    <IconButton
+                                      size="small"
+                                      color="error"
+                                      onClick={() => removeExtraShiftFromAdmissionSeason(si, ei)}
+                                      aria-label="Xóa ca"
+                                      sx={blockPointerSx}
+                                    >
+                                      <DeleteOutlineIcon fontSize="small"/>
+                                    </IconButton>
+                                  </Stack>
+                                ))}
+                              </Stack>
+                              <Button
+                                size="small"
+                                variant="outlined"
+                                color="warning"
+                                startIcon={<AddIcon/>}
+                                onClick={() => addExtraShiftToAdmissionSeason(si)}
+                                sx={{textTransform: "none", alignSelf: "flex-start", mt: 1.5, ...blockPointerSx}}
+                              >
+                                Thêm ca tăng cường
+                              </Button>
+                            </Box>
+                          </Stack>
+                        </Paper>
+                      );
+                    })}
                   </Stack>
                 </CardContent>
               </Card>

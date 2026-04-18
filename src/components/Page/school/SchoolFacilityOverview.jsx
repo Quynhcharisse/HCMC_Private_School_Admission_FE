@@ -1,26 +1,3 @@
-import React from "react";
-import SchoolConfig from "./SchoolConfig.jsx";
-import CampusConfig from "./CampusConfig.jsx";
-
-/**
- * @deprecated Use `SchoolConfig` or `CampusConfig` directly.
- */
-export default function SchoolFacilityOverview({variant = "platform"}) {
-  return variant === "campus" ? <CampusConfig /> : <SchoolConfig />;
-}
-import React from "react";
-import SchoolConfig from "./SchoolConfig.jsx";
-import CampusConfig from "./CampusConfig.jsx";
-
-/**
- * @deprecated Use `SchoolConfig` or `CampusConfig` directly.
- */
-export default function SchoolFacilityOverview({variant = "platform"}) {
-  if (variant === "campus") {
-    return <CampusConfig />;
-  }
-  return <SchoolConfig />;
-}
 import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {
   Accordion,
@@ -1131,11 +1108,48 @@ function policyFromCampusCurrent(cur) {
 /** GET campus/config — bản văn tổng hợp BE tạo sau khi lưu PUT (nguồn hiển thị “thật” cho user). */
 function policyFullTextRenderedFromCampusCurrent(cur) {
   if (!cur || typeof cur !== "object") return "";
+  const fullPolicyRendered = cur.fullPolicyRendered ?? cur.full_policy_rendered;
+  if (fullPolicyRendered != null && String(fullPolicyRendered).trim() !== "") {
+    return String(fullPolicyRendered);
+  }
   const pdr = campusCurrentPolicyDetailRendered(cur);
   if (!pdr) return "";
   const ft = pdr.fullTextRendered ?? pdr.full_text_rendered;
   if (ft != null && String(ft).trim() !== "") return String(ft);
   return "";
+}
+
+function applyCampusCurrentFlatBookingScalars(cur, mergedOp) {
+  if (!cur || typeof cur !== "object" || !mergedOp) return;
+  const pick = (camel, snake) => {
+    const raw = cur[camel] ?? cur[snake];
+    if (raw == null || Number.isNaN(Number(raw))) return null;
+    return Number(raw);
+  };
+  const mb = pick("maxBookingPerSlot", "max_booking_per_slot");
+  if (mb != null) mergedOp.maxBookingPerSlot = mb;
+  const mn = pick("minCounsellorPerSlot", "min_counsellor_per_slot");
+  if (mn != null) mergedOp.minCounsellorPerSlot = mn;
+  const sd = pick("slotDurationInMinutes", "slot_duration_in_minutes");
+  if (sd != null) mergedOp.slotDurationInMinutes = sd;
+  const ab = pick("allowBookingBeforeHours", "allow_booking_before_hours");
+  if (ab != null) mergedOp.allowBookingBeforeHours = ab;
+}
+
+function applyCampusCurrentEffectiveWorkingConfig(cur, mergedOp) {
+  if (!cur || typeof cur !== "object" || !mergedOp?.workingConfig) return;
+  const cw = cur.workingConfig ?? cur.working_config;
+  if (!cw || typeof cw !== "object") return;
+  mergedOp.workingConfig = {
+    ...mergedOp.workingConfig,
+    ...(cw.note != null ? {note: String(cw.note)} : {}),
+    ...(cw.isOpenSunday != null || cw.openSunday != null
+      ? {isOpenSunday: Boolean(cw.isOpenSunday ?? cw.openSunday)}
+      : {}),
+    ...(Array.isArray(cw.regularDays) ? {regularDays: cw.regularDays} : {}),
+    ...(Array.isArray(cw.weekendDays) ? {weekendDays: cw.weekendDays} : {}),
+    ...(Array.isArray(cw.workShifts) ? {workShifts: cw.workShifts} : {}),
+  };
 }
 
 /**
@@ -1260,6 +1274,8 @@ function normalizeFromCampusConfigApi(body) {
   if (cur.hotline != null && String(cur.hotline).trim() !== "") mergedOp.hotline = String(cur.hotline);
   if (cur.emailSupport != null && String(cur.emailSupport).trim() !== "") mergedOp.emailSupport = String(cur.emailSupport);
 
+  applyCampusCurrentFlatBookingScalars(cur, mergedOp);
+
   if (fj && typeof fj === "object") {
     if (fj.hotline != null) mergedOp.hotline = String(fj.hotline);
     if (fj.emailSupport != null) mergedOp.emailSupport = String(fj.emailSupport);
@@ -1299,6 +1315,8 @@ function normalizeFromCampusConfigApi(body) {
       }
     }
   }
+
+  applyCampusCurrentEffectiveWorkingConfig(cur, mergedOp);
 
   return {
     ...d,
