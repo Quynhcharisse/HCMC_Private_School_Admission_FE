@@ -9,6 +9,7 @@ import {
     DialogContent,
     DialogTitle,
     FormControl,
+    FormHelperText,
     IconButton,
     InputAdornment,
     InputLabel,
@@ -50,6 +51,7 @@ import {
     BOARDING_TYPE_DEFAULT_VI,
     BOARDING_TYPE_OPTIONS,
     normalizeBoardingTypeForApi,
+    parseBoardingType,
 } from "../../../constants/schoolBoardingType.js";
 import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
 
@@ -71,7 +73,8 @@ const initialMockCampuses = [
         address: "123 Nguyễn Huệ, Phường Bến Nghé",
         city: "Quận 1",
         district: "Quận 1",
-        phone: "028 3822 1234",
+        ward: "Phường Bến Nghé",
+        phone: "0283822123",
         email: "campus1@school.edu.vn",
         description: "Cơ sở chính, gần trung tâm thành phố.",
         imageUrl: null,
@@ -84,7 +87,8 @@ const initialMockCampuses = [
         address: "456 Điện Biên Phủ, Phường 25",
         city: "Bình Thạnh",
         district: "Bình Thạnh",
-        phone: "028 3899 5678",
+        ward: "Phường 25",
+        phone: "0283899567",
         email: "campus2@school.edu.vn",
         description: "Cơ sở mở rộng, khu vực phía Bắc.",
         imageUrl: null,
@@ -97,7 +101,8 @@ const initialMockCampuses = [
         address: "789 Võ Văn Ngân, Phường Linh Chiểu",
         city: "Thủ Đức",
         district: "Thủ Đức",
-        phone: "028 3726 9012",
+        ward: "Phường Linh Chiểu",
+        phone: "0283726901",
         email: "campus3@school.edu.vn",
         description: "Cơ sở tại thành phố Thủ Đức.",
         imageUrl: null,
@@ -126,6 +131,13 @@ const PLACEHOLDER_IMAGE = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/20
 const HCM_CODE = 79;
 const HCM_CITY_NAME = "Ho Chi Minh City";
 const DEFAULT_MAP_CENTER = [10.7769, 106.7009];
+
+/** Đồng bộ với CampusValidation.normalize (BE). */
+function normalizeCampusField(value) {
+    if (value == null) return null;
+    const trimmed = String(value).trim();
+    return trimmed === "" ? null : trimmed;
+}
 
 function RecenterMap({ center, zoom = 15 }) {
     const map = useMap();
@@ -197,6 +209,7 @@ export default function SchoolCampus() {
     const handleChange = (e) => {
         const {name, value} = e.target;
         setFormValues((prev) => ({...prev, [name]: value}));
+        setFormErrors((prev) => ({...prev, [name]: undefined}));
     };
 
     const handleStatusToggle = (e) => {
@@ -283,7 +296,42 @@ export default function SchoolCampus() {
 
     const validateForm = () => {
         const errors = {};
-        if (!formValues.email?.trim()) errors.email = "Email là bắt buộc";
+        const isCreateFlow = createModalOpen;
+
+        const email = normalizeCampusField(formValues.email);
+        if (!email) errors.email = "Email không được để trống";
+        else if (email.length > 100) errors.email = "Email không được vượt quá 100 ký tự";
+
+        const address = normalizeCampusField(formValues.address);
+        if (!address) errors.address = "Địa chỉ không được để trống";
+        else if (address.length > 250) errors.address = "Địa chỉ không được vượt quá 250 ký tự";
+
+        const phone = normalizeCampusField(formValues.phone);
+        if (!phone) errors.phone = "Số điện thoại không được để trống";
+        else if (!/^0\d{9}$/.test(phone)) {
+            errors.phone = "Số điện thoại không hợp lệ (phải bắt đầu bằng số 0 và có đúng 10 chữ số)";
+        }
+
+        const city = normalizeCampusField(formValues.city);
+        if (!city) errors.city = "Vui lòng chọn Tỉnh/Thành phố";
+
+        if (isCreateFlow) {
+            if (!selectedCreateDistrictCode || !normalizeCampusField(formValues.district)) {
+                errors.district = "Vui lòng chọn Quận/Huyện";
+            }
+            if (!selectedCreateWardCode || !normalizeCampusField(formValues.ward)) {
+                errors.ward = "Vui lòng chọn Phường/Xã";
+            }
+        } else {
+            if (!normalizeCampusField(formValues.district)) errors.district = "Vui lòng chọn Quận/Huyện";
+            if (!normalizeCampusField(formValues.ward)) errors.ward = "Vui lòng chọn Phường/Xã";
+        }
+
+        if (parseBoardingType(formValues.boardingType) == null) {
+            errors.boardingType =
+                "Loại hình nội trú không hợp lệ. Các giá trị chấp nhận: NONE, FULL_BOARDING, SEMI_BOARDING, BOTH";
+        }
+
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -359,6 +407,7 @@ export default function SchoolCampus() {
         setSelectedCreateWardCode("");
         setWardOptions([]);
         setGeocodingCreate(false);
+        setFormErrors({});
         setCreateModalOpen(false);
     };
 
@@ -375,6 +424,7 @@ export default function SchoolCampus() {
             latitude: "",
             longitude: "",
         }));
+        setFormErrors((prev) => ({...prev, district: undefined, ward: undefined}));
         if (!districtCode) return;
         try {
             const wards = await fetchWards(districtCode);
@@ -393,6 +443,7 @@ export default function SchoolCampus() {
             latitude: "",
             longitude: "",
         }));
+        setFormErrors((prev) => ({...prev, ward: undefined}));
     };
 
     useEffect(() => {
@@ -437,16 +488,17 @@ export default function SchoolCampus() {
         if (!validateForm()) return;
 
         try {
+            const boardingEnum = parseBoardingType(formValues.boardingType);
             const res = await createCampus({
-                email: formValues.email.trim(),
-                address: formValues.address?.trim() || "",
-                phone: formValues.phone?.trim() || "",
+                email: normalizeCampusField(formValues.email) || "",
+                address: normalizeCampusField(formValues.address) || "",
+                phone: normalizeCampusField(formValues.phone) || "",
                 city: HCM_CITY_NAME,
-                district: formValues.district?.trim() || undefined,
-                ward: formValues.ward?.trim() || undefined,
+                district: normalizeCampusField(formValues.district) || undefined,
+                ward: normalizeCampusField(formValues.ward) || undefined,
                 latitude: formValues.latitude !== "" ? formValues.latitude : undefined,
                 longitude: formValues.longitude !== "" ? formValues.longitude : undefined,
-                boardingType: normalizeBoardingTypeForApi(formValues.boardingType),
+                boardingType: boardingEnum || undefined,
             });
 
             const body = res?.data?.body;
@@ -496,7 +548,11 @@ export default function SchoolCampus() {
             }
         } catch (error) {
             console.error("Create campus error:", error);
-            enqueueSnackbar("Lỗi khi tạo cơ sở", {variant: "error"});
+            const apiMsg = error?.response?.data?.message;
+            enqueueSnackbar(
+                typeof apiMsg === "string" && apiMsg.trim() ? apiMsg.trim() : "Lỗi khi tạo cơ sở",
+                {variant: "error"}
+            );
         }
     };
 
@@ -540,7 +596,7 @@ export default function SchoolCampus() {
             email: formValues.email?.trim() || "",
             latitude: latitude !== undefined && Number.isNaN(latitude) ? undefined : latitude,
             longitude: longitude !== undefined && Number.isNaN(longitude) ? undefined : longitude,
-            boardingType: normalizeBoardingTypeForApi(formValues.boardingType),
+            boardingType: parseBoardingType(formValues.boardingType) ?? normalizeBoardingTypeForApi(formValues.boardingType),
             description: formValues.description?.trim() || "",
             imageUrl: formValues.imagePreview ?? selectedCampus?.imageUrl ?? null,
             status: formValues.status ? "active" : "inactive",
@@ -556,6 +612,7 @@ export default function SchoolCampus() {
             )
         );
         enqueueSnackbar("Cập nhật cơ sở thành công", {variant: "success"});
+        setFormErrors({});
         setEditModalOpen(false);
     };
 
@@ -1012,9 +1069,11 @@ export default function SchoolCampus() {
                             fullWidth
                             value={formValues.phone}
                             onChange={handleChange}
+                            error={!!formErrors.phone}
+                            helperText={formErrors.phone || "10 chữ số, bắt đầu bằng 0 (ví dụ 0983810915)"}
                             placeholder="0983810915"
                         />
-                        <FormControl fullWidth>
+                        <FormControl fullWidth error={!!formErrors.boardingType}>
                             <InputLabel>Loại nội trú</InputLabel>
                             <Select
                                 name="boardingType"
@@ -1028,6 +1087,7 @@ export default function SchoolCampus() {
                                     </MenuItem>
                                 ))}
                             </Select>
+                            {formErrors.boardingType ? <FormHelperText>{formErrors.boardingType}</FormHelperText> : null}
                         </FormControl>
                         <TextField
                             label="Địa chỉ"
@@ -1035,6 +1095,8 @@ export default function SchoolCampus() {
                             fullWidth
                             value={formValues.address}
                             onChange={handleChange}
+                            error={!!formErrors.address}
+                            helperText={formErrors.address}
                             placeholder="8, Hồ Đắc Di, Tây Thạnh Tân Phú, TP Hồ Chí Minh"
                         />
                         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
@@ -1043,8 +1105,10 @@ export default function SchoolCampus() {
                                 fullWidth
                                 value={HCM_CITY_NAME}
                                 disabled
+                                error={!!formErrors.city}
+                                helperText={formErrors.city || ""}
                             />
-                            <FormControl fullWidth>
+                            <FormControl fullWidth error={!!formErrors.district}>
                                 <InputLabel id="create-campus-district">Quận / Huyện</InputLabel>
                                 <Select
                                     labelId="create-campus-district"
@@ -1059,9 +1123,10 @@ export default function SchoolCampus() {
                                         </MenuItem>
                                     ))}
                                 </Select>
+                                {formErrors.district ? <FormHelperText>{formErrors.district}</FormHelperText> : null}
                             </FormControl>
                         </Stack>
-                        <FormControl fullWidth disabled={!selectedCreateDistrictCode}>
+                        <FormControl fullWidth disabled={!selectedCreateDistrictCode} error={!!formErrors.ward}>
                             <InputLabel id="create-campus-ward">Phường / Xã</InputLabel>
                             <Select
                                 labelId="create-campus-ward"
@@ -1076,6 +1141,7 @@ export default function SchoolCampus() {
                                     </MenuItem>
                                 ))}
                             </Select>
+                            {formErrors.ward ? <FormHelperText>{formErrors.ward}</FormHelperText> : null}
                         </FormControl>
                         {geocodingCreate && (
                             <Typography variant="caption" color="text.secondary">
@@ -1662,6 +1728,7 @@ export default function SchoolCampus() {
                 open={editModalOpen}
                 onClose={(event, reason) => {
                     if (reason === "backdropClick") return;
+                    setFormErrors({});
                     setEditModalOpen(false);
                 }}
                 fullWidth
@@ -1687,7 +1754,10 @@ export default function SchoolCampus() {
                             </Typography>
                         </Box>
                         <IconButton
-                            onClick={() => setEditModalOpen(false)}
+                            onClick={() => {
+                                setFormErrors({});
+                                setEditModalOpen(false);
+                            }}
                             size="small"
                             sx={{mt: -0.5, mr: -0.5}}
                             aria-label="Đóng"
@@ -1713,6 +1783,8 @@ export default function SchoolCampus() {
                             fullWidth
                             value={formValues.address}
                             onChange={handleChange}
+                            error={!!formErrors.address}
+                            helperText={formErrors.address}
                         />
                         <TextField
                             label="Quận / Thành phố"
@@ -1720,6 +1792,8 @@ export default function SchoolCampus() {
                             fullWidth
                             value={formValues.city}
                             onChange={handleChange}
+                            error={!!(formErrors.city || formErrors.district)}
+                            helperText={formErrors.city || formErrors.district || ""}
                         />
                         <TextField
                             label="Phường / Xã"
@@ -1727,6 +1801,8 @@ export default function SchoolCampus() {
                             fullWidth
                             value={formValues.ward}
                             onChange={handleChange}
+                            error={!!formErrors.ward}
+                            helperText={formErrors.ward}
                         />
                         <TextField
                             label="Số điện thoại"
@@ -1734,6 +1810,8 @@ export default function SchoolCampus() {
                             fullWidth
                             value={formValues.phone}
                             onChange={handleChange}
+                            error={!!formErrors.phone}
+                            helperText={formErrors.phone || "10 chữ số, bắt đầu bằng 0"}
                         />
                         <TextField
                             label="Email"
@@ -1742,6 +1820,8 @@ export default function SchoolCampus() {
                             fullWidth
                             value={formValues.email}
                             onChange={handleChange}
+                            error={!!formErrors.email}
+                            helperText={formErrors.email}
                         />
                         <TextField
                             label="Mô tả"
@@ -1821,7 +1901,10 @@ export default function SchoolCampus() {
                 </DialogContent>
                 <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
                     <Button
-                        onClick={() => setEditModalOpen(false)}
+                        onClick={() => {
+                            setFormErrors({});
+                            setEditModalOpen(false);
+                        }}
                         variant="text"
                         color="inherit"
                         sx={{textTransform: "none", fontWeight: 500}}

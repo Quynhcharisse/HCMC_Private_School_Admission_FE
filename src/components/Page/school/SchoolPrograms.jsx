@@ -269,6 +269,30 @@ function safeString(v) {
     return String(v ?? "");
 }
 
+/** Đồng bộ với ProgramValidation.normalize(String) trên BE. */
+function normalizeField(value) {
+    if (value == null) return null;
+    const trimmed = String(value).trim();
+    return trimmed === "" ? null : trimmed;
+}
+
+const LANGUAGE_INSTRUCTION_VALUES = LANGUAGE_OPTIONS.map((o) => String(o.value).toUpperCase());
+const FEE_UNIT_VALUES = FEE_UNIT_OPTIONS.map((o) => String(o.value).toUpperCase());
+
+function isValidLanguageOfInstruction(lang) {
+    if (lang == null) return false;
+    const s = String(lang).trim();
+    if (!s) return false;
+    return LANGUAGE_INSTRUCTION_VALUES.some((v) => v === s.toUpperCase());
+}
+
+function isValidFeeUnit(feeUnit) {
+    if (feeUnit == null) return false;
+    const s = String(feeUnit).trim();
+    if (!s) return false;
+    return FEE_UNIT_VALUES.some((v) => v === s.toUpperCase());
+}
+
 function mapProgramBackendMessageToVi(message) {
     const msg = String(message ?? "").trim();
     if (!msg) return "";
@@ -303,9 +327,41 @@ function mapProgramBackendMessageToVi(message) {
         "Invalid program category. Must be one of: [MOET, MOET_INTEGRATED, CAMBRIDGE, IB, AMERICAN_AP, OXFORD, VOCATIONAL_ORIENTED]":
             "Loại chương trình không hợp lệ.",
         "Invalid fee unit. Must be one of: [YEAR, SEMESTER, QUARTER, MONTH]": "Đơn vị học phí không hợp lệ.",
+        // Thông điệp tiếng Việt từ ProgramValidation (BE)
+        "Dữ liệu yêu cầu không được để trống": "Dữ liệu yêu cầu không được để trống",
+        "Yêu cầu mã khung chương trình (Curriculum ID)": "Yêu cầu mã khung chương trình (Curriculum ID)",
+        "Khung chương trình không hợp lệ hoặc không thuộc về trường của bạn": "Khung chương trình không hợp lệ hoặc không thuộc về trường của bạn",
+        "Không thể sử dụng khung chương trình này. Chỉ những khung chương trình đang HOẠT ĐỘNG mới có thể liên kết với chương trình đào tạo.":
+            "Không thể sử dụng khung chương trình này. Chỉ những khung chương trình đang HOẠT ĐỘNG mới có thể liên kết với chương trình đào tạo.",
+        "Tên chương trình không được để trống": "Tên chương trình không được để trống",
+        "Tên chương trình quá dài (tối đa 100 ký tự)": "Tên chương trình quá dài (tối đa 100 ký tự)",
+        "Chuẩn đầu ra không được để trống": "Chuẩn đầu ra không được để trống",
+        "Chuẩn đầu ra quá dài (tối đa 2000 ký tự)": "Chuẩn đầu ra quá dài (tối đa 2000 ký tự)",
+        "Yêu cầu ít nhất một ngôn ngữ giảng dạy.": "Yêu cầu ít nhất một ngôn ngữ giảng dạy.",
+        "Học phí không được để trống": "Học phí không được để trống",
+        "Học phí không được là số âm": "Học phí không được là số âm",
+        "Đơn vị tính phí không được để trống": "Đơn vị tính phí không được để trống",
+        "Mô tả đối tượng học sinh không được để trống": "Mô tả đối tượng học sinh không được để trống",
+        "Mô tả đối tượng học sinh quá dài (tối đa 2000 ký tự)": "Mô tả đối tượng học sinh quá dài (tối đa 2000 ký tự)",
+        "Tên môn học bổ sung không được để trống": "Tên môn học bổ sung không được để trống",
+        "Không tìm thấy chương trình đào tạo trong phạm vi quản lý của trường bạn": "Không tìm thấy chương trình đào tạo trong phạm vi quản lý của trường bạn",
+        "Tên chương trình đào tạo đã tồn tại trong khung chương trình này": "Tên chương trình đào tạo đã tồn tại trong khung chương trình này",
+        "Không thể thay đổi khung chương trình của một chương trình đào tạo đang HOẠT ĐỘNG.":
+            "Không thể thay đổi khung chương trình của một chương trình đào tạo đang HOẠT ĐỘNG.",
+        "Không thể thay đổi học phí hoặc đơn vị tính của chương trình đào tạo đang HOẠT ĐỘNG. Vui lòng đóng chương trình này và tạo chương trình mới.":
+            "Không thể thay đổi học phí hoặc đơn vị tính của chương trình đào tạo đang HOẠT ĐỘNG. Vui lòng đóng chương trình này và tạo chương trình mới.",
+        "Không thể thay đổi khung chương trình vì chương trình đào tạo này đã có các suất tuyển sinh hoặc hồ sơ nhập học đang hoạt động.":
+            "Không thể thay đổi khung chương trình vì chương trình đào tạo này đã có các suất tuyển sinh hoặc hồ sơ nhập học đang hoạt động.",
+        "Chuẩn đầu ra đã tồn tại trong khung chương trình này": "Chuẩn đầu ra đã tồn tại trong khung chương trình này",
     };
 
     if (map[msg]) return map[msg];
+
+    if (msg.startsWith("Ngôn ngữ không hợp lệ:")) return msg;
+    if (msg.startsWith("Môn học '") && msg.includes("đã tồn tại trong Khung chương trình cốt lõi")) return msg;
+    if (msg.startsWith("Phát hiện tên môn học bổ sung bị trùng lặp trong yêu cầu:")) return msg;
+    if (msg.startsWith("Mô tả cho môn học bổ sung '") && msg.includes("không được để trống")) return msg;
+    if (msg.startsWith("Đơn vị tính phí không hợp lệ")) return msg;
 
     if (msg.startsWith("Invalid language of instruction list.")) return "Danh sách ngôn ngữ giảng dạy không hợp lệ.";
     if (msg.startsWith("Invalid language of instruction.")) return "Ngôn ngữ giảng dạy không hợp lệ.";
@@ -674,44 +730,122 @@ export default function SchoolPrograms() {
 
     const validateStep1 = () => {
         const errors = {};
-        if (!effectiveCurriculumId) errors.curriculumId = "Vui lòng chọn khung chương trình.";
+        if (!effectiveCurriculumId) {
+            errors.curriculumId = "Yêu cầu mã khung chương trình (Curriculum ID)";
+        } else {
+            const cur =
+                selectedCurriculum?.id === effectiveCurriculumId
+                    ? selectedCurriculum
+                    : curriculumOptions.find((c) => c.id === effectiveCurriculumId);
+            if (cur && normalizeStatus(cur.curriculumStatus) !== "CUR_ACTIVE") {
+                errors.curriculumId =
+                    "Không thể sử dụng khung chương trình này. Chỉ những khung chương trình đang HOẠT ĐỘNG mới có thể liên kết với chương trình đào tạo.";
+            }
+        }
         setFormErrors((prev) => ({ ...prev, ...errors }));
         return Object.keys(errors).length === 0;
     };
 
     const validateStep2 = () => {
         const errors = {};
-        const nm = safeString(formValues.name).trim();
-        if (!nm) errors.name = "Tên chương trình là bắt buộc.";
-        else if (nm.length > MAX_PROGRAM_NAME_LEN)
-            errors.name = `Tên vượt quá ${MAX_PROGRAM_NAME_LEN} ký tự.`;
+        const curriculumId = effectiveCurriculumId;
+        const curriculumForExtras =
+            selectedCurriculum?.id === curriculumId
+                ? selectedCurriculum
+                : curriculumOptions.find((c) => c.id === curriculumId) || selectedCurriculum;
+        const coreSubjects = Array.isArray(curriculumForExtras?.subjects) ? curriculumForExtras.subjects : [];
+        const coreNameSet = new Set(
+            coreSubjects
+                .map((s) => normalizeField(s?.name))
+                .filter(Boolean)
+                .map((n) => n.toLowerCase())
+        );
+
+        const nm = normalizeField(formValues.name);
+        if (!nm) errors.name = "Tên chương trình không được để trống";
+        else if (nm.length > MAX_PROGRAM_NAME_LEN) errors.name = "Tên chương trình quá dài (tối đa 100 ký tự)";
 
         const languageOfInstructionList = Array.isArray(formValues.languageOfInstructionList)
             ? formValues.languageOfInstructionList
             : [];
-        if (languageOfInstructionList.length === 0) errors.languageOfInstructionList = "Ngôn ngữ giảng dạy là bắt buộc.";
-
-        const feeUnit = safeString(formValues.feeUnit).trim();
-        if (!feeUnit) errors.feeUnit = "Đơn vị học phí là bắt buộc.";
+        if (languageOfInstructionList.length === 0) {
+            errors.languageOfInstructionList = "Yêu cầu ít nhất một ngôn ngữ giảng dạy.";
+        } else {
+            const badLang = languageOfInstructionList.find((lang) => !isValidLanguageOfInstruction(lang));
+            if (badLang != null) {
+                errors.languageOfInstructionList = `Ngôn ngữ không hợp lệ: ${badLang}. Phải là một trong: ${LANGUAGE_INSTRUCTION_VALUES.join(", ")}`;
+            }
+        }
 
         const feeDigits = safeString(formValues.baseTuitionFee).replace(/\D/g, "");
         const fee = feeDigits === "" ? NaN : Number(feeDigits);
-        if (feeDigits === "" || !Number.isFinite(fee)) errors.baseTuitionFee = "Học phí gốc là bắt buộc.";
-        else if (fee < 0) errors.baseTuitionFee = "Học phí gốc phải ≥ 0.";
-        const gs = safeString(formValues.graduationStandard).trim();
-        if (!gs) errors.graduationStandard = "Chuẩn đầu ra là bắt buộc.";
-        else if (gs.length > MAX_TEXT_FIELD_LEN)
-            errors.graduationStandard = `Tối đa ${MAX_TEXT_FIELD_LEN} ký tự.`;
-        const td = safeString(formValues.targetStudentDescription).trim();
-        if (!td) errors.targetStudentDescription = "Đối tượng học sinh là bắt buộc.";
+        if (feeDigits === "" || !Number.isFinite(fee)) errors.baseTuitionFee = "Học phí không được để trống";
+        else if (fee < 0) errors.baseTuitionFee = "Học phí không được là số âm";
+
+        const feeUnitRaw = normalizeField(formValues.feeUnit);
+        if (!feeUnitRaw) errors.feeUnit = "Đơn vị tính phí không được để trống";
+        else if (!isValidFeeUnit(feeUnitRaw)) {
+            errors.feeUnit = `Đơn vị tính phí không hợp lệ. Phải là một trong: ${FEE_UNIT_VALUES.join(", ")}`;
+        }
+
+        const gs = normalizeField(formValues.graduationStandard);
+        if (!gs) errors.graduationStandard = "Chuẩn đầu ra không được để trống";
+        else if (gs.length > MAX_TEXT_FIELD_LEN) errors.graduationStandard = "Chuẩn đầu ra quá dài (tối đa 2000 ký tự)";
+
+        const td = normalizeField(formValues.targetStudentDescription);
+        if (!td) errors.targetStudentDescription = "Mô tả đối tượng học sinh không được để trống";
         else if (td.length > MAX_TEXT_FIELD_LEN)
-            errors.targetStudentDescription = `Tối đa ${MAX_TEXT_FIELD_LEN} ký tự.`;
+            errors.targetStudentDescription = "Mô tả đối tượng học sinh quá dài (tối đa 2000 ký tự)";
 
         const extraSubjectList = Array.isArray(formValues.extraSubjectList) ? formValues.extraSubjectList : [];
-        const invalidExtraSubject = extraSubjectList.find((s) => !safeString(s?.name).trim());
-        if (invalidExtraSubject) {
-            errors.extraSubjectList = "Môn bổ sung phải có tên môn.";
+        const extraNamesSeen = new Set();
+        for (const s of extraSubjectList) {
+            const rawName = normalizeField(s?.name);
+            const rawDesc = normalizeField(s?.description);
+            if (rawName == null && rawDesc == null) continue;
+
+            if (rawName == null) {
+                errors.extraSubjectList = "Tên môn học bổ sung không được để trống";
+                break;
+            }
+            if (coreNameSet.has(rawName.toLowerCase())) {
+                errors.extraSubjectList = `Môn học '${rawName}' đã tồn tại trong Khung chương trình cốt lõi.`;
+                break;
+            }
+            const key = rawName.toLowerCase();
+            if (extraNamesSeen.has(key)) {
+                errors.extraSubjectList = `Phát hiện tên môn học bổ sung bị trùng lặp trong yêu cầu: ${rawName}`;
+                break;
+            }
+            extraNamesSeen.add(key);
+            if (rawDesc == null) {
+                errors.extraSubjectList = `Mô tả cho môn học bổ sung '${rawName}' không được để trống.`;
+                break;
+            }
         }
+
+        if (curriculumId && !errors.name && nm) {
+            const selfId = modalMode === "edit" && selectedProgram?.id != null ? Number(selectedProgram.id) : null;
+            const dupName = programs.some(
+                (p) =>
+                    p.curriculumId === curriculumId &&
+                    normalizeField(p.name)?.toLowerCase() === nm.toLowerCase() &&
+                    (selfId == null || !Number.isFinite(selfId) || Number(p.id) !== selfId)
+            );
+            if (dupName) errors.name = "Tên chương trình đào tạo đã tồn tại trong khung chương trình này";
+        }
+
+        if (curriculumId && !errors.graduationStandard && gs) {
+            const selfId = modalMode === "edit" && selectedProgram?.id != null ? Number(selectedProgram.id) : null;
+            const dupGs = programs.some(
+                (p) =>
+                    p.curriculumId === curriculumId &&
+                    normalizeField(p.graduationStandard)?.toLowerCase() === gs.toLowerCase() &&
+                    (selfId == null || !Number.isFinite(selfId) || Number(p.id) !== selfId)
+            );
+            if (dupGs) errors.graduationStandard = "Chuẩn đầu ra đã tồn tại trong khung chương trình này";
+        }
+
         setFormErrors((prev) => ({ ...prev, ...errors }));
         return Object.keys(errors).length === 0;
     };
@@ -779,7 +913,7 @@ export default function SchoolPrograms() {
 
         const curriculumId = effectiveCurriculumId;
         if (!curriculumId) {
-            enqueueSnackbar("Bạn cần chọn khung chương trình.", { variant: "error" });
+            enqueueSnackbar("Yêu cầu mã khung chương trình (Curriculum ID)", { variant: "error" });
             return;
         }
 
@@ -814,23 +948,38 @@ export default function SchoolPrograms() {
                 else if (status === 403)
                     backendMsg = "Không có quyền (chỉ cơ sở chính mới thực hiện được, hoặc tài khoản bị hạn chế).";
                 else if (status === 404) backendMsg = "Không tìm thấy Program hoặc Curriculum trong phạm vi trường.";
-                else if (status === 409) backendMsg = "Trùng tiêu chuẩn đầu ra trong cùng một Curriculum.";
+                else if (status === 409) backendMsg = "Chuẩn đầu ra đã tồn tại trong khung chương trình này";
                 else backendMsg = "Lỗi khi lưu program";
             }
             const normalized = String(backendMsg || "").toLowerCase();
             const backendMsgVi = mapProgramBackendMessageToVi(backendMsg) || backendMsg || "Lỗi khi lưu program";
 
-            const cannotChangeCurriculum = normalized.includes("cannot change curriculum");
-            const cannotChangeTuitionOrFeeUnit = normalized.includes("cannot change tuition fee") || normalized.includes("cannot change fee unit");
+            const cannotChangeCurriculum =
+                normalized.includes("cannot change curriculum") ||
+                (normalized.includes("không thể thay đổi khung chương trình") &&
+                    !normalized.includes("học phí") &&
+                    !normalized.includes("đơn vị tính"));
+            const cannotChangeTuitionOrFeeUnit =
+                normalized.includes("cannot change tuition fee") ||
+                normalized.includes("cannot change fee unit") ||
+                normalized.includes("không thể thay đổi học phí") ||
+                normalized.includes("đơn vị tính của chương trình đào tạo đang hoạt động");
 
             if (cannotChangeCurriculum) {
                 setDisableCurriculumSelection(true);
-                if (normalized.includes("active offerings") || normalized.includes("active offerings/enrollments")) {
+                if (
+                    normalized.includes("active offerings") ||
+                    normalized.includes("active offerings/enrollments") ||
+                    normalized.includes("suất tuyển sinh") ||
+                    normalized.includes("hồ sơ nhập học")
+                ) {
                     setCurriculumSelectionWarning(
-                        "Chương trình này đã có lớp/đợt tuyển sinh. Bạn không thể thay đổi Khung chương trình (Curriculum)."
+                        "Không thể thay đổi khung chương trình vì chương trình đào tạo này đã có các suất tuyển sinh hoặc hồ sơ nhập học đang hoạt động."
                     );
                 } else {
-                    setCurriculumSelectionWarning("Chương trình đang hoạt động: không thể thay đổi Khung chương trình (Curriculum).");
+                    setCurriculumSelectionWarning(
+                        "Không thể thay đổi khung chương trình của một chương trình đào tạo đang HOẠT ĐỘNG."
+                    );
                 }
 
                 if (originalCurriculumId) {
@@ -840,7 +989,9 @@ export default function SchoolPrograms() {
             }
 
             if (cannotChangeTuitionOrFeeUnit) {
-                setCurriculumSelectionWarning("Chương trình đang hoạt động: không thể thay đổi học phí gốc và đơn vị học phí.");
+                setCurriculumSelectionWarning(
+                    "Không thể thay đổi học phí hoặc đơn vị tính của chương trình đào tạo đang HOẠT ĐỘNG. Vui lòng đóng chương trình này và tạo chương trình mới."
+                );
             }
 
             enqueueSnackbar(backendMsgVi, { variant: "error" });
@@ -1276,7 +1427,7 @@ export default function SchoolPrograms() {
                                                     Khung chương trình
                                                 </Typography>
                                                 <Typography sx={{ fontWeight: 900, color: "#1e293b" }}>
-                                                    {selectedProgram.curriculumName || "—"}
+                                                    {selectedProgram.curriculumName}
                                                 </Typography>
                                                 <Typography variant="body2" sx={{ color: "#64748b" }}>
                                                     {selectedProgram.enrollmentYear || "—"}  {toCurriculumTypeLabel(selectedProgram.curriculumType)}
