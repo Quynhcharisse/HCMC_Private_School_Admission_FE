@@ -12,6 +12,10 @@ import {
   Chip,
   CircularProgress,
   Collapse,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Divider,
   FormControl,
   FormControlLabel,
@@ -40,7 +44,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AddIcon from "@mui/icons-material/Add";
 import {useNavigate, useSearchParams} from "react-router-dom";
-import {enqueueSnackbar} from "notistack";
+import {closeSnackbar, enqueueSnackbar} from "notistack";
 
 import {extractCampusListBody, listCampuses} from "../../../services/CampusService.jsx";
 import {useSchool} from "../../../contexts/SchoolContext.jsx";
@@ -51,6 +55,8 @@ import {
   updateCampusConfig,
   updateSchoolConfig,
 } from "../../../services/SchoolFacilityService.jsx";
+import {fetchSystemAdmissionSettingsData} from "../../../services/SystemConfigService.jsx";
+import {admissionSettingsComparableJson, sanitizeAdmissionSettingsForApi} from "../../../utils/admissionSettingsShared.js";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
 import SchoolWideScheduleReadOnlyPanel from "./SchoolWideScheduleReadOnlyPanel.jsx";
 import {HqScalarDiffChip, HqVsCampusSlotBufferSummary, SchoolSlotCycleHint} from "./CampusOperationHqHints.jsx";
@@ -100,6 +106,17 @@ function mergeAdmissionMethodCatalogRows(availableMethods, allowedMethods) {
     map.set(code, {...prev, ...m, code});
   }
   return Array.from(map.values());
+}
+
+/** Phương thức đang được trỏ bởi hồ sơ theo phương thức hoặc quy trình — cảnh báo khi bỏ bật / xóa dòng. */
+function isMethodCodeReferencedInOtherConfig(code, cfg) {
+  const c = String(code ?? "").trim();
+  if (!c || !cfg || typeof cfg !== "object") return false;
+  const doc = (cfg.documentRequirementsData?.byMethod || []).some((g) => String(g?.methodCode ?? "").trim() === c);
+  const proc = (cfg.operationSettingsData?.methodAdmissionProcess || []).some(
+    (g) => String(g?.methodCode ?? "").trim() === c
+  );
+  return doc || proc;
 }
 
 const DAY_CODES = [
@@ -638,36 +655,6 @@ function sanitizeDocumentRequirementsForApi(data) {
       })
     : [];
   return {mandatoryAll, byMethod};
-}
-
-/** PUT: bỏ field lạ (vd. itemList: true từ GET key), giữ đúng contract */
-function sanitizeAdmissionSettingsForApi(adm) {
-  if (!adm || typeof adm !== "object") return adm;
-  const raw = Array.isArray(adm.allowedMethods) ? adm.allowedMethods : [];
-  const normalized = raw.map((m) => {
-    const {__isNewRow: _r, ...rest} = m && typeof m === "object" ? m : {};
-    return {
-      code: String(rest?.code ?? "").trim(),
-      description: rest?.description != null ? String(rest.description) : "",
-      displayName: rest?.displayName != null ? String(rest.displayName) : "",
-    };
-  });
-  const withCode = normalized.filter((m) => m.code);
-  const seen = new Set();
-  const methods = [];
-  for (let i = withCode.length - 1; i >= 0; i--) {
-    if (seen.has(withCode[i].code)) continue;
-    seen.add(withCode[i].code);
-    methods.unshift(withCode[i]);
-  }
-  return {
-    allowedMethods: methods,
-    autoCloseOnFull: typeof adm.autoCloseOnFull === "boolean" ? adm.autoCloseOnFull : true,
-    quotaAlertThresholdPercent:
-      adm.quotaAlertThresholdPercent != null && !Number.isNaN(Number(adm.quotaAlertThresholdPercent))
-        ? Number(adm.quotaAlertThresholdPercent)
-        : 90,
-  };
 }
 
 function sanitizeQuotaConfigForApi(q) {
@@ -1683,6 +1670,14 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   const [pendingScrollToProcessIdx, setPendingScrollToProcessIdx] = useState(null);
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
   const [admissionMethodExpanded, setAdmissionMethodExpanded] = useState({});
+  /** Chuỗi JSON so sánh với mẫu GET system (badge). */
+  const [systemAdmissionComparable, setSystemAdmissionComparable] = useState("");
+  const [admissionViewMode, setAdmissionViewMode] = useState("edit");
+  const [admissionFirstRunOpen, setAdmissionFirstRunOpen] = useState(false);
+  const [admissionRestoreConfirmOpen, setAdmissionRestoreConfirmOpen] = useState(false);
+  const [admissionToggleOffConfirm, setAdmissionToggleOffConfirm] = useState({open: false, code: ""});
+  const [admissionRemoveRowConfirm, setAdmissionRemoveRowConfirm] = useState({open: false, idx: -1});
+  const [loadingSystemAdmission, setLoadingSystemAdmission] = useState(false);
 
   const toggleAdmissionMethodExpand = useCallback((key) => {
     setAdmissionMethodExpanded((p) => ({...p, [key]: !p[key]}));
@@ -1735,6 +1730,21 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     config.operationSettingsData?.methodAdmissionProcess,
   ]);
 
+  const schoolAdmissionComparable = useMemo(
+    () => admissionSettingsComparableJson(config.admissionSettingsData),
+    [config.admissionSettingsData]
+  );
+
+  const admissionTemplateBadge = useMemo(() => {
+    if (!systemAdmissionComparable) {
+      return {label: "Chưa tải mẫu hệ thống", color: "default"};
+    }
+    if (schoolAdmissionComparable === systemAdmissionComparable) {
+      return {label: "Khớp mẫu hệ thống", color: "info"};
+    }
+    return {label: "Đã tùy chỉnh so với mẫu", color: "primary"};
+  }, [schoolAdmissionComparable, systemAdmissionComparable]);
+
   const snapshot = useMemo(() => JSON.stringify(config), [config]);
   const isDirty = useMemo(() => {
     const init = initialRef.current;
@@ -1747,6 +1757,8 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   /** Khi không chỉnh sửa hoặc đang lưu: khoá nhập nhưng giữ màu bình thường (readOnly / chặn pointer, không dùng disabled). */
   const fieldDisabled = saving || !editing;
   const blockPointerSx = fieldDisabled ? { pointerEvents: "none", cursor: "default" } : undefined;
+  const admissionFormBlocked = fieldDisabled || admissionViewMode === "preview";
+  const admissionBlockPointerSx = admissionFormBlocked ? {pointerEvents: "none", cursor: "default"} : undefined;
 
   const load = useCallback(async (opts = {}) => {
     const silent = opts.silent === true;
@@ -1907,6 +1919,41 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     });
     return () => cancelAnimationFrame(id);
   }, [pendingScrollToProcessIdx]);
+
+  useEffect(() => {
+    if (isCampusVariant || schoolId == null) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const tmpl = await fetchSystemAdmissionSettingsData();
+        if (cancelled) return;
+        if (tmpl && typeof tmpl === "object") {
+          setSystemAdmissionComparable(admissionSettingsComparableJson(tmpl));
+        } else {
+          setSystemAdmissionComparable("");
+        }
+      } catch {
+        if (!cancelled) setSystemAdmissionComparable("");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isCampusVariant, schoolId, lastLoadedAt]);
+
+  useEffect(() => {
+    if (tabSlug !== "admission") setAdmissionFirstRunOpen(false);
+  }, [tabSlug]);
+
+  useEffect(() => {
+    if (useCampusConfigFlow || tabSlug !== "admission") return;
+    try {
+      if (window.localStorage.getItem("school_config_admission_sys_prompt_v1")) return;
+    } catch {
+      return;
+    }
+    setAdmissionFirstRunOpen(true);
+  }, [useCampusConfigFlow, tabSlug]);
 
   const handleReset = useCallback(() => {
     const init = initialRef.current;
@@ -2081,6 +2128,24 @@ export default function SchoolConfig({variant = "platform"} = {}) {
         return;
       }
       enqueueSnackbar(schoolConfigSaveSuccessMessage(resSchool?.data?.message), {variant: "success"});
+      if (schoolPayload.admissionSettingsData != null) {
+        enqueueSnackbar("Nếu đổi phương thức, nên kiểm tra lại yêu cầu hồ sơ theo phương thức.", {
+          variant: "info",
+          action: (key) => (
+            <Button
+              color="inherit"
+              size="small"
+              sx={{fontWeight: 700}}
+              onClick={() => {
+                closeSnackbar(key);
+                setSearchParams({tab: "documents"}, {replace: true});
+              }}
+            >
+              Mở Cài đặt hồ sơ
+            </Button>
+          ),
+        });
+      }
       setEditing(false);
       await load({silent: true});
     } catch (e) {
@@ -2096,6 +2161,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     effectiveCampusId,
     branchPolicyDetail,
     setTabIndex,
+    setSearchParams,
     editing,
     load,
   ]);
@@ -2107,7 +2173,48 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   const systemQuota = Number(config.quotaConfigData?.totalSystemQuota || 0);
   const quotaMismatch = systemQuota > 0 && allocatedTotal !== systemQuota;
 
-  const toggleAdmissionMethod = useCallback(
+  const applySystemTemplateToForm = useCallback(async () => {
+    setLoadingSystemAdmission(true);
+    try {
+      const tmpl = await fetchSystemAdmissionSettingsData();
+      if (!tmpl || typeof tmpl !== "object") {
+        enqueueSnackbar("Không có mẫu phương thức trên hệ thống.", {variant: "info"});
+        return;
+      }
+      const am = Array.isArray(tmpl.allowedMethods) ? tmpl.allowedMethods : [];
+      const mapped = am.map((m) => ({
+        code: m?.code != null ? String(m.code) : "",
+        displayName: m?.displayName != null ? String(m.displayName) : "",
+        description: m?.description != null ? String(m.description) : "",
+      }));
+      setConfig((c) => ({
+        ...c,
+        admissionSettingsData: {
+          ...c.admissionSettingsData,
+          availableMethods: mapped.map((x) => ({...x})),
+          allowedMethods: mapped.map((x) => ({...x})),
+          autoCloseOnFull: typeof tmpl.autoCloseOnFull === "boolean" ? tmpl.autoCloseOnFull : true,
+          quotaAlertThresholdPercent:
+            tmpl.quotaAlertThresholdPercent != null && !Number.isNaN(Number(tmpl.quotaAlertThresholdPercent))
+              ? Number(tmpl.quotaAlertThresholdPercent)
+              : 90,
+        },
+      }));
+      enqueueSnackbar("Đã áp dụng mẫu hệ thống vào form (chưa lưu DB).", {variant: "success"});
+    } finally {
+      setLoadingSystemAdmission(false);
+    }
+  }, []);
+
+  const handleRestoreTemplateClick = useCallback(() => {
+    if (isDirty) {
+      setAdmissionRestoreConfirmOpen(true);
+      return;
+    }
+    void applySystemTemplateToForm();
+  }, [isDirty, applySystemTemplateToForm]);
+
+  const applyToggleAdmissionMethod = useCallback(
     (code, checked) => {
       const method = methodCatalog.find((m) => m.code === code);
       if (!method) return;
@@ -2121,6 +2228,26 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     },
     [methodCatalog]
   );
+
+  const toggleAdmissionMethod = useCallback(
+    (code, checked) => {
+      if (!checked) {
+        const c = String(code ?? "").trim();
+        if (c && isMethodCodeReferencedInOtherConfig(c, config)) {
+          setAdmissionToggleOffConfirm({open: true, code: c});
+          return;
+        }
+      }
+      applyToggleAdmissionMethod(code, checked);
+    },
+    [config, applyToggleAdmissionMethod]
+  );
+
+  const confirmToggleAdmissionOff = useCallback(() => {
+    const c = admissionToggleOffConfirm.code;
+    setAdmissionToggleOffConfirm({open: false, code: ""});
+    if (c) applyToggleAdmissionMethod(c, false);
+  }, [admissionToggleOffConfirm.code, applyToggleAdmissionMethod]);
 
   const addAdmissionMethod = useCallback(() => {
     setConfig((c) => ({
@@ -2144,13 +2271,34 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     });
   }, []);
 
-  const removeAdmissionAllowedAt = useCallback((idx) => {
+  const performRemoveAdmissionAllowedAt = useCallback((idx) => {
     setConfig((c) => {
       const arr = [...(c.admissionSettingsData.allowedMethods || [])];
       arr.splice(idx, 1);
       return {...c, admissionSettingsData: {...c.admissionSettingsData, allowedMethods: arr}};
     });
   }, []);
+
+  const requestRemoveAdmissionAllowedAt = useCallback(
+    (idx) => {
+      const arr = config.admissionSettingsData?.allowedMethods || [];
+      const m = arr[idx];
+      if (!m) return;
+      const code = String(m?.code ?? "").trim();
+      if (code) {
+        setAdmissionRemoveRowConfirm({open: true, idx});
+        return;
+      }
+      performRemoveAdmissionAllowedAt(idx);
+    },
+    [config.admissionSettingsData?.allowedMethods, performRemoveAdmissionAllowedAt]
+  );
+
+  const confirmRemoveAdmissionRow = useCallback(() => {
+    const idx = admissionRemoveRowConfirm.idx;
+    setAdmissionRemoveRowConfirm({open: false, idx: -1});
+    if (idx >= 0) performRemoveAdmissionAllowedAt(idx);
+  }, [admissionRemoveRowConfirm.idx, performRemoveAdmissionAllowedAt]);
 
   const addMethodAdmissionProcess = useCallback(() => {
     let newIndex = 0;
@@ -2556,18 +2704,90 @@ export default function SchoolConfig({variant = "platform"} = {}) {
           {showAdmissionTab && (
             <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
               <CardContent sx={{p: 3}}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{mb: 2}}>
-                  <Typography sx={{fontWeight: 800, fontSize: 18}}>Phương thức tuyển sinh</Typography>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<AddIcon/>}
-                    onClick={addAdmissionMethod}
-                    sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
-                  >
-                    Thêm
-                  </Button>
+                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1.5} sx={{mb: 2}}>
+                  <Box sx={{minWidth: 0}}>
+                    <Typography sx={{fontWeight: 800, fontSize: 18}}>Phương thức tuyển sinh</Typography>
+                    <Stack direction="row" alignItems="center" flexWrap="wrap" gap={1} sx={{mt: 1}}>
+                      <Chip size="small" label={admissionTemplateBadge.label} color={admissionTemplateBadge.color} variant="outlined"/>
+                    </Stack>
+                  </Box>
+                  <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center" justifyContent="flex-end">
+                    <ToggleButtonGroup
+                      size="small"
+                      value={admissionViewMode}
+                      exclusive
+                      disabled={saving}
+                      onChange={(_, v) => v != null && setAdmissionViewMode(v)}
+                      sx={{"& .MuiToggleButton-root": {textTransform: "none", fontWeight: 700, px: 1.5}}}
+                    >
+                      <ToggleButton value="edit">Soạn thảo</ToggleButton>
+                      <ToggleButton value="preview">Xem trước</ToggleButton>
+                    </ToggleButtonGroup>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      disabled={loadingSystemAdmission || saving}
+                      onClick={() => void applySystemTemplateToForm()}
+                      sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
+                    >
+                      Lấy mẫu từ hệ thống
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      color="warning"
+                      disabled={loadingSystemAdmission || saving}
+                      onClick={handleRestoreTemplateClick}
+                      sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
+                    >
+                      Khôi phục theo mẫu hệ thống
+                    </Button>
+                    {admissionViewMode === "edit" ? (
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<AddIcon/>}
+                        onClick={addAdmissionMethod}
+                        sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...admissionBlockPointerSx}}
+                      >
+                        Thêm
+                      </Button>
+                    ) : null}
+                  </Stack>
                 </Stack>
+                <Alert severity="info" sx={{mb: 2, borderRadius: 2}}>
+                  Xóa hoặc đổi mã phương thức có thể làm lệch cấu hình khác (hồ sơ, quy trình). Trước khi xóa dòng hoặc bỏ bật phương thức đang được trỏ, hệ thống sẽ nhắc bạn.
+                </Alert>
+                {admissionViewMode === "preview" ? (
+                  <Stack spacing={2} sx={{mb: 2}}>
+                    <Typography variant="body2" color="text.secondary">
+                      Đang bật{" "}
+                      <strong>
+                        {(config.admissionSettingsData?.allowedMethods || []).filter((m) => String(m?.code ?? "").trim()).length}
+                      </strong>{" "}
+                      phương thức (theo mã đã nhập).
+                    </Typography>
+                    <Stack direction="row" flexWrap="wrap" gap={1}>
+                      {(config.admissionSettingsData?.allowedMethods || [])
+                        .filter((m) => String(m?.code ?? "").trim())
+                        .map((m) => (
+                          <Chip
+                            key={m.code}
+                            size="small"
+                            label={`${(m.displayName && String(m.displayName).trim()) || m.code} (${String(m.code).trim()})`}
+                            variant="outlined"
+                          />
+                        ))}
+                    </Stack>
+                    <Typography variant="body2" color="text.secondary">
+                      Tự động đóng khi đủ chỉ tiêu: {config.admissionSettingsData.autoCloseOnFull ? "Có" : "Không"} — Ngưỡng cảnh báo:{" "}
+                      {config.admissionSettingsData.quotaAlertThresholdPercent == null || config.admissionSettingsData.quotaAlertThresholdPercent === ""
+                        ? "—"
+                        : `${config.admissionSettingsData.quotaAlertThresholdPercent}%`}
+                    </Typography>
+                  </Stack>
+                ) : null}
+                {admissionViewMode === "edit" ? (
                 <Stack spacing={1.5}>
                   {methodCatalog.map((m) => {
                     const hiddenByInlineEdit = (config.admissionSettingsData.allowedMethods || []).some(
@@ -2596,7 +2816,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                               flex: 1,
                               minWidth: 0,
                               alignSelf: "stretch",
-                              ...(fieldDisabled ? blockPointerSx : {}),
+                              ...(admissionFormBlocked ? admissionBlockPointerSx : {}),
                             }}
                           >
                             <FormControlLabel
@@ -2605,7 +2825,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                 <Checkbox
                                   checked={checked}
                                   onChange={(e) => {
-                                    if (fieldDisabled) return;
+                                    if (admissionFormBlocked) return;
                                     toggleAdmissionMethod(m.code, e.target.checked);
                                   }}
                                   sx={{pt: 0.35}}
@@ -2770,9 +2990,9 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                             <IconButton
                               size="small"
                               color="error"
-                              onClick={() => removeAdmissionAllowedAt(idx)}
+                              onClick={() => requestRemoveAdmissionAllowedAt(idx)}
                               aria-label="Xoá phương thức"
-                              sx={blockPointerSx}
+                              sx={admissionBlockPointerSx}
                             >
                               <DeleteOutlineIcon fontSize="small"/>
                             </IconButton>
@@ -2903,7 +3123,10 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     );
                   })}
                 </Stack>
+                ) : null}
 
+                {admissionViewMode === "edit" ? (
+                <>
                 <Divider sx={{my: 3}}/>
 
                 <Stack spacing={2}>
@@ -2970,6 +3193,8 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     inputProps={{readOnly: fieldDisabled, inputMode: "numeric"}}
                   />
                 </Stack>
+                </>
+                ) : null}
               </CardContent>
             </Card>
           )}
@@ -5337,6 +5562,110 @@ export default function SchoolConfig({variant = "platform"} = {}) {
             </>
           )}
         </Box>
+
+        <Dialog
+          open={admissionFirstRunOpen}
+          onClose={() => setAdmissionFirstRunOpen(false)}
+          maxWidth="sm"
+          fullWidth
+        >
+          <DialogTitle sx={{fontWeight: 800}}>Bắt đầu từ mẫu chung?</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary">
+              Bạn có thể tải danh sách phương thức mẫu do nền tảng cấu hình, rồi chỉnh sửa riêng cho trường trước khi lưu.
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={{px: 3, pb: 2, gap: 1, flexWrap: "wrap"}}>
+            <Button
+              onClick={() => {
+                try {
+                  window.localStorage.setItem("school_config_admission_sys_prompt_v1", "1");
+                } catch {
+                  /* ignore */
+                }
+                setAdmissionFirstRunOpen(false);
+              }}
+              sx={{textTransform: "none", fontWeight: 700}}
+            >
+              Để sau
+            </Button>
+            <Button
+              variant="contained"
+              disabled={loadingSystemAdmission}
+              onClick={() => {
+                try {
+                  window.localStorage.setItem("school_config_admission_sys_prompt_v1", "1");
+                } catch {
+                  /* ignore */
+                }
+                setAdmissionFirstRunOpen(false);
+                void applySystemTemplateToForm();
+              }}
+              sx={{textTransform: "none", fontWeight: 700}}
+            >
+              Lấy mẫu từ hệ thống
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Dialog open={admissionRestoreConfirmOpen} onClose={() => setAdmissionRestoreConfirmOpen(false)} maxWidth="xs" fullWidth>
+          <DialogTitle sx={{fontWeight: 800}}>Khôi phục mẫu hệ thống</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary">
+              Bạn có thay đổi chưa lưu. Tiếp tục sẽ ghi đè form hiện tại bằng mẫu từ hệ thống (chưa ghi DB cho đến khi bạn Lưu).
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={{px: 3, pb: 2}}>
+            <Button onClick={() => setAdmissionRestoreConfirmOpen(false)} sx={{textTransform: "none", fontWeight: 700}}>
+              Huỷ
+            </Button>
+            <Button
+              variant="contained"
+              color="warning"
+              onClick={() => {
+                setAdmissionRestoreConfirmOpen(false);
+                void applySystemTemplateToForm();
+              }}
+              sx={{textTransform: "none", fontWeight: 700}}
+            >
+              Tiếp tục
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Dialog open={admissionToggleOffConfirm.open} onClose={() => setAdmissionToggleOffConfirm({open: false, code: ""})} maxWidth="sm" fullWidth>
+          <DialogTitle sx={{fontWeight: 800}}>Bỏ bật phương thức</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary">
+              Mã <strong>{admissionToggleOffConfirm.code}</strong> đang được dùng ở cấu hình hồ sơ hoặc quy trình. Bỏ bật có thể khiến các phần đó cần cập nhật lại.
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={{px: 3, pb: 2}}>
+            <Button onClick={() => setAdmissionToggleOffConfirm({open: false, code: ""})} sx={{textTransform: "none", fontWeight: 700}}>
+              Huỷ
+            </Button>
+            <Button variant="contained" color="warning" onClick={confirmToggleAdmissionOff} sx={{textTransform: "none", fontWeight: 700}}>
+              Vẫn bỏ bật
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Dialog open={admissionRemoveRowConfirm.open} onClose={() => setAdmissionRemoveRowConfirm({open: false, idx: -1})} maxWidth="sm" fullWidth>
+          <DialogTitle sx={{fontWeight: 800}}>Xoá dòng phương thức</DialogTitle>
+          <DialogContent>
+            <Typography variant="body2" color="text.secondary">
+              Các cấu hình đang trỏ tới mã này (hoặc mã tương ứng) có thể cần cập nhật. Bạn có chắc muốn xoá dòng này?
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={{px: 3, pb: 2}}>
+            <Button onClick={() => setAdmissionRemoveRowConfirm({open: false, idx: -1})} sx={{textTransform: "none", fontWeight: 700}}>
+              Huỷ
+            </Button>
+            <Button variant="contained" color="error" onClick={confirmRemoveAdmissionRow} sx={{textTransform: "none", fontWeight: 700}}>
+              Xoá
+            </Button>
+          </DialogActions>
+        </Dialog>
       </Paper>
     </Box>
   );
