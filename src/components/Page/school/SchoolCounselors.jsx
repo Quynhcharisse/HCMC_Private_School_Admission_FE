@@ -43,6 +43,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import LockIcon from "@mui/icons-material/Lock";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import {enqueueSnackbar} from "notistack";
+import {ConfirmHighlight} from "../../ui/ConfirmDialog.jsx";
 import {useNavigate} from "react-router-dom";
 import {useSchool} from "../../../contexts/SchoolContext.jsx";
 import BranchQuotaRequestToPrimaryCard from "./BranchQuotaRequestToPrimaryCard.jsx";
@@ -1640,9 +1641,9 @@ export default function SchoolCounselors() {
                 </DialogTitle>
                 <DialogContent>
                     <Typography>
-                        Bạn có chắc muốn vô hiệu hóa tài khoản của{" "}
-                        <strong>{selectedCounselor?.fullName}</strong>? Tư vấn viên này sẽ không thể
-                        đăng nhập hoặc truy cập hệ thống nữa.
+                        Bạn có chắc muốn <ConfirmHighlight>vô hiệu hóa tài khoản</ConfirmHighlight> của{" "}
+                        <ConfirmHighlight>{selectedCounselor?.fullName}</ConfirmHighlight>? Tư vấn viên này sẽ{" "}
+                        <ConfirmHighlight>không thể đăng nhập hoặc truy cập hệ thống</ConfirmHighlight> nữa.
                     </Typography>
                 </DialogContent>
                 <DialogActions sx={{px: 3, pb: 2}}>

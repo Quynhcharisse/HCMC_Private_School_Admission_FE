@@ -54,6 +54,7 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import PeopleOutlineIcon from "@mui/icons-material/PeopleOutline";
 import { enqueueSnackbar } from "notistack";
+import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 import {
   buildUpsertCampusScheduleTemplatePayload,
   getCampusScheduleTemplateList,

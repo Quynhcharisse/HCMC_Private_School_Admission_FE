@@ -42,6 +42,7 @@ import PhoneIcon from "@mui/icons-material/Phone";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import {enqueueSnackbar} from "notistack";
+import {ConfirmHighlight} from "../../ui/ConfirmDialog.jsx";
 import { CircleMarker, MapContainer, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import {useSchool} from "../../../contexts/SchoolContext.jsx";
@@ -1941,9 +1942,9 @@ export default function SchoolCampus() {
                 </DialogTitle>
                 <DialogContent>
                     <Typography>
-                        Bạn có chắc muốn vô hiệu hóa{" "}
-                        <strong>{selectedCampus?.name}</strong>? Cơ sở này sẽ được
-                        đánh dấu là ngưng hoạt động và có thể bị ẩn khỏi phụ huynh.
+                        Bạn có chắc muốn <ConfirmHighlight>vô hiệu hóa</ConfirmHighlight> cơ sở{" "}
+                        <ConfirmHighlight>{selectedCampus?.name}</ConfirmHighlight>? Cơ sở này sẽ được đánh dấu là{" "}
+                        <ConfirmHighlight>ngưng hoạt động</ConfirmHighlight> và có thể bị ẩn khỏi phụ huynh.
                     </Typography>
                 </DialogContent>
                 <DialogActions sx={{px: 3, pb: 2}}>

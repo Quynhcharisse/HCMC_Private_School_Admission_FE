@@ -10,6 +10,14 @@ import {
 } from "@mui/material";
 import {alpha} from "@mui/material/styles";
 
+export function ConfirmHighlight({children}) {
+    return (
+        <Box component="span" sx={{fontWeight: 700}}>
+            {children}
+        </Box>
+    );
+}
+
 const ConfirmDialog = ({
     open,
     title,
@@ -86,6 +94,7 @@ const ConfirmDialog = ({
                 <DialogContent sx={{pt: title ? 3.4 : 2, ...contentSx}}>
                     {description && (
                         <DialogContentText
+                            component="div"
                             sx={{
                                 fontSize: 14,
                                 color: "#1e293b",
@@ -98,6 +107,7 @@ const ConfirmDialog = ({
                     )}
                     {extraDescription && (
                         <DialogContentText
+                            component="div"
                             sx={{
                                 fontSize: 13,
                                 color: "#64748b",

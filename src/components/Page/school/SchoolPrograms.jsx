@@ -59,6 +59,7 @@ import ComputerIcon from "@mui/icons-material/Computer";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 
 import { enqueueSnackbar } from "notistack";
+import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 
 import { useSchool } from "../../../contexts/SchoolContext.jsx";
 import { getCurriculumList } from "../../../services/CurriculumService.jsx";
@@ -2879,7 +2880,8 @@ export default function SchoolPrograms() {
                         Nhân bản chương trình đào tạo?
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25 }}>
-                        Hệ thống sẽ tạo một bản sao mới (trạng thái Nháp) dựa trên toàn bộ thông tin của chương trình này. Bạn có muốn tiếp tục không?
+                        Hệ thống sẽ tạo <ConfirmHighlight>một bản sao mới (trạng thái Nháp)</ConfirmHighlight> dựa trên toàn bộ thông tin của chương trình này. Bạn có muốn{" "}
+                        <ConfirmHighlight>tiếp tục</ConfirmHighlight> không?
                     </Typography>
 
                     {cloneLoading ? (
@@ -2970,9 +2972,16 @@ export default function SchoolPrograms() {
                         {actionType === "DEACTIVATE" ? "Xác nhận tạm dừng chương trình?" : "Xác nhận kích hoạt chương trình này?"}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25 }}>
-                        {actionType === "DEACTIVATE"
-                            ? "Các trường học phí và khung chương trình sẽ được mở khóa để chỉnh sửa. Lưu ý: Các cơ sở sẽ tạm thời không thấy chương trình này để tạo mới đợt tuyển sinh."
-                            : "Sau khi kích hoạt, bạn sẽ không thể thay đổi Học phí và Khung chương trình trực tiếp."}
+                        {actionType === "DEACTIVATE" ? (
+                            <>
+                                Các trường học phí và khung chương trình sẽ được mở khóa để chỉnh sửa. Lưu ý: Các cơ sở sẽ tạm thời{" "}
+                                <ConfirmHighlight>không thấy chương trình này</ConfirmHighlight> để tạo mới đợt tuyển sinh.
+                            </>
+                        ) : (
+                            <>
+                                Sau khi kích hoạt, bạn sẽ <ConfirmHighlight>không thể thay đổi Học phí và Khung chương trình</ConfirmHighlight> trực tiếp.
+                            </>
+                        )}
                     </Typography>
 
                     {actionLoading ? (

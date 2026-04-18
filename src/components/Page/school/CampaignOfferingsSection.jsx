@@ -36,6 +36,7 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import SchoolIcon from "@mui/icons-material/School";
 import { enqueueSnackbar } from "notistack";
+import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 import { extractCampusListBody, listCampuses } from "../../../services/CampusService.jsx";
 import { getProgramList } from "../../../services/ProgramService.jsx";
 import { useSchool } from "../../../contexts/SchoolContext.jsx";
@@ -1160,21 +1161,34 @@ export default function CampaignOfferingsSection({
                     {confirmActionType === "toggle" ? "Xác nhận thao tác" : "Xác nhận đóng chương trình"}
                 </DialogTitle>
                 <DialogContent sx={{ pt: 2 }}>
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography variant="body2" color="text.secondary" component="div">
                         {confirmActionType === "toggle" &&
-                            (confirmTargetStatus === "PAUSED"
-                                ? "Bạn có chắc chắn muốn tạm dừng nhận hồ sơ? Khi tạm dừng, chương trình sẽ không còn nhận hồ sơ mới."
-                                : "Bạn có chắc chắn muốn mở lại nhận hồ sơ?")}
-                        {confirmActionType === "close" &&
-                            "Bạn có chắc chắn muốn đóng chương trình này? Sau khi đóng sẽ không nhận thêm hồ sơ."}
+                            (confirmTargetStatus === "PAUSED" ? (
+                                <>
+                                    Bạn có chắc chắn muốn <ConfirmHighlight>tạm dừng nhận hồ sơ</ConfirmHighlight>? Khi tạm dừng, chương trình sẽ{" "}
+                                    <ConfirmHighlight>không còn nhận hồ sơ mới</ConfirmHighlight>.
+                                </>
+                            ) : (
+                                <>
+                                    Bạn có chắc chắn muốn <ConfirmHighlight>mở lại nhận hồ sơ</ConfirmHighlight>?
+                                </>
+                            ))}
+                        {confirmActionType === "close" && (
+                            <>
+                                Bạn có chắc chắn muốn <ConfirmHighlight>đóng chương trình này</ConfirmHighlight>? Sau khi đóng sẽ{" "}
+                                <ConfirmHighlight>không nhận thêm hồ sơ</ConfirmHighlight>.
+                            </>
+                        )}
                     </Typography>
                     {confirmRow && (
                         <Box sx={{ mt: 2, border: "1px solid #e2e8f0", borderRadius: 2, p: 2, bgcolor: "#f8fafc" }}>
                             <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
                                 Thông tin
                             </Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                                {confirmRow.programName ?? getProgramName(confirmRow.programId)}
+                            <Typography variant="body2" component="div" sx={{ fontWeight: 700 }}>
+                                <ConfirmHighlight>
+                                    {confirmRow.programName ?? getProgramName(confirmRow.programId)}
+                                </ConfirmHighlight>
                             </Typography>
                             <Typography variant="body2" color="text.secondary">
                                 {confirmRow.campusName ?? "—"} · Chỉ tiêu: {confirmRow.quota ?? "—"} · Còn lại:{" "}
