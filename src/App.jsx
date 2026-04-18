@@ -37,6 +37,7 @@ const SchoolCampaignOfferings = lazy(() => import("./components/Page/school/Scho
 const SchoolCampaignDetail = lazy(() =>import("./components/Page/school/SchoolCampaignDetail.jsx"));
 const SchoolProfile = lazy(() => import("./components/Page/school/SchoolProfile.jsx"));
 const SchoolConfig = lazy(() => import("./components/Page/school/SchoolConfig.jsx"));
+const SchoolHolidaySettingsPage = lazy(() => import("./components/Page/school/SchoolHolidaySettingsPage.jsx"));
 const CampusConfig = lazy(() => import("./components/Page/school/CampusConfig.jsx"));
 const SchoolFacilityConfiguration = lazy(() =>import("./components/Page/school/SchoolFacilityConfiguration.jsx"));
 
@@ -339,6 +340,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <SchoolConfig/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'holiday-settings',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolHolidaySettingsPage/>
                     </Suspense>
                 )
             },

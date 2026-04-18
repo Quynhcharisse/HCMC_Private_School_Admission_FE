@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useRef, useState} from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {
     Alert,
     Box,
@@ -10,12 +10,13 @@ import {
     Dialog,
     DialogActions,
     DialogContent,
-    DialogTitle,
     FormControl,
     FormControlLabel,
     FormLabel,
     IconButton,
+    InputAdornment,
     InputLabel,
+    LinearProgress,
     MenuItem,
     Radio,
     RadioGroup,
@@ -32,11 +33,15 @@ import {
     Tooltip,
     Typography,
 } from "@mui/material";
+import Pagination from "@mui/material/Pagination";
 import AddIcon from "@mui/icons-material/Add";
 import PublicIcon from "@mui/icons-material/Public";
 import ApartmentIcon from "@mui/icons-material/Apartment";
 import EditIcon from "@mui/icons-material/Edit";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import CloseIcon from "@mui/icons-material/Close";
+import SearchIcon from "@mui/icons-material/Search";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import EventBusyOutlinedIcon from "@mui/icons-material/EventBusyOutlined";
 import {enqueueSnackbar} from "notistack";
 import {extractCampusListBody, listCampuses} from "../../../services/CampusService.jsx";
 import {
@@ -53,6 +58,45 @@ import {
     updateHoliday,
 } from "../../../services/SchoolHolidayService.jsx";
 import {useSchool} from "../../../contexts/SchoolContext.jsx";
+
+const InfoItem = ({label, value}) => (
+    <Box>
+        <Typography variant="caption" sx={{color: "#94a3b8"}}>
+            {label}
+        </Typography>
+        <Box sx={{mt: 0.35}}>{value}</Box>
+    </Box>
+);
+
+const modalPaperSx = {
+    borderRadius: "16px",
+    boxShadow: "0 24px 48px rgba(0, 0, 0, 0.12)",
+    bgcolor: "white",
+    overflow: "hidden",
+};
+const modalBackdropSx = {
+    backdropFilter: "blur(6px)",
+    backgroundColor: "rgba(15, 23, 42, 0.45)",
+};
+
+/** Giống header bảng `SchoolCampus.jsx`. */
+const campusTableHeadCellSx = {fontWeight: 700, color: "#1e293b", py: 2};
+const tableHeadCellSx = campusTableHeadCellSx;
+
+function impactLevelPillStyles(level) {
+    switch (level) {
+        case HOLIDAY_IMPACT_LEVEL.ALL_SHUTDOWN:
+            return {bgcolor: "rgba(239, 68, 68, 0.12)", color: "#dc2626"};
+        case HOLIDAY_IMPACT_LEVEL.STAFF_ONLY:
+            return {bgcolor: "rgba(245, 158, 11, 0.16)", color: "#c2410c"};
+        case HOLIDAY_IMPACT_LEVEL.STUDENT_ONLY:
+            return {bgcolor: "rgba(34, 197, 94, 0.12)", color: "#16a34a"};
+        case HOLIDAY_IMPACT_LEVEL.ONLINE_ONLY:
+            return {bgcolor: "rgba(59, 130, 246, 0.12)", color: "#2563eb"};
+        default:
+            return {bgcolor: "rgba(148, 163, 184, 0.2)", color: "#64748b"};
+    }
+}
 
 const impactOptions = [
     {
@@ -245,49 +289,6 @@ function formatConflictBookingRow(item, index) {
     return parts.length ? parts.join(" · ") : JSON.stringify(item);
 }
 
-/**
- * Bảng full width, `table-layout: fixed` — tổng % = 100.
- * Tiêu đề rộng nhất; thời gian / số lịch / hành động hẹp; mức ảnh hưởng & phạm vi vừa phải.
- */
-const holidayTableCol = {
-    title: {
-        width: "34%",
-        minWidth: 200,
-        verticalAlign: "top",
-        wordBreak: "break-word",
-    },
-    time: {
-        width: "12%",
-        minWidth: 122,
-        whiteSpace: "nowrap",
-        verticalAlign: "middle",
-    },
-    impact: {
-        width: "20%",
-        minWidth: 112,
-        verticalAlign: "middle",
-        textAlign: "center",
-    },
-    scope: {
-        width: "14%",
-        minWidth: 104,
-        verticalAlign: "middle",
-    },
-    slots: {
-        width: "9%",
-        minWidth: 72,
-        maxWidth: 96,
-        textAlign: "center",
-        verticalAlign: "middle",
-    },
-    actions: {
-        width: "11%",
-        minWidth: 76,
-        textAlign: "right",
-        verticalAlign: "middle",
-    },
-};
-
 export default function SchoolHoliday() {
     const {isPrimaryBranch, currentCampusId} = useSchool();
     const [openCreateModal, setOpenCreateModal] = useState(false);
@@ -298,6 +299,10 @@ export default function SchoolHoliday() {
     const [submitting, setSubmitting] = useState(false);
     const [scopeFilter, setScopeFilter] = useState("ALL");
     const [search, setSearch] = useState("");
+    const [page, setPage] = useState(0);
+    const rowsPerPage = 10;
+    const [viewModalOpen, setViewModalOpen] = useState(false);
+    const [selectedHoliday, setSelectedHoliday] = useState(null);
 
     const [openEditModal, setOpenEditModal] = useState(false);
     const [editForm, setEditForm] = useState({
@@ -321,6 +326,8 @@ export default function SchoolHoliday() {
     const [conflictMessage, setConflictMessage] = useState("");
     const [conflictAckForce, setConflictAckForce] = useState(false);
     const previewDebounceRef = useRef(null);
+    /** Tăng mỗi lần gọi preview mới — bỏ qua response cũ, tránh nháy số liệu. */
+    const previewSeqRef = useRef(0);
 
     const currentCampus = useMemo(() => {
         return campuses.find((item) => String(item.id) === String(currentCampusId)) || null;
@@ -398,26 +405,35 @@ export default function SchoolHoliday() {
         if (!openEditModal || editForm.id == null) return;
         if (previewDebounceRef.current) {
             clearTimeout(previewDebounceRef.current);
+            previewDebounceRef.current = null;
         }
-        previewDebounceRef.current = setTimeout(async () => {
+        previewDebounceRef.current = setTimeout(() => {
+            const seq = ++previewSeqRef.current;
             setPreviewLoading(true);
-            try {
-                const res = await previewHolidayUpdate({
-                    id: editForm.id,
-                    startDate: editForm.startDate,
-                    endDate: editForm.endDate,
-                    holidayImpactLevel: editForm.holidayImpactLevel,
-                });
-                setPreviewData(parsePreviewHolidayBody(res));
-            } catch {
-                setPreviewData({slotsToRestore: 0, slotsToLock: 0, conflictSlots: 0});
-            } finally {
-                setPreviewLoading(false);
-            }
+            (async () => {
+                try {
+                    const res = await previewHolidayUpdate({
+                        id: editForm.id,
+                        startDate: editForm.startDate,
+                        endDate: editForm.endDate,
+                        holidayImpactLevel: editForm.holidayImpactLevel,
+                    });
+                    if (seq !== previewSeqRef.current) return;
+                    setPreviewData(parsePreviewHolidayBody(res));
+                } catch {
+                    if (seq !== previewSeqRef.current) return;
+                    setPreviewData({slotsToRestore: 0, slotsToLock: 0, conflictSlots: 0});
+                } finally {
+                    if (seq === previewSeqRef.current) {
+                        setPreviewLoading(false);
+                    }
+                }
+            })();
         }, 400);
         return () => {
             if (previewDebounceRef.current) {
                 clearTimeout(previewDebounceRef.current);
+                previewDebounceRef.current = null;
             }
         };
     }, [openEditModal, editForm.id, editForm.startDate, editForm.endDate, editForm.holidayImpactLevel]);
@@ -428,6 +444,7 @@ export default function SchoolHoliday() {
     };
 
     const handleCloseCreate = () => {
+        if (submitting) return;
         setOpenCreateModal(false);
         setFormValues(
             getCreateHolidayInitialValues({
@@ -437,6 +454,19 @@ export default function SchoolHoliday() {
             })
         );
     };
+
+    const getHolidayRowRestrictions = useCallback(
+        (row) => {
+            if (!row) {
+                return {isReadOnlyForSubCampus: false, isEditLockedByDate: false, editDisabled: true};
+            }
+            const isReadOnlyForSubCampus = !isPrimaryBranch && row.isGlobal;
+            const isEditLockedByDate = isHolidayEditLockedByStartDate(row.startDate);
+            const editDisabled = isReadOnlyForSubCampus || isEditLockedByDate;
+            return {isReadOnlyForSubCampus, isEditLockedByDate, editDisabled};
+        },
+        [isPrimaryBranch]
+    );
 
     const handleOpenEdit = (row) => {
         setEditForm({
@@ -453,7 +483,29 @@ export default function SchoolHoliday() {
         setOpenEditModal(true);
     };
 
+    const handleOpenView = (row) => {
+        setSelectedHoliday(row);
+        setViewModalOpen(true);
+    };
+
+    const handleCloseView = () => {
+        setViewModalOpen(false);
+        setSelectedHoliday(null);
+    };
+
+    const handleOpenEditFromView = (row) => {
+        handleCloseView();
+        handleOpenEdit(row);
+    };
+
     const handleCloseEdit = () => {
+        if (submitting) return;
+        if (previewDebounceRef.current) {
+            clearTimeout(previewDebounceRef.current);
+            previewDebounceRef.current = null;
+        }
+        previewSeqRef.current += 1;
+        setPreviewLoading(false);
         setOpenEditModal(false);
         setConflictDialogOpen(false);
         setConflictItems([]);
@@ -554,12 +606,12 @@ export default function SchoolHoliday() {
         setSubmitting(true);
         try {
             await createHoliday(formValues);
-            enqueueSnackbar("Tạo holiday thành công", {variant: "success"});
+            enqueueSnackbar("Tạo ngày nghỉ thành công", {variant: "success"});
             handleCloseCreate();
             await loadHolidayList();
         } catch (error) {
             console.error("Create holiday failed", error);
-            enqueueSnackbar("Tạo holiday thất bại", {variant: "error"});
+            enqueueSnackbar("Tạo ngày nghỉ thất bại", {variant: "error"});
         } finally {
             setSubmitting(false);
         }
@@ -587,41 +639,62 @@ export default function SchoolHoliday() {
         return rows;
     }, [holidays, scopeFilter, search]);
 
+    const paginatedHolidays = useMemo(() => {
+        const start = page * rowsPerPage;
+        return filteredHolidays.slice(start, start + rowsPerPage);
+    }, [filteredHolidays, page, rowsPerPage]);
+
+    useEffect(() => {
+        setPage(0);
+    }, [search, scopeFilter]);
+
+    useEffect(() => {
+        const totalPages = Math.max(1, Math.ceil(filteredHolidays.length / rowsPerPage));
+        if (page >= totalPages) {
+            setPage(Math.max(0, totalPages - 1));
+        }
+    }, [filteredHolidays.length, page, rowsPerPage]);
+
     const showImpactRelaxAlert =
         openEditModal &&
         originalImpactLevel === HOLIDAY_IMPACT_LEVEL.ALL_SHUTDOWN &&
         editForm.holidayImpactLevel === HOLIDAY_IMPACT_LEVEL.STUDENT_ONLY;
 
+    const viewRowMeta = selectedHoliday ? getHolidayRowRestrictions(selectedHoliday) : null;
+
     return (
-        <Box sx={{display: "flex", flexDirection: "column", gap: 2}}>
+        <Box sx={{display: "flex", flexDirection: "column", gap: 3, width: "100%"}}>
             <Box
                 sx={{
                     background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                     borderRadius: 3,
-                    p: {xs: 2.5, sm: 3},
+                    p: 3,
                     color: "white",
                     boxShadow: "0 8px 32px rgba(13, 100, 222, 0.25)",
                 }}
             >
-                <Stack
-                    direction={{xs: "column", sm: "row"}}
-                    alignItems={{xs: "stretch", sm: "center"}}
-                    justifyContent="space-between"
-                    spacing={2}
+                <Box
+                    sx={{
+                        display: "flex",
+                        flexDirection: {xs: "column", sm: "row"},
+                        alignItems: {xs: "stretch", sm: "center"},
+                        justifyContent: "space-between",
+                        gap: 2,
+                    }}
                 >
                     <Box>
                         <Typography
-                            variant="h5"
+                            variant="h4"
                             sx={{
                                 fontWeight: 700,
                                 letterSpacing: "-0.02em",
                                 textShadow: "0 1px 2px rgba(0,0,0,0.1)",
                             }}
                         >
-                           Quản lý lịch nghỉ toàn trường và theo từng cơ sở
+                            Quản lý ngày nghỉ
                         </Typography>
                         <Typography variant="body2" sx={{mt: 0.5, opacity: 0.95}}>
-                           
+                            Thiết lập lịch nghỉ toàn trường và theo từng cơ sở; ảnh hưởng tới lịch tư vấn đã đặt.
                         </Typography>
                     </Box>
                     <Button
@@ -630,39 +703,67 @@ export default function SchoolHoliday() {
                         onClick={handleOpenCreate}
                         sx={{
                             alignSelf: {xs: "stretch", sm: "center"},
-                            bgcolor: "rgba(255,255,255,0.95)",
+                            bgcolor: "#ffffff",
                             color: "#0D64DE",
                             textTransform: "none",
                             fontWeight: 600,
                             borderRadius: 2,
-                            px: 2.5,
-                            py: 1,
-                            boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
-                            "&:hover": {bgcolor: "white"},
+                            px: 3,
+                            py: 1.5,
+                            boxShadow: "0 4px 14px rgba(0,0,0,0.12)",
+                            "&:hover": {bgcolor: "#f8fafc", boxShadow: "0 6px 20px rgba(0,0,0,0.15)"},
                         }}
                     >
                         Tạo ngày nghỉ
                     </Button>
-                </Stack>
+                </Box>
             </Box>
 
-            <Card elevation={0} sx={{borderRadius: 3, border: "1px solid #e2e8f0", bgcolor: "#f8fafc"}}>
-                <CardContent sx={{p: 2}}>
-                    <Stack direction={{xs: "column", md: "row"}} spacing={2}>
+            <Card
+                elevation={0}
+                sx={{
+                    borderRadius: 3,
+                    border: "1px solid #e2e8f0",
+                    boxShadow: "0 4px 20px rgba(13, 100, 222, 0.06)",
+                    bgcolor: "#F8FAFC",
+                }}
+            >
+                <CardContent sx={{p: 2.5}}>
+                    <Stack
+                        direction={{xs: "column", md: "row"}}
+                        spacing={2}
+                        alignItems={{xs: "stretch", md: "center"}}
+                        flexWrap="wrap"
+                    >
                         <TextField
-                            size="small"
-                            label="Tìm ngày nghỉ"
-                            placeholder="Theo tiêu đề, cơ sở, mức ảnh hưởng..."
+                            placeholder="Tìm theo tiêu đề, cơ sở, mức ảnh hưởng..."
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
-                            sx={{minWidth: 280, flex: 1}}
+                            size="small"
+                            sx={{
+                                flex: 1,
+                                minWidth: 200,
+                                maxWidth: {md: 360},
+                                "& .MuiOutlinedInput-root": {
+                                    borderRadius: 2,
+                                    bgcolor: "white",
+                                },
+                            }}
+                            InputProps={{
+                                startAdornment: (
+                                    <InputAdornment position="start">
+                                        <SearchIcon sx={{color: "#64748b"}}/>
+                                    </InputAdornment>
+                                ),
+                            }}
                         />
-                        <FormControl size="small" sx={{minWidth: 220}}>
+                        <FormControl size="small" sx={{minWidth: 200}}>
                             <InputLabel>Loại ngày nghỉ</InputLabel>
                             <Select
                                 value={scopeFilter}
                                 label="Loại ngày nghỉ"
                                 onChange={(event) => setScopeFilter(event.target.value)}
+                                sx={{borderRadius: 2, bgcolor: "white"}}
                             >
                                 <MenuItem value="ALL">Tất cả</MenuItem>
                                 <MenuItem value="GLOBAL">Toàn trường</MenuItem>
@@ -673,132 +774,204 @@ export default function SchoolHoliday() {
                 </CardContent>
             </Card>
 
-            <Card elevation={0} sx={{borderRadius: 3, border: "1px solid #e2e8f0"}}>
-                <TableContainer sx={{overflowX: "auto", width: "100%"}}>
-                    <Table
-                        size="small"
+            <Card
+                elevation={0}
+                sx={{
+                    borderRadius: 3,
+                    border: "1px solid #e2e8f0",
+                    boxShadow: "0 4px 20px rgba(13, 100, 222, 0.06)",
+                    overflow: "hidden",
+                    position: "relative",
+                    bgcolor: "#F8FAFC",
+                }}
+            >
+                {loadingHolidays ? (
+                    <LinearProgress
                         sx={{
-                            tableLayout: "fixed",
-                            width: "100%",
-                            "& .MuiTableCell-root": {
-                                borderColor: "#e2e8f0",
-                                py: 0.65,
-                                px: 1,
-                            },
-                            "& .MuiTableHead-root .MuiTableCell-root": {
-                                py: 0.75,
-                                lineHeight: 1.2,
-                            },
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 3,
+                            zIndex: 2,
+                            "& .MuiLinearProgress-bar": {borderRadius: 0},
                         }}
-                    >
+                    />
+                ) : null}
+                <TableContainer>
+                    <Table>
                         <TableHead>
-                            <TableRow sx={{bgcolor: "#f8fafc"}}>
-                                <TableCell sx={{...holidayTableCol.title, fontWeight: 700}}>Tiêu đề</TableCell>
-                                <TableCell sx={{...holidayTableCol.time, fontWeight: 700}}>Thời gian</TableCell>
-                                <TableCell sx={{...holidayTableCol.impact, fontWeight: 700}}>Mức ảnh hưởng</TableCell>
-                                <TableCell sx={{...holidayTableCol.scope, fontWeight: 700}}>Phạm vi</TableCell>
-                                <TableCell sx={{...holidayTableCol.slots, fontWeight: 700, lineHeight: 1.15}}>
-                                    Số lịch
-                                    <br/>
-                                    bị ảnh hưởng
-                                </TableCell>
-                                <TableCell sx={{...holidayTableCol.actions, fontWeight: 700}}>Hành động</TableCell>
+                            <TableRow sx={{bgcolor: "#f1f5f9"}}>
+                                <TableCell sx={tableHeadCellSx}>Ngày nghỉ</TableCell>
+                                <TableCell sx={tableHeadCellSx}>Thời gian</TableCell>
+                                <TableCell sx={{...tableHeadCellSx, textAlign: "center"}}>Mức ảnh hưởng</TableCell>
+                                <TableCell sx={tableHeadCellSx}>Phạm vi</TableCell>
+                                <TableCell sx={{...tableHeadCellSx, textAlign: "center"}}>Lịch bị ảnh hưởng</TableCell>
+                                <TableCell sx={{...tableHeadCellSx, textAlign: "right"}}>Thao tác</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {loadingHolidays ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} align="center" sx={{py: 4}}>
-                                        Đang tải danh sách ngày nghỉ...
+                                    <TableCell colSpan={6} align="center" sx={{py: 8}}>
+                                        <Stack alignItems="center" spacing={1.5}>
+                                            <CircularProgress size={36} thickness={4} sx={{color: "#2563eb"}}/>
+                                            <Typography variant="body2" sx={{color: "#64748b"}}>
+                                                Đang tải danh sách ngày nghỉ…
+                                            </Typography>
+                                        </Stack>
                                     </TableCell>
                                 </TableRow>
                             ) : filteredHolidays.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} align="center" sx={{py: 4}}>
-                                        Không có ngày nghỉ phù hợp bộ lọc.
+                                    <TableCell colSpan={6} align="center" sx={{py: 8}}>
+                                        <Box
+                                            sx={{
+                                                display: "flex",
+                                                flexDirection: "column",
+                                                alignItems: "center",
+                                                gap: 1.5,
+                                            }}
+                                        >
+                                            <EventBusyOutlinedIcon sx={{fontSize: 56, color: "#cbd5e1"}}/>
+                                            <Typography variant="h6" sx={{color: "#64748b", fontWeight: 600}}>
+                                                {holidays.length === 0 ? "Chưa có ngày nghỉ" : "Không có kết quả phù hợp"}
+                                            </Typography>
+                                            <Typography variant="body2" sx={{color: "#94a3b8", textAlign: "center", maxWidth: 420}}>
+                                                {holidays.length === 0
+                                                    ? "Tạo ngày nghỉ đầu tiên để khóa hoặc điều chỉnh lịch tư vấn theo lịch nghỉ của trường."
+                                                    : "Không có kết quả phù hợp với tìm kiếm hoặc bộ lọc."}
+                                            </Typography>
+                                            {holidays.length === 0 ? (
+                                                <Button
+                                                    variant="contained"
+                                                    startIcon={<AddIcon/>}
+                                                    onClick={handleOpenCreate}
+                                                    sx={{
+                                                        mt: 1,
+                                                        borderRadius: 2,
+                                                        textTransform: "none",
+                                                        fontWeight: 600,
+                                                        background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
+                                                    }}
+                                                >
+                                                    Tạo ngày nghỉ
+                                                </Button>
+                                            ) : null}
+                                        </Box>
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                filteredHolidays.map((row) => {
-                                    const isReadOnlyForSubCampus = !isPrimaryBranch && row.isGlobal;
-                                    const isEditLockedByDate = isHolidayEditLockedByStartDate(row.startDate);
-                                    const editDisabled = isReadOnlyForSubCampus || isEditLockedByDate;
-                                    const actionLockedForHistory = isReadOnlyForSubCampus || isEditLockedByDate;
+                                paginatedHolidays.map((row) => {
+                                    const {isReadOnlyForSubCampus, isEditLockedByDate, editDisabled} =
+                                        getHolidayRowRestrictions(row);
+                                    const impactSx = impactLevelPillStyles(row.impactLevel);
                                     return (
-                                        <TableRow key={row.id} hover sx={{"&:last-child td": {borderBottom: 0}}}>
-                                            <TableCell sx={holidayTableCol.title}>
-                                                <Typography sx={{fontWeight: 600, lineHeight: 1.3}}>{row.title}</Typography>
-                                                <Typography variant="body2" sx={{color: "#64748b", mt: 0.15, lineHeight: 1.3}}>
-                                                    {row.campusName || "—"}
-                                                </Typography>
+                                        <TableRow
+                                            key={row.id}
+                                            hover
+                                            onClick={() => handleOpenView(row)}
+                                            sx={{
+                                                cursor: "pointer",
+                                                "&:hover": {bgcolor: "rgba(122, 169, 235, 0.06)"},
+                                            }}
+                                        >
+                                            <TableCell>
+                                                <Box sx={{minWidth: 0}}>
+                                                    <Typography sx={{fontWeight: 600, color: "#1e293b"}}>
+                                                        {row.title}
+                                                    </Typography>
+                                                    <Typography variant="body2" sx={{color: "#64748b"}} noWrap title={row.campusName || ""}>
+                                                        {row.campusName || "—"}
+                                                    </Typography>
+                                                </Box>
                                             </TableCell>
-                                            <TableCell sx={holidayTableCol.time}>
-                                                <Typography variant="body2" sx={{fontWeight: 500, lineHeight: 1.3}}>
+                                            <TableCell sx={{color: "#64748b"}}>
+                                                <Typography variant="body2" sx={{fontWeight: 500}}>
                                                     {formatDateVi(row.startDate)} — {formatDateVi(row.endDate)}
                                                 </Typography>
                                             </TableCell>
-                                            <TableCell sx={holidayTableCol.impact}>
+                                            <TableCell align="center">
                                                 <Box
+                                                    component="span"
                                                     sx={{
-                                                        display: "flex",
-                                                        justifyContent: "center",
-                                                        width: "100%",
+                                                        px: 1.5,
+                                                        py: 0.5,
+                                                        borderRadius: 999,
+                                                        fontSize: 12,
+                                                        fontWeight: 600,
+                                                        display: "inline-block",
+                                                        maxWidth: "100%",
+                                                        ...impactSx,
                                                     }}
                                                 >
-                                                    <Chip
-                                                        size="small"
-                                                        label={impactLabel(row.impactLevel)}
-                                                        color={getImpactLevelChipColor(row.impactLevel)}
-                                                        variant="outlined"
-                                                        sx={{fontWeight: 600, maxWidth: "min(100%, 220px)"}}
-                                                    />
+                                                    {impactLabel(row.impactLevel)}
                                                 </Box>
                                             </TableCell>
-                                            <TableCell sx={holidayTableCol.scope}>
-                                                <Stack direction="row" spacing={0.5} alignItems="center" sx={{minWidth: 0}}>
-                                                    {row.isGlobal ? (
-                                                        <>
-                                                            <PublicIcon sx={{color: "#0D64DE", fontSize: 18, flexShrink: 0}}/>
-                                                            <Typography variant="body2" sx={{lineHeight: 1.3}}>
-                                                                Toàn trường
-                                                            </Typography>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <ApartmentIcon sx={{color: "#64748b", fontSize: 18, flexShrink: 0}}/>
-                                                            <Typography variant="body2" sx={{lineHeight: 1.3}}>
-                                                                Riêng cơ sở
-                                                            </Typography>
-                                                        </>
-                                                    )}
-                                                </Stack>
+                                            <TableCell>
+                                                <Box
+                                                    component="span"
+                                                    sx={{
+                                                        px: 1.5,
+                                                        py: 0.5,
+                                                        borderRadius: 999,
+                                                        fontSize: 12,
+                                                        fontWeight: 600,
+                                                        bgcolor: row.isGlobal
+                                                            ? "rgba(37, 99, 235, 0.12)"
+                                                            : "rgba(148, 163, 184, 0.2)",
+                                                        color: row.isGlobal ? "#1d4ed8" : "#64748b",
+                                                    }}
+                                                >
+                                                    {row.isGlobal ? "Toàn trường" : "Riêng cơ sở"}
+                                                </Box>
                                             </TableCell>
-                                            <TableCell sx={holidayTableCol.slots}>
-                                                <Typography variant="body2" sx={{fontWeight: 600, lineHeight: 1.3}}>
-                                                    {row.affectedSlotsCount}
-                                                </Typography>
+                                            <TableCell align="center" sx={{color: "#64748b"}}>
+                                                {row.affectedSlotsCount}
                                             </TableCell>
-                                            <TableCell sx={holidayTableCol.actions}>
-                                                <Stack direction="row" spacing={0.25} justifyContent="flex-end">
+                                            <TableCell align="right">
+                                                <Stack direction="row" spacing={0.5} justifyContent="flex-end">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            handleOpenView(row);
+                                                        }}
+                                                        sx={{
+                                                            color: "#64748b",
+                                                            "&:hover": {color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)"},
+                                                        }}
+                                                        title="Xem chi tiết"
+                                                    >
+                                                        <VisibilityIcon fontSize="small"/>
+                                                    </IconButton>
                                                     <Tooltip
                                                         title={
                                                             isReadOnlyForSubCampus
-                                                                ? "Lịch này do Trụ sở chính thiết lập"
+                                                                ? "Lịch này do trụ sở chính thiết lập"
                                                                 : isEditLockedByDate
-                                                                  ? "Không thể sửa ngày nghỉ đã hoặc đang diễn ra (theo ngày bắt đầu)"
-                                                                  : "Sửa ngày nghỉ"
+                                                                  ? "Không thể sửa ngày nghỉ đã hoặc đang diễn ra"
+                                                                  : "Sửa"
                                                         }
                                                     >
                                                         <span>
                                                             <IconButton
                                                                 size="small"
-                                                                color="primary"
                                                                 disabled={editDisabled}
-                                                                onClick={() => handleOpenEdit(row)}
-                                                                aria-label="Sửa ngày nghỉ"
-                                                                sx={{p: 0.35}}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    handleOpenEdit(row);
+                                                                }}
+                                                                sx={{
+                                                                    color: "#64748b",
+                                                                    "&:hover": {
+                                                                        color: "#0D64DE",
+                                                                        bgcolor: "rgba(13, 100, 222, 0.08)",
+                                                                    },
+                                                                }}
+                                                                title="Sửa"
                                                             >
-                                                                <EditIcon sx={{fontSize: 18}}/>
+                                                                <EditIcon fontSize="small"/>
                                                             </IconButton>
                                                         </span>
                                                     </Tooltip>
@@ -811,22 +984,89 @@ export default function SchoolHoliday() {
                         </TableBody>
                     </Table>
                 </TableContainer>
+                {filteredHolidays.length > 0 ? (
+                    <Box
+                        sx={{
+                            borderTop: "1px solid #e2e8f0",
+                            bgcolor: "#f8fafc",
+                            px: 3,
+                            py: 1.5,
+                            display: "flex",
+                            justifyContent: "flex-end",
+                        }}
+                    >
+                        <Pagination
+                            count={Math.max(1, Math.ceil(filteredHolidays.length / rowsPerPage))}
+                            page={page + 1}
+                            onChange={(_, p) => setPage(p - 1)}
+                            color="primary"
+                            shape="rounded"
+                        />
+                    </Box>
+                ) : null}
             </Card>
 
-            <Alert severity="info">
-                Campus phụ sẽ chỉ có quyền đọc với ngày nghỉ Global do trụ sở chính thiết lập.
+            <Alert severity="info" sx={{borderRadius: 2, border: "1px solid #bfdbfe", bgcolor: "#eff6ff"}}>
+                Cơ sở phụ chỉ xem được ngày nghỉ toàn trường do trụ sở chính thiết lập (không chỉnh sửa).
             </Alert>
 
-            <Dialog open={openCreateModal} onClose={handleCloseCreate} fullWidth maxWidth="sm">
-                <DialogTitle>Tạo Holiday</DialogTitle>
-                <DialogContent>
-                    <Stack spacing={2} sx={{mt: 1}}>
+            <Dialog
+                open={openCreateModal}
+                onClose={(e, reason) => {
+                    if (reason === "backdropClick") return;
+                    if (submitting && reason === "escapeKeyDown") return;
+                    handleCloseCreate();
+                }}
+                fullWidth
+                maxWidth="sm"
+                aria-busy={submitting}
+                PaperProps={{sx: {...modalPaperSx, position: "relative"}}}
+                slotProps={{backdrop: {sx: modalBackdropSx}}}
+            >
+                {submitting ? (
+                    <LinearProgress
+                        sx={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 3,
+                            zIndex: 2,
+                            borderRadius: "16px 16px 0 0",
+                        }}
+                    />
+                ) : null}
+                <Box sx={{px: 3, pt: 3, pb: 0}}>
+                    <Box sx={{display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2}}>
+                        <Box>
+                            <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
+                                Tạo ngày nghỉ
+                            </Typography>
+                            <Typography variant="body2" sx={{color: "#64748b", mt: 0.5}}>
+                                Khai báo khoảng thời gian, mức ảnh hưởng và phạm vi áp dụng.
+                            </Typography>
+                        </Box>
+                        <IconButton
+                            onClick={handleCloseCreate}
+                            size="small"
+                            disabled={submitting}
+                            sx={{mt: -0.5, mr: -0.5}}
+                            aria-label="Đóng"
+                        >
+                            <CloseIcon fontSize="small"/>
+                        </IconButton>
+                    </Box>
+                </Box>
+                <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 1}}>
+                    <Stack spacing={2.5}>
                         <TextField
                             label="Tiêu đề"
                             name="title"
                             value={formValues.title}
                             onChange={handleChange}
                             required
+                            fullWidth
+                            disabled={submitting}
                         />
 
                         <Stack direction={{xs: "column", sm: "row"}} spacing={2}>
@@ -838,6 +1078,7 @@ export default function SchoolHoliday() {
                                 onChange={handleChange}
                                 InputLabelProps={{shrink: true}}
                                 fullWidth
+                                disabled={submitting}
                             />
                             <TextField
                                 label="Ngày kết thúc"
@@ -847,44 +1088,70 @@ export default function SchoolHoliday() {
                                 onChange={handleChange}
                                 InputLabelProps={{shrink: true}}
                                 fullWidth
+                                disabled={submitting}
                             />
                         </Stack>
 
-                        <FormControl fullWidth>
+                        <FormControl fullWidth disabled={submitting} sx={{minWidth: 0, maxWidth: "100%"}}>
                             <InputLabel>Mức độ ảnh hưởng</InputLabel>
                             <Select
                                 name="holidayImpactLevel"
                                 value={formValues.holidayImpactLevel}
                                 label="Mức độ ảnh hưởng"
                                 onChange={handleChange}
+                                sx={{
+                                    minWidth: 0,
+                                    width: "100%",
+                                    "& .MuiSelect-select": {
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                    },
+                                }}
+                                renderValue={(value) => (
+                                    <Typography component="span" variant="body2" noWrap sx={{display: "block"}}>
+                                        {impactLabel(value)}
+                                    </Typography>
+                                )}
+                                MenuProps={{
+                                    PaperProps: {
+                                        sx: {
+                                            maxWidth: "min(100vw - 32px, 520px)",
+                                        },
+                                    },
+                                }}
                             >
                                 {impactOptions.map((option) => (
-                                    <MenuItem key={option.value} value={option.value}>
+                                    <MenuItem
+                                        key={option.value}
+                                        value={option.value}
+                                        sx={{whiteSpace: "normal", alignItems: "flex-start", py: 1.25}}
+                                    >
                                         {option.label}
                                     </MenuItem>
                                 ))}
                             </Select>
                         </FormControl>
 
-                        <FormControl>
-                            <FormLabel>Phạm vi áp dụng</FormLabel>
+                        <FormControl disabled={submitting}>
+                            <FormLabel sx={{color: "#334155", fontWeight: 600, mb: 0.5}}>Phạm vi áp dụng</FormLabel>
                             <RadioGroup value={formValues.scope} onChange={handleScopeChange}>
                                 <FormControlLabel
                                     value={HOLIDAY_SCOPE.GLOBAL}
                                     control={<Radio/>}
-                                    label="Áp dụng toàn trường (Global)"
+                                    label="Áp dụng toàn trường"
                                     disabled={subCampusLocked}
                                 />
                                 <FormControlLabel
                                     value={HOLIDAY_SCOPE.CAMPUS}
                                     control={<Radio/>}
-                                    label="Chỉ áp dụng cho cơ sở cụ thể"
+                                    label="Chỉ áp dụng cho một cơ sở"
                                 />
                             </RadioGroup>
                         </FormControl>
 
                         {isPrimaryBranch ? (
-                            <FormControl fullWidth disabled={isGlobal || loadingCampuses}>
+                            <FormControl fullWidth disabled={isGlobal || loadingCampuses || submitting}>
                                 <InputLabel>Chọn cơ sở</InputLabel>
                                 <Select
                                     name="campusId"
@@ -901,12 +1168,7 @@ export default function SchoolHoliday() {
                                 </Select>
                             </FormControl>
                         ) : (
-                            <TextField
-                                label="Cơ sở áp dụng"
-                                value={campusLabelForSubCampus}
-                                disabled
-                                fullWidth
-                            />
+                            <TextField label="Cơ sở áp dụng" value={campusLabelForSubCampus} disabled fullWidth/>
                         )}
 
                         <FormControlLabel
@@ -916,16 +1178,192 @@ export default function SchoolHoliday() {
                                     checked={Boolean(formValues.forceCreate)}
                                     onChange={handleChange}
                                     color="error"
+                                    disabled={submitting}
                                 />
                             }
-                            label={<Typography sx={{ color: "red" }}> (*) Hủy tất cả những lịch đã đặt trùng với ngày nghỉ này</Typography>}
+                            label={
+                                <Typography variant="body2" sx={{color: "#b91c1c", fontWeight: 500}}>
+                                    Hủy tất cả lịch đã đặt trùng với khoảng ngày nghỉ này
+                                </Typography>
+                            }
                         />
+                        {submitting ? (
+                            <Typography
+                                variant="body2"
+                                sx={{color: "#1d4ed8", fontWeight: 500, display: "flex", alignItems: "center", gap: 1}}
+                            >
+                                <CircularProgress size={18} thickness={5} sx={{color: "#2563eb"}}/>
+                                Đang xử lý…
+                            </Typography>
+                        ) : null}
                     </Stack>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCloseCreate}>Hủy</Button>
-                    <Button variant="contained" onClick={handleCreate} disabled={submitting}>
-                        {submitting ? "Đang tạo..." : "Tạo mới"}
+                <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
+                    <Button
+                        onClick={handleCloseCreate}
+                        variant="text"
+                        color="inherit"
+                        disabled={submitting}
+                        sx={{textTransform: "none", fontWeight: 500}}
+                    >
+                        Hủy
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={handleCreate}
+                        disabled={submitting}
+                        sx={{
+                            textTransform: "none",
+                            fontWeight: 600,
+                            borderRadius: 2,
+                            px: 3,
+                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
+                        }}
+                    >
+                        {submitting ? "Đang tạo…" : "Tạo"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={viewModalOpen}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    handleCloseView();
+                }}
+                maxWidth="sm"
+                fullWidth
+                PaperProps={{sx: {...modalPaperSx, borderRadius: 3}}}
+                slotProps={{backdrop: {sx: modalBackdropSx}}}
+            >
+                <Box
+                    sx={{
+                        px: 3,
+                        py: 2.5,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        borderBottom: "1px solid #f1f5f9",
+                        background: "#fafafa",
+                    }}
+                >
+                    <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
+                        Chi tiết ngày nghỉ
+                    </Typography>
+                    <IconButton
+                        onClick={handleCloseView}
+                        size="small"
+                        sx={{
+                            bgcolor: "#f1f5f9",
+                            "&:hover": {bgcolor: "#e2e8f0"},
+                        }}
+                        aria-label="Đóng"
+                    >
+                        <CloseIcon fontSize="small"/>
+                    </IconButton>
+                </Box>
+                <DialogContent sx={{px: 3, py: 3}}>
+                    {selectedHoliday ? (
+                        <Stack spacing={2.5}>
+                            <InfoItem
+                                label="Tiêu đề"
+                                value={
+                                    <Typography variant="body1" sx={{fontWeight: 600, color: "#1e293b"}}>
+                                        {selectedHoliday.title}
+                                    </Typography>
+                                }
+                            />
+                            <Stack direction={{xs: "column", sm: "row"}} spacing={2}>
+                                <InfoItem
+                                    label="Từ ngày"
+                                    value={
+                                        <Typography variant="body1" sx={{fontWeight: 600, color: "#1e293b"}}>
+                                            {formatDateVi(selectedHoliday.startDate)}
+                                        </Typography>
+                                    }
+                                />
+                                <InfoItem
+                                    label="Đến ngày"
+                                    value={
+                                        <Typography variant="body1" sx={{fontWeight: 600, color: "#1e293b"}}>
+                                            {formatDateVi(selectedHoliday.endDate)}
+                                        </Typography>
+                                    }
+                                />
+                            </Stack>
+                            <InfoItem
+                                label="Mức ảnh hưởng"
+                                value={
+                                    <Chip
+                                        size="small"
+                                        label={impactLabel(selectedHoliday.impactLevel)}
+                                        color={getImpactLevelChipColor(selectedHoliday.impactLevel)}
+                                        variant="outlined"
+                                        sx={{fontWeight: 600}}
+                                    />
+                                }
+                            />
+                            <InfoItem
+                                label="Phạm vi"
+                                value={
+                                    <Stack direction="row" spacing={1} alignItems="center">
+                                        {selectedHoliday.isGlobal ? (
+                                            <PublicIcon sx={{color: "#0D64DE", fontSize: 20}}/>
+                                        ) : (
+                                            <ApartmentIcon sx={{color: "#64748b", fontSize: 20}}/>
+                                        )}
+                                        <Typography variant="body1" sx={{fontWeight: 600, color: "#1e293b"}}>
+                                            {selectedHoliday.isGlobal ? "Toàn trường" : "Riêng cơ sở"}
+                                        </Typography>
+                                    </Stack>
+                                }
+                            />
+                            <InfoItem
+                                label="Cơ sở"
+                                value={
+                                    <Typography variant="body1" sx={{fontWeight: 600, color: "#1e293b"}}>
+                                        {selectedHoliday.campusName || "—"}
+                                    </Typography>
+                                }
+                            />
+                            <InfoItem
+                                label="Số lịch tư vấn bị ảnh hưởng"
+                                value={
+                                    <Typography variant="body1" sx={{fontWeight: 600, color: "#1e293b"}}>
+                                        {selectedHoliday.affectedSlotsCount}
+                                    </Typography>
+                                }
+                            />
+                            {viewRowMeta?.isReadOnlyForSubCampus ? (
+                                <Alert severity="info" sx={{borderRadius: 2}}>
+                                    Ngày nghỉ toàn trường do trụ sở chính quản lý — cơ sở phụ chỉ xem.
+                                </Alert>
+                            ) : null}
+                            {viewRowMeta?.isEditLockedByDate ? (
+                                <Alert severity="warning" sx={{borderRadius: 2}}>
+                                    Đã qua ngày bắt đầu — không thể chỉnh sửa.
+                                </Alert>
+                            ) : null}
+                        </Stack>
+                    ) : null}
+                </DialogContent>
+                <DialogActions sx={{px: 3, py: 2, borderTop: "1px solid #e2e8f0", gap: 1}}>
+                    <Button onClick={handleCloseView} variant="text" color="inherit" sx={{textTransform: "none", fontWeight: 500}}>
+                        Đóng
+                    </Button>
+                    <Button
+                        variant="contained"
+                        disabled={!selectedHoliday || viewRowMeta?.editDisabled}
+                        onClick={() => selectedHoliday && handleOpenEditFromView(selectedHoliday)}
+                        sx={{
+                            textTransform: "none",
+                            fontWeight: 600,
+                            borderRadius: 2,
+                            px: 2.5,
+                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
+                        }}
+                    >
+                        Chỉnh sửa
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -934,55 +1372,101 @@ export default function SchoolHoliday() {
                 open={openEditModal}
                 onClose={(_, reason) => {
                     if (reason === "backdropClick") return;
+                    if (submitting && reason === "escapeKeyDown") return;
                     handleCloseEdit();
                 }}
                 fullWidth
                 maxWidth="sm"
+                aria-busy={submitting}
+                disableScrollLock
+                PaperProps={{sx: {...modalPaperSx, position: "relative"}}}
+                slotProps={{backdrop: {sx: modalBackdropSx}}}
             >
-                <DialogTitle>Chỉnh sửa ngày nghỉ</DialogTitle>
-                <DialogContent>
-                    <Stack spacing={2} sx={{mt: 1}}>
-                        <Typography variant="caption" color="text.secondary">
-                            {previewLockedSlotsBaseline > 0
-                                ? `Ngày nghỉ này hiện đang khóa ${previewLockedSlotsBaseline} slot tư vấn.`
-                                : "Chưa có slot tư vấn bị khóa bởi ngày nghỉ này."}
-                        </Typography>
-
+                {submitting ? (
+                    <LinearProgress
+                        sx={{
+                            position: "absolute",
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 3,
+                            zIndex: 2,
+                            borderRadius: "16px 16px 0 0",
+                        }}
+                    />
+                ) : null}
+                <Box sx={{px: 3, pt: 3, pb: 0}}>
+                    <Box sx={{display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2}}>
+                        <Box>
+                            <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
+                                Chỉnh sửa ngày nghỉ
+                            </Typography>
+                            <Typography variant="body2" sx={{color: "#64748b", mt: 0.5}}>
+                                {previewLockedSlotsBaseline > 0
+                                    ? `Đang khóa ${previewLockedSlotsBaseline} slot tư vấn.`
+                                    : "Chưa có slot bị khóa bởi ngày nghỉ này."}
+                            </Typography>
+                        </Box>
+                        <IconButton
+                            onClick={handleCloseEdit}
+                            size="small"
+                            disabled={submitting}
+                            sx={{mt: -0.5, mr: -0.5}}
+                            aria-label="Đóng"
+                        >
+                            <CloseIcon fontSize="small"/>
+                        </IconButton>
+                    </Box>
+                </Box>
+                <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 1}}>
+                    <Stack spacing={2.5}>
                         {showImpactRelaxAlert ? (
                             <Alert severity="success" sx={{borderRadius: 2}}>
-                                Mức độ ảnh hưởng mới cho phép Tư vấn viên làm việc. Hệ thống sẽ tự động mở lại các
-                                lịch đã bị khóa trước đó.
+                                Mức ảnh hưởng mới cho phép tư vấn viên làm việc. Hệ thống sẽ mở lại các lịch đã bị khóa
+                                trước đó.
                             </Alert>
                         ) : null}
 
-                        <Card variant="outlined" sx={{borderRadius: 2, bgcolor: "#f8fafc"}}>
+                        <Card variant="outlined" sx={{borderRadius: 2, bgcolor: "#f8fafc", borderColor: "#e2e8f0"}}>
                             <CardContent sx={{py: 2, "&:last-child": {pb: 2}}}>
-                                <Typography variant="subtitle2" sx={{fontWeight: 700, mb: 1}}>
+                                <Typography variant="subtitle2" sx={{fontWeight: 700, mb: 1, color: "#0f172a"}}>
                                     Xem trước thay đổi
                                 </Typography>
-                                {previewLoading ? (
-                                    <Box sx={{display: "flex", alignItems: "center", gap: 1}}>
-                                        <CircularProgress size={18}/>
-                                        <Typography variant="body2" color="text.secondary">
-                                            Đang tính toán...
+                                <Box sx={{position: "relative", minHeight: 72}}>
+                                    <Stack
+                                        spacing={0.75}
+                                        sx={{
+                                            opacity: previewLoading ? 0.38 : 1,
+                                            transition: "opacity 0.2s ease",
+                                        }}
+                                    >
+                                        <Typography variant="body2" sx={{color: "#334155"}}>
+                                            Slot khôi phục (thu hẹp): <strong>{previewData.slotsToRestore}</strong>
                                         </Typography>
-                                    </Box>
-                                ) : (
-                                    <Stack spacing={0.75}>
-                                        <Typography variant="body2">
-                                            Số slot sẽ được khôi phục (thu hẹp ngày nghỉ):{" "}
-                                            <strong>{previewData.slotsToRestore}</strong>
+                                        <Typography variant="body2" sx={{color: "#334155"}}>
+                                            Slot khóa thêm (mở rộng): <strong>{previewData.slotsToLock}</strong>
                                         </Typography>
-                                        <Typography variant="body2">
-                                            Số slot sẽ bị khóa thêm (mở rộng ngày nghỉ):{" "}
-                                            <strong>{previewData.slotsToLock}</strong>
-                                        </Typography>
-                                        <Typography variant="body2" color="warning.main">
-                                            Số slot xung đột (đã có khách đặt):{" "}
-                                            <strong>{previewData.conflictSlots}</strong>
+                                        <Typography variant="body2" sx={{color: "#b45309"}}>
+                                            Slot xung đột (đã có khách): <strong>{previewData.conflictSlots}</strong>
                                         </Typography>
                                     </Stack>
-                                )}
+                                    {previewLoading ? (
+                                        <Box
+                                            sx={{
+                                                position: "absolute",
+                                                inset: 0,
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
+                                                bgcolor: "rgba(248, 250, 252, 0.78)",
+                                                borderRadius: 1,
+                                                pointerEvents: "none",
+                                            }}
+                                        >
+                                            <CircularProgress size={22} thickness={4} sx={{color: "#2563eb"}}/>
+                                        </Box>
+                                    ) : null}
+                                </Box>
                             </CardContent>
                         </Card>
 
@@ -993,6 +1477,7 @@ export default function SchoolHoliday() {
                             onChange={handleEditChange}
                             fullWidth
                             required
+                            disabled={submitting}
                         />
 
                         <Stack direction={{xs: "column", sm: "row"}} spacing={2}>
@@ -1004,6 +1489,7 @@ export default function SchoolHoliday() {
                                 onChange={handleEditChange}
                                 InputLabelProps={{shrink: true}}
                                 fullWidth
+                                disabled={submitting}
                             />
                             <TextField
                                 label="Ngày kết thúc"
@@ -1013,38 +1499,46 @@ export default function SchoolHoliday() {
                                 onChange={handleEditChange}
                                 InputLabelProps={{shrink: true}}
                                 fullWidth
+                                disabled={submitting}
                             />
                         </Stack>
 
-                        <FormControl fullWidth>
+                        <FormControl fullWidth disabled={submitting} sx={{minWidth: 0, maxWidth: "100%"}}>
                             <InputLabel>Mức độ ảnh hưởng</InputLabel>
                             <Select
                                 name="holidayImpactLevel"
                                 value={editForm.holidayImpactLevel}
                                 label="Mức độ ảnh hưởng"
                                 onChange={handleEditChange}
+                                sx={{
+                                    minWidth: 0,
+                                    width: "100%",
+                                    "& .MuiSelect-select": {
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                    },
+                                }}
                                 renderValue={(value) => (
-                                    <Chip
-                                        size="small"
-                                        label={impactLabel(value)}
-                                        color={getImpactLevelChipColor(value)}
-                                        sx={{fontWeight: 600}}
-                                    />
+                                    <Typography component="span" variant="body2" noWrap sx={{display: "block"}}>
+                                        {impactLabel(value)}
+                                    </Typography>
                                 )}
+                                MenuProps={{
+                                    PaperProps: {
+                                        sx: {
+                                            maxWidth: "min(100vw - 32px, 520px)",
+                                        },
+                                    },
+                                }}
                             >
                                 {impactOptions.map((option) => (
-                                    <MenuItem key={option.value} value={option.value}>
-                                        <Stack direction="row" alignItems="center" spacing={1}>
-                                            <Chip
-                                                size="small"
-                                                label={impactLabel(option.value)}
-                                                color={getImpactLevelChipColor(option.value)}
-                                                sx={{minWidth: 120, fontWeight: 600}}
-                                            />
-                                            <Typography variant="body2" sx={{whiteSpace: "normal"}}>
-                                                {option.label}
-                                            </Typography>
-                                        </Stack>
+                                    <MenuItem
+                                        key={option.value}
+                                        value={option.value}
+                                        sx={{whiteSpace: "normal", alignItems: "flex-start", py: 1.25}}
+                                    >
+                                        {option.label}
                                     </MenuItem>
                                 ))}
                             </Select>
@@ -1057,58 +1551,107 @@ export default function SchoolHoliday() {
                                     checked={Boolean(editForm.forceCreate)}
                                     onChange={handleEditChange}
                                     color="error"
+                                    disabled={submitting}
                                 />
                             }
                             label={
-                                <Typography variant="body2" color="error">
-                                    Buộc hủy lịch đã đặt trùng khoảng thời gian (nếu hệ thống yêu cầu)
+                                <Typography variant="body2" sx={{color: "#b91c1c"}}>
+                                    Buộc hủy lịch đã đặt trùng khoảng thời gian (khi hệ thống yêu cầu)
                                 </Typography>
                             }
                         />
                     </Stack>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={handleCloseEdit}>Hủy</Button>
-                    <Button variant="contained" onClick={() => handleUpdateSubmit(false)} disabled={submitting}>
-                        {submitting ? "Đang lưu..." : "Cập nhật"}
+                <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
+                    <Button
+                        onClick={handleCloseEdit}
+                        variant="text"
+                        color="inherit"
+                        disabled={submitting}
+                        sx={{textTransform: "none", fontWeight: 500}}
+                    >
+                        Hủy
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={() => handleUpdateSubmit(false)}
+                        disabled={submitting}
+                        sx={{
+                            textTransform: "none",
+                            fontWeight: 600,
+                            borderRadius: 2,
+                            px: 3,
+                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
+                        }}
+                    >
+                        {submitting ? "Đang lưu…" : "Cập nhật"}
                     </Button>
                 </DialogActions>
             </Dialog>
 
             <Dialog
                 open={conflictDialogOpen}
-                onClose={() => setConflictDialogOpen(false)}
+                onClose={(e, reason) => {
+                    if (reason === "backdropClick") return;
+                    if (submitting) return;
+                    setConflictDialogOpen(false);
+                }}
                 fullWidth
                 maxWidth="md"
+                PaperProps={{sx: modalPaperSx}}
+                slotProps={{backdrop: {sx: modalBackdropSx}}}
             >
-                <DialogTitle>Xung đột lịch đặt</DialogTitle>
-                <DialogContent>
-                    <Stack spacing={2} sx={{mt: 1}}>
-                        <Typography variant="body2" color="text.secondary">
-                            {conflictMessage ||
-                                "Có lịch tư vấn đã được đặt trong khoảng thời gian mới. Xem danh sách bên dưới."}
-                        </Typography>
+                <Box sx={{px: 3, pt: 3, pb: 0}}>
+                    <Box sx={{display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2}}>
+                        <Box>
+                            <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
+                                Xung đột lịch đặt
+                            </Typography>
+                            <Typography variant="body2" sx={{color: "#64748b", mt: 0.5}}>
+                                {conflictMessage ||
+                                    "Có lịch tư vấn đã đặt trong khoảng thời gian mới. Xem danh sách bên dưới."}
+                            </Typography>
+                        </Box>
+                        <IconButton
+                            onClick={() => !submitting && setConflictDialogOpen(false)}
+                            size="small"
+                            disabled={submitting}
+                            sx={{mt: -0.5, mr: -0.5}}
+                            aria-label="Đóng"
+                        >
+                            <CloseIcon fontSize="small"/>
+                        </IconButton>
+                    </Box>
+                </Box>
+                <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 1}}>
+                    <Stack spacing={2}>
                         {conflictItems.length === 0 ? (
-                            <Alert severity="warning">Không có chi tiết slot từ máy chủ.</Alert>
+                            <Alert severity="warning" sx={{borderRadius: 2}}>
+                                Không có chi tiết slot từ máy chủ.
+                            </Alert>
                         ) : (
-                            <TableContainer>
-                                <Table size="small">
-                                    <TableHead>
-                                        <TableRow>
-                                            <TableCell sx={{fontWeight: 700}}>#</TableCell>
-                                            <TableCell sx={{fontWeight: 700}}>Chi tiết</TableCell>
-                                        </TableRow>
-                                    </TableHead>
-                                    <TableBody>
-                                        {conflictItems.map((item, idx) => (
-                                            <TableRow key={idx}>
-                                                <TableCell>{idx + 1}</TableCell>
-                                                <TableCell>{formatConflictBookingRow(item, idx)}</TableCell>
+                            <Card variant="outlined" sx={{borderRadius: 2, borderColor: "#e2e8f0", overflow: "hidden"}}>
+                                <TableContainer>
+                                    <Table size="small">
+                                        <TableHead>
+                                            <TableRow sx={{bgcolor: "#f1f5f9"}}>
+                                                <TableCell sx={{...tableHeadCellSx, width: 56}}>#</TableCell>
+                                                <TableCell sx={tableHeadCellSx}>Chi tiết lịch</TableCell>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </TableContainer>
+                                        </TableHead>
+                                        <TableBody>
+                                            {conflictItems.map((item, idx) => (
+                                                <TableRow key={idx} hover sx={{"&:last-child td": {borderBottom: 0}}}>
+                                                    <TableCell sx={{color: "#64748b"}}>{idx + 1}</TableCell>
+                                                    <TableCell sx={{color: "#1e293b"}}>
+                                                        {formatConflictBookingRow(item, idx)}
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            </Card>
                         )}
                         <FormControlLabel
                             control={
@@ -1116,21 +1659,35 @@ export default function SchoolHoliday() {
                                     checked={conflictAckForce}
                                     onChange={(e) => setConflictAckForce(e.target.checked)}
                                     color="error"
+                                    disabled={submitting}
                                 />
                             }
-                            label="Tôi xác nhận hủy các lịch trùng và cập nhật ngày nghỉ"
+                            label={
+                                <Typography variant="body2" sx={{fontWeight: 500, color: "#b91c1c"}}>
+                                    Tôi xác nhận hủy các lịch trùng và cập nhật ngày nghỉ
+                                </Typography>
+                            }
                         />
                     </Stack>
                 </DialogContent>
-                <DialogActions>
-                    <Button onClick={() => setConflictDialogOpen(false)}>Đóng</Button>
+                <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
+                    <Button
+                        onClick={() => setConflictDialogOpen(false)}
+                        variant="text"
+                        color="inherit"
+                        disabled={submitting}
+                        sx={{textTransform: "none", fontWeight: 500}}
+                    >
+                        Đóng
+                    </Button>
                     <Button
                         variant="contained"
                         color="error"
                         onClick={handleConflictConfirmUpdate}
                         disabled={submitting}
+                        sx={{textTransform: "none", fontWeight: 600, borderRadius: 2, px: 2.5}}
                     >
-                        {submitting ? "Đang xử lý..." : "Xác nhận hủy lịch & Cập nhật"}
+                        {submitting ? "Đang xử lý…" : "Xác nhận hủy lịch & cập nhật"}
                     </Button>
                 </DialogActions>
             </Dialog>

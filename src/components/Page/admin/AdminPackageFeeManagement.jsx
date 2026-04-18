@@ -284,7 +284,7 @@ function PackageFeaturesDetailGrid({ features }) {
     const cells = [
         { Icon: SupportAgentOutlinedIcon, label: "Tư vấn viên", value: String(f.maxCounsellors ?? 0) },
         { Icon: PolicyOutlinedIcon, label: "Quyền nhà trường", value: displayEnum(f.parentPostPermission) },
-        { Icon: ChatBubbleOutlineIcon, label: "Chat", value: f.allowChat ? "Đã bật" : "Đã tắt" },
+        { Icon: ChatBubbleOutlineIcon, label: "Chatbot AI", value: f.allowChat ? "Đã bật" : "Đã tắt" },
         { Icon: StarOutlineIcon, label: "Nổi bật", value: f.isFeatured ? "Có" : "Không" },
         { Icon: EmojiEventsOutlinedIcon, label: "Xếp hạng", value: `Số ${f.topRanking ?? 0}` },
     ];
@@ -977,7 +977,7 @@ export default function AdminPackageFeeManagement() {
                         >
                             <FormControlLabel
                                 control={<Switch checked={Boolean(form.allowChat)} onChange={(e) => setForm((prev) => ({ ...prev, allowChat: e.target.checked }))} />}
-                                label="Cho phép chat"
+                                label="Cho phép Chatbot AI"
                             />
                         </Stack>
                         {isEdit && (

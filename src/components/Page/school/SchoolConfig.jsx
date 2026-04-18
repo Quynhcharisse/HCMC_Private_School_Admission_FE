@@ -39,7 +39,7 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AddIcon from "@mui/icons-material/Add";
-import {useSearchParams} from "react-router-dom";
+import {useNavigate, useSearchParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 
 import {extractCampusListBody, listCampuses} from "../../../services/CampusService.jsx";
@@ -52,14 +52,12 @@ import {
   updateSchoolConfig,
 } from "../../../services/SchoolFacilityService.jsx";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
-import SchoolHoliday from "./SchoolHoliday.jsx";
 
-const TAB_SLUGS = ["admission", "documents", "operation", "holiday", "finance", "facility", "quota", "resource-distribution"];
+const TAB_SLUGS = ["admission", "documents", "operation", "finance", "facility", "quota", "resource-distribution"];
 const TAB_LABELS = [
   "Cài Đặt Tuyển Sinh",
   "Cài Đặt Hồ Sơ",
   "Cài Đặt Vận Hành",
-  "Cài Đặt Ngày Nghỉ",
   "Cài Đặt Tài Chính",
   "Cài Đặt Cơ Sở Vật Chất",
   "Cài Đặt Chỉ Tiêu",
@@ -1473,6 +1471,7 @@ function admissionMethodExtraEntries(m) {
 export default function SchoolConfig() {
   const isCampusVariant = false;
   const {isPrimaryBranch, currentCampusId, loading: schoolCtxLoading} = useSchool();
+  const navigate = useNavigate();
 
   const [searchParams, setSearchParams] = useSearchParams();
   /** Chỉ dùng khi campus chính + variant campus — id cơ sở chính sau listCampuses. */
@@ -1490,6 +1489,12 @@ export default function SchoolConfig() {
   const tabLabels = isCampusVariant ? BRANCH_TAB_LABELS : TAB_LABELS;
   const tabSlug = searchParams.get("tab") || (isCampusVariant ? "operation" : "admission");
   const tabIndex = tabSlugs.includes(tabSlug) ? tabSlugs.indexOf(tabSlug) : 0;
+
+  useEffect(() => {
+    if (!isCampusVariant && searchParams.get("tab") === "holiday") {
+      navigate("/school/holiday-settings", {replace: true});
+    }
+  }, [isCampusVariant, navigate, searchParams]);
 
   const setTabIndex = useCallback(
     (idx) => {
@@ -2216,7 +2221,6 @@ export default function SchoolConfig() {
   const showAdmissionTab = !useCampusConfigFlow && tabSlug === "admission";
   const showDocumentsTab = !useCampusConfigFlow && tabSlug === "documents";
   const showOperationTab = (!useCampusConfigFlow && tabSlug === "operation") || (useCampusConfigFlow && tabSlug === "operation");
-  const showHolidayTab = !useCampusConfigFlow && tabSlug === "holiday";
   const showFinanceTab = !useCampusConfigFlow && tabSlug === "finance";
   const showFacilityTab = (!useCampusConfigFlow && tabSlug === "facility") || (useCampusConfigFlow && tabSlug === "facility");
   const showQuotaTab = !useCampusConfigFlow && tabSlug === "quota";
@@ -4771,8 +4775,6 @@ export default function SchoolConfig() {
             </Stack>
           )}
 
-          {showHolidayTab && <SchoolHoliday />}
-
           {showFacilityTab && (
             <SchoolFacilityFacilityForm
               ref={facilityFormRef}
@@ -4899,7 +4901,7 @@ export default function SchoolConfig() {
         </Box>
 
         <Box sx={{mt: 2, display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap"}}>
-          {showHolidayTab ? null : !editing ? (
+          {!editing ? (
             <Button
               variant="contained"
               onClick={() => setEditing(true)}
