@@ -1,6 +1,7 @@
 import axiosClient from "../configs/APIConfig.jsx";
 import { parseSchoolConfigResponseBody } from "./SchoolFacilityService.jsx";
 import { resolveSchoolWideWorkingConfigDisplay } from "../utils/schoolWideWorkingConfig.js";
+import { isAcademicCalendarLimitActive, normalizeAcademicCalendarShape } from "../utils/academicCalendarUi.js";
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
@@ -29,9 +30,12 @@ export function normalizeScheduleTimeHHmm(t) {
  *   stepMinutes: number,
  *   minCounsellorsPerSlot: number,
  *   maxCounsellorsPerSlot: number,
+ *   maxBookingPerSlot: number,
  *   workShifts: Array<Record<string, unknown>>,
  *   regularDays: string[],
- *   workingNote: string
+ *   workingNote: string,
+ *   academicCalendar: { term1: { start: string, end: string }, term2: { start: string, end: string } },
+ *   academicSemesterLimitActive: boolean
  * }}
  */
 export function parseCampusSchedulePolicyFromConfigResponse(res) {
@@ -109,6 +113,21 @@ export function parseCampusSchedulePolicyFromConfigResponse(res) {
       ? 0
       : Math.max(0, Math.floor(mxN));
 
+  const maxBookRaw =
+    pol.maxBookingPerSlot ??
+    pol.max_booking_per_slot ??
+    hqPol.maxBookingPerSlot ??
+    hqPol.max_booking_per_slot ??
+    cur.maxBookingPerSlot ??
+    cur.max_booking_per_slot ??
+    hqOp.maxBookingPerSlot ??
+    hqOp.max_booking_per_slot;
+  const bookN = Number(maxBookRaw);
+  const maxBookingPerSlot =
+    maxBookRaw == null || maxBookRaw === "" || Number.isNaN(bookN)
+      ? 1
+      : Math.max(0, Math.floor(bookN));
+
   const wc = resolveSchoolWideWorkingConfigDisplay(hqOp, cur);
 
   const shiftsRaw = wc.workShifts ?? wc.work_shifts;
@@ -126,15 +145,30 @@ export function parseCampusSchedulePolicyFromConfigResponse(res) {
         ? String(wc.working_note).trim()
         : "";
 
+  const rawHqCal = hqOp.academicCalendar ?? hqOp.academic_calendar;
+  const rawCurCal = cur.academicCalendar ?? cur.academic_calendar;
+  const nHq = normalizeAcademicCalendarShape(rawHqCal);
+  const nCur = normalizeAcademicCalendarShape(rawCurCal);
+  /** Trụ sở trước; nếu chưa «siết» thì dùng bản trên campus (nếu có). */
+  const academicCalendar = isAcademicCalendarLimitActive(nHq)
+    ? nHq
+    : isAcademicCalendarLimitActive(nCur)
+      ? nCur
+      : nHq;
+  const academicSemesterLimitActive = isAcademicCalendarLimitActive(academicCalendar);
+
   return {
     slotDurationMinutes: slot,
     bufferBetweenSlotsMinutes,
     stepMinutes,
     minCounsellorsPerSlot,
     maxCounsellorsPerSlot,
+    maxBookingPerSlot,
     workShifts,
     regularDays,
     workingNote,
+    academicCalendar,
+    academicSemesterLimitActive,
   };
 }
 

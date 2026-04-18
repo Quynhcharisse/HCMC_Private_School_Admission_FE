@@ -3868,7 +3868,7 @@ export default function CampusConfig() {
                             }))
                           }
                           size="small"
-                          helperText="*Số khách đặt tối đa / một khung (booking), khác trần TV gán cùng khung bên dưới."
+                          helperText="Dành cho phụ huynh khi đặt lịch: tối đa bao nhiêu lượt đặt hoặc chờ trong một khung giờ. Không phải số tư vấn viên — xem hai ô bên phải."
                           FormHelperTextProps={{sx: {fontWeight: 700, color: "#DC2626"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
@@ -3904,7 +3904,7 @@ export default function CampusConfig() {
                             }))
                           }
                           size="small"
-                          helperText="*Số lượng tư vấn viên tối thiểu trực trong một ca."
+                          helperText="Khi gán lịch cho tư vấn viên: mỗi khung giờ và khoảng ngày phải có ít nhất số người này. Không liên quan tới lượt đặt của phụ huynh."
                           FormHelperTextProps={{sx: {fontWeight: 700, color: "#DC2626"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
@@ -3941,7 +3941,7 @@ export default function CampusConfig() {
                             }))
                           }
                           size="small"
-                          helperText="*Trần TV gán cùng khung + khoảng ngày; 0 = không giới hạn trần trên."
+                          helperText="Giới hạn nhân sự: tối đa bao nhiêu tư vấn viên được gán chung một khung giờ và cùng khoảng ngày. 0 = không giới hạn. Khác với lượt đặt của phụ huynh."
                           FormHelperTextProps={{sx: {fontWeight: 700, color: "#DC2626"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
