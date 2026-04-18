@@ -103,6 +103,9 @@ export default function CounsellorAssignModal({
   sessionTypeLabelText,
   defaultStartDate,
   defaultEndDate,
+  /** Merge từ GET campus/config — trần TV gán; 0 = không trần trên */
+  minCounsellorsPerSlot = 1,
+  maxCounsellorsPerSlot = 0,
   onSuccess,
 }) {
   const [startDate, setStartDate] = useState("");
@@ -306,6 +309,18 @@ export default function CounsellorAssignModal({
 
             <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#374151" }}>
               Chọn tư vấn viên
+            </Typography>
+            <Typography variant="caption" sx={{ color: "#64748B", display: "block", mt: -0.5, mb: 0.5, lineHeight: 1.45 }}>
+              {maxCounsellorsPerSlot > 0 ? (
+                <>
+                  Theo cấu hình: tối đa <strong>{maxCounsellorsPerSlot}</strong> TV gán cùng khung và khoảng ngày (tối thiểu{" "}
+                  <strong>{minCounsellorsPerSlot}</strong>). Lỗi từ máy chủ có thể nhắc giới hạn này.
+                </>
+              ) : (
+                <>
+                  Theo cấu hình: không giới hạn trần số TV gán cùng khung (0); tối thiểu <strong>{minCounsellorsPerSlot}</strong>.
+                </>
+              )}
             </Typography>
             {loading ? (
               <Typography variant="body2" color="text.secondary">

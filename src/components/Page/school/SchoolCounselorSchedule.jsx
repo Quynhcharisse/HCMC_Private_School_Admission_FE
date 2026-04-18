@@ -237,21 +237,28 @@ function minutesToHHmm(total) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
-/** Preview khi bật tách theo slot (phút / khung). */
-function computePolicySlotPreview(startTime, endTime, slotMinutes) {
-  const span = timeToMinutes(endTime) - timeToMinutes(startTime);
-  if (!slotMinutes || slotMinutes <= 0 || span <= 0) return { count: 0, labels: [] };
-  if (span % slotMinutes !== 0) return { count: 0, labels: [], remainder: true };
-  const n = span / slotMinutes;
+/**
+ * Preview khi bật tách theo slot: mỗi tiết `slotMinutes`, nghỉ `bufferMinutes` giữa hai tiết (chuẩn BE).
+ * `remainder` = khung không vừa khít (còn khoảng trống sau tiết cuối).
+ */
+function computePolicySlotPreview(startTime, endTime, slotMinutes, bufferMinutes) {
+  const start = timeToMinutes(startTime);
+  const end = timeToMinutes(endTime);
+  const span = end - start;
+  const slot = Number(slotMinutes);
+  const buffer = Math.max(0, Number(bufferMinutes) || 0);
+  if (!Number.isFinite(slot) || slot <= 0 || span <= 0) return { count: 0, labels: [], remainder: true };
   const labels = [];
-  let cur = timeToMinutes(startTime);
-  for (let i = 0; i < Math.min(n, 24); i += 1) {
-    const a = cur;
-    const b = cur + slotMinutes;
-    labels.push(`${minutesToHHmm(a)}–${minutesToHHmm(b)}`);
-    cur = b;
+  let t = start;
+  let lastEnd = start;
+  while (t + slot <= end) {
+    lastEnd = t + slot;
+    labels.push(`${minutesToHHmm(t)}–${minutesToHHmm(lastEnd)}`);
+    t = lastEnd + buffer;
+    if (labels.length >= 48) break;
   }
-  return { count: n, labels, remainder: false };
+  const remainder = lastEnd !== end;
+  return { count: labels.length, labels, remainder };
 }
 
 function intervalsOverlap(aStart, aEnd, bStart, bEnd) {
@@ -478,6 +485,10 @@ export default function SchoolCounselorSchedule() {
     loading: false,
     error: null,
     slotDurationMinutes: 0,
+    bufferBetweenSlotsMinutes: 0,
+    stepMinutes: 0,
+    minCounsellorsPerSlot: 1,
+    maxCounsellorsPerSlot: 0,
     workShifts: [],
     regularDays: [],
     workingNote: "",
@@ -600,6 +611,10 @@ export default function SchoolCounselorSchedule() {
             loading: false,
             error: e?.message || "Lỗi",
             slotDurationMinutes: 0,
+            bufferBetweenSlotsMinutes: 0,
+            stepMinutes: 0,
+            minCounsellorsPerSlot: 1,
+            maxCounsellorsPerSlot: 0,
             workShifts: [],
             regularDays: [],
             workingNote: "",
@@ -831,12 +846,18 @@ export default function SchoolCounselorSchedule() {
     if (!form.expandToPolicySlots || isEditing) return { count: 0, labels: [], remainder: false };
     const win = resolveSessionWindowFromWorkShifts(schedulePolicy.workShifts, form.sessionType);
     if (!win) return { count: 0, labels: [], remainder: false };
-    return computePolicySlotPreview(win.start, win.end, schedulePolicy.slotDurationMinutes);
+    return computePolicySlotPreview(
+      win.start,
+      win.end,
+      schedulePolicy.slotDurationMinutes,
+      schedulePolicy.bufferBetweenSlotsMinutes
+    );
   }, [
     form.expandToPolicySlots,
     form.sessionType,
     isEditing,
     schedulePolicy.slotDurationMinutes,
+    schedulePolicy.bufferBetweenSlotsMinutes,
     schedulePolicy.workShifts,
   ]);
 
@@ -931,8 +952,20 @@ export default function SchoolCounselorSchedule() {
         const span = timeToMinutes(sessionWin.end) - timeToMinutes(sessionWin.start);
         if (span <= 0) {
           err.expandSlots = "Khung giờ dự kiến không hợp lệ — không thể chia nhỏ.";
-        } else if (span % schedulePolicy.slotDurationMinutes !== 0) {
-          err.expandSlots = `Tổng ${span} phút trong khung phải chia hết cho ${schedulePolicy.slotDurationMinutes} phút (mỗi cuộc hẹn).`;
+        } else {
+          const prv = computePolicySlotPreview(
+            sessionWin.start,
+            sessionWin.end,
+            schedulePolicy.slotDurationMinutes,
+            schedulePolicy.bufferBetweenSlotsMinutes
+          );
+          if (prv.remainder || prv.count === 0) {
+            const buf = Math.max(0, Number(schedulePolicy.bufferBetweenSlotsMinutes) || 0);
+            err.expandSlots =
+              buf > 0
+                ? `Khung giờ này không thể tách thành các tiết liên tiếp đúng theo cấu hình (mỗi tiết ${schedulePolicy.slotDurationMinutes} phút, nghỉ ${buf} phút giữa hai tiết). Nếu vẫn lỗi khi lưu, thử chỉnh khung giờ ca ở trụ sở cho khớp công thức nhiều tiết + nghỉ, hoặc xem thông báo từ máy chủ.`
+                : `Khung giờ này không thể tách đều thành các đoạn ${schedulePolicy.slotDurationMinutes} phút (vừa khít cả khung). Nếu vẫn lỗi khi lưu, nhờ trụ sở kiểm tra ca hoặc xem thông báo API.`;
+          }
         }
       }
     }
@@ -1629,10 +1662,26 @@ export default function SchoolCounselorSchedule() {
               <Stack spacing={1}>
                 <Typography variant="body2" sx={{ color: "#475569", lineHeight: 1.55 }}>
                   <strong>Độ dài slot:</strong>{" "}
-                  {schedulePolicy.slotDurationMinutes > 0
-                    ? `${schedulePolicy.slotDurationMinutes} phút`
-                    : "Chưa cấu hình"}
+                  {schedulePolicy.slotDurationMinutes > 0 ? (
+                    <>
+                      Tiết {schedulePolicy.slotDurationMinutes} phút
+                      {schedulePolicy.bufferBetweenSlotsMinutes > 0
+                        ? `, nghỉ ${schedulePolicy.bufferBetweenSlotsMinutes} phút giữa hai tiết`
+                        : " — không nghỉ giữa tiết"}
+                    </>
+                  ) : (
+                    "Chưa cấu hình"
+                  )}
                 </Typography>
+                {schedulePolicy.slotDurationMinutes > 0 ? (
+                  <Typography variant="body2" sx={{ color: "#475569", lineHeight: 1.55 }}>
+                    <strong>TV / khung (gán):</strong> tối thiểu {schedulePolicy.minCounsellorsPerSlot ?? 1}
+                    {schedulePolicy.maxCounsellorsPerSlot > 0
+                      ? ` · tối đa gán cùng khung ${schedulePolicy.maxCounsellorsPerSlot}`
+                      : " · không giới hạn trần TV gán (0)"}
+                    . Khác với số khách đặt / ca (booking).
+                  </Typography>
+                ) : null}
                 {schedulePolicy.regularDays?.length ? (
                   <Typography variant="body2" sx={{ color: "#475569", lineHeight: 1.55 }}>
                     <strong>Ngày làm việc:</strong>{" "}
@@ -2050,6 +2099,13 @@ export default function SchoolCounselorSchedule() {
                 ) : null}
                 {!isEditing && schedulePolicy.slotDurationMinutes > 0 ? (
                   <Box>
+                    <Typography variant="caption" sx={{ color: "#64748B", display: "block", mb: 1 }}>
+                      Nhắc trước khi tách: đang dùng tiết {schedulePolicy.slotDurationMinutes} phút
+                      {schedulePolicy.bufferBetweenSlotsMinutes > 0
+                        ? ` + nghỉ ${schedulePolicy.bufferBetweenSlotsMinutes} phút giữa hai tiết`
+                        : " — không nghỉ giữa tiết"}
+                      .
+                    </Typography>
                     <FormControlLabel
                       control={
                         <Checkbox
@@ -2068,8 +2124,9 @@ export default function SchoolCounselorSchedule() {
                             Chia nhỏ thành nhiều lịch hẹn
                           </Typography>
                           <Typography variant="caption" sx={{ color: "#6B7280", display: "block", mt: 0.25 }}>
-                            Mỗi đoạn bằng đúng thời lượng một cuộc tư vấn (cùng số phút với mục <strong>Độ dài slot</strong>{" "}
-                            phía trên). Dùng khi muốn nhiều khung liên tiếp trong cùng buổi. Chỉ khi <strong>thêm mới</strong>.
+                            Mỗi đoạn là một tiết tư vấn (đúng thời lượng ở mục <strong>Độ dài slot</strong>); nếu trường có cấu hình
+                            nghỉ giữa tiết, hệ thống sẽ tính khoảng trống đó giữa hai lịch liên tiếp. Dùng khi muốn nhiều khung liên
+                            tiếp trong cùng buổi. Chỉ khi <strong>thêm mới</strong>.
                           </Typography>
                         </Box>
                       }
@@ -2088,7 +2145,8 @@ export default function SchoolCounselorSchedule() {
                           </Typography>
                         ) : form.expandToPolicySlots && !formErrors.expandSlots ? (
                           <Typography variant="caption" sx={{ color: "#94A3B8" }}>
-                            Tổng thời gian trong khung phải chia hết cho thời lượng mỗi cuộc hẹn (số phút ở mục Độ dài slot).
+                            Tổng thời gian trong khung phải vừa khít với chuỗi tiết + nghỉ giữa tiết (theo mục Độ dài slot phía
+                            trên).
                           </Typography>
                         ) : null}
                       </Box>
@@ -2301,6 +2359,8 @@ export default function SchoolCounselorSchedule() {
         sessionTypeLabelText={sessionTypeLabel(assignSlotCtx.slot?.sessionType)}
         defaultStartDate={viewStartStr}
         defaultEndDate={viewEndStr}
+        minCounsellorsPerSlot={schedulePolicy.minCounsellorsPerSlot ?? 1}
+        maxCounsellorsPerSlot={schedulePolicy.maxCounsellorsPerSlot ?? 0}
         onSuccess={() => loadAssignedSlots()}
       />
 

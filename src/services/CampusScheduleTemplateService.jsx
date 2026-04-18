@@ -25,6 +25,10 @@ export function normalizeScheduleTimeHHmm(t) {
  * Ràng buộc form khung lịch từ GET /campus/config (`campusCurrent` + `hqDefault.operation`).
  * @returns {{
  *   slotDurationMinutes: number,
+ *   bufferBetweenSlotsMinutes: number,
+ *   stepMinutes: number,
+ *   minCounsellorsPerSlot: number,
+ *   maxCounsellorsPerSlot: number,
  *   workShifts: Array<Record<string, unknown>>,
  *   regularDays: string[],
  *   workingNote: string
@@ -63,6 +67,48 @@ export function parseCampusSchedulePolicyFromConfigResponse(res) {
   const slotDurationMinutes = Number(slotRaw);
   const slot = Number.isFinite(slotDurationMinutes) && slotDurationMinutes > 0 ? slotDurationMinutes : 0;
 
+  const bufferRaw =
+    pol.bufferBetweenSlotsMinutes ??
+    pol.buffer_between_slots_minutes ??
+    hqPol.bufferBetweenSlotsMinutes ??
+    hqPol.buffer_between_slots_minutes ??
+    cur.bufferBetweenSlotsMinutes ??
+    cur.buffer_between_slots_minutes ??
+    hqOp.bufferBetweenSlotsMinutes ??
+    hqOp.buffer_between_slots_minutes;
+  const bufN = Number(bufferRaw);
+  const bufferBetweenSlotsMinutes =
+    Number.isFinite(bufN) && bufN >= 0 ? Math.floor(bufN) : 0;
+  const stepMinutes = slot > 0 ? slot + bufferBetweenSlotsMinutes : 0;
+
+  const minTvRaw =
+    pol.minCounsellorPerSlot ??
+    pol.min_counsellor_per_slot ??
+    hqPol.minCounsellorPerSlot ??
+    hqPol.min_counsellor_per_slot ??
+    cur.minCounsellorPerSlot ??
+    cur.min_counsellor_per_slot ??
+    hqOp.minCounsellorPerSlot ??
+    hqOp.min_counsellor_per_slot;
+  const minN = Number(minTvRaw);
+  const minCounsellorsPerSlot =
+    Number.isFinite(minN) && minN >= 0 ? Math.floor(minN) : 1;
+
+  const maxTvRaw =
+    pol.maxCounsellorsPerSlot ??
+    pol.max_counsellors_per_slot ??
+    hqPol.maxCounsellorsPerSlot ??
+    hqPol.max_counsellors_per_slot ??
+    cur.maxCounsellorsPerSlot ??
+    cur.max_counsellors_per_slot ??
+    hqOp.maxCounsellorsPerSlot ??
+    hqOp.max_counsellors_per_slot;
+  const mxN = Number(maxTvRaw);
+  const maxCounsellorsPerSlot =
+    maxTvRaw == null || maxTvRaw === "" || Number.isNaN(mxN)
+      ? 0
+      : Math.max(0, Math.floor(mxN));
+
   const wc = resolveSchoolWideWorkingConfigDisplay(hqOp, cur);
 
   const shiftsRaw = wc.workShifts ?? wc.work_shifts;
@@ -80,7 +126,16 @@ export function parseCampusSchedulePolicyFromConfigResponse(res) {
         ? String(wc.working_note).trim()
         : "";
 
-  return { slotDurationMinutes: slot, workShifts, regularDays, workingNote };
+  return {
+    slotDurationMinutes: slot,
+    bufferBetweenSlotsMinutes,
+    stepMinutes,
+    minCounsellorsPerSlot,
+    maxCounsellorsPerSlot,
+    workShifts,
+    regularDays,
+    workingNote,
+  };
 }
 
 /**

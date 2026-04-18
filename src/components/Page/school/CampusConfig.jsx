@@ -53,6 +53,7 @@ import {
 } from "../../../services/SchoolFacilityService.jsx";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
 import SchoolWideScheduleReadOnlyPanel from "./SchoolWideScheduleReadOnlyPanel.jsx";
+import {HqScalarDiffChip, HqVsCampusSlotBufferSummary} from "./CampusOperationHqHints.jsx";
 import {resolveSchoolWideWorkingConfigDisplay} from "../../../utils/schoolWideWorkingConfig.js";
 
 const TAB_SLUGS = ["admission", "documents", "operation", "finance", "facility", "quota", "resource-distribution"];
@@ -174,7 +175,9 @@ function defaultConfig() {
       emailSupport: "",
       maxBookingPerSlot: 1,
       minCounsellorPerSlot: 1,
+      maxCounsellorsPerSlot: 0,
       slotDurationInMinutes: 30,
+      bufferBetweenSlotsMinutes: 0,
       allowBookingBeforeHours: 24,
       workingConfig: {
         note: "",
@@ -853,7 +856,9 @@ function sanitizeOperationSettingsForApi(op) {
     emailSupport: op.emailSupport != null ? String(op.emailSupport) : "",
     maxBookingPerSlot: numOr(op.maxBookingPerSlot, 1),
     minCounsellorPerSlot: numOr(op.minCounsellorPerSlot, 1),
+    maxCounsellorsPerSlot: numOr(op.maxCounsellorsPerSlot, 0),
     slotDurationInMinutes: numOr(op.slotDurationInMinutes, 30),
+    bufferBetweenSlotsMinutes: numOr(op.bufferBetweenSlotsMinutes, 0),
     allowBookingBeforeHours: numOr(op.allowBookingBeforeHours, 24),
     workingConfig: {
       note: wc.note != null ? String(wc.note) : "",
@@ -1019,10 +1024,22 @@ function normalizeFromApi(body) {
         op.minCounsellorPerSlot != null && !Number.isNaN(Number(op.minCounsellorPerSlot))
           ? Number(op.minCounsellorPerSlot)
           : d.operationSettingsData.minCounsellorPerSlot,
+      maxCounsellorsPerSlot:
+        op.maxCounsellorsPerSlot != null && !Number.isNaN(Number(op.maxCounsellorsPerSlot))
+          ? Number(op.maxCounsellorsPerSlot)
+          : op.max_counsellors_per_slot != null && !Number.isNaN(Number(op.max_counsellors_per_slot))
+            ? Number(op.max_counsellors_per_slot)
+            : d.operationSettingsData.maxCounsellorsPerSlot,
       slotDurationInMinutes:
         op.slotDurationInMinutes != null && !Number.isNaN(Number(op.slotDurationInMinutes))
           ? Number(op.slotDurationInMinutes)
           : d.operationSettingsData.slotDurationInMinutes,
+      bufferBetweenSlotsMinutes:
+        op.bufferBetweenSlotsMinutes != null && !Number.isNaN(Number(op.bufferBetweenSlotsMinutes))
+          ? Number(op.bufferBetweenSlotsMinutes)
+          : op.buffer_between_slots_minutes != null && !Number.isNaN(Number(op.buffer_between_slots_minutes))
+            ? Number(op.buffer_between_slots_minutes)
+            : d.operationSettingsData.bufferBetweenSlotsMinutes,
       allowBookingBeforeHours:
         op.allowBookingBeforeHours != null && !Number.isNaN(Number(op.allowBookingBeforeHours))
           ? Number(op.allowBookingBeforeHours)
@@ -1264,10 +1281,14 @@ function applyCampusCurrentFlatBookingScalars(cur, mergedOp) {
   if (mb != null) mergedOp.maxBookingPerSlot = mb;
   const mn = pick("minCounsellorPerSlot", "min_counsellor_per_slot");
   if (mn != null) mergedOp.minCounsellorPerSlot = mn;
+  const mxTv = pick("maxCounsellorsPerSlot", "max_counsellors_per_slot");
+  if (mxTv != null) mergedOp.maxCounsellorsPerSlot = mxTv;
   const sd = pick("slotDurationInMinutes", "slot_duration_in_minutes");
   if (sd != null) mergedOp.slotDurationInMinutes = sd;
   const ab = pick("allowBookingBeforeHours", "allow_booking_before_hours");
   if (ab != null) mergedOp.allowBookingBeforeHours = ab;
+  const bf = pick("bufferBetweenSlotsMinutes", "buffer_between_slots_minutes");
+  if (bf != null) mergedOp.bufferBetweenSlotsMinutes = bf;
 }
 
 /**
@@ -1362,7 +1383,9 @@ function normalizeFromCampusConfigApi(body) {
     emailSupport: hqOp.emailSupport != null ? String(hqOp.emailSupport) : "",
     maxBookingPerSlot: numHq(hqOp.maxBookingPerSlot, d.operationSettingsData.maxBookingPerSlot),
     minCounsellorPerSlot: numHq(hqOp.minCounsellorPerSlot, d.operationSettingsData.minCounsellorPerSlot),
+    maxCounsellorsPerSlot: numHq(hqOp.maxCounsellorsPerSlot, d.operationSettingsData.maxCounsellorsPerSlot),
     slotDurationInMinutes: numHq(hqOp.slotDurationInMinutes, d.operationSettingsData.slotDurationInMinutes),
+    bufferBetweenSlotsMinutes: numHq(hqOp.bufferBetweenSlotsMinutes, d.operationSettingsData.bufferBetweenSlotsMinutes),
     allowBookingBeforeHours: numHq(hqOp.allowBookingBeforeHours, d.operationSettingsData.allowBookingBeforeHours),
     workingConfig: resolveSchoolWideWorkingConfigDisplay(hqOp, cur),
     academicCalendar: normalizeAcademicCalendar(hqOp.academicCalendar ?? hqOp.academic_calendar),
@@ -1380,8 +1403,12 @@ function normalizeFromCampusConfigApi(body) {
       mergedOp.maxBookingPerSlot = Number(pdr.maxBookingPerSlot);
     if (pdr.minCounsellorPerSlot != null && !Number.isNaN(Number(pdr.minCounsellorPerSlot)))
       mergedOp.minCounsellorPerSlot = Number(pdr.minCounsellorPerSlot);
+    if (pdr.maxCounsellorsPerSlot != null && !Number.isNaN(Number(pdr.maxCounsellorsPerSlot)))
+      mergedOp.maxCounsellorsPerSlot = Number(pdr.maxCounsellorsPerSlot);
     if (pdr.slotDurationInMinutes != null && !Number.isNaN(Number(pdr.slotDurationInMinutes)))
       mergedOp.slotDurationInMinutes = Number(pdr.slotDurationInMinutes);
+    if (pdr.bufferBetweenSlotsMinutes != null && !Number.isNaN(Number(pdr.bufferBetweenSlotsMinutes)))
+      mergedOp.bufferBetweenSlotsMinutes = Number(pdr.bufferBetweenSlotsMinutes);
     if (pdr.allowBookingBeforeHours != null && !Number.isNaN(Number(pdr.allowBookingBeforeHours)))
       mergedOp.allowBookingBeforeHours = Number(pdr.allowBookingBeforeHours);
     if (pdr.hotline != null && String(pdr.hotline).trim() !== "") mergedOp.hotline = String(pdr.hotline);
@@ -1459,7 +1486,9 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
   const scalarsDirty =
     num0(op.maxBookingPerSlot) !== num0(iOp.maxBookingPerSlot) ||
     num0(op.minCounsellorPerSlot) !== num0(iOp.minCounsellorPerSlot) ||
+    num0(op.maxCounsellorsPerSlot) !== num0(iOp.maxCounsellorsPerSlot) ||
     num0(op.slotDurationInMinutes) !== num0(iOp.slotDurationInMinutes) ||
+    num0(op.bufferBetweenSlotsMinutes) !== num0(iOp.bufferBetweenSlotsMinutes) ||
     num0(op.allowBookingBeforeHours) !== num0(iOp.allowBookingBeforeHours);
 
   const calOp = normalizeAcademicCalendar(op.academicCalendar);
@@ -1484,8 +1513,12 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
       payload.maxBookingPerSlot = num0(op.maxBookingPerSlot);
     if (num0(op.minCounsellorPerSlot) !== num0(iOp.minCounsellorPerSlot))
       payload.minCounsellorPerSlot = num0(op.minCounsellorPerSlot);
+    if (num0(op.maxCounsellorsPerSlot) !== num0(iOp.maxCounsellorsPerSlot))
+      payload.maxCounsellorsPerSlot = num0(op.maxCounsellorsPerSlot);
     if (num0(op.slotDurationInMinutes) !== num0(iOp.slotDurationInMinutes))
       payload.slotDurationInMinutes = num0(op.slotDurationInMinutes);
+    if (num0(op.bufferBetweenSlotsMinutes) !== num0(iOp.bufferBetweenSlotsMinutes))
+      payload.bufferBetweenSlotsMinutes = num0(op.bufferBetweenSlotsMinutes);
     if (num0(op.allowBookingBeforeHours) !== num0(iOp.allowBookingBeforeHours))
       payload.allowBookingBeforeHours = num0(op.allowBookingBeforeHours);
   }
@@ -1542,7 +1575,9 @@ function buildCampusFlatPutPayloadFallbackFull(config, hqOperation, policy) {
     imageJsonData: curFacPut.imageJsonData,
     maxBookingPerSlot: Number(op.maxBookingPerSlot) || 0,
     minCounsellorPerSlot: Number(op.minCounsellorPerSlot) || 0,
+    maxCounsellorsPerSlot: Number(op.maxCounsellorsPerSlot) || 0,
     slotDurationInMinutes: Number(op.slotDurationInMinutes) || 0,
+    bufferBetweenSlotsMinutes: Number(op.bufferBetweenSlotsMinutes) || 0,
     allowBookingBeforeHours: Number(op.allowBookingBeforeHours) || 0,
     academicCalendar: normalizeAcademicCalendar(op.academicCalendar),
     policyDetail: policy ?? "",
@@ -1633,6 +1668,8 @@ export default function CampusConfig() {
   const [branchPolicyFullTextRendered, setBranchPolicyFullTextRendered] = useState("");
   /** GET campus/config: thiếu `hqDefault.operation` — không có chuẩn vận hành từ trụ sở. */
   const [campusHqOperationMissing, setCampusHqOperationMissing] = useState(false);
+  /** Snapshot `hqDefault.operation` — đồng bộ ref, dùng render badge so với form. */
+  const [branchHqOperation, setBranchHqOperation] = useState({});
   const branchHqOperationRef = useRef(null);
   const initialPolicyRef = useRef("");
   const initialPolicyFullTextRef = useRef("");
@@ -1731,6 +1768,7 @@ export default function CampusConfig() {
             setBranchPolicyFullTextRendered("");
             initialPolicyFullTextRef.current = "";
             branchHqOperationRef.current = {};
+            setBranchHqOperation({});
             setCampusHqOperationMissing(false);
             setSchoolId(pickSchoolIdFromCampuses(campuses));
             setLastLoadedAt(new Date());
@@ -1749,6 +1787,7 @@ export default function CampusConfig() {
             setBranchPolicyFullTextRendered("");
             initialPolicyFullTextRef.current = "";
             branchHqOperationRef.current = {};
+            setBranchHqOperation({});
             setCampusHqOperationMissing(false);
             setSchoolId(pickSchoolIdFromCampuses(campuses));
             setLastLoadedAt(new Date());
@@ -1769,6 +1808,7 @@ export default function CampusConfig() {
         branchHqOperationRef.current = hqDefault?.operation
           ? JSON.parse(JSON.stringify(hqDefault.operation))
           : {};
+        setBranchHqOperation(branchHqOperationRef.current);
         const pol = policyFromCampusCurrent(campusCurrent);
         setBranchPolicyDetail(pol);
         initialPolicyRef.current = pol;
@@ -1796,6 +1836,7 @@ export default function CampusConfig() {
       setBranchPolicyFullTextRendered("");
       initialPolicyFullTextRef.current = "";
       branchHqOperationRef.current = {};
+      setBranchHqOperation({});
 
       let next;
       try {
@@ -1917,6 +1958,7 @@ export default function CampusConfig() {
             );
             if (hqDefault?.operation && typeof hqDefault.operation === "object") {
               branchHqOperationRef.current = JSON.parse(JSON.stringify(hqDefault.operation));
+              setBranchHqOperation(branchHqOperationRef.current);
             }
             const pol = policyFromCampusCurrent(campusCurrent);
             setBranchPolicyDetail(pol);
@@ -3774,107 +3816,251 @@ export default function CampusConfig() {
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>
                   <Stack spacing={2}>
-                    <Stack direction={{xs: "column", sm: "row"}} spacing={2} useFlexGap sx={{flexWrap: "wrap"}}>
-                      <TextField
-                        label="Số phụ huynh tối đa trong 1 ca"
-                        type="number"
-                        value={
-                          config.operationSettingsData.maxBookingPerSlot === "" ||
-                          config.operationSettingsData.maxBookingPerSlot == null
-                            ? ""
-                            : config.operationSettingsData.maxBookingPerSlot
-                        }
-                        onChange={(e) =>
-                          setConfig((c) => ({
-                            ...c,
-                            operationSettingsData: {
-                              ...c.operationSettingsData,
-                              maxBookingPerSlot: e.target.value === "" ? "" : Number(e.target.value) || 0,
-                            },
-                          }))
-                        }
-                        size="small"
-                        helperText="*Số lượng khách tối đa được phép đặt vào một khung giờ."
-                        FormHelperTextProps={{sx: {fontWeight: 700}}}
-                        inputProps={{readOnly: fieldDisabled, min: 0}}
-                        sx={{minWidth: 200, flex: 1}}
-                      />
-                      <TextField
-                        label="Tư vấn viên tối thiểu trong 1 ca"
-                        type="number"
-                        value={
-                          config.operationSettingsData.minCounsellorPerSlot === "" ||
-                          config.operationSettingsData.minCounsellorPerSlot == null
-                            ? ""
-                            : config.operationSettingsData.minCounsellorPerSlot
-                        }
-                        onChange={(e) =>
-                          setConfig((c) => ({
-                            ...c,
-                            operationSettingsData: {
-                              ...c.operationSettingsData,
-                              minCounsellorPerSlot: e.target.value === "" ? "" : Number(e.target.value) || 0,
-                            },
-                          }))
-                        }
-                        size="small"
-                        helperText="*Số lượng tư vấn viên tối thiểu trực trong một ca."
-                        FormHelperTextProps={{sx: {fontWeight: 700}}}
-                        inputProps={{readOnly: fieldDisabled, min: 0}}
-                        sx={{minWidth: 200, flex: 1}}
-                      />
-                      <TextField
-                        label="Thời lượng 1 ca (phút)"
-                        type="number"
-                        value={
-                          config.operationSettingsData.slotDurationInMinutes === "" ||
-                          config.operationSettingsData.slotDurationInMinutes == null
-                            ? ""
-                            : config.operationSettingsData.slotDurationInMinutes
-                        }
-                        onChange={(e) =>
-                          setConfig((c) => ({
-                            ...c,
-                            operationSettingsData: {
-                              ...c.operationSettingsData,
-                              slotDurationInMinutes:
-                                e.target.value === ""
-                                  ? ""
-                                  : Math.max(1, Number(e.target.value) || 0),
-                            },
-                          }))
-                        }
-                        size="small"
-                        helperText="*Thời lượng của một cuộc hẹn tư vấn (ví dụ: 30, 45 phút)."
-                        FormHelperTextProps={{sx: {fontWeight: 700}}}
-                        inputProps={{readOnly: fieldDisabled, min: 0}}
-                        sx={{minWidth: 180, flex: 1}}
-                      />
-                      <TextField
-                        label="Đặt lịch trước (giờ)"
-                        type="number"
-                        value={
-                          config.operationSettingsData.allowBookingBeforeHours === "" ||
-                          config.operationSettingsData.allowBookingBeforeHours == null
-                            ? ""
-                            : config.operationSettingsData.allowBookingBeforeHours
-                        }
-                        onChange={(e) =>
-                          setConfig((c) => ({
-                            ...c,
-                            operationSettingsData: {
-                              ...c.operationSettingsData,
-                              allowBookingBeforeHours: e.target.value === "" ? "" : Number(e.target.value) || 0,
-                            },
-                          }))
-                        }
-                        size="small"
-                        helperText="*Thời gian tối thiểu phải đặt trước khi cuộc hẹn diễn ra."
-                        FormHelperTextProps={{sx: {fontWeight: 700}}}
-                        inputProps={{readOnly: fieldDisabled, min: 0}}
-                        sx={{minWidth: 180, flex: 1}}
-                      />
-                    </Stack>
+                    {useCampusConfigFlow ? (
+                      <Box sx={{width: "100%"}}>
+                        <HqVsCampusSlotBufferSummary
+                          effectiveOp={config.operationSettingsData}
+                          hqOp={branchHqOperation}
+                          hqMissing={campusHqOperationMissing}
+                        />
+                      </Box>
+                    ) : null}
+                    <Box
+                      sx={{
+                        display: "grid",
+                        gap: 2,
+                        width: "100%",
+                        gridTemplateColumns: {
+                          xs: "1fr",
+                          sm: "repeat(2, minmax(0, 1fr))",
+                          md: "repeat(3, minmax(0, 1fr))",
+                        },
+                      }}
+                    >
+                      <Box sx={{minWidth: 0}}>
+                        {useCampusConfigFlow ? (
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                            <HqScalarDiffChip
+                              fieldKey="maxBookingPerSlot"
+                              effectiveOp={config.operationSettingsData}
+                              hqOp={branchHqOperation}
+                              hqMissing={campusHqOperationMissing}
+                            />
+                          </Stack>
+                        ) : null}
+                        <TextField
+                          label="Số phụ huynh tối đa trong 1 ca"
+                          type="number"
+                          value={
+                            config.operationSettingsData.maxBookingPerSlot === "" ||
+                            config.operationSettingsData.maxBookingPerSlot == null
+                              ? ""
+                              : config.operationSettingsData.maxBookingPerSlot
+                          }
+                          onChange={(e) =>
+                            setConfig((c) => ({
+                              ...c,
+                              operationSettingsData: {
+                                ...c.operationSettingsData,
+                                maxBookingPerSlot: e.target.value === "" ? "" : Number(e.target.value) || 0,
+                              },
+                            }))
+                          }
+                          size="small"
+                          helperText="*Số khách đặt tối đa / một khung (booking), khác trần TV gán cùng khung bên dưới."
+                          FormHelperTextProps={{sx: {fontWeight: 700, color: "#DC2626"}}}
+                          inputProps={{readOnly: fieldDisabled, min: 0}}
+                          fullWidth
+                        />
+                      </Box>
+                      <Box sx={{minWidth: 0}}>
+                        {useCampusConfigFlow ? (
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                            <HqScalarDiffChip
+                              fieldKey="minCounsellorPerSlot"
+                              effectiveOp={config.operationSettingsData}
+                              hqOp={branchHqOperation}
+                              hqMissing={campusHqOperationMissing}
+                            />
+                          </Stack>
+                        ) : null}
+                        <TextField
+                          label="Tư vấn viên tối thiểu trong 1 ca"
+                          type="number"
+                          value={
+                            config.operationSettingsData.minCounsellorPerSlot === "" ||
+                            config.operationSettingsData.minCounsellorPerSlot == null
+                              ? ""
+                              : config.operationSettingsData.minCounsellorPerSlot
+                          }
+                          onChange={(e) =>
+                            setConfig((c) => ({
+                              ...c,
+                              operationSettingsData: {
+                                ...c.operationSettingsData,
+                                minCounsellorPerSlot: e.target.value === "" ? "" : Number(e.target.value) || 0,
+                              },
+                            }))
+                          }
+                          size="small"
+                          helperText="*Số lượng tư vấn viên tối thiểu trực trong một ca."
+                          FormHelperTextProps={{sx: {fontWeight: 700, color: "#DC2626"}}}
+                          inputProps={{readOnly: fieldDisabled, min: 0}}
+                          fullWidth
+                        />
+                      </Box>
+                      <Box sx={{minWidth: 0}}>
+                        {useCampusConfigFlow ? (
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                            <HqScalarDiffChip
+                              fieldKey="maxCounsellorsPerSlot"
+                              effectiveOp={config.operationSettingsData}
+                              hqOp={branchHqOperation}
+                              hqMissing={campusHqOperationMissing}
+                            />
+                          </Stack>
+                        ) : null}
+                        <TextField
+                          label="Tư vấn viên tối đa gán cùng khung"
+                          type="number"
+                          value={
+                            config.operationSettingsData.maxCounsellorsPerSlot === "" ||
+                            config.operationSettingsData.maxCounsellorsPerSlot == null
+                              ? ""
+                              : config.operationSettingsData.maxCounsellorsPerSlot
+                          }
+                          onChange={(e) =>
+                            setConfig((c) => ({
+                              ...c,
+                              operationSettingsData: {
+                                ...c.operationSettingsData,
+                                maxCounsellorsPerSlot:
+                                  e.target.value === "" ? "" : Math.max(0, Number(e.target.value) || 0),
+                              },
+                            }))
+                          }
+                          size="small"
+                          helperText="*Trần TV gán cùng khung + khoảng ngày; 0 = không giới hạn trần trên."
+                          FormHelperTextProps={{sx: {fontWeight: 700, color: "#DC2626"}}}
+                          inputProps={{readOnly: fieldDisabled, min: 0}}
+                          fullWidth
+                        />
+                      </Box>
+                      <Box sx={{minWidth: 0}}>
+                        {useCampusConfigFlow ? (
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                            <HqScalarDiffChip
+                              fieldKey="slotDurationInMinutes"
+                              effectiveOp={config.operationSettingsData}
+                              hqOp={branchHqOperation}
+                              hqMissing={campusHqOperationMissing}
+                            />
+                          </Stack>
+                        ) : null}
+                        <TextField
+                          label="Thời lượng 1 ca (phút)"
+                          type="number"
+                          value={
+                            config.operationSettingsData.slotDurationInMinutes === "" ||
+                            config.operationSettingsData.slotDurationInMinutes == null
+                              ? ""
+                              : config.operationSettingsData.slotDurationInMinutes
+                          }
+                          onChange={(e) =>
+                            setConfig((c) => ({
+                              ...c,
+                              operationSettingsData: {
+                                ...c.operationSettingsData,
+                                slotDurationInMinutes:
+                                  e.target.value === ""
+                                    ? ""
+                                    : Math.max(1, Number(e.target.value) || 0),
+                              },
+                            }))
+                          }
+                          size="small"
+                          helperText="*Thời lượng của một cuộc hẹn tư vấn (ví dụ: 30, 45 phút)."
+                          FormHelperTextProps={{sx: {fontWeight: 700, color: "#DC2626"}}}
+                          inputProps={{readOnly: fieldDisabled, min: 0}}
+                          fullWidth
+                        />
+                      </Box>
+                      <Box sx={{minWidth: 0}}>
+                        {useCampusConfigFlow ? (
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                            <HqScalarDiffChip
+                              fieldKey="bufferBetweenSlotsMinutes"
+                              effectiveOp={config.operationSettingsData}
+                              hqOp={branchHqOperation}
+                              hqMissing={campusHqOperationMissing}
+                            />
+                          </Stack>
+                        ) : null}
+                        <TextField
+                          label="Nghỉ giữa hai tiết (phút)"
+                          type="number"
+                          value={
+                            config.operationSettingsData.bufferBetweenSlotsMinutes === "" ||
+                            config.operationSettingsData.bufferBetweenSlotsMinutes == null
+                              ? ""
+                              : config.operationSettingsData.bufferBetweenSlotsMinutes
+                          }
+                          onChange={(e) =>
+                            setConfig((c) => ({
+                              ...c,
+                              operationSettingsData: {
+                                ...c.operationSettingsData,
+                                bufferBetweenSlotsMinutes:
+                                  e.target.value === ""
+                                    ? ""
+                                    : Math.max(0, Number(e.target.value) || 0),
+                              },
+                            }))
+                          }
+                          size="small"
+                          helperText="*Nghỉ giữa hai tiết tư vấn (0 = không nghỉ). Bước giữa hai bắt đầu tiết = độ dài tiết + nghỉ."
+                          FormHelperTextProps={{sx: {fontWeight: 700, color: "#DC2626"}}}
+                          inputProps={{readOnly: fieldDisabled, min: 0}}
+                          fullWidth
+                        />
+                      </Box>
+                      <Box sx={{minWidth: 0}}>
+                        {useCampusConfigFlow ? (
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                            <HqScalarDiffChip
+                              fieldKey="allowBookingBeforeHours"
+                              effectiveOp={config.operationSettingsData}
+                              hqOp={branchHqOperation}
+                              hqMissing={campusHqOperationMissing}
+                            />
+                          </Stack>
+                        ) : null}
+                        <TextField
+                          label="Đặt lịch trước (giờ)"
+                          type="number"
+                          value={
+                            config.operationSettingsData.allowBookingBeforeHours === "" ||
+                            config.operationSettingsData.allowBookingBeforeHours == null
+                              ? ""
+                              : config.operationSettingsData.allowBookingBeforeHours
+                          }
+                          onChange={(e) =>
+                            setConfig((c) => ({
+                              ...c,
+                              operationSettingsData: {
+                                ...c.operationSettingsData,
+                                allowBookingBeforeHours: e.target.value === "" ? "" : Number(e.target.value) || 0,
+                              },
+                            }))
+                          }
+                          size="small"
+                          helperText="*Thời gian tối thiểu phải đặt trước khi cuộc hẹn diễn ra."
+                          FormHelperTextProps={{sx: {fontWeight: 700, color: "#DC2626"}}}
+                          inputProps={{readOnly: fieldDisabled, min: 0}}
+                          fullWidth
+                        />
+                      </Box>
+                    </Box>
                   </Stack>
                 </CardContent>
               </Card>
