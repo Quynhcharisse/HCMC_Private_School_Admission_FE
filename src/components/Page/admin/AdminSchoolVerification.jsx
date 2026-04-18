@@ -41,7 +41,7 @@ import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import {useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {showSuccessSnackbar} from "../../ui/AppSnackbar.jsx";
-import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
+import ConfirmDialog, {ConfirmHighlight} from "../../ui/ConfirmDialog.jsx";
 import {getPendingSchoolRegistrations, verifySchoolRegistration} from "../../../services/AdminService.jsx";
 import {sendSchoolVerifiedEmail} from "../../../services/emailService.jsx";
 import {APP_PRIMARY_MAIN} from "../../../constants/homeLandingTheme";
@@ -828,11 +828,21 @@ export default function AdminSchoolVerification() {
                 open={confirmOpen}
                 title="Xác thực hồ sơ trường học"
                 description={
-                    selectedRegistration
-                        ? `Bạn có chắc chắn muốn xác thực hồ sơ cho "${selectedRegistration.schoolName}"?`
-                        : ""
+                    selectedRegistration ? (
+                        <>
+                            Bạn có chắc chắn muốn <ConfirmHighlight>xác thực hồ sơ</ConfirmHighlight> cho{" "}
+                            <ConfirmHighlight>{selectedRegistration.schoolName}</ConfirmHighlight>?
+                        </>
+                    ) : (
+                        ""
+                    )
                 }
-                extraDescription="Sau khi được xác thực, tài khoản của trường sẽ được kích hoạt để sử dụng hệ thống EduBridgeHCM."
+                extraDescription={
+                    <>
+                        Sau khi được <ConfirmHighlight>xác thực</ConfirmHighlight>, tài khoản của trường sẽ được{" "}
+                        <ConfirmHighlight>kích hoạt</ConfirmHighlight> để sử dụng hệ thống EduBridgeHCM.
+                    </>
+                }
                 cancelText="Hủy"
                 confirmText={verifyingId ? "Đang xác thực..." : "Xác thực"}
                 onCancel={handleConfirmClose}

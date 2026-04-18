@@ -42,6 +42,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import { enqueueSnackbar } from "notistack";
+import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 import {
   getCampusScheduleTemplateList,
   fetchSchoolCampusScheduleTemplateListAll,
@@ -2065,9 +2066,11 @@ export default function SchoolCounselorSchedule() {
         <DialogTitle sx={{ fontWeight: 700 }}>Gỡ tư vấn viên?</DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ color: "#4B5563", mb: 1.5 }}>
-            Bạn có chắc muốn gỡ{" "}
-            <strong>{unassignDialog.row ? assignedCounsellorLabel(unassignDialog.row.counsellor) : ""}</strong> khỏi
-            khung giờ này trong khoảng:
+            Bạn có chắc muốn <ConfirmHighlight>gỡ</ConfirmHighlight>{" "}
+            <ConfirmHighlight>
+              {unassignDialog.row ? assignedCounsellorLabel(unassignDialog.row.counsellor) : ""}
+            </ConfirmHighlight>{" "}
+            khỏi khung giờ này trong khoảng:
           </Typography>
           {unassignDialog.row ? (
             <Typography variant="body2" sx={{ fontWeight: 600, color: "#111827" }}>
@@ -2102,12 +2105,15 @@ export default function SchoolCounselorSchedule() {
         <DialogTitle sx={{ fontWeight: 700 }}>Vô hiệu hóa khung giờ?</DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ color: "#4B5563", mb: 2 }}>
-            Chọn phạm vi: chỉ ngày đang chọn, hoặc tất cả các ngày có cùng khung giờ và loại buổi (08:00–10:00, cùng session).
+            Chọn phạm vi: <ConfirmHighlight>chỉ ngày đang chọn</ConfirmHighlight>, hoặc{" "}
+            <ConfirmHighlight>tất cả các ngày có cùng khung giờ và loại buổi</ConfirmHighlight> (ví dụ 08:00–10:00, cùng session).
           </Typography>
           {deleteDialog.slot ? (
-            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {deleteDialog.slot.startTime} – {deleteDialog.slot.endTime} · {sessionTypeLabel(deleteDialog.slot.sessionType)} ·{" "}
-              {deleteDialog.day ? DAY_LABELS[deleteDialog.day] : ""}
+            <Typography variant="body2" sx={{ fontWeight: 600 }} component="div">
+              <ConfirmHighlight>
+                {deleteDialog.slot.startTime} – {deleteDialog.slot.endTime} · {sessionTypeLabel(deleteDialog.slot.sessionType)} ·{" "}
+                {deleteDialog.day ? DAY_LABELS[deleteDialog.day] : ""}
+              </ConfirmHighlight>
             </Typography>
           ) : null}
         </DialogContent>
