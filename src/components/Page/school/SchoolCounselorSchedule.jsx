@@ -9,6 +9,7 @@ import {
   Card,
   CardContent,
   Chip,
+  CircularProgress,
   Dialog,
   DialogActions,
   DialogContent,
@@ -24,10 +25,17 @@ import {
   MenuItem,
   Select,
   LinearProgress,
+  Paper,
   Skeleton,
   Stack,
   Tab,
   Tabs,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
@@ -36,14 +44,15 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import LinkOffIcon from "@mui/icons-material/LinkOff";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
+import PeopleOutlineIcon from "@mui/icons-material/PeopleOutline";
 import { enqueueSnackbar } from "notistack";
 import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 import {
@@ -58,6 +67,7 @@ import {
   upsertCampusScheduleTemplate,
 } from "../../../services/CampusScheduleTemplateService.jsx";
 import {resolveSessionWindowFromWorkShifts} from "../../../utils/workShiftPolicy.js";
+import {isAcademicCalendarLimitActive, normalizeAcademicCalendarShape, termIsComplete} from "../../../utils/academicCalendarUi.js";
 import {
   getCampusConfig,
   getSchoolCampusConfigList,
@@ -70,9 +80,14 @@ import {
   getCounsellorAssignedSlots,
   getCounsellorAvailableList,
   parseCounsellorAssignedSlotsBody,
+  parseCounsellorAssignSuccessBody,
   parseCounsellorAvailableListBody,
   postCounsellorAssign,
 } from "../../../services/CampusCounsellorScheduleService.jsx";
+import {
+  assignmentRowBlocksUnassign,
+  mapCounsellorUnassignApiErrorMessage,
+} from "../../../utils/counsellorAssignUi.js";
 
 const DAYS = ["MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"];
 
@@ -214,13 +229,52 @@ function sessionTypeLabel(s) {
   return s || "—";
 }
 
-function formatWorkShiftLine(s) {
-  if (!s || typeof s !== "object") return "";
-  const name = s.name ?? s.shiftName ?? s.shift_name ?? s.label ?? "Ca";
-  const st = s.startTime ?? s.start_time ?? "";
-  const en = s.endTime ?? s.end_time ?? "";
-  if (st && en) return `${name}: ${st}–${en}`;
-  return String(name);
+/** yyyy-mm-dd → dd/mm/yyyy (vi-VN) */
+function formatYmdVi(ymd) {
+  const s = ymd != null ? String(ymd).trim() : "";
+  if (s.length < 8) return s;
+  const p = s.slice(0, 10).split("-").map((x) => Number(x));
+  if (p.length !== 3 || p.some((n) => !Number.isFinite(n))) return s;
+  const d = new Date(p[0], p[1] - 1, p[2]);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleDateString("vi-VN", {day: "2-digit", month: "2-digit", year: "numeric"});
+}
+
+/**
+ * Thống kê ô lưới: mỗi dòng GET assigned = một lần gán; có thể nhiều khoảng ngày khác nhau cùng template/thứ.
+ * @returns {{ assignmentCount: number, distinctRangeCount: number, rangeLines: string[] }}
+ */
+function summarizeGridCellAssignments(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return { assignmentCount: 0, distinctRangeCount: 0, rangeLines: [] };
+  }
+  const assignmentCount = rows.length;
+  const rangeMap = new Map();
+  for (const r of rows) {
+    const s = String(r?.startDate ?? "").slice(0, 10);
+    const e = String(r?.endDate ?? "").slice(0, 10);
+    if (!s || !e) continue;
+    const k = `${s}|${e}`;
+    rangeMap.set(k, (rangeMap.get(k) || 0) + 1);
+  }
+  const keys = [...rangeMap.keys()].sort();
+  const rangeLines = keys.map((k) => {
+    const [s, e] = k.split("|");
+    const n = rangeMap.get(k);
+    const label = `${formatYmdVi(s)} → ${formatYmdVi(e)}`;
+    return n > 1 ? `${label} (${n} lượt)` : label;
+  });
+  return {
+    assignmentCount,
+    distinctRangeCount: rangeMap.size,
+    rangeLines,
+  };
+}
+
+function slotGridSelectionKey(slot, day) {
+  const tid = Number(slot?.id ?? slot?.templateId);
+  if (!Number.isFinite(tid) || tid <= 0) return null;
+  return `${tid}|${day}`;
 }
 
 function timeToMinutes(t) {
@@ -340,14 +394,26 @@ function assignedCounsellorLabel(c) {
   return c.email ? String(c.email) : `ID ${c.id ?? "—"}`;
 }
 
-function mapUnassignErrorMessage(raw) {
-  const m = String(raw || "").toLowerCase();
-  if (
-    /book|booking|appointment|reserved|student|học sinh|đặt lịch|lịch hẹn/.test(m)
-  ) {
-    return "Không thể gỡ do đã có lịch hẹn khách hàng.";
-  }
-  return raw || "Không thể gỡ gán.";
+function getAssignedRowSlotId(row) {
+  const raw = row?.slotId ?? row?.slot_id ?? row?.id;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function getAssignedRowDayKey(row) {
+  const sch = row?.schedule;
+  if (!sch || typeof sch !== "object") return "";
+  return String(sch.dayOfWeek ?? sch.day_of_week ?? "").toUpperCase();
+}
+
+function formatAssignedRowSlotLabel(row) {
+  const sch = row?.schedule;
+  if (!sch || typeof sch !== "object") return "—";
+  const dow = getAssignedRowDayKey(row);
+  const label = DAY_LABELS[dow] || dow;
+  const st = sch.startTime ?? sch.start_time ?? "";
+  const en = sch.endTime ?? sch.end_time ?? "";
+  return `${label} · ${st}–${en}`;
 }
 
 function sessionCardColors(sessionType) {
@@ -412,25 +478,6 @@ function groupSlotsBySession(slots) {
   return out;
 }
 
-function findRelatedSlots(slot, scheduleByDay) {
-  const st = String(slot?.sessionType || "").toUpperCase();
-  const { startTime, endTime } = slot || {};
-  const out = [];
-  for (const d of DAYS) {
-    for (const s of scheduleByDay[d] || []) {
-      if (!slotIsActive(s)) continue;
-      if (
-        s.startTime === startTime &&
-        s.endTime === endTime &&
-        String(s.sessionType || "").toUpperCase() === st
-      ) {
-        out.push({ slot: s, day: d });
-      }
-    }
-  }
-  return out;
-}
-
 const emptyForm = () => ({
   templateId: 0,
   dayOfWeek: [],
@@ -490,12 +537,13 @@ export default function SchoolCounselorSchedule() {
     stepMinutes: 0,
     minCounsellorsPerSlot: 1,
     maxCounsellorsPerSlot: 0,
+    maxBookingPerSlot: 1,
     workShifts: [],
     regularDays: [],
     workingNote: "",
+    academicCalendar: normalizeAcademicCalendarShape(null),
+    academicSemesterLimitActive: false,
   });
-
-  const [deleteDialog, setDeleteDialog] = useState({ open: false, slot: null, day: null });
 
   const [calendarGranularity, setCalendarGranularity] = useState("week");
   const [calendarAnchorDate, setCalendarAnchorDate] = useState(() => new Date());
@@ -503,9 +551,26 @@ export default function SchoolCounselorSchedule() {
   const [counsellorFilterOptions, setCounsellorFilterOptions] = useState([]);
   const [assignedSlotRows, setAssignedSlotRows] = useState([]);
   const [loadingAssigned, setLoadingAssigned] = useState(false);
-  const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [assignSlotCtx, setAssignSlotCtx] = useState({ slot: null, day: null });
-  const [unassignDialog, setUnassignDialog] = useState({ open: false, row: null });
+  const [counsellorModal, setCounsellorModal] = useState({
+    open: false,
+    slot: null,
+    day: null,
+    batchSlots: null,
+  });
+  /**
+   * Lưới = template (GET schedule/templete/list) theo dayOfWeek — không có id «cả tuần» ảo.
+   * Khóa ô: `${templateId}|${dayOfWeek}` (MON…SUN).
+   */
+  const [selectedFrameKeys, setSelectedFrameKeys] = useState(() => new Set());
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+
+  /** Danh sách lượt gán (mặc định) · lưới lịch tuần/tháng */
+  const [managePanel, setManagePanel] = useState("list");
+  const [listFilterDay, setListFilterDay] = useState("");
+  const [listRangeStart, setListRangeStart] = useState("");
+  const [listRangeEnd, setListRangeEnd] = useState("");
+  const [selectedAssignmentSlotIds, setSelectedAssignmentSlotIds] = useState(() => new Set());
+  const [unassignDialog, setUnassignDialog] = useState({ open: false, rows: [] });
   const [unassignSubmitting, setUnassignSubmitting] = useState(false);
 
   /** Modal chi tiết khung giờ + danh sách tư vấn viên */
@@ -616,9 +681,12 @@ export default function SchoolCounselorSchedule() {
             stepMinutes: 0,
             minCounsellorsPerSlot: 1,
             maxCounsellorsPerSlot: 0,
+            maxBookingPerSlot: 1,
             workShifts: [],
             regularDays: [],
             workingNote: "",
+            academicCalendar: normalizeAcademicCalendarShape(null),
+            academicSemesterLimitActive: false,
           });
         }
       }
@@ -710,11 +778,10 @@ export default function SchoolCounselorSchedule() {
     }
     setLoadingAssigned(true);
     try {
-      const res = await getCounsellorAssignedSlots(
-        activeCampusId,
-        filterCounsellorId === "" ? undefined : filterCounsellorId
-      );
-      if (res?.status !== 200) {
+      /** Luôn tải toàn bộ gán của cơ sở — lọc TVV chỉ áp dụng khi hiển thị lưới (tránh thiếu bản ghi khi có lọc). */
+      const res = await getCounsellorAssignedSlots(activeCampusId);
+      const st = res?.status ?? 0;
+      if (st < 200 || st >= 300) {
         throw new Error(res?.data?.message || "Không tải được lịch gán");
       }
       setAssignedSlotRows(parseCounsellorAssignedSlotsBody(res));
@@ -727,7 +794,71 @@ export default function SchoolCounselorSchedule() {
     } finally {
       setLoadingAssigned(false);
     }
-  }, [activeCampusId, viewMode, filterCounsellorId]);
+  }, [activeCampusId, viewMode]);
+
+  const runUnassignRows = useCallback(
+    async (rows) => {
+      const pairs = rows
+        .map((r) => ({
+          sid: getAssignedRowSlotId(r),
+          cid: Number(r?.counsellor?.id ?? r?.counsellor_id),
+        }))
+        .filter((p) => p.sid != null);
+      const slotIds = pairs.map((p) => p.sid);
+      if (slotIds.length === 0) {
+        enqueueSnackbar("Thiếu mã lịch gán (slotId).", { variant: "error" });
+        return;
+      }
+      if (activeCampusId == null) return;
+      setUnassignSubmitting(true);
+      try {
+        const payload = {
+          action: "UNASSIGN",
+          slotIds,
+        };
+        const counsellorIds = pairs.map((p) => p.cid);
+        const allCounsellorKnown =
+          counsellorIds.length === slotIds.length && counsellorIds.every((c) => Number.isFinite(c));
+        if (allCounsellorKnown) {
+          payload.counsellorIds = counsellorIds;
+        }
+        const res = await postCounsellorAssign(payload);
+        const st = res && typeof res === "object" && "status" in res ? Number(res.status) : 0;
+        if (st >= 200 && st < 300) {
+          enqueueSnackbar(
+            slotIds.length > 1 ? `Đã hủy gán ${slotIds.length} lượt.` : "Đã hủy gán tư vấn viên.",
+            { variant: "success" }
+          );
+          const snap = parseCounsellorAssignSuccessBody(res);
+          if (snap?.slots && Array.isArray(snap.slots)) {
+            setAssignedSlotRows(snap.slots);
+          } else {
+            await loadAssignedSlots();
+          }
+          setSelectedAssignmentSlotIds(new Set());
+          setUnassignDialog({ open: false, rows: [] });
+        }
+      } catch (e) {
+        const st = e?.response?.status;
+        const raw = e?.response?.data?.message ?? e?.message ?? "";
+        if (st === 401) {
+          enqueueSnackbar("Phiên đăng nhập hết hạn — vui lòng đăng nhập lại.", { variant: "error" });
+        } else if (st === 403) {
+          enqueueSnackbar("Bạn không có quyền thực hiện thao tác này.", { variant: "error" });
+        } else if (st === 400) {
+          enqueueSnackbar(
+            String(raw && String(raw).trim() ? raw : mapCounsellorUnassignApiErrorMessage(raw)),
+            { variant: "error" }
+          );
+        } else {
+          enqueueSnackbar(raw || "Không thể hủy gán.", { variant: "error" });
+        }
+      } finally {
+        setUnassignSubmitting(false);
+      }
+    },
+    [activeCampusId, loadAssignedSlots]
+  );
 
   useEffect(() => {
     if (viewMode !== "manage" || activeCampusId == null) return;
@@ -754,12 +885,97 @@ export default function SchoolCounselorSchedule() {
     };
   }, [viewMode, activeCampusId]);
 
+  useEffect(() => {
+    setSelectedAssignmentSlotIds(new Set());
+  }, [listFilterDay, listRangeStart, listRangeEnd, filterCounsellorId, managePanel, sessionFilter]);
+
+  /** Lọc theo TVV (trên client) — `assignedSlotRows` luôn đủ để hiển thị đúng mọi bản ghi trùng template/thứ. */
+  const assignedRowsFilteredByCounsellor = useMemo(() => {
+    if (filterCounsellorId === "" || filterCounsellorId === "ALL") return assignedSlotRows;
+    const cid = Number(filterCounsellorId);
+    if (Number.isNaN(cid)) return assignedSlotRows;
+    return assignedSlotRows.filter((row) => Number(row?.counsellor?.id ?? row?.counsellor_id) === cid);
+  }, [assignedSlotRows, filterCounsellorId]);
+
+  const listViewRows = useMemo(() => {
+    let rows = assignedRowsFilteredByCounsellor;
+    if (listFilterDay) {
+      rows = rows.filter((r) => getAssignedRowDayKey(r) === listFilterDay);
+    }
+    if (listRangeStart && listRangeEnd) {
+      rows = rows.filter((r) =>
+        dateRangesOverlapYMD(
+          String(r?.startDate ?? "").slice(0, 10),
+          String(r?.endDate ?? "").slice(0, 10),
+          listRangeStart,
+          listRangeEnd
+        )
+      );
+    }
+    if (sessionFilter !== "ALL") {
+      rows = rows.filter(
+        (r) =>
+          String(r?.schedule?.sessionType ?? r?.schedule?.session_type ?? "").toUpperCase() === sessionFilter
+      );
+    }
+    return rows;
+  }, [assignedRowsFilteredByCounsellor, listFilterDay, listRangeStart, listRangeEnd, sessionFilter]);
+
+  const sortedListViewRows = useMemo(() => {
+    const order = { MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6, SUN: 7 };
+    return [...listViewRows].sort((a, b) => {
+      const da = order[getAssignedRowDayKey(a)] ?? 99;
+      const db = order[getAssignedRowDayKey(b)] ?? 99;
+      if (da !== db) return da - db;
+      const schA = a?.schedule;
+      const schB = b?.schedule;
+      const ta = timeToMinutes(schA?.startTime ?? schA?.start_time ?? "");
+      const tb = timeToMinutes(schB?.startTime ?? schB?.start_time ?? "");
+      if (ta !== tb) return ta - tb;
+      return assignedCounsellorLabel(a?.counsellor ?? { id: a?.counsellor_id }).localeCompare(
+        assignedCounsellorLabel(b?.counsellor ?? { id: b?.counsellor_id }),
+        "vi"
+      );
+    });
+  }, [listViewRows]);
+
   const visibleAssignedRows = useMemo(() => {
-    return assignedSlotRows.filter((row) =>
+    return assignedRowsFilteredByCounsellor.filter((row) =>
       dateRangesOverlapYMD(row.startDate, row.endDate, viewStartStr, viewEndStr)
     );
-  }, [assignedSlotRows, viewStartStr, viewEndStr]);
+  }, [assignedRowsFilteredByCounsellor, viewStartStr, viewEndStr]);
 
+  /** API đã trả bản ghi nhưng khoảng hiệu lực không giao với tuần/tháng đang xem → lưới không có chip */
+  const assignedOutOfViewHint = useMemo(() => {
+    if (assignedRowsFilteredByCounsellor.length === 0 || visibleAssignedRows.length > 0) return null;
+    let minS = "";
+    let maxE = "";
+    for (const row of assignedRowsFilteredByCounsellor) {
+      const s = String(row?.startDate ?? "").slice(0, 10);
+      const e = String(row?.endDate ?? "").slice(0, 10);
+      if (s && (!minS || s < minS)) minS = s;
+      if (e && (!maxE || e > maxE)) maxE = e;
+    }
+    if (!minS && !maxE) return null;
+    return {
+      kind: "range",
+      minS,
+      maxE,
+      label:
+        minS && maxE
+          ? `${formatYmdVi(minS)} – ${formatYmdVi(maxE)}`
+          : minS
+            ? `từ ${formatYmdVi(minS)}`
+            : maxE
+              ? `đến ${formatYmdVi(maxE)}`
+              : "",
+    };
+  }, [assignedRowsFilteredByCounsellor, visibleAssignedRows]);
+
+  /**
+   * Lưới tuần = template (GET schedule/template) ghép assigned (GET counsellor/slots/assigned).
+   * Cùng templateId + dayOfWeek → chip tư vấn viên; available theo ngày là API khác (khi cần).
+   */
   const assignmentMap = useMemo(() => {
     const m = new Map();
     for (const row of visibleAssignedRows) {
@@ -775,17 +991,60 @@ export default function SchoolCounselorSchedule() {
     return m;
   }, [visibleAssignedRows]);
 
+  const slotMenuAssignCount = useMemo(() => {
+    const s = slotActionsMenu.slot;
+    const d = slotActionsMenu.day;
+    if (!s || !d) return 0;
+    const tplId = Number(s.id ?? s.templateId);
+    if (!Number.isFinite(tplId) || tplId <= 0) return 0;
+    const key = `${tplId}|${d}`;
+    return assignmentMap.get(key)?.length ?? 0;
+  }, [slotActionsMenu.slot, slotActionsMenu.day, assignmentMap]);
+
   const counsellorGridApi = useMemo(() => {
     if (viewMode !== "manage") return null;
     return {
       map: assignmentMap,
+      maxCounsellorsPerSlot: schedulePolicy.maxCounsellorsPerSlot ?? 0,
+      minCounsellorsPerSlot: schedulePolicy.minCounsellorsPerSlot ?? 1,
       onAssign: (slot, day) => {
-        setAssignSlotCtx({ slot, day });
-        setAssignModalOpen(true);
+        setCounsellorModal({
+          open: true,
+          slot,
+          day,
+          batchSlots: null,
+        });
       },
-      onRequestUnassign: (row) => setUnassignDialog({ open: true, row }),
     };
-  }, [viewMode, assignmentMap]);
+  }, [viewMode, assignmentMap, scheduleByDay, schedulePolicy.maxCounsellorsPerSlot, schedulePolicy.minCounsellorsPerSlot]);
+
+  useEffect(() => {
+    if (!multiSelectMode) setSelectedFrameKeys(new Set());
+  }, [multiSelectMode]);
+
+  const openBatchAssignFromSelection = useCallback(() => {
+    const batchSlots = [];
+    for (const key of selectedFrameKeys) {
+      const pipe = key.indexOf("|");
+      if (pipe < 0) continue;
+      const tid = Number(key.slice(0, pipe));
+      const day = key.slice(pipe + 1);
+      if (!DAYS.includes(day)) continue;
+      const slots = scheduleByDay[day] || [];
+      const slot = slots.find((s) => Number(s.id ?? s.templateId) === tid);
+      if (slot) batchSlots.push({ slot, day });
+    }
+    if (batchSlots.length === 0) {
+      enqueueSnackbar("Chọn ít nhất một khung giờ.", { variant: "info" });
+      return;
+    }
+    setCounsellorModal({
+      open: true,
+      slot: batchSlots[0].slot,
+      day: batchSlots[0].day,
+      batchSlots,
+    });
+  }, [selectedFrameKeys, scheduleByDay]);
 
   const scheduleDetailAssigns = useMemo(() => {
     const { open, slot, day } = scheduleDetail;
@@ -1011,98 +1270,9 @@ export default function SchoolCounselorSchedule() {
     }
   };
 
-  const deactivateSlot = async (slot, day) => {
-    if (activeCampusId == null || !slot?.id) return;
-    const payload = buildUpsertCampusScheduleTemplatePayload({
-      templateId: Number(slot.id),
-      campusId: Number(activeCampusId),
-      dayOfWeek: [String(day).toUpperCase()],
-      sessionType: String(slot.sessionType || "").trim(),
-      active: false,
-    });
-    const res = await upsertCampusScheduleTemplate(payload);
-    const ok = res && res.status >= 200 && res.status < 300;
-    if (!ok) {
-      throw new Error(mapScheduleTemplateApiMessage(res?.data?.message, "Không vô hiệu hóa được"));
-    }
-  };
-
-  const handleDeleteThisDayOnly = async () => {
-    const { slot, day } = deleteDialog;
-    if (!slot || !day) return;
-    setSubmitting(true);
-    try {
-      await deactivateSlot(slot, day);
-      enqueueSnackbar("Đã vô hiệu hóa khung giờ ngày này.", { variant: "success" });
-      setDeleteDialog({ open: false, slot: null, day: null });
-      await loadScheduleForCampus(activeCampusId);
-      await loadAssignedSlots();
-    } catch (e) {
-      console.error(e);
-      enqueueSnackbar(scheduleTemplateErrorMessage(e, "Thao tác thất bại."), { variant: "error" });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  const handleDeleteAllRelated = async () => {
-    const { slot } = deleteDialog;
-    if (!slot) return;
-    const related = findRelatedSlots(slot, scheduleByDay);
-    if (related.length === 0) {
-      setDeleteDialog({ open: false, slot: null, day: null });
-      return;
-    }
-    setSubmitting(true);
-    try {
-      await Promise.all(related.map(({ slot: s, day: d }) => deactivateSlot(s, d)));
-      enqueueSnackbar(`Đã vô hiệu hóa ${related.length} khung giờ liên quan.`, { variant: "success" });
-      setDeleteDialog({ open: false, slot: null, day: null });
-      await loadScheduleForCampus(activeCampusId);
-      await loadAssignedSlots();
-    } catch (e) {
-      console.error(e);
-      enqueueSnackbar(scheduleTemplateErrorMessage(e, "Thao tác thất bại."), { variant: "error" });
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const filterSlot = (slot) => {
     if (sessionFilter === "ALL") return true;
     return String(slot.sessionType || "").toUpperCase() === sessionFilter;
-  };
-
-  const handleConfirmUnassign = async () => {
-    const row = unassignDialog.row;
-    if (!row || activeCampusId == null) return;
-    const tid = row.schedule?.templateId ?? row.schedule?.template_id;
-    const cid = row.counsellor?.id;
-    if (tid == null || cid == null) return;
-    setUnassignSubmitting(true);
-    try {
-      const res = await postCounsellorAssign({
-        templateId: Number(tid),
-        campusId: Number(activeCampusId),
-        counsellorIds: [Number(cid)],
-        startDate: row.startDate,
-        endDate: row.endDate,
-        action: "UNASSIGN",
-      });
-      const ok = res && res.status >= 200 && res.status < 300;
-      if (ok) {
-        enqueueSnackbar("Đã gỡ gán tư vấn viên.", { variant: "success" });
-        setUnassignDialog({ open: false, row: null });
-        await loadAssignedSlots();
-      } else {
-        enqueueSnackbar(mapUnassignErrorMessage(res?.data?.message), { variant: "error" });
-      }
-    } catch (e) {
-      const msg = e?.response?.data?.message ?? e?.message;
-      enqueueSnackbar(mapUnassignErrorMessage(msg), { variant: "error" });
-    } finally {
-      setUnassignSubmitting(false);
-    }
   };
 
   const renderWeeklyGrid = (
@@ -1129,6 +1299,11 @@ export default function SchoolCounselorSchedule() {
         counsellor && mapKey && counsellor.map?.has(mapKey) ? [...counsellor.map.get(mapKey)] : [];
       const showCounsellorUi = Boolean(counsellor && counsellor.map && !readOnly);
       const emptyStaff = slotIsActive(slot) && assigns.length === 0;
+      const maxCap = counsellor?.maxCounsellorsPerSlot ?? 0;
+      const minStaff = counsellor?.minCounsellorsPerSlot ?? 1;
+      const selKey = slotGridSelectionKey(slot, day);
+      const isSlotSelected = Boolean(multiSelectMode && selKey && selectedFrameKeys.has(selKey));
+      const cellAssignSummary = assigns.length > 0 ? summarizeGridCellAssignments(assigns) : null;
 
       if (showCounsellorUi) {
         return (
@@ -1136,10 +1311,41 @@ export default function SchoolCounselorSchedule() {
             key={slotKey(slot, day)}
             role="button"
             tabIndex={0}
-            onClick={() => setScheduleDetail({ open: true, slot, day })}
+            onClick={(e) => {
+              if (selKey && slotIsActive(slot) && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                setMultiSelectMode(true);
+                setSelectedFrameKeys((prev) => {
+                  const n = new Set(prev);
+                  if (n.has(selKey)) n.delete(selKey);
+                  else n.add(selKey);
+                  return n;
+                });
+                return;
+              }
+              if (multiSelectMode && selKey) {
+                setSelectedFrameKeys((prev) => {
+                  const n = new Set(prev);
+                  if (n.has(selKey)) n.delete(selKey);
+                  else n.add(selKey);
+                  return n;
+                });
+                return;
+              }
+              setScheduleDetail({ open: true, slot, day });
+            }}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
+                if (multiSelectMode && selKey) {
+                  setSelectedFrameKeys((prev) => {
+                    const n = new Set(prev);
+                    if (n.has(selKey)) n.delete(selKey);
+                    else n.add(selKey);
+                    return n;
+                  });
+                  return;
+                }
                 setScheduleDetail({ open: true, slot, day });
               }
             }}
@@ -1148,7 +1354,11 @@ export default function SchoolCounselorSchedule() {
               p: 1.35,
               borderRadius: RADIUS_INNER,
               background: colors.bg,
-              border: emptyStaff ? `2px dashed ${colors.border}` : `1px solid ${colors.border}`,
+              border: isSlotSelected
+                ? `2px solid ${PRIMARY}`
+                : emptyStaff
+                  ? `2px dashed ${colors.border}`
+                  : `1px solid ${colors.border}`,
               boxShadow: SHADOW_SM,
               opacity: slotIsActive(slot) ? 1 : 0.55,
               transition: TRANSITION_CARD,
@@ -1163,6 +1373,31 @@ export default function SchoolCounselorSchedule() {
               },
             }}
           >
+            {multiSelectMode && slotIsActive(slot) && selKey ? (
+              <Checkbox
+                size="small"
+                checked={isSlotSelected}
+                onClick={(e) => e.stopPropagation()}
+                onChange={() => {
+                  setSelectedFrameKeys((prev) => {
+                    const n = new Set(prev);
+                    if (n.has(selKey)) n.delete(selKey);
+                    else n.add(selKey);
+                    return n;
+                  });
+                }}
+                inputProps={{ "aria-label": "Chọn khung để gán hàng loạt" }}
+                sx={{
+                  position: "absolute",
+                  top: 4,
+                  left: 2,
+                  p: 0.25,
+                  zIndex: 2,
+                  bgcolor: "rgba(255,255,255,0.9)",
+                  borderRadius: "8px",
+                }}
+              />
+            ) : null}
             <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={0.75}>
               <Box sx={{ flex: 1, minWidth: 0, pr: 0.25 }}>
                 <Typography
@@ -1196,10 +1431,10 @@ export default function SchoolCounselorSchedule() {
                 </Typography>
               </Box>
               {slotIsActive(slot) ? (
-                <Tooltip title="Thao tác">
+                <Tooltip title="Chi tiết khung, sửa template, gán…" arrow>
                   <IconButton
                     size="small"
-                    aria-label="Thao tác khung giờ"
+                    aria-label="Menu khung giờ"
                     aria-haspopup="true"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -1246,8 +1481,67 @@ export default function SchoolCounselorSchedule() {
                 fontWeight: assigns.length === 0 ? 500 : 700,
               }}
             >
-              {assigns.length === 0 ? "Chưa có người trực" : `Đã có ${assigns.length} người trực`}
+              {assigns.length === 0
+                ? "Chưa có lượt gán"
+                : cellAssignSummary &&
+                    `${cellAssignSummary.assignmentCount} lượt gán${
+                      cellAssignSummary.distinctRangeCount > 1
+                        ? ` · ${cellAssignSummary.distinctRangeCount} khoảng ngày`
+                        : ""
+                    }`}
             </Typography>
+            {cellAssignSummary && cellAssignSummary.rangeLines.length > 0 ? (
+              <Stack spacing={0.15} sx={{ mt: 0.2, px: 0.5, alignItems: "center" }}>
+                {cellAssignSummary.rangeLines.map((line, idx) => (
+                  <Typography
+                    key={`${line}-${idx}`}
+                    variant="caption"
+                    sx={{
+                      display: "block",
+                      textAlign: "center",
+                      color: "#64748B",
+                      fontSize: "0.65rem",
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    {line}
+                  </Typography>
+                ))}
+              </Stack>
+            ) : null}
+            {emptyStaff && slotIsActive(slot) ? (
+              <Typography
+                variant="caption"
+                sx={{
+                  display: "block",
+                  textAlign: "center",
+                  color: "#94A3B8",
+                  fontSize: "0.65rem",
+                  mt: 0.2,
+                }}
+              >
+                Tối thiểu {minStaff} · trần {maxCap > 0 ? maxCap : "không giới hạn (0)"} tư vấn viên / khung
+              </Typography>
+            ) : null}
+            {slotIsActive(slot) && maxCap > 0 && showCounsellorUi ? (
+              <Stack direction="row" justifyContent="center" flexWrap="wrap" gap={0.5} sx={{ mt: 0.35 }}>
+                {assigns.length >= maxCap ? (
+                  <Chip
+                    label="Đã đủ tư vấn viên"
+                    size="small"
+                    sx={{ height: 22, fontSize: "0.62rem", fontWeight: 800, bgcolor: "rgba(71,85,105,0.12)", color: "#334155" }}
+                  />
+                ) : assigns.length > 0 && maxCap > 1 && assigns.length === maxCap - 1 ? (
+                  <Chip
+                    label="Còn 1 suất"
+                    size="small"
+                    color="warning"
+                    variant="outlined"
+                    sx={{ height: 22, fontSize: "0.62rem", fontWeight: 700 }}
+                  />
+                ) : null}
+              </Stack>
+            ) : null}
           </Box>
         );
       }
@@ -1291,7 +1585,6 @@ export default function SchoolCounselorSchedule() {
                 : {
                     boxShadow: SHADOW_MD,
                     transform: "translateY(-2px)",
-                    "& .schedule-card-actions": { opacity: 1, pointerEvents: "auto" },
                   },
             }}
           >
@@ -1316,30 +1609,6 @@ export default function SchoolCounselorSchedule() {
                 }}
               />
             )}
-            {!readOnly && slotIsActive(slot) ? (
-              <IconButton
-                size="small"
-                className="schedule-card-actions"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDeleteDialog({ open: true, slot, day });
-                }}
-                sx={{
-                  position: "absolute",
-                  top: 6,
-                  right: 6,
-                  opacity: 0,
-                  pointerEvents: "none",
-                  transition: "opacity 0.15s",
-                  bgcolor: "rgba(255,255,255,0.9)",
-                  boxShadow: 1,
-                  "&:hover": { bgcolor: "#FEF2F2" },
-                }}
-                aria-label="Xóa"
-              >
-                <DeleteOutlineIcon sx={{ fontSize: 18, color: "#DC2626" }} />
-              </IconButton>
-            ) : null}
           </Box>
         </Tooltip>
       );
@@ -1615,13 +1884,20 @@ export default function SchoolCounselorSchedule() {
             <EventAvailableIcon sx={{ color: PRIMARY, fontSize: 26 }} />
           </Box>
           <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h6" sx={{ fontWeight: 800, color: "#0f172a", lineHeight: 1.25, letterSpacing: "-0.02em" }}>
-              Khung giờ tư vấn
-            </Typography>
+            <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
+              <Typography variant="h6" sx={{ fontWeight: 800, color: "#0f172a", lineHeight: 1.25, letterSpacing: "-0.02em" }}>
+                Khung giờ tư vấn
+              </Typography>
+              {viewMode === "manage" &&
+              schedulePolicy.academicSemesterLimitActive &&
+              isAcademicCalendarLimitActive(schedulePolicy.academicCalendar) ? (
+                <Chip size="small" label="Theo học kỳ" color="info" variant="outlined" sx={{ fontWeight: 600 }} />
+              ) : null}
+            </Stack>
             <Typography variant="body2" sx={{ color: "#64748b", mt: 0.65, lineHeight: 1.55 }}>
               {isPrimaryBranch && viewMode === "overview"
                 ? "Xem tổng quan lịch tất cả cơ sở (chỉ đọc)."
-                : "Gán tư vấn viên theo khoảng ngày; lọc theo tuần, tháng hoặc theo người."}
+                : "Xem danh sách lượt gán hoặc lưới lịch; lọc theo người, thứ, khoảng ngày; hủy gán đúng từng lượt đã tải."}
             </Typography>
           </Box>
         </Box>
@@ -1640,85 +1916,57 @@ export default function SchoolCounselorSchedule() {
           </Box>
         ) : null}
 
-        {viewMode === "manage" ? (
-          <Box
-            sx={{
-              px: { xs: 2, sm: 3 },
-              pt: 2,
-              pb: 1.5,
-              borderBottom: `1px solid ${BORDER_SOFT}`,
-              bgcolor: "rgba(248,250,252,0.9)",
-            }}
-          >
-            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#0f172a", mb: 1 }}>
-              Cấu hình ca & slot (đọc từ cơ sở)
-            </Typography>
-            {schedulePolicy.loading ? (
-              <Skeleton variant="rounded" height={56} sx={{ borderRadius: "10px" }} />
-            ) : schedulePolicy.error ? (
-              <Typography variant="body2" sx={{ color: "#B91C1C" }}>
-                {schedulePolicy.error}
-              </Typography>
-            ) : (
-              <Stack spacing={1}>
-                <Typography variant="body2" sx={{ color: "#475569", lineHeight: 1.55 }}>
-                  <strong>Độ dài slot:</strong>{" "}
-                  {schedulePolicy.slotDurationMinutes > 0 ? (
-                    <>
-                      Tiết {schedulePolicy.slotDurationMinutes} phút
-                      {schedulePolicy.bufferBetweenSlotsMinutes > 0
-                        ? `, nghỉ ${schedulePolicy.bufferBetweenSlotsMinutes} phút giữa hai tiết`
-                        : " — không nghỉ giữa tiết"}
-                    </>
-                  ) : (
-                    "Chưa cấu hình"
-                  )}
+        {viewMode === "manage" ? (() => {
+          const showSemesterAlert =
+            !schedulePolicy.loading &&
+            !schedulePolicy.error &&
+            schedulePolicy.academicSemesterLimitActive &&
+            isAcademicCalendarLimitActive(schedulePolicy.academicCalendar);
+          if (!schedulePolicy.loading && !schedulePolicy.error && !showSemesterAlert) return null;
+          return (
+            <Box
+              sx={{
+                px: { xs: 2, sm: 3 },
+                pt: 2,
+                pb: 1.5,
+                borderBottom: `1px solid ${BORDER_SOFT}`,
+                bgcolor: "rgba(248,250,252,0.9)",
+              }}
+            >
+              {schedulePolicy.loading ? (
+                <Skeleton variant="rounded" height={56} sx={{ borderRadius: "10px" }} />
+              ) : schedulePolicy.error ? (
+                <Typography variant="body2" sx={{ color: "#B91C1C" }}>
+                  {schedulePolicy.error}
                 </Typography>
-                {schedulePolicy.slotDurationMinutes > 0 ? (
-                  <Typography variant="body2" sx={{ color: "#475569", lineHeight: 1.55 }}>
-                    <strong>TV / khung (gán):</strong> tối thiểu {schedulePolicy.minCounsellorsPerSlot ?? 1}
-                    {schedulePolicy.maxCounsellorsPerSlot > 0
-                      ? ` · tối đa gán cùng khung ${schedulePolicy.maxCounsellorsPerSlot}`
-                      : " · không giới hạn trần TV gán (0)"}
-                    . Khác với số khách đặt / ca (booking).
+              ) : (
+                <Alert severity="info" variant="outlined" sx={{ borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ color: "#334155", lineHeight: 1.55 }}>
+                    Gán lịch tư vấn chỉ trong phạm vi học kỳ đã cấu hình:{" "}
+                    {termIsComplete(schedulePolicy.academicCalendar?.term1) ? (
+                      <>
+                        <Box component="span" sx={{ fontWeight: 700 }}>
+                          {formatYmdVi(schedulePolicy.academicCalendar.term1.start)} –{" "}
+                          {formatYmdVi(schedulePolicy.academicCalendar.term1.end)} (HK1)
+                        </Box>
+                      </>
+                    ) : null}
+                    {termIsComplete(schedulePolicy.academicCalendar?.term1) &&
+                    termIsComplete(schedulePolicy.academicCalendar?.term2)
+                      ? " · "
+                      : null}
+                    {termIsComplete(schedulePolicy.academicCalendar?.term2) ? (
+                      <Box component="span" sx={{ fontWeight: 700 }}>
+                        {formatYmdVi(schedulePolicy.academicCalendar.term2.start)} –{" "}
+                        {formatYmdVi(schedulePolicy.academicCalendar.term2.end)} (HK2)
+                      </Box>
+                    ) : null}
                   </Typography>
-                ) : null}
-                {schedulePolicy.regularDays?.length ? (
-                  <Typography variant="body2" sx={{ color: "#475569", lineHeight: 1.55 }}>
-                    <strong>Ngày làm việc:</strong>{" "}
-                    {schedulePolicy.regularDays.map((d) => DAY_LABELS[d] || d).join(", ")}
-                  </Typography>
-                ) : (
-                  <Typography variant="caption" sx={{ color: "#94A3B8", display: "block" }}>
-                    Chưa có danh sách thứ làm việc — có thể chọn mọi ngày khi thêm khung.
-                  </Typography>
-                )}
-                {schedulePolicy.workShifts?.length ? (
-                  <Box>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: "#64748B", display: "block", mb: 0.5 }}>
-                      Ca vận hành
-                    </Typography>
-                    <Stack component="ul" sx={{ m: 0, pl: 2.25, color: "#475569", fontSize: "0.875rem" }} spacing={0.35}>
-                      {schedulePolicy.workShifts.map((sh, i) => {
-                        const line = formatWorkShiftLine(sh);
-                        return line ? (
-                          <Typography key={i} component="li" variant="body2" sx={{ color: "#475569" }}>
-                            {line}
-                          </Typography>
-                        ) : null;
-                      })}
-                    </Stack>
-                  </Box>
-                ) : null}
-                {schedulePolicy.workingNote ? (
-                  <Typography variant="caption" sx={{ color: "#64748B", display: "block", fontStyle: "italic" }}>
-                    {schedulePolicy.workingNote}
-                  </Typography>
-                ) : null}
-              </Stack>
-            )}
-          </Box>
-        ) : null}
+                </Alert>
+              )}
+            </Box>
+          );
+        })() : null}
 
         {viewMode === "manage" ? (
           <>
@@ -1737,10 +1985,10 @@ export default function SchoolCounselorSchedule() {
                 <Stack direction="row" flexWrap="wrap" alignItems="center" spacing={1.5} useFlexGap>
                   <ToggleButtonGroup
                     size="small"
-                    value={calendarGranularity}
+                    value={managePanel}
                     exclusive
                     onChange={(_, v) => {
-                      if (v) setCalendarGranularity(v);
+                      if (v) setManagePanel(v);
                     }}
                     sx={{
                       bgcolor: SURFACE_CARD,
@@ -1765,67 +2013,140 @@ export default function SchoolCounselorSchedule() {
                       },
                     }}
                   >
-                    <ToggleButton value="week">Tuần</ToggleButton>
-                    <ToggleButton value="month">Tháng</ToggleButton>
+                    <ToggleButton value="list">Danh sách lượt gán</ToggleButton>
+                    <ToggleButton value="grid">Lưới lịch</ToggleButton>
                   </ToggleButtonGroup>
-                  <Box
-                    sx={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      bgcolor: SURFACE_CARD,
-                      borderRadius: "12px",
-                      border: `1px solid ${BORDER_SOFT}`,
-                      px: 0.25,
-                      py: 0.25,
-                      boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
-                    }}
-                  >
-                    <IconButton
-                      size="small"
-                      onClick={() => shiftCalendar(-1)}
-                      aria-label="Trước"
-                      sx={{ color: "#475569", borderRadius: "10px" }}
-                    >
-                      <ChevronLeftIcon fontSize="small" />
-                    </IconButton>
-                    <Typography
-                      variant="body2"
-                      sx={{
-                        minWidth: { xs: 150, sm: 200 },
-                        textAlign: "center",
-                        fontWeight: 700,
-                        color: "#0f172a",
-                        fontSize: "0.8125rem",
-                        px: 1,
-                      }}
-                    >
-                      {calendarLabelText}
-                    </Typography>
-                    <IconButton
-                      size="small"
-                      onClick={() => shiftCalendar(1)}
-                      aria-label="Sau"
-                      sx={{ color: "#475569", borderRadius: "10px" }}
-                    >
-                      <ChevronRightIcon fontSize="small" />
-                    </IconButton>
-                  </Box>
-                  {calendarGranularity === "month" ? (
-                    <TextField
-                      size="small"
-                      type="month"
-                      label="Chọn tháng"
-                      value={formatYMD(startOfMonth(calendarAnchorDate)).slice(0, 7)}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (!v) return;
-                        const [y, m] = v.split("-").map(Number);
-                        setCalendarAnchorDate(new Date(y, m - 1, 1));
-                      }}
-                      InputLabelProps={{ shrink: true }}
-                      sx={{ width: 168, ...outlineSelectSx }}
-                    />
-                  ) : null}
+                  {managePanel === "grid" ? (
+                    <>
+                      <ToggleButtonGroup
+                        size="small"
+                        value={calendarGranularity}
+                        exclusive
+                        onChange={(_, v) => {
+                          if (v) setCalendarGranularity(v);
+                        }}
+                        sx={{
+                          bgcolor: SURFACE_CARD,
+                          p: "5px",
+                          borderRadius: "12px",
+                          border: `1px solid ${BORDER_SOFT}`,
+                          gap: 0.5,
+                          "& .MuiToggleButton-root": {
+                            border: "none",
+                            borderRadius: "10px !important",
+                            px: 2,
+                            py: 0.85,
+                            fontWeight: 700,
+                            fontSize: "0.8125rem",
+                            color: "#64748B",
+                            textTransform: "none",
+                            "&.Mui-selected": {
+                              bgcolor: PRIMARY_SOFT,
+                              color: PRIMARY,
+                              "&:hover": { bgcolor: "rgba(13,100,222,0.16)" },
+                            },
+                          },
+                        }}
+                      >
+                        <ToggleButton value="week">Tuần</ToggleButton>
+                        <ToggleButton value="month">Tháng</ToggleButton>
+                      </ToggleButtonGroup>
+                      <Box
+                        sx={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          bgcolor: SURFACE_CARD,
+                          borderRadius: "12px",
+                          border: `1px solid ${BORDER_SOFT}`,
+                          px: 0.25,
+                          py: 0.25,
+                          boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+                        }}
+                      >
+                        <IconButton
+                          size="small"
+                          onClick={() => shiftCalendar(-1)}
+                          aria-label="Trước"
+                          sx={{ color: "#475569", borderRadius: "10px" }}
+                        >
+                          <ChevronLeftIcon fontSize="small" />
+                        </IconButton>
+                        <Typography
+                          variant="body2"
+                          sx={{
+                            minWidth: { xs: 150, sm: 200 },
+                            textAlign: "center",
+                            fontWeight: 700,
+                            color: "#0f172a",
+                            fontSize: "0.8125rem",
+                            px: 1,
+                          }}
+                        >
+                          {calendarLabelText}
+                        </Typography>
+                        <IconButton
+                          size="small"
+                          onClick={() => shiftCalendar(1)}
+                          aria-label="Sau"
+                          sx={{ color: "#475569", borderRadius: "10px" }}
+                        >
+                          <ChevronRightIcon fontSize="small" />
+                        </IconButton>
+                      </Box>
+                      {calendarGranularity === "month" ? (
+                        <TextField
+                          size="small"
+                          type="month"
+                          label="Chọn tháng"
+                          value={formatYMD(startOfMonth(calendarAnchorDate)).slice(0, 7)}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (!v) return;
+                            const [y, m] = v.split("-").map(Number);
+                            setCalendarAnchorDate(new Date(y, m - 1, 1));
+                          }}
+                          InputLabelProps={{ shrink: true }}
+                          sx={{ width: 168, ...outlineSelectSx }}
+                        />
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      <FormControl size="small" sx={{ minWidth: 132, ...outlineSelectSx }}>
+                        <InputLabel>Thứ</InputLabel>
+                        <Select
+                          label="Thứ"
+                          value={listFilterDay}
+                          onChange={(e) => setListFilterDay(e.target.value)}
+                        >
+                          <MenuItem value="">Tất cả</MenuItem>
+                          {DAYS.map((d) => (
+                            <MenuItem key={d} value={d}>
+                              {DAY_LABELS[d]}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                      <TextField
+                        size="small"
+                        type="date"
+                        label="Từ ngày"
+                        value={listRangeStart}
+                        onChange={(e) => setListRangeStart(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                        sx={{ width: 158, ...outlineSelectSx }}
+                      />
+                      <TextField
+                        size="small"
+                        type="date"
+                        label="Đến ngày"
+                        value={listRangeEnd}
+                        onChange={(e) => setListRangeEnd(e.target.value)}
+                        InputLabelProps={{ shrink: true }}
+                        sx={{ width: 158, ...outlineSelectSx }}
+                      />
+                    </>
+                  )}
                 </Stack>
                 <Stack direction="row" flexWrap="wrap" spacing={1.5} useFlexGap justifyContent="flex-end">
                   <FormControl
@@ -1847,6 +2168,61 @@ export default function SchoolCounselorSchedule() {
                       ))}
                     </Select>
                   </FormControl>
+                  {viewMode === "manage" && managePanel === "grid" ? (
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={multiSelectMode}
+                          onChange={(_, c) => setMultiSelectMode(c)}
+                          sx={{ py: 0 }}
+                        />
+                      }
+                      label={<Typography sx={{ fontSize: "0.8125rem", fontWeight: 600, color: "#475569" }}>Chọn nhiều khung</Typography>}
+                    />
+                  ) : null}
+                  {viewMode === "manage" && managePanel === "grid" && multiSelectMode && selectedFrameKeys.size > 0 ? (
+                    <>
+                      <Typography sx={{ fontSize: "0.8125rem", fontWeight: 600, color: "#0f172a", alignSelf: "center", mr: 0.5 }}>
+                        Đã chọn {selectedFrameKeys.size} khung
+                      </Typography>
+                      <Button
+                        variant="contained"
+                        size="small"
+                        disabled={submitting}
+                        onClick={openBatchAssignFromSelection}
+                        startIcon={<PersonAddAlt1Icon sx={{ fontSize: 18 }} />}
+                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: "10px", boxShadow: "none" }}
+                      >
+                        Gán {selectedFrameKeys.size} khung
+                      </Button>
+                    </>
+                  ) : null}
+                  {viewMode === "manage" && managePanel === "list" && selectedAssignmentSlotIds.size > 0 ? (
+                    <>
+                      <Typography sx={{ fontSize: "0.8125rem", fontWeight: 600, color: "#0f172a", alignSelf: "center", mr: 0.5 }}>
+                        Đã chọn {selectedAssignmentSlotIds.size} lượt
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        color="error"
+                        size="small"
+                        disabled={unassignSubmitting}
+                        onClick={() => {
+                          const rows = sortedListViewRows.filter((r) => {
+                            const sid = getAssignedRowSlotId(r);
+                            return sid != null && selectedAssignmentSlotIds.has(sid);
+                          });
+                          if (rows.length === 0) return;
+                          setUnassignDialog({ open: true, rows });
+                        }}
+                        startIcon={<LinkOffIcon sx={{ fontSize: 18 }} />}
+                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: "10px" }}
+                      >
+                        Hủy gán đã chọn
+                      </Button>
+                    </>
+                  ) : null}
                   <FormControl size="small" sx={{ minWidth: 168, ...outlineSelectSx }}>
                     <InputLabel>Loại buổi</InputLabel>
                     <Select
@@ -1923,6 +2299,186 @@ export default function SchoolCounselorSchedule() {
                   <Skeleton key={d} variant="rounded" height={400} sx={{ borderRadius: "12px", width: SCHEDULE_DAY_COLUMN_PX }} />
                 ))}
               </Box>
+            ) : managePanel === "list" ? (
+              <>
+                {loadingAssigned ? (
+                  <LinearProgress
+                    sx={{
+                      mb: 2,
+                      borderRadius: 999,
+                      height: 3,
+                      bgcolor: "rgba(13,100,222,0.08)",
+                      "& .MuiLinearProgress-bar": { borderRadius: 999 },
+                    }}
+                    color="primary"
+                  />
+                ) : null}
+                <Alert severity="info" variant="outlined" sx={{ mb: 2, borderRadius: 2 }}>
+                  <Typography variant="body2" sx={{ lineHeight: 1.55, color: "#334155" }}>
+                    Mỗi dòng là <strong>một tư vấn viên</strong> trên một khung lịch; hủy gán một người{" "}
+                    <strong>không</strong> ảnh hưởng người khác cùng khung.
+                  </Typography>
+                </Alert>
+                {assignedSlotRows.length === 0 && !loadingAssigned ? (
+                  <Box
+                    sx={{
+                      py: 6,
+                      px: 2,
+                      textAlign: "center",
+                      borderRadius: RADIUS_INNER,
+                      border: `1px dashed ${BORDER_SOFT}`,
+                      bgcolor: "rgba(248,250,252,0.85)",
+                    }}
+                  >
+                    <PeopleOutlineIcon sx={{ fontSize: 48, color: PRIMARY, opacity: 0.75, mb: 1.5 }} />
+                    <Typography sx={{ fontWeight: 700, color: "#334155", fontSize: "1.05rem" }}>Chưa có lượt gán</Typography>
+                    <Typography variant="body2" sx={{ color: "#94a3b8", mt: 1, maxWidth: 400, mx: "auto", lineHeight: 1.6 }}>
+                      Gán tư vấn viên vào khung giờ trên lưới lịch để lượt gán xuất hiện tại đây.
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      startIcon={<PersonAddAlt1Icon />}
+                      sx={{ mt: 2.5, textTransform: "none", fontWeight: 700, borderRadius: "10px", boxShadow: "none" }}
+                      onClick={() => setManagePanel("grid")}
+                    >
+                      Gán lịch
+                    </Button>
+                  </Box>
+                ) : sortedListViewRows.length === 0 && !loadingAssigned ? (
+                  <Box sx={{ py: 4, textAlign: "center" }}>
+                    <Typography variant="body2" sx={{ color: "#64748B", mb: 2 }}>
+                      Không có dòng phù hợp bộ lọc hiện tại.
+                    </Typography>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      sx={{ textTransform: "none", fontWeight: 600, borderRadius: "10px" }}
+                      onClick={() => {
+                        setListFilterDay("");
+                        setListRangeStart("");
+                        setListRangeEnd("");
+                        setSessionFilter("ALL");
+                        setFilterCounsellorId("");
+                      }}
+                    >
+                      Đặt lại bộ lọc
+                    </Button>
+                  </Box>
+                ) : (
+                  <TableContainer
+                    component={Paper}
+                    elevation={0}
+                    sx={{
+                      borderRadius: RADIUS_INNER,
+                      border: `1px solid ${BORDER_SOFT}`,
+                      overflow: "auto",
+                    }}
+                  >
+                    <Table size="small" stickyHeader>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell padding="checkbox" sx={{ bgcolor: "rgba(248,250,252,0.95)" }}>
+                            {(() => {
+                              const allListIds = sortedListViewRows
+                                .map((r) => getAssignedRowSlotId(r))
+                                .filter((id) => id != null);
+                              const allSelected =
+                                allListIds.length > 0 && allListIds.every((id) => selectedAssignmentSlotIds.has(id));
+                              const someSelected = allListIds.some((id) => selectedAssignmentSlotIds.has(id));
+                              return (
+                                <Checkbox
+                                  size="small"
+                                  indeterminate={someSelected && !allSelected}
+                                  checked={allSelected}
+                                  disabled={unassignSubmitting || allListIds.length === 0}
+                                  onChange={() => {
+                                    if (allSelected) {
+                                      setSelectedAssignmentSlotIds(new Set());
+                                    } else {
+                                      setSelectedAssignmentSlotIds(new Set(allListIds));
+                                    }
+                                  }}
+                                  inputProps={{ "aria-label": "Chọn tất cả lượt gán" }}
+                                />
+                              );
+                            })()}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: 700, bgcolor: "rgba(248,250,252,0.95)" }}>Khung</TableCell>
+                          <TableCell sx={{ fontWeight: 700, bgcolor: "rgba(248,250,252,0.95)" }}>Từ – Đến</TableCell>
+                          <TableCell sx={{ fontWeight: 700, bgcolor: "rgba(248,250,252,0.95)" }}>Tư vấn viên</TableCell>
+                          <TableCell align="right" sx={{ fontWeight: 700, bgcolor: "rgba(248,250,252,0.95)", width: 72 }}>
+                            Hủy gán
+                          </TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {sortedListViewRows.map((row, idx) => {
+                          const sid = getAssignedRowSlotId(row);
+                          const blocked = assignmentRowBlocksUnassign(row);
+                          const c = row?.counsellor ?? { id: row?.counsellor_id };
+                          const email = c?.email != null && String(c.email).trim() !== "" ? String(c.email).trim() : "";
+                          const rowDisabled = sid == null || unassignSubmitting;
+                          return (
+                            <TableRow key={sid != null ? `slot-${sid}` : `row-${idx}`} hover>
+                              <TableCell padding="checkbox">
+                                <Checkbox
+                                  size="small"
+                                  disabled={rowDisabled || sid == null}
+                                  checked={sid != null && selectedAssignmentSlotIds.has(sid)}
+                                  onChange={() => {
+                                    if (sid == null) return;
+                                    setSelectedAssignmentSlotIds((prev) => {
+                                      const next = new Set(prev);
+                                      if (next.has(sid)) next.delete(sid);
+                                      else next.add(sid);
+                                      return next;
+                                    });
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" sx={{ fontWeight: 600, color: "#0f172a" }}>
+                                  {formatAssignedRowSlotLabel(row)}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" sx={{ color: "#334155" }}>
+                                  {formatYmdVi(row?.startDate)} → {formatYmdVi(row?.endDate)}
+                                </Typography>
+                              </TableCell>
+                              <TableCell>
+                                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                                  {assignedCounsellorLabel(c)}
+                                </Typography>
+                                {email ? (
+                                  <Typography variant="caption" sx={{ color: "#64748B", display: "block" }}>
+                                    {email}
+                                  </Typography>
+                                ) : null}
+                              </TableCell>
+                              <TableCell align="right">
+                                <Tooltip title={blocked ? "Còn lịch hẹn đang xử lý — không thể hủy gán" : "Hủy gán"}>
+                                  <span>
+                                    <IconButton
+                                      size="small"
+                                      aria-label="Hủy gán"
+                                      disabled={rowDisabled || blocked}
+                                      onClick={() => setUnassignDialog({ open: true, rows: [row] })}
+                                      sx={{ color: blocked ? "action.disabled" : "error.main" }}
+                                    >
+                                      <LinkOffIcon fontSize="small" />
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                )}
+              </>
             ) : (
               <>
                 {loadingAssigned ? (
@@ -1936,6 +2492,21 @@ export default function SchoolCounselorSchedule() {
                     }}
                     color="primary"
                   />
+                ) : null}
+                {assignedOutOfViewHint ? (
+                  <Alert severity="warning" variant="outlined" sx={{ mb: 2, borderRadius: 2 }}>
+                    <Typography variant="body2" sx={{ lineHeight: 1.55, color: "#334155" }}>
+                      Đã tải {assignedRowsFilteredByCounsellor.length} lượt gán
+                      {filterCounsellorId !== "" ? " (sau lọc tư vấn viên)" : ""} từ máy chủ nhưng{" "}
+                      <strong>không có ngày nào trong {calendarGranularity === "week" ? "tuần" : "tháng"} đang xem</strong> nằm
+                      trong khoảng hiệu lực của các gán đó
+                      {assignedOutOfViewHint.kind === "range" && assignedOutOfViewHint.label
+                        ? ` (${assignedOutOfViewHint.label})`
+                        : ""}
+                      . Dùng nút chuyển tuần/tháng để tới khoảng thời gian đó — chip tư vấn viên chỉ hiện khi lịch và khoảng
+                      gán giao nhau.
+                    </Typography>
+                  </Alert>
                 ) : null}
                 {renderWeeklyGrid(scheduleByDay, {
                   readOnly: false,
@@ -2272,52 +2843,45 @@ export default function SchoolCounselorSchedule() {
           },
         }}
       >
+        {/* Gán: POST counsellor/assign ASSIGN. Sửa khung: template API. */}
+        <MenuItem
+          onClick={() => {
+            const { slot: s, day: d } = slotActionsMenu;
+            closeSlotActionsMenu();
+            if (s && d) setScheduleDetail({ open: true, slot: s, day: d });
+          }}
+          sx={{ py: 1.1, borderRadius: "10px", mx: 0.5, mt: 0.5 }}
+        >
+          <ListItemIcon sx={{ minWidth: 38 }}>
+            <PeopleOutlineIcon fontSize="small" sx={{ color: PRIMARY }} />
+          </ListItemIcon>
+          <ListItemText
+            primary="Chi tiết khung & lượt gán"
+            secondary={
+              slotMenuAssignCount > 0
+                ? `${slotMenuAssignCount} lượt · mở để gán thêm hoặc xem chi tiết`
+                : "Chưa có gán — mở để gán hoặc kiểm tra"
+            }
+            primaryTypographyProps={{ fontWeight: 600, fontSize: "0.875rem" }}
+            secondaryTypographyProps={{ variant: "caption", sx: { color: "#64748B" } }}
+          />
+        </MenuItem>
         <MenuItem
           onClick={() => {
             const { slot: s, day: d } = slotActionsMenu;
             closeSlotActionsMenu();
             if (s && d) openEdit(s, d);
           }}
-          sx={{ py: 1.1, borderRadius: "10px", mx: 0.5, mt: 0.5 }}
+          sx={{ py: 1.1, borderRadius: "10px", mx: 0.5 }}
         >
           <ListItemIcon sx={{ minWidth: 38 }}>
             <EditOutlinedIcon fontSize="small" sx={{ color: "#475569" }} />
           </ListItemIcon>
           <ListItemText
-            primary="Sửa khung giờ"
+            primary="Sửa khung giờ (template)"
+            secondary="Khác API gán tư vấn viên"
             primaryTypographyProps={{ fontWeight: 600, fontSize: "0.875rem" }}
-          />
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            const { slot: s, day: d } = slotActionsMenu;
-            closeSlotActionsMenu();
-            if (s && d && counsellorGridApi) counsellorGridApi.onAssign(s, d);
-          }}
-          sx={{ py: 1.1, borderRadius: "10px", mx: 0.5 }}
-        >
-          <ListItemIcon sx={{ minWidth: 38 }}>
-            <PersonAddAlt1Icon fontSize="small" sx={{ color: PRIMARY }} />
-          </ListItemIcon>
-          <ListItemText
-            primary="Gán tư vấn viên"
-            primaryTypographyProps={{ fontWeight: 600, fontSize: "0.875rem" }}
-          />
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            const { slot: s, day: d } = slotActionsMenu;
-            closeSlotActionsMenu();
-            if (s && d) setDeleteDialog({ open: true, slot: s, day: d });
-          }}
-          sx={{ py: 1.1, borderRadius: "10px", mx: 0.5, mb: 0.5, color: "error.main" }}
-        >
-          <ListItemIcon sx={{ minWidth: 38 }}>
-            <DeleteOutlineIcon fontSize="small" color="error" />
-          </ListItemIcon>
-          <ListItemText
-            primary="Vô hiệu hóa khung giờ"
-            primaryTypographyProps={{ fontWeight: 600, fontSize: "0.875rem" }}
+            secondaryTypographyProps={{ variant: "caption", sx: { color: "#94A3B8" } }}
           />
         </MenuItem>
       </Menu>
@@ -2340,131 +2904,101 @@ export default function SchoolCounselorSchedule() {
           setScheduleDetail({ open: false, slot: null, day: null });
           if (slot && day) openEdit(slot, day);
         }}
-        onDeleteSchedule={() => {
-          const { slot, day } = scheduleDetail;
-          setScheduleDetail({ open: false, slot: null, day: null });
-          if (slot && day) setDeleteDialog({ open: true, slot, day });
-        }}
-        onRemoveCounsellor={(row) => setUnassignDialog({ open: true, row })}
-      />
-
-      <CounsellorAssignModal
-        open={assignModalOpen}
-        onClose={() => setAssignModalOpen(false)}
-        campusId={activeCampusId}
-        templateId={assignSlotCtx.slot?.id ?? assignSlotCtx.slot?.templateId}
-        dayOfWeekKey={assignSlotCtx.day ?? null}
-        dayOfWeek={assignSlotCtx.day ? DAY_LABELS[assignSlotCtx.day] : "—"}
-        startTime={assignSlotCtx.slot?.startTime ?? ""}
-        endTime={assignSlotCtx.slot?.endTime ?? ""}
-        sessionTypeLabelText={sessionTypeLabel(assignSlotCtx.slot?.sessionType)}
-        defaultStartDate={viewStartStr}
-        defaultEndDate={viewEndStr}
-        minCounsellorsPerSlot={schedulePolicy.minCounsellorsPerSlot ?? 1}
-        maxCounsellorsPerSlot={schedulePolicy.maxCounsellorsPerSlot ?? 0}
-        onSuccess={() => loadAssignedSlots()}
       />
 
       <Dialog
         open={unassignDialog.open}
-        onClose={(event, reason) => {
+        onClose={(_, reason) => {
           if (reason === "backdropClick") return;
-          if (!unassignSubmitting) setUnassignDialog({ open: false, row: null });
+          if (!unassignSubmitting) setUnassignDialog({ open: false, rows: [] });
         }}
-        PaperProps={{ sx: { borderRadius: "12px", maxWidth: 440 } }}
+        fullWidth
+        maxWidth="sm"
+        PaperProps={{ sx: { borderRadius: "16px" } }}
       >
-        <DialogTitle sx={{ fontWeight: 700 }}>Gỡ tư vấn viên?</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ color: "#4B5563", mb: 1.5 }}>
-            Bạn có chắc muốn <ConfirmHighlight>gỡ</ConfirmHighlight>{" "}
-            <ConfirmHighlight>
-              {unassignDialog.row ? assignedCounsellorLabel(unassignDialog.row.counsellor) : ""}
-            </ConfirmHighlight>{" "}
-            khỏi khung giờ này trong khoảng:
+        <DialogTitle sx={{ fontWeight: 800, pr: 5 }}>Xác nhận hủy gán</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2" sx={{ color: "#334155", lineHeight: 1.6, mb: 2 }}>
+            {unassignDialog.rows.length <= 1
+              ? "Bạn sắp hủy gán một lượt trên lịch. Thao tác dựa trên mã lịch (slotId) đã tải từ máy chủ."
+              : `Bạn sắp hủy gán ${unassignDialog.rows.length} lượt cùng lúc (all-or-nothing trên máy chủ).`}
           </Typography>
-          {unassignDialog.row ? (
-            <Typography variant="body2" sx={{ fontWeight: 600, color: "#111827" }}>
-              {unassignDialog.row.startDate} → {unassignDialog.row.endDate}
-            </Typography>
-          ) : null}
+          <Stack spacing={1} sx={{ maxHeight: 280, overflow: "auto" }}>
+            {unassignDialog.rows.map((row, i) => (
+              <Box
+                key={getAssignedRowSlotId(row) != null ? `c-${getAssignedRowSlotId(row)}` : `i-${i}`}
+                sx={{
+                  p: 1.25,
+                  borderRadius: "10px",
+                  border: `1px solid ${BORDER_SOFT}`,
+                  bgcolor: "rgba(248,250,252,0.9)",
+                }}
+              >
+                <Typography variant="body2" sx={{ fontWeight: 700, color: "#0f172a" }}>
+                  {formatAssignedRowSlotLabel(row)}
+                </Typography>
+                <Typography variant="caption" sx={{ color: "#64748B", display: "block" }}>
+                  {formatYmdVi(row?.startDate)} → {formatYmdVi(row?.endDate)} ·{" "}
+                  {assignedCounsellorLabel(row?.counsellor ?? { id: row?.counsellor_id })}
+                </Typography>
+              </Box>
+            ))}
+          </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
-          <Button onClick={() => !unassignSubmitting && setUnassignDialog({ open: false, row: null })} sx={{ textTransform: "none" }}>
-            Hủy
+        <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
+          <Button
+            onClick={() => setUnassignDialog({ open: false, rows: [] })}
+            disabled={unassignSubmitting}
+            sx={{ textTransform: "none", color: "#64748B" }}
+          >
+            Đóng
           </Button>
           <Button
             variant="contained"
             color="error"
-            onClick={handleConfirmUnassign}
-            disabled={unassignSubmitting}
-            sx={{ textTransform: "none" }}
+            disabled={unassignSubmitting || unassignDialog.rows.length === 0}
+            onClick={() => runUnassignRows(unassignDialog.rows)}
+            sx={{ textTransform: "none", fontWeight: 700, borderRadius: "10px", boxShadow: "none", minWidth: 168 }}
           >
-            Gỡ gán
+            {unassignSubmitting ? <CircularProgress size={22} color="inherit" /> : "Xác nhận hủy gán"}
           </Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog
-        open={deleteDialog.open}
-        onClose={(event, reason) => {
-          if (reason === "backdropClick") return;
-          if (!submitting) setDeleteDialog({ open: false, slot: null, day: null });
+      <CounsellorAssignModal
+        open={counsellorModal.open}
+        onClose={() =>
+          setCounsellorModal({
+            open: false,
+            slot: null,
+            day: null,
+            batchSlots: null,
+          })
+        }
+        campusId={activeCampusId}
+        templateId={counsellorModal.slot?.id ?? counsellorModal.slot?.templateId}
+        dayOfWeekKey={counsellorModal.day ?? null}
+        dayOfWeek={counsellorModal.day ? DAY_LABELS[counsellorModal.day] : "—"}
+        startTime={counsellorModal.slot?.startTime ?? ""}
+        endTime={counsellorModal.slot?.endTime ?? ""}
+        sessionTypeLabelText={sessionTypeLabel(counsellorModal.slot?.sessionType)}
+        defaultStartDate={viewStartStr}
+        defaultEndDate={viewEndStr}
+        minCounsellorsPerSlot={schedulePolicy.minCounsellorsPerSlot ?? 1}
+        maxCounsellorsPerSlot={schedulePolicy.maxCounsellorsPerSlot ?? 0}
+        maxBookingPerSlot={schedulePolicy.maxBookingPerSlot ?? 1}
+        academicCalendar={schedulePolicy.academicCalendar}
+        academicSemesterLimitActive={schedulePolicy.academicSemesterLimitActive}
+        batchSlots={counsellorModal.batchSlots}
+        onSuccess={async (snapshot) => {
+          if (snapshot?.slots && Array.isArray(snapshot.slots)) {
+            setAssignedSlotRows(snapshot.slots);
+          } else {
+            await loadAssignedSlots();
+          }
+          setSelectedFrameKeys(new Set());
         }}
-        PaperProps={{ sx: { borderRadius: "12px" } }}
-      >
-        <DialogTitle sx={{ fontWeight: 700 }}>Vô hiệu hóa khung giờ?</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ color: "#4B5563", mb: 2 }}>
-            Chọn phạm vi: <ConfirmHighlight>chỉ ngày đang chọn</ConfirmHighlight>, hoặc{" "}
-            <ConfirmHighlight>tất cả các ngày có cùng khung giờ và loại buổi</ConfirmHighlight> (ví dụ 08:00–10:00, cùng session).
-          </Typography>
-          {deleteDialog.slot ? (
-            <Typography variant="body2" sx={{ fontWeight: 600 }} component="div">
-              <ConfirmHighlight>
-                {deleteDialog.slot.startTime} – {deleteDialog.slot.endTime} · {sessionTypeLabel(deleteDialog.slot.sessionType)} ·{" "}
-                {deleteDialog.day ? DAY_LABELS[deleteDialog.day] : ""}
-              </ConfirmHighlight>
-            </Typography>
-          ) : null}
-        </DialogContent>
-        <DialogActions
-          sx={{
-            flexDirection: "column",
-            alignItems: "stretch",
-            px: 3,
-            pb: 2,
-            gap: 1,
-            /* MUI mặc định margin-left cho nút sau nút đầu — với cột làm lệch trái */
-            "& > :not(style) ~ :not(style)": { marginLeft: 0 },
-            "& .MuiButton-root": { width: "100%", maxWidth: "100%", boxSizing: "border-box" },
-          }}
-        >
-          <Button
-            variant="outlined"
-            onClick={handleDeleteThisDayOnly}
-            disabled={submitting}
-            sx={{ textTransform: "none", borderRadius: "10px" }}
-          >
-            Chỉ ngày này
-          </Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={handleDeleteAllRelated}
-            disabled={submitting}
-            sx={{ textTransform: "none", borderRadius: "10px" }}
-          >
-            Tất cả ngày cùng khung giờ
-          </Button>
-          <Button
-            onClick={() => setDeleteDialog({ open: false, slot: null, day: null })}
-            disabled={submitting}
-            sx={{ textTransform: "none", borderRadius: "10px" }}
-          >
-            Hủy
-          </Button>
-        </DialogActions>
-      </Dialog>
+      />
     </Box>
   );
 }
