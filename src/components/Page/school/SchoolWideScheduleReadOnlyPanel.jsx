@@ -62,8 +62,8 @@ export default function SchoolWideScheduleReadOnlyPanel({ workingConfig, showSch
           <Chip size="small" label="Chung trường" sx={{ fontWeight: 700, bgcolor: "rgba(100,116,139,0.12)", color: "#475569" }} />
         </Stack>
         <Typography variant="body2" sx={{ color: "#64748B", lineHeight: 1.65, mb: 2 }}>
-          Cơ sở không cấu hình riêng giờ/ca; thay đổi tại trường sẽ áp dụng đồng bộ. Không chỉnh tại đây — dữ liệu
-          hiển thị là bản áp dụng chung (từ HQ).
+          Cơ sở không chỉnh riêng giờ làm hay ca; mọi thay đổi do người quản lý cấp trường thực hiện và áp dụng đồng bộ. Tại
+          đây chỉ xem — dữ liệu là quy định chung do trụ sở chính thiết lập.
         </Typography>
 
         {!has ? (

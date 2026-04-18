@@ -168,12 +168,28 @@ const writeSchoolContactUnreadCount = (value) => {
 function buildConfigMenuItems(isPrimaryBranch, schoolCtxLoading) {
     const items = [];
     if (schoolCtxLoading || isPrimaryBranch) {
-        items.push({ text: "Cấu hình chung", icon: <SettingsOutlinedIcon />, path: "/school/facility-config" });
+        items.push({
+            text: "Cấu hình toàn trường",
+            icon: <SettingsOutlinedIcon />,
+            path: "/school/facility-config",
+        });
     }
     items.push(
-        { text: "Danh sách cấu hình", icon: <CorporateFareOutlinedIcon />, path: "/school/campus-config" },
-        { text: "Cấu hình của tôi", icon: <ApartmentIcon />, path: "/school/campus-facility-config" },
-        { text: "Cài đặt ngày nghỉ", icon: <EventBusyOutlinedIcon />, path: "/school/holiday-settings" },
+        {
+            text: "Xem theo từng cơ sở",
+            icon: <CorporateFareOutlinedIcon />,
+            path: "/school/campus-config",
+        },
+        {
+            text: "Chỉnh cơ sở của bạn",
+            icon: <ApartmentIcon />,
+            path: "/school/campus-facility-config",
+        },
+        {
+            text: "Ngày nghỉ & lịch tư vấn",
+            icon: <EventBusyOutlinedIcon />,
+            path: "/school/holiday-settings",
+        },
     );
     return items;
 }

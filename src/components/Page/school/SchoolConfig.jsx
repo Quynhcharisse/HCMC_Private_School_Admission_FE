@@ -67,18 +67,18 @@ import {
 
 const TAB_SLUGS = ["admission", "documents", "operation", "finance", "facility", "quota", "resource-distribution"];
 const TAB_LABELS = [
-  "Cài Đặt Tuyển Sinh",
-  "Cài Đặt Hồ Sơ",
-  "Cài Đặt Vận Hành",
-  "Cài Đặt Tài Chính",
-  "Cài Đặt Cơ Sở Vật Chất",
-  "Cài Đặt Chỉ Tiêu",
-  "Phân Bổ Nguồn Lực",
+  "Cài đặt tuyển sinh",
+  "Cài đặt hồ sơ",
+  "Cài đặt vận hành",
+  "Cài đặt tài chính",
+  "Cài đặt cơ sở vật chất",
+  "Cài đặt chỉ tiêu",
+  "Phân bổ nguồn lực",
 ];
 
-/** Campus phụ: chỉ vận hành + CSVC (API GET/PUT /campus/{id}/config) */
+/** Campus phụ: chỉ vận hành + cơ sở vật chất (API GET/PUT /campus/{id}/config) */
 const BRANCH_TAB_SLUGS = ["operation", "facility"];
-const BRANCH_TAB_LABELS = ["Cài Đặt Vận Hành", "Cài Đặt Cơ Sở Vật Chất"];
+const BRANCH_TAB_LABELS = ["Cài đặt vận hành", "Cài đặt cơ sở vật chất"];
 
 /**
  * Danh sách phương thức hiển thị checkbox: từ API, không preset FE.
@@ -2426,12 +2426,12 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   const showResourceDistributionTab = !useCampusConfigFlow && tabSlug === "resource-distribution";
 
 
-  const pageTitle = isCampusVariant ? "Cấu hình của cơ sở" : "Cấu hình chung cho các cơ sở";
+  const pageTitle = isCampusVariant ? "Cấu hình cơ sở của bạn" : "Cấu hình toàn trường";
   const pageSubtitle = isCampusVariant
     ? isPrimaryBranch
-      ? "Chỉnh vận hành và CSVC của cơ sở chính. Mỗi cơ sở chỉ sửa được cấu hình của chính mình. Sau khi Lưu, nội dung được phản ánh trong Bản chỉnh sửa từ cơ sở."
-      : "Chỉnh vận hành và CSVC của cơ sở bạn. Sau khi Lưu, xem Bản chỉnh sửa từ cơ sở — bản văn thống nhất BE trả về."
-    : "Cấu hình chung cho tất cả các cơ sở bao gồm: Quản lý tuyển sinh, hồ sơ, vận hành, chỉ tiêu, tài chính, cơ sở vật chất chung và phân bổ nguồn lực.";
+      ? "Bạn đang chỉnh giờ làm, lịch tư vấn và thông tin cơ sở vật chất tại cơ sở chính. Mỗi chi nhánh chỉ sửa được phần của mình. Sau khi Lưu, đoạn mô tả đầy đủ hiển thị trong mục «Nội dung chính sách đã lưu» bên dưới."
+      : "Bạn đang chỉnh giờ làm, lịch tư vấn và cơ sở vật chất cho địa điểm bạn phụ trách. Sau khi Lưu, xem phần «Nội dung chính sách đã lưu» — văn bản do hệ thống ghép từ quy định trụ sở và chỉnh sửa tại cơ sở."
+    : "Thiết lập chung áp dụng cho toàn trường: tuyển sinh, hồ sơ, vận hành, chỉ tiêu, tài chính, cơ sở vật chất và phân bổ nguồn lực giữa các cơ sở.";
 
   return (
       <Box
@@ -3899,20 +3899,21 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                   {campusHqOperationMissing ? (
                     <Alert severity="warning" sx={{borderRadius: 2}}>
                       <Typography variant="body2" sx={{fontWeight: 700, mb: 0.5}}>
-                        Chưa có cấu hình vận hành từ cơ sở chính
+                        Chưa có quy định vận hành từ trụ sở chính
                       </Typography>
                       <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
-                        Trụ sở chưa gửi khối vận hành HQ (hqDefault.operation) hoặc đang rỗng. Vui lòng cấu hình vận hành tại
-                        cơ sở chính trước; campus chỉ chỉnh phần delta khi đã có chuẩn HQ.
+                        Hệ thống chưa nhận được bộ quy tắc vận hành do trụ sở chính thiết lập (hoặc dữ liệu đang trống). Vui lòng
+                        đăng nhập tài khoản trụ sở chính, mở mục <strong>Cài đặt vận hành</strong> và lưu cấu hình trước. Sau đó
+                        cơ sở chi nhánh mới có thể điều chỉnh phần riêng tại từng địa điểm.
                       </Typography>
                     </Alert>
                   ) : null}
                   <Alert severity="info" sx={{borderRadius: 2}}>
                     <Typography variant="body2" component="div" sx={{fontWeight: 700, mb: 0.75}}>
-                      Cấu hình theo cơ sở
+                      Chỉnh sửa riêng cho cơ sở này
                     </Typography>
                     <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
-                      Các thay đổi của cơ sở sẽ được lưu lại trong <strong>Bản chỉnh sửa từ cơ sở</strong> phía dưới.
+                      Các thay đổi được lưu và hiển thị tóm tắt trong phần <strong>Nội dung chính sách đã lưu</strong> bên dưới.
                     </Typography>
                   </Alert>
                   <Card
@@ -3924,7 +3925,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     }}
                   >
                     <CardContent sx={{p: 3}}>
-                      <Typography sx={{fontWeight: 800, mb: 1.5}}>Bản chỉnh sửa từ cơ sở</Typography>
+                      <Typography sx={{fontWeight: 800, mb: 1.5}}>Nội dung chính sách đã lưu</Typography>
                       <Paper
                         variant="outlined"
                         sx={{

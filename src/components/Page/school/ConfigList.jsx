@@ -451,12 +451,12 @@ export default function ConfigList() {
               textShadow: "0 1px 2px rgba(0,0,0,0.1)",
             }}
           >
-            Danh sách cấu hình
+            Xem cấu hình theo từng cơ sở
           </Typography>
           <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.95 }}>
             {isPrimaryBranch
-              ? "Xem nhanh cơ sở vật chất và chính sách vận hành từng cơ sở (trụ sở và chi nhánh)."
-              : "Xem cơ sở vật chất và chính sách vận hành của cơ sở bạn đăng nhập."}
+              ? "Tra cứu nhanh hình ảnh cơ sở, hotline và quy định vận hành (giờ làm, lịch tư vấn…) của trụ sở chính và từng chi nhánh."
+              : "Xem thông tin cơ sở vật chất và quy định vận hành của đúng cơ sở gắn với tài khoản bạn."}
           </Typography>
         </Box>
       </Box>
@@ -487,12 +487,12 @@ export default function ConfigList() {
         <CorporateFareOutlinedIcon sx={{ color: "#0D64DE", fontSize: 28, mt: 0.25 }} />
         <Box>
           <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b", lineHeight: 1.3 }}>
-            Danh sách theo cơ sở
+            Danh sách cơ sở
           </Typography>
           <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5 }}>
             {isPrimaryBranch
-              ? "Chọn cơ sở (tab) hoặc lọc theo tên."
-              : "Chỉ hiển thị dữ liệu của cơ sở bạn."}
+              ? "Chọn cơ sở ở các tab phía trên, hoặc gõ tên để lọc."
+              : "Chỉ hiển thị cơ sở mà tài khoản của bạn được phép xem."}
           </Typography>
         </Box>
       </Box>
@@ -570,7 +570,7 @@ export default function ConfigList() {
               </Typography>
               <Typography variant="body2" sx={{ color: "#94a3b8", mt: 0.5 }}>
                 {rows.length === 0
-                  ? "Danh sách cấu hình cơ sở trống."
+                  ? "Chưa có dữ liệu cấu hình cơ sở."
                   : !isPrimaryBranch
                     ? "Vui lòng thử tải lại hoặc kiểm tra campus gán cho tài khoản."
                     : "Thử từ khóa tìm kiếm khác."}
