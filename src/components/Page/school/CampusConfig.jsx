@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
+import React, {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from "react";
 import {
   Accordion,
   AccordionDetails,
@@ -39,7 +39,7 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AddIcon from "@mui/icons-material/Add";
-import {useSearchParams} from "react-router-dom";
+import {useNavigate, useSearchParams} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 
 import {extractCampusListBody, listCampuses} from "../../../services/CampusService.jsx";
@@ -52,7 +52,6 @@ import {
   updateSchoolConfig,
 } from "../../../services/SchoolFacilityService.jsx";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
-import SchoolHoliday from "./SchoolHoliday.jsx";
 
 const TAB_SLUGS = ["admission", "documents", "operation", "finance", "facility", "quota", "resource-distribution"];
 const TAB_LABELS = [
@@ -65,9 +64,9 @@ const TAB_LABELS = [
   "Phân Bổ Nguồn Lực",
 ];
 
-/** Campus phụ: vận hành + ngày nghỉ + CSVC (GET/PUT /campus/{id}/config; lịch nghỉ qua API /holiday/) */
-const BRANCH_TAB_SLUGS = ["operation", "holiday", "facility"];
-const BRANCH_TAB_LABELS = ["Cài Đặt Vận Hành", "Cài đặt ngày nghỉ", "Cài Đặt Cơ Sở Vật Chất"];
+/** Cấu hình của tôi: vận hành + CSVC (GET/PUT /campus/{id}/config). Ngày nghỉ: /school/holiday-settings. */
+const BRANCH_TAB_SLUGS = ["operation", "facility"];
+const BRANCH_TAB_LABELS = ["Cài Đặt Vận Hành", "Cài Đặt Cơ Sở Vật Chất"];
 
 /**
  * Danh sách phương thức hiển thị checkbox: từ API, không preset FE.
@@ -1216,6 +1215,79 @@ function policyFullTextRenderedFromCampusCurrent(cur) {
 }
 
 /**
+ * GET /campus/config — quy trình nhập học sau merge (BE), ưu tiên hơn `facilityJson.admissionStepsOverride`.
+ * Hỗ trợ: admissionProcessesEffective / effectiveAdmissionProcesses (nhóm), admissionSteps (flat).
+ */
+function parseCampusCurrentEffectiveAdmissionProcesses(cur) {
+  if (!cur || typeof cur !== "object") return null;
+  const eff =
+    cur.admissionProcessesEffective ??
+    cur.admission_processes_effective ??
+    cur.effectiveAdmissionProcesses ??
+    cur.effective_admission_processes;
+  if (Array.isArray(eff) && eff.length > 0) {
+    return eff.map(normalizeMethodAdmissionProcessGroup);
+  }
+  const flat = cur.admissionSteps ?? cur.admission_steps;
+  if (Array.isArray(flat) && flat.length > 0) {
+    return [
+      {
+        methodCode: "",
+        steps: flat.map((s, idx) => normalizeAdmissionProcessStep(s, idx)),
+      },
+    ];
+  }
+  return null;
+}
+
+/** PUT /campus/{id}/config — nếu BE trả envelope giống GET thì FE hydrate lại không cần GET. */
+function campusConfigEnvelopeFromPutResponse(res) {
+  const body = parseSchoolConfigResponseBody(res);
+  if (!body || typeof body !== "object") return null;
+  if (body.campusCurrent != null || body.campus_current != null) return body;
+  return null;
+}
+
+/**
+ * `campusCurrent` phẳng — bốn số đặt chỗ (camel/snake). Áp sau `policyDetailRendered` để field BE trả trực tiếp thắng.
+ */
+function applyCampusCurrentFlatBookingScalars(cur, mergedOp) {
+  if (!cur || typeof cur !== "object" || !mergedOp) return;
+  const pick = (camel, snake) => {
+    const raw = cur[camel] ?? cur[snake];
+    if (raw == null || Number.isNaN(Number(raw))) return null;
+    return Number(raw);
+  };
+  const mb = pick("maxBookingPerSlot", "max_booking_per_slot");
+  if (mb != null) mergedOp.maxBookingPerSlot = mb;
+  const mn = pick("minCounsellorPerSlot", "min_counsellor_per_slot");
+  if (mn != null) mergedOp.minCounsellorPerSlot = mn;
+  const sd = pick("slotDurationInMinutes", "slot_duration_in_minutes");
+  if (sd != null) mergedOp.slotDurationInMinutes = sd;
+  const ab = pick("allowBookingBeforeHours", "allow_booking_before_hours");
+  if (ab != null) mergedOp.allowBookingBeforeHours = ab;
+}
+
+/**
+ * `campusCurrent.workingConfig` — ca/giờ hiệu lực sau merge BE (ưu tiên sau `facilityJson.workingOverride`).
+ */
+function applyCampusCurrentEffectiveWorkingConfig(cur, mergedOp) {
+  if (!cur || typeof cur !== "object" || !mergedOp?.workingConfig) return;
+  const cw = cur.workingConfig ?? cur.working_config;
+  if (!cw || typeof cw !== "object") return;
+  mergedOp.workingConfig = {
+    ...mergedOp.workingConfig,
+    ...(cw.note != null ? {note: String(cw.note)} : {}),
+    ...(cw.isOpenSunday != null || cw.openSunday != null
+      ? {isOpenSunday: Boolean(cw.isOpenSunday ?? cw.openSunday)}
+      : {}),
+    ...(Array.isArray(cw.regularDays) ? {regularDays: cw.regularDays} : {}),
+    ...(Array.isArray(cw.weekendDays) ? {weekendDays: cw.weekendDays} : {}),
+    ...(Array.isArray(cw.workShifts) ? {workShifts: cw.workShifts} : {}),
+  };
+}
+
+/**
  * Phản hồi GET /api/v1/campus/config (campus theo phiên) — cả trụ sở và campus phụ.
  * CSVC + vận hành từ `campusCurrent.facilityJson` + merge HQ `hqDefault`.
  */
@@ -1342,6 +1414,8 @@ function normalizeFromCampusConfigApi(body) {
   if (cur.hotline != null && String(cur.hotline).trim() !== "") mergedOp.hotline = String(cur.hotline);
   if (cur.emailSupport != null && String(cur.emailSupport).trim() !== "") mergedOp.emailSupport = String(cur.emailSupport);
 
+  applyCampusCurrentFlatBookingScalars(cur, mergedOp);
+
   if (fj && typeof fj === "object") {
     if (fj.hotline != null) mergedOp.hotline = String(fj.hotline);
     if (fj.emailSupport != null) mergedOp.emailSupport = String(fj.emailSupport);
@@ -1356,6 +1430,14 @@ function normalizeFromCampusConfigApi(body) {
         ...(Array.isArray(wo.workShifts) ? {workShifts: wo.workShifts} : {}),
       };
     }
+  }
+
+  applyCampusCurrentEffectiveWorkingConfig(cur, mergedOp);
+
+  const effectiveAdmission = parseCampusCurrentEffectiveAdmissionProcesses(cur);
+  if (effectiveAdmission != null) {
+    mergedOp.methodAdmissionProcess = effectiveAdmission;
+  } else if (fj && typeof fj === "object") {
     const hqHasAdmissionProcesses =
       Array.isArray(hqOp.admissionProcesses) && hqOp.admissionProcesses.length > 0;
     if (Array.isArray(fj.admissionStepsOverride) && !hqHasAdmissionProcesses) {
@@ -1390,9 +1472,8 @@ function normalizeFromCampusConfigApi(body) {
 }
 
 /**
- * PUT /api/v1/campus/{campusId}/config — body phẳng (itemList, imageJsonData, …)
- * Khi chỉ gửi một nhánh (chỉ vận hành hoặc chỉ CSVC), BE có thể ghi đè mất phần còn lại.
- * Nếu có thay đổi bất kỳ: luôn gửi đủ CSVC + toàn bộ scalar vận hành + override so với HQ.
+ * PUT /api/v1/campus/{campusId}/config — body phẳng partial (UpdateCampusConfigRequest).
+ * BE merge partial (vd. thiếu workingOverride giữ merge từ policy hiện tại); chỉ gửi field nhánh đã đổi.
  *
  * @param hqOperation — `hqDefault.operation` từ GET; dùng để tính workingOverride / admissionStepsOverride
  */
@@ -1410,22 +1491,118 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
     JSON.stringify(curFacPut.itemList) !== JSON.stringify(iniFacPut.itemList) ||
     JSON.stringify(curFacPut.imageJsonData) !== JSON.stringify(iniFacPut.imageJsonData);
 
-  const operationDirty = JSON.stringify(op) !== JSON.stringify(iOp);
   const policyDirty = (policy ?? "") !== (initialPolicy ?? "");
-  const anyDirty = facilityDirty || operationDirty || policyDirty;
+
+  const num0 = (v) => (v != null && !Number.isNaN(Number(v)) ? Number(v) : 0);
+  const scalarsDirty =
+    num0(op.maxBookingPerSlot) !== num0(iOp.maxBookingPerSlot) ||
+    num0(op.minCounsellorPerSlot) !== num0(iOp.minCounsellorPerSlot) ||
+    num0(op.slotDurationInMinutes) !== num0(iOp.slotDurationInMinutes) ||
+    num0(op.allowBookingBeforeHours) !== num0(iOp.allowBookingBeforeHours);
+
+  const calOp = normalizeAcademicCalendar(op.academicCalendar);
+  const calIo = normalizeAcademicCalendar(iOp.academicCalendar);
+  const academicDirty = JSON.stringify(calOp) !== JSON.stringify(calIo);
+
+  const workingDirty =
+    JSON.stringify(op.workingConfig || {}) !== JSON.stringify(iOp.workingConfig || {});
+
+  const admissionDirty =
+    JSON.stringify(op.methodAdmissionProcess || []) !== JSON.stringify(iOp.methodAdmissionProcess || []);
+
+  const anyDirty = facilityDirty || policyDirty || scalarsDirty || academicDirty || workingDirty || admissionDirty;
   if (!anyDirty) return {};
 
   const payload = {};
 
-  payload.itemList = curFacPut.itemList;
-  payload.imageJsonData = curFacPut.imageJsonData;
+  if (facilityDirty) {
+    payload.itemList = curFacPut.itemList;
+    payload.imageJsonData = curFacPut.imageJsonData;
+  }
 
-  payload.maxBookingPerSlot = Number(op.maxBookingPerSlot) || 0;
-  payload.minCounsellorPerSlot = Number(op.minCounsellorPerSlot) || 0;
-  payload.slotDurationInMinutes = Number(op.slotDurationInMinutes) || 0;
-  payload.allowBookingBeforeHours = Number(op.allowBookingBeforeHours) || 0;
-  payload.academicCalendar = normalizeAcademicCalendar(op.academicCalendar);
+  if (scalarsDirty) {
+    if (num0(op.maxBookingPerSlot) !== num0(iOp.maxBookingPerSlot))
+      payload.maxBookingPerSlot = num0(op.maxBookingPerSlot);
+    if (num0(op.minCounsellorPerSlot) !== num0(iOp.minCounsellorPerSlot))
+      payload.minCounsellorPerSlot = num0(op.minCounsellorPerSlot);
+    if (num0(op.slotDurationInMinutes) !== num0(iOp.slotDurationInMinutes))
+      payload.slotDurationInMinutes = num0(op.slotDurationInMinutes);
+    if (num0(op.allowBookingBeforeHours) !== num0(iOp.allowBookingBeforeHours))
+      payload.allowBookingBeforeHours = num0(op.allowBookingBeforeHours);
+  }
 
+  if (academicDirty) {
+    payload.academicCalendar = calOp;
+  }
+
+  if (workingDirty) {
+    const wc = op.workingConfig || {};
+    const wo = {};
+    if ((wc.note ?? "") !== (hqWc.note ?? "")) wo.note = wc.note ?? "";
+    if (Boolean(wc.isOpenSunday) !== Boolean(hqWc.isOpenSunday)) wo.isOpenSunday = Boolean(wc.isOpenSunday);
+    if (JSON.stringify(wc.regularDays || []) !== JSON.stringify(hqWc.regularDays || []))
+      wo.regularDays = wc.regularDays || [];
+    if (JSON.stringify(wc.weekendDays || []) !== JSON.stringify(hqWc.weekendDays || []))
+      wo.weekendDays = wc.weekendDays || [];
+    if (JSON.stringify(wc.workShifts || []) !== JSON.stringify(hqWc.workShifts || []))
+      wo.workShifts = wc.workShifts || [];
+    if (Object.keys(wo).length > 0) payload.workingOverride = wo;
+  }
+
+  if (admissionDirty) {
+    const hqHasAdmissionProcesses =
+      Array.isArray(hqOp.admissionProcesses) && hqOp.admissionProcesses.length > 0;
+    const hqProc = parseMethodAdmissionProcessFromOperation(hqOp);
+    const curProc = op.methodAdmissionProcess || [];
+    const admissionStepsOverride = [];
+    if (!hqHasAdmissionProcesses) {
+      const hqSteps =
+        hqProc.length === 1 && !String(hqProc[0]?.methodCode ?? "").trim()
+          ? hqProc[0].steps || []
+          : Array.isArray(hqOp.admissionSteps)
+            ? hqOp.admissionSteps
+            : [];
+      const curSteps =
+        curProc.length === 1 && !String(curProc[0]?.methodCode ?? "").trim() ? curProc[0].steps || [] : [];
+      curSteps.forEach((step, idx) => {
+        const ord = Number(step.stepOrder) || idx + 1;
+        const hqS = hqSteps.find((s) => Number(s.stepOrder) === ord);
+        const desc = step.description ?? "";
+        const hqDesc = hqS?.description ?? "";
+        if (desc !== hqDesc) admissionStepsOverride.push({stepOrder: ord, description: desc});
+      });
+    }
+    if (admissionStepsOverride.length > 0) payload.admissionStepsOverride = admissionStepsOverride;
+  }
+
+  if (policyDirty) {
+    payload.policyDetail = policy ?? "";
+  }
+
+  if (Object.keys(payload).length === 0 && anyDirty) {
+    return buildCampusFlatPutPayloadFallbackFull(config, hqOperation, policy);
+  }
+
+  return payload;
+}
+
+/** Gửi đủ nhánh PUT như phiên bản cũ — chỉ khi partial không map được thay đổi (hiếm). */
+function buildCampusFlatPutPayloadFallbackFull(config, hqOperation, policy) {
+  const fac = config.facilityData;
+  const op = config.operationSettingsData;
+  const hqOp = hqOperation && typeof hqOperation === "object" ? hqOperation : {};
+  const hqWc = hqOp.workingConfig && typeof hqOp.workingConfig === "object" ? hqOp.workingConfig : {};
+  const curFacPut = campusFacilityPutSlice(fac);
+  const payload = {
+    itemList: curFacPut.itemList,
+    imageJsonData: curFacPut.imageJsonData,
+    maxBookingPerSlot: Number(op.maxBookingPerSlot) || 0,
+    minCounsellorPerSlot: Number(op.minCounsellorPerSlot) || 0,
+    slotDurationInMinutes: Number(op.slotDurationInMinutes) || 0,
+    allowBookingBeforeHours: Number(op.allowBookingBeforeHours) || 0,
+    academicCalendar: normalizeAcademicCalendar(op.academicCalendar),
+    policyDetail: policy ?? "",
+  };
   const wc = op.workingConfig || {};
   const wo = {};
   if ((wc.note ?? "") !== (hqWc.note ?? "")) wo.note = wc.note ?? "";
@@ -1437,7 +1614,6 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
   if (JSON.stringify(wc.workShifts || []) !== JSON.stringify(hqWc.workShifts || []))
     wo.workShifts = wc.workShifts || [];
   if (Object.keys(wo).length > 0) payload.workingOverride = wo;
-
   const hqHasAdmissionProcesses =
     Array.isArray(hqOp.admissionProcesses) && hqOp.admissionProcesses.length > 0;
   const hqProc = parseMethodAdmissionProcessFromOperation(hqOp);
@@ -1461,9 +1637,6 @@ function buildCampusFlatPutPayload(config, initial, hqOperation, initialPolicy, 
     });
   }
   if (admissionStepsOverride.length > 0) payload.admissionStepsOverride = admissionStepsOverride;
-
-  payload.policyDetail = policy ?? "";
-
   return payload;
 }
 
@@ -1482,6 +1655,7 @@ function admissionMethodExtraEntries(m) {
 export default function CampusConfig() {
   const isCampusVariant = true;
   const {isPrimaryBranch, currentCampusId, loading: schoolCtxLoading} = useSchool();
+  const navigate = useNavigate();
 
   const [searchParams, setSearchParams] = useSearchParams();
   /** Chỉ dùng khi campus chính + variant campus — id cơ sở chính sau listCampuses. */
@@ -1508,6 +1682,13 @@ export default function CampusConfig() {
     [setSearchParams, tabSlugs]
   );
 
+  /** Tab ngày nghỉ đã tách sang menu Cài đặt ngày nghỉ — link/bookmark cũ chuyển hướng. */
+  useLayoutEffect(() => {
+    if (searchParams.get("tab") === "holiday") {
+      navigate("/school/holiday-settings", {replace: true});
+    }
+  }, [searchParams, navigate]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -1517,6 +1698,8 @@ export default function CampusConfig() {
   const [branchPolicyDetail, setBranchPolicyDetail] = useState("");
   /** policyDetailRendered.fullTextRendered — chỉ đọc từ GET, cập nhật sau mỗi lần load. */
   const [branchPolicyFullTextRendered, setBranchPolicyFullTextRendered] = useState("");
+  /** GET campus/config: thiếu `hqDefault.operation` — không có chuẩn vận hành từ trụ sở. */
+  const [campusHqOperationMissing, setCampusHqOperationMissing] = useState(false);
   const branchHqOperationRef = useRef(null);
   const initialPolicyRef = useRef("");
   const initialPolicyFullTextRef = useRef("");
@@ -1615,6 +1798,7 @@ export default function CampusConfig() {
             setBranchPolicyFullTextRendered("");
             initialPolicyFullTextRef.current = "";
             branchHqOperationRef.current = {};
+            setCampusHqOperationMissing(false);
             setSchoolId(pickSchoolIdFromCampuses(campuses));
             setLastLoadedAt(new Date());
             return;
@@ -1632,6 +1816,7 @@ export default function CampusConfig() {
             setBranchPolicyFullTextRendered("");
             initialPolicyFullTextRef.current = "";
             branchHqOperationRef.current = {};
+            setCampusHqOperationMissing(false);
             setSchoolId(pickSchoolIdFromCampuses(campuses));
             setLastLoadedAt(new Date());
             return;
@@ -1644,6 +1829,10 @@ export default function CampusConfig() {
         }
         const envelope = parseSchoolConfigResponseBody(cfgRes);
         const {hqDefault, campusCurrent} = pickCampusConfigGetEnvelope(envelope);
+        const hqOpRaw = hqDefault?.operation;
+        setCampusHqOperationMissing(
+          !hqOpRaw || typeof hqOpRaw !== "object" || Object.keys(hqOpRaw).length === 0
+        );
         branchHqOperationRef.current = hqDefault?.operation
           ? JSON.parse(JSON.stringify(hqDefault.operation))
           : {};
@@ -1776,7 +1965,7 @@ export default function CampusConfig() {
         const ok = facilityFormRef.current?.validate?.() ?? true;
         if (!ok) {
           enqueueSnackbar("Vui lòng kiểm tra lại tab Cơ sở vật chất", {variant: "error"});
-          setTabIndex(useCampusConfigFlow ? 2 : 5);
+          setTabIndex(useCampusConfigFlow ? 1 : 5);
           return;
         }
       }
@@ -1786,7 +1975,29 @@ export default function CampusConfig() {
         if (res?.status >= 200 && res?.status < 300) {
           enqueueSnackbar(campusConfigSaveSuccessMessage(res?.data?.message), {variant: "success"});
           setEditing(false);
-          await load({silent: true});
+          const putEnv = campusConfigEnvelopeFromPutResponse(res);
+          if (putEnv) {
+            const {hqDefault, campusCurrent} = pickCampusConfigGetEnvelope(putEnv);
+            const hqOpPut = hqDefault?.operation;
+            setCampusHqOperationMissing(
+              !hqOpPut || typeof hqOpPut !== "object" || Object.keys(hqOpPut).length === 0
+            );
+            if (hqDefault?.operation && typeof hqDefault.operation === "object") {
+              branchHqOperationRef.current = JSON.parse(JSON.stringify(hqDefault.operation));
+            }
+            const pol = policyFromCampusCurrent(campusCurrent);
+            setBranchPolicyDetail(pol);
+            initialPolicyRef.current = pol;
+            const fullText = policyFullTextRenderedFromCampusCurrent(campusCurrent);
+            setBranchPolicyFullTextRendered(fullText);
+            initialPolicyFullTextRef.current = fullText;
+            const next = normalizeFromCampusConfigApi(putEnv);
+            setConfig(next);
+            initialRef.current = JSON.parse(JSON.stringify(next));
+            setLastLoadedAt(new Date());
+          } else {
+            await load({silent: true});
+          }
         } else {
           enqueueSnackbar(res?.data?.message || "Có lỗi khi lưu", {variant: "error"});
         }
@@ -2122,10 +2333,8 @@ export default function CampusConfig() {
   const showDocumentsTab = !useCampusConfigFlow && tabIndex === 1;
   const showOperationTab = (!useCampusConfigFlow && tabIndex === 2) || (useCampusConfigFlow && tabIndex === 0);
   const showFinanceTab = !useCampusConfigFlow && tabIndex === 3;
-  /** Tab lịch nghỉ chỉ dùng khi đã xác định campus (GET/PUT config + API holiday theo ngữ cảnh đăng nhập). */
-  const showHolidayTab = useCampusConfigFlow && tabSlug === "holiday";
   const showFacilityTab =
-    (!useCampusConfigFlow && tabIndex === 4) || (useCampusConfigFlow && tabIndex === 2);
+    (!useCampusConfigFlow && tabIndex === 4) || (useCampusConfigFlow && tabIndex === 1);
   const showQuotaTab = !useCampusConfigFlow && tabIndex === 5;
   const showResourceDistributionTab = !useCampusConfigFlow && tabIndex === 6;
 
@@ -3565,6 +3774,17 @@ export default function CampusConfig() {
             <Stack spacing={2}>
               {useCampusConfigFlow ? (
                 <>
+                  {campusHqOperationMissing ? (
+                    <Alert severity="warning" sx={{borderRadius: 2}}>
+                      <Typography variant="body2" sx={{fontWeight: 700, mb: 0.5}}>
+                        Chưa có cấu hình vận hành từ cơ sở chính
+                      </Typography>
+                      <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
+                        Trụ sở chưa gửi khối vận hành HQ (hqDefault.operation) hoặc đang rỗng. Vui lòng cấu hình vận hành tại
+                        cơ sở chính trước; campus chỉ chỉnh phần delta khi đã có chuẩn HQ.
+                      </Typography>
+                    </Alert>
+                  ) : null}
                   <Alert severity="info" sx={{borderRadius: 2}}>
                     <Typography variant="body2" component="div" sx={{fontWeight: 700, mb: 0.75}}>
                       Cấu hình theo cơ sở
@@ -4289,8 +4509,6 @@ export default function CampusConfig() {
             </Stack>
           )}
 
-          {showHolidayTab && <SchoolHoliday />}
-
           {showFacilityTab && (
             <SchoolFacilityFacilityForm
               ref={facilityFormRef}
@@ -4417,7 +4635,7 @@ export default function CampusConfig() {
         </Box>
 
         <Box sx={{mt: 2, display: "flex", justifyContent: "flex-end", gap: 1, flexWrap: "wrap"}}>
-          {showHolidayTab ? null : !editing ? (
+          {!editing ? (
             <Button
               variant="contained"
               onClick={() => setEditing(true)}
