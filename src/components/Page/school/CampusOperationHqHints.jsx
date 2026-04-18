@@ -35,12 +35,12 @@ function cycleStepLine(slot, buf) {
   return `Khoảng cách giữa hai đầu tiết (tiết + nghỉ): ${s + numOpScalar(buf)} phút`;
 }
 
-/** Tư vấn viên gán cùng khung — max 0 = không trần trên. */
-function fmtTvAssignRange(minV, maxV) {
+/** Nội dung ngắn (không lặp tiêu đề "Tư vấn viên:") — max 0 = không trần. */
+function fmtTvAssignBody(minV, maxV) {
   const mn = numOpScalar(minV);
   const mx = numOpScalar(maxV);
-  const maxPart = mx > 0 ? ` · tối đa gán cùng khung ${mx}` : " · không giới hạn trần tư vấn viên gán (0)";
-  return `Tư vấn viên: tối thiểu ${mn}${maxPart}`;
+  const maxPart = mx > 0 ? ` · tối đa gán cùng khung ${mx}` : " · không giới hạn trần gán (0)";
+  return `tối thiểu ${mn}${maxPart}`;
 }
 
 /**
@@ -49,40 +49,91 @@ function fmtTvAssignRange(minV, maxV) {
 export function HqVsCampusSlotBufferSummary({effectiveOp, hqOp, hqMissing}) {
   const effSlot = effectiveOp?.slotDurationInMinutes;
   const effBuf = effectiveOp?.bufferBetweenSlotsMinutes;
-  const hqLine =
-    !hqMissing && hqOp && typeof hqOp === "object"
-      ? fmtSlotBufferLine(hqOp.slotDurationInMinutes, hqOp.bufferBetweenSlotsMinutes)
-      : null;
-  const hqCycle =
-    !hqMissing && hqOp && typeof hqOp === "object"
-      ? cycleStepLine(hqOp.slotDurationInMinutes, hqOp.bufferBetweenSlotsMinutes)
-      : null;
   const effCycle = cycleStepLine(effSlot, effBuf);
-  const hqTv =
-    !hqMissing && hqOp && typeof hqOp === "object"
-      ? fmtTvAssignRange(hqOp.minCounsellorPerSlot, hqOp.maxCounsellorsPerSlot)
-      : null;
-  const effTv = fmtTvAssignRange(effectiveOp?.minCounsellorPerSlot, effectiveOp?.maxCounsellorsPerSlot);
+  const effLineFull = `${fmtSlotBufferLine(effSlot, effBuf)}${effCycle ? ` · ${effCycle}` : ""}`;
+  const effTvBody = fmtTvAssignBody(effectiveOp?.minCounsellorPerSlot, effectiveOp?.maxCounsellorsPerSlot);
+
+  const hasHq = !hqMissing && hqOp && typeof hqOp === "object";
+  const hqCycle = hasHq ? cycleStepLine(hqOp.slotDurationInMinutes, hqOp.bufferBetweenSlotsMinutes) : null;
+  const hqLineFull = hasHq
+    ? `${fmtSlotBufferLine(hqOp.slotDurationInMinutes, hqOp.bufferBetweenSlotsMinutes)}${hqCycle ? ` · ${hqCycle}` : ""}`
+    : "";
+  const hqTvBody = hasHq ? fmtTvAssignBody(hqOp.minCounsellorPerSlot, hqOp.maxCounsellorsPerSlot) : "";
+
+  const sameSlot =
+    hasHq &&
+    numOpScalar(hqOp.slotDurationInMinutes) === numOpScalar(effSlot) &&
+    numOpScalar(hqOp.bufferBetweenSlotsMinutes) === numOpScalar(effBuf);
+  const sameTv =
+    hasHq &&
+    numOpScalar(hqOp.minCounsellorPerSlot) === numOpScalar(effectiveOp?.minCounsellorPerSlot) &&
+    numOpScalar(hqOp.maxCounsellorsPerSlot) === numOpScalar(effectiveOp?.maxCounsellorsPerSlot);
+
+  if (!hasHq) {
+    return (
+      <Stack spacing={0.75} sx={{width: "100%", mb: 0.5}}>
+        <Typography variant="body2" sx={{color: "#334155", lineHeight: 1.55}}>
+          <strong>Đang áp dụng tại cơ sở này — tiết và nghỉ:</strong> {effLineFull}
+        </Typography>
+        <Typography variant="body2" sx={{color: "#334155", lineHeight: 1.55}}>
+          <strong>Gán tư vấn viên:</strong> {effTvBody}
+        </Typography>
+      </Stack>
+    );
+  }
+
+  if (sameSlot && sameTv) {
+    return (
+      <Stack spacing={0.75} sx={{width: "100%", mb: 0.5}}>
+        <Typography variant="body2" sx={{color: "#334155", lineHeight: 1.55}}>
+          <strong>Đồng bộ với trụ sở chính.</strong> Tiết, nghỉ và quy định gán tư vấn viên đang khớp với trụ sở.
+        </Typography>
+        <Typography variant="caption" sx={{color: "#64748b", lineHeight: 1.5}}>
+          {effLineFull} · {effTvBody}
+        </Typography>
+      </Stack>
+    );
+  }
+
+  if (sameSlot && !sameTv) {
+    return (
+      <Stack spacing={0.75} sx={{width: "100%", mb: 0.5}}>
+        <Typography variant="caption" sx={{color: "#64748b", lineHeight: 1.5}}>
+          Tiết/nghỉ <strong>giống trụ sở chính</strong>: {effLineFull}
+        </Typography>
+        <Typography variant="caption" sx={{color: "#64748b", lineHeight: 1.5}}>
+          <strong>Trụ sở — gán tư vấn viên:</strong> {hqTvBody}
+        </Typography>
+        <Typography variant="body2" sx={{color: "#334155", lineHeight: 1.55}}>
+          <strong>Tại cơ sở — gán tư vấn viên:</strong> {effTvBody}
+        </Typography>
+      </Stack>
+    );
+  }
+
+  if (!sameSlot && sameTv) {
+    return (
+      <Stack spacing={0.75} sx={{width: "100%", mb: 0.5}}>
+        <Typography variant="caption" sx={{color: "#64748b", lineHeight: 1.5}}>
+          <strong>Trụ sở — tiết/nghỉ:</strong> {hqLineFull}
+        </Typography>
+        <Typography variant="body2" sx={{color: "#334155", lineHeight: 1.55}}>
+          <strong>Tại cơ sở — tiết/nghỉ:</strong> {effLineFull}
+        </Typography>
+        <Typography variant="caption" sx={{color: "#64748b", lineHeight: 1.5}}>
+          Gán tư vấn viên <strong>giống trụ sở</strong>: {effTvBody}
+        </Typography>
+      </Stack>
+    );
+  }
 
   return (
     <Stack spacing={0.75} sx={{width: "100%", mb: 0.5}}>
-      {hqLine != null ? (
-        <Typography variant="caption" sx={{color: "#64748b", lineHeight: 1.5}}>
-          <strong>Quy định từ trụ sở chính:</strong> {hqLine}
-          {hqCycle ? ` · ${hqCycle}` : ""}
-        </Typography>
-      ) : null}
-      {hqTv != null ? (
-        <Typography variant="caption" sx={{color: "#64748b", lineHeight: 1.5, display: "block"}}>
-          <strong>Tư vấn viên (theo trụ sở chính):</strong> {hqTv}
-        </Typography>
-      ) : null}
-      <Typography variant="body2" sx={{color: "#334155", lineHeight: 1.55}}>
-        <strong>Đang áp dụng tại cơ sở này:</strong> {fmtSlotBufferLine(effSlot, effBuf)}
-        {effCycle ? ` · ${effCycle}` : ""}
+      <Typography variant="caption" sx={{color: "#64748b", lineHeight: 1.5}}>
+        <strong>Trụ sở chính:</strong> {hqLineFull} · {hqTvBody}
       </Typography>
       <Typography variant="body2" sx={{color: "#334155", lineHeight: 1.55}}>
-        <strong>Tư vấn viên (tại cơ sở này):</strong> {effTv}
+        <strong>Tại cơ sở này (đang áp dụng):</strong> {effLineFull} · {effTvBody}
       </Typography>
     </Stack>
   );

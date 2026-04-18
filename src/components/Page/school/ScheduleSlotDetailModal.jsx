@@ -15,7 +15,6 @@ import {
   Typography,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 
@@ -64,8 +63,6 @@ export default function ScheduleSlotDetailModal({
   slotActive = true,
   onAssign,
   onEdit,
-  onDeleteSchedule,
-  onRemoveCounsellor,
 }) {
   const sortedAssigns = useMemo(() => {
     if (!Array.isArray(assigns)) return [];
@@ -183,7 +180,7 @@ export default function ScheduleSlotDetailModal({
           </Box>
 
           <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#0F172A", mb: 1.5 }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#0F172A", mb: 1 }}>
               Tư vấn viên được gán
             </Typography>
 
@@ -280,16 +277,6 @@ export default function ScheduleSlotDetailModal({
                               {rangeText}
                             </Typography>
                           </Box>
-                          <Button
-                            size="small"
-                            color="error"
-                            variant="text"
-                            disabled={!slotActive}
-                            onClick={() => onRemoveCounsellor?.(row)}
-                            sx={{ flexShrink: 0, textTransform: "none", fontWeight: 700, minWidth: 72 }}
-                          >
-                            Gỡ
-                          </Button>
                         </Box>
                       </Tooltip>
                     );
@@ -326,40 +313,28 @@ export default function ScheduleSlotDetailModal({
           py: 2,
           flexWrap: "wrap",
           gap: 1,
-          justifyContent: "space-between",
+          justifyContent: "flex-end",
           bgcolor: "#FAFAFA",
           borderTop: `1px solid ${BORDER_SOFT}`,
         }}
       >
         <Button
-          color="error"
-          variant="outlined"
-          startIcon={<DeleteOutlineIcon />}
-          onClick={onDeleteSchedule}
-          disabled={!slotActive}
-          sx={{ textTransform: "none", fontWeight: 700, borderRadius: "10px" }}
+          variant="contained"
+          startIcon={<EditOutlinedIcon />}
+          onClick={onEdit}
+          sx={{
+            textTransform: "none",
+            fontWeight: 700,
+            borderRadius: "10px",
+            bgcolor: PRIMARY,
+            "&:hover": { bgcolor: "#0a52bd" },
+          }}
         >
-          Vô hiệu hóa khung giờ
+          Sửa lịch
         </Button>
-        <Stack direction="row" spacing={1} flexWrap="wrap" justifyContent="flex-end">
-          <Button
-            variant="contained"
-            startIcon={<EditOutlinedIcon />}
-            onClick={onEdit}
-            sx={{
-              textTransform: "none",
-              fontWeight: 700,
-              borderRadius: "10px",
-              bgcolor: PRIMARY,
-              "&:hover": { bgcolor: "#0a52bd" },
-            }}
-          >
-            Sửa lịch
-          </Button>
-          <Button onClick={onClose} sx={{ textTransform: "none", fontWeight: 600, color: "#64748B" }}>
-            Đóng
-          </Button>
-        </Stack>
+        <Button onClick={onClose} sx={{ textTransform: "none", fontWeight: 600, color: "#64748B" }}>
+          Đóng
+        </Button>
       </DialogActions>
     </Dialog>
   );

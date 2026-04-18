@@ -62,6 +62,12 @@ import SchoolWideScheduleReadOnlyPanel from "./SchoolWideScheduleReadOnlyPanel.j
 import {HqScalarDiffChip, HqVsCampusSlotBufferSummary, SchoolSlotCycleHint} from "./CampusOperationHqHints.jsx";
 import {resolveSchoolWideWorkingConfigDisplay} from "../../../utils/schoolWideWorkingConfig.js";
 import {
+  emptyAcademicCalendar,
+  isAcademicCalendarLimitActive,
+  termIsComplete,
+  validateAcademicCalendarForSave,
+} from "../../../utils/academicCalendarUi.js";
+import {
   canonicalizeWorkShiftName,
   normalizeTimeHHmm,
   normalizeWorkShiftForApi,
@@ -902,7 +908,13 @@ function sanitizeOperationSettingsForApi(op) {
         )
     : [];
 
-  const academicCalendar = normalizeAcademicCalendar(op.academicCalendar);
+  const calIn = normalizeAcademicCalendar(op.academicCalendar);
+  const academicCalendar = isAcademicCalendarLimitActive(calIn)
+    ? {
+        term1: termIsComplete(calIn.term1) ? {start: calIn.term1.start, end: calIn.term1.end} : {start: "", end: ""},
+        term2: termIsComplete(calIn.term2) ? {start: calIn.term2.start, end: calIn.term2.end} : {start: "", end: ""},
+      }
+    : null;
 
   const admissionSeasons = Array.isArray(op.admissionSeasons)
     ? op.admissionSeasons
@@ -1678,6 +1690,8 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   const [admissionToggleOffConfirm, setAdmissionToggleOffConfirm] = useState({open: false, code: ""});
   const [admissionRemoveRowConfirm, setAdmissionRemoveRowConfirm] = useState({open: false, idx: -1});
   const [loadingSystemAdmission, setLoadingSystemAdmission] = useState(false);
+  /** Pattern A: bật mới hiện form HK; tắt = không giới hạn (xóa ngày trong form). Đồng bộ sau load. */
+  const [academicSemesterLimitEnabled, setAcademicSemesterLimitEnabled] = useState(false);
 
   const toggleAdmissionMethodExpand = useCallback((key) => {
     setAdmissionMethodExpanded((p) => ({...p, [key]: !p[key]}));
@@ -1946,6 +1960,13 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   }, [tabSlug]);
 
   useEffect(() => {
+    if (isCampusVariant) return;
+    const cal = config.operationSettingsData?.academicCalendar;
+    const n = normalizeAcademicCalendar(cal);
+    setAcademicSemesterLimitEnabled(isAcademicCalendarLimitActive(n));
+  }, [lastLoadedAt, isCampusVariant]);
+
+  useEffect(() => {
     if (useCampusConfigFlow || tabSlug !== "admission") return;
     try {
       if (window.localStorage.getItem("school_config_admission_sys_prompt_v1")) return;
@@ -1961,9 +1982,13 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     setConfig(JSON.parse(JSON.stringify(init)));
     setBranchPolicyDetail(initialPolicyRef.current ?? "");
     setBranchPolicyFullTextRendered(initialPolicyFullTextRef.current ?? "");
+    if (!isCampusVariant) {
+      const n = normalizeAcademicCalendar(init.operationSettingsData?.academicCalendar);
+      setAcademicSemesterLimitEnabled(isAcademicCalendarLimitActive(n));
+    }
     setEditing(false);
     enqueueSnackbar("Đã huỷ thay đổi", {variant: "info"});
-  }, []);
+  }, [isCampusVariant]);
 
   const handleSave = useCallback(async () => {
     if (!editing) return;
@@ -2119,6 +2144,14 @@ export default function SchoolConfig({variant = "platform"} = {}) {
       return;
     }
 
+    const acCalSave = normalizeAcademicCalendar(config.operationSettingsData.academicCalendar);
+    const acRes = validateAcademicCalendarForSave(academicSemesterLimitEnabled, acCalSave);
+    if (!acRes.ok) {
+      enqueueSnackbar(acRes.message, {variant: "warning"});
+      setTabIndex(2);
+      return;
+    }
+
     setSaving(true);
     try {
       const resSchool = await updateSchoolConfig(schoolId, schoolPayload);
@@ -2164,6 +2197,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     setSearchParams,
     editing,
     load,
+    academicSemesterLimitEnabled,
   ]);
 
   const allocatedTotal = useMemo(() => {
@@ -4257,7 +4291,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                             }))
                           }
                           size="small"
-                          helperText="(*) Số khách đặt tối đa / một khung (booking), khác với trần TV gán cùng khung bên dưới"
+                          helperText="Dành cho phụ huynh khi đặt lịch: tối đa bao nhiêu lượt đặt hoặc chờ trong một khung giờ. Không phải số tư vấn viên — xem hai ô bên cạnh."
                           FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
@@ -4283,7 +4317,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                             }))
                           }
                           size="small"
-                          helperText="(*) Số lượng tư vấn viên tối thiểu trực trong một ca"
+                          helperText="Khi gán lịch cho tư vấn viên: mỗi khung giờ và khoảng ngày phải có ít nhất số người này. Không liên quan tới lượt đặt của phụ huynh (ô bên trái)."
                           FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
@@ -4321,7 +4355,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                             }))
                           }
                           size="small"
-                          helperText="(*) Trần số TV gán cùng một khung lịch + khoảng ngày; 0 = không giới hạn trần trên"
+                          helperText="Giới hạn nhân sự: tối đa bao nhiêu tư vấn viên được gán chung một khung giờ và cùng khoảng ngày. 0 = không giới hạn. Khác với lượt đặt của phụ huynh."
                           FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
@@ -4733,113 +4767,185 @@ export default function SchoolConfig({variant = "platform"} = {}) {
       </Card>
               )}
 
-              <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
-                <CardContent sx={{p: 3}}>
-                  <Typography sx={{fontWeight: 800, mb: 2}}>Lịch năm học</Typography>
-                  <Stack spacing={2}>
-                    <Stack direction={{xs: "column", md: "row"}} spacing={2}>
-                      <TextField
-                        label="Học kỳ 1 - Bắt đầu"
-                        type="date"
-                        size="small"
-                        InputLabelProps={{shrink: true}}
-                        value={config.operationSettingsData.academicCalendar?.term1?.start ?? ""}
-                        onChange={(e) =>
-                          setConfig((c) => ({
-                            ...c,
-                            operationSettingsData: {
-                              ...c.operationSettingsData,
-                              academicCalendar: {
-                                ...(c.operationSettingsData.academicCalendar || {}),
-                                term1: {
-                                  ...(c.operationSettingsData.academicCalendar?.term1 || {}),
-                                  start: e.target.value,
-                                },
-                              },
-                            },
-                          }))
-                        }
-                        inputProps={{readOnly: fieldDisabled}}
-                        fullWidth
-                      />
-                      <TextField
-                        label="Học kỳ 1 - Kết thúc"
-                        type="date"
-                        size="small"
-                        InputLabelProps={{shrink: true}}
-                        value={config.operationSettingsData.academicCalendar?.term1?.end ?? ""}
-                        onChange={(e) =>
-                          setConfig((c) => ({
-                            ...c,
-                            operationSettingsData: {
-                              ...c.operationSettingsData,
-                              academicCalendar: {
-                                ...(c.operationSettingsData.academicCalendar || {}),
-                                term1: {
-                                  ...(c.operationSettingsData.academicCalendar?.term1 || {}),
-                                  end: e.target.value,
-                                },
-                              },
-                            },
-                          }))
-                        }
-                        inputProps={{readOnly: fieldDisabled}}
-                        fullWidth
-                      />
+              {!useCampusConfigFlow ? (
+                <Card
+                  sx={{
+                    borderRadius: "12px",
+                    border: "1px solid rgba(226,232,240,1)",
+                    boxShadow: "0 8px 24px rgba(15,23,42,0.06)",
+                  }}
+                >
+                  <CardContent sx={{p: 3}}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1.5} mb={2}>
+                      <Typography sx={{fontWeight: 800}}>Lịch năm học &amp; gán lịch tư vấn</Typography>
+                      <Stack direction="row" gap={1} flexWrap="wrap" justifyContent="flex-end">
+                        {!academicSemesterLimitEnabled ? (
+                          <Chip size="small" label="Không giới hạn theo học kỳ" color="default" variant="outlined"/>
+                        ) : !isAcademicCalendarLimitActive(
+                            normalizeAcademicCalendar(config.operationSettingsData.academicCalendar)
+                          ) ? (
+                          <Chip size="small" label="Chưa đủ cặp ngày để áp dụng" color="warning" variant="outlined"/>
+                        ) : (
+                          <Chip size="small" label="Đang áp dụng giới hạn theo học kỳ" color="success" variant="outlined"/>
+                        )}
+                      </Stack>
                     </Stack>
-                    <Stack direction={{xs: "column", md: "row"}} spacing={2}>
-                      <TextField
-                        label="Học kỳ 2 - Bắt đầu"
-                        type="date"
-                        size="small"
-                        InputLabelProps={{shrink: true}}
-                        value={config.operationSettingsData.academicCalendar?.term2?.start ?? ""}
-                        onChange={(e) =>
-                          setConfig((c) => ({
-                            ...c,
-                            operationSettingsData: {
-                              ...c.operationSettingsData,
-                              academicCalendar: {
-                                ...(c.operationSettingsData.academicCalendar || {}),
-                                term2: {
-                                  ...(c.operationSettingsData.academicCalendar?.term2 || {}),
-                                  start: e.target.value,
+
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={academicSemesterLimitEnabled}
+                          onChange={(e) => {
+                            const on = e.target.checked;
+                            setAcademicSemesterLimitEnabled(on);
+                            if (!on) {
+                              setConfig((c) => ({
+                                ...c,
+                                operationSettingsData: {
+                                  ...c.operationSettingsData,
+                                  academicCalendar: emptyAcademicCalendar(),
                                 },
-                              },
-                            },
-                          }))
-                        }
-                        inputProps={{readOnly: fieldDisabled}}
-                        fullWidth
-                      />
-                      <TextField
-                        label="Học kỳ 2 - Kết thúc"
-                        type="date"
-                        size="small"
-                        InputLabelProps={{shrink: true}}
-                        value={config.operationSettingsData.academicCalendar?.term2?.end ?? ""}
-                        onChange={(e) =>
-                          setConfig((c) => ({
-                            ...c,
-                            operationSettingsData: {
-                              ...c.operationSettingsData,
-                              academicCalendar: {
-                                ...(c.operationSettingsData.academicCalendar || {}),
-                                term2: {
-                                  ...(c.operationSettingsData.academicCalendar?.term2 || {}),
-                                  end: e.target.value,
+                              }));
+                            }
+                          }}
+                          disabled={fieldDisabled}
+                        />
+                      }
+                      label={
+                        <Box>
+                          <Typography component="span" fontWeight={700} display="block">
+                            Giới hạn gán lịch tư vấn trong phạm vi học kỳ
+                          </Typography>
+                          <Typography variant="caption" color="text.secondary" display="block">
+                            Khi tắt, cấu hình học kỳ không áp dụng cho việc gán lịch.
+                          </Typography>
+                        </Box>
+                      }
+                      sx={{alignItems: "flex-start", ml: 0, mr: 0}}
+                    />
+
+                    <Alert severity="info" sx={{mt: 2, mb: 2, borderRadius: 2}}>
+                      <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
+                        Chỉ khi nhập đủ ngày bắt đầu và kết thúc cho ít nhất một học kỳ, hệ thống mới kiểm tra ngày gán lịch. Nếu để
+                        trống, gán lịch không bị giới hạn theo học kỳ.
+                      </Typography>
+                    </Alert>
+
+                    <Collapse in={academicSemesterLimitEnabled} timeout="auto" unmountOnExit={false}>
+                      <Stack spacing={2.5}>
+                        <Typography sx={{fontWeight: 800}}>Học kỳ 1</Typography>
+                        <Stack direction={{xs: "column", md: "row"}} spacing={2}>
+                          <TextField
+                            label="Từ ngày"
+                            type="date"
+                            size="small"
+                            InputLabelProps={{shrink: true}}
+                            value={config.operationSettingsData.academicCalendar?.term1?.start ?? ""}
+                            onChange={(e) =>
+                              setConfig((c) => ({
+                                ...c,
+                                operationSettingsData: {
+                                  ...c.operationSettingsData,
+                                  academicCalendar: {
+                                    ...(c.operationSettingsData.academicCalendar || {}),
+                                    term1: {
+                                      ...(c.operationSettingsData.academicCalendar?.term1 || {}),
+                                      start: e.target.value,
+                                    },
+                                  },
                                 },
-                              },
-                            },
-                          }))
-                        }
-                        inputProps={{readOnly: fieldDisabled}}
-                        fullWidth
-                      />
-                    </Stack>
-                  </Stack>
-                </CardContent>
-              </Card>
+                              }))
+                            }
+                            inputProps={{readOnly: fieldDisabled}}
+                            fullWidth
+                          />
+                          <TextField
+                            label="Đến ngày"
+                            type="date"
+                            size="small"
+                            InputLabelProps={{shrink: true}}
+                            value={config.operationSettingsData.academicCalendar?.term1?.end ?? ""}
+                            onChange={(e) =>
+                              setConfig((c) => ({
+                                ...c,
+                                operationSettingsData: {
+                                  ...c.operationSettingsData,
+                                  academicCalendar: {
+                                    ...(c.operationSettingsData.academicCalendar || {}),
+                                    term1: {
+                                      ...(c.operationSettingsData.academicCalendar?.term1 || {}),
+                                      end: e.target.value,
+                                    },
+                                  },
+                                },
+                              }))
+                            }
+                            inputProps={{readOnly: fieldDisabled}}
+                            fullWidth
+                          />
+                        </Stack>
+                        <Typography sx={{fontWeight: 800}}>Học kỳ 2</Typography>
+                        <Stack direction={{xs: "column", md: "row"}} spacing={2}>
+                          <TextField
+                            label="Từ ngày"
+                            type="date"
+                            size="small"
+                            InputLabelProps={{shrink: true}}
+                            value={config.operationSettingsData.academicCalendar?.term2?.start ?? ""}
+                            onChange={(e) =>
+                              setConfig((c) => ({
+                                ...c,
+                                operationSettingsData: {
+                                  ...c.operationSettingsData,
+                                  academicCalendar: {
+                                    ...(c.operationSettingsData.academicCalendar || {}),
+                                    term2: {
+                                      ...(c.operationSettingsData.academicCalendar?.term2 || {}),
+                                      start: e.target.value,
+                                    },
+                                  },
+                                },
+                              }))
+                            }
+                            inputProps={{readOnly: fieldDisabled}}
+                            fullWidth
+                          />
+                          <TextField
+                            label="Đến ngày"
+                            type="date"
+                            size="small"
+                            InputLabelProps={{shrink: true}}
+                            value={config.operationSettingsData.academicCalendar?.term2?.end ?? ""}
+                            onChange={(e) =>
+                              setConfig((c) => ({
+                                ...c,
+                                operationSettingsData: {
+                                  ...c.operationSettingsData,
+                                  academicCalendar: {
+                                    ...(c.operationSettingsData.academicCalendar || {}),
+                                    term2: {
+                                      ...(c.operationSettingsData.academicCalendar?.term2 || {}),
+                                      end: e.target.value,
+                                    },
+                                  },
+                                },
+                              }))
+                            }
+                            inputProps={{readOnly: fieldDisabled}}
+                            fullWidth
+                          />
+                        </Stack>
+                      </Stack>
+                    </Collapse>
+
+                    {!academicSemesterLimitEnabled ? (
+                      <Typography variant="body2" color="text.secondary" sx={{mt: 1}}>
+                        Để trống: không giới hạn theo học kỳ. Bật công tắc để cấu hình khoảng ngày HK1 / HK2.
+                      </Typography>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              ) : null}
 
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>
