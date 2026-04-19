@@ -1190,7 +1190,7 @@ export default function SchoolCampaigns() {
                                 error={!!formErrors.year}
                                 helperText={formErrors.year}
                                 required
-                                inputProps={{min: CURRENT_YEAR, max: CURRENT_YEAR + 30}}
+                                inputProps={{min: CURRENT_YEAR, max: CURRENT_YEAR + 30}} 
                                 sx={{
                                     maxWidth: {sm: 160},
                                     "& .MuiOutlinedInput-root": {borderRadius: "12px"},

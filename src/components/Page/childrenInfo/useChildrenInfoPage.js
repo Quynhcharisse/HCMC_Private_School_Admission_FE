@@ -104,6 +104,16 @@ export function useChildrenInfoPage() {
     useEffect(() => {
         let cancelled = false;
         (async () => {
+            /** Sau logout storage đã xóa `user` nhưng vẫn bump tick — không gọi API để tránh 401/snackbar lỗi. */
+            try {
+                if (!localStorage.getItem('user')) {
+                    if (!cancelled) setLoading(false);
+                    return;
+                }
+            } catch {
+                if (!cancelled) setLoading(false);
+                return;
+            }
             setLoading(true);
             try {
                 const res = await getParentStudent();
