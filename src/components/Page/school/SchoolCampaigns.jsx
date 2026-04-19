@@ -514,9 +514,9 @@ export default function SchoolCampaigns() {
     }, [isPastYearView, isPrimaryBranch, location.pathname, location.state, navigate]);
 
     const handleCreateSubmit = async () => {
-        // TEMP: Tắt chặn submit theo local validation.
+        // TEMP: Tắt toàn bộ validation local khi tạo — không gọi validateForm().
         // if (!validateForm()) return;
-        validateForm();
+        // validateForm();
         setSubmitLoading(true);
         try {
             const payload = getCreatePayload();
@@ -1186,7 +1186,7 @@ export default function SchoolCampaigns() {
                                 onChange={handleChange}
                                 error={!!formErrors.name}
                                 helperText={formErrors.name}
-                                required
+                                /* required — tắt validation tạo */
                                 sx={{"& .MuiOutlinedInput-root": {borderRadius: "12px"}}}
                             />
                             <TextField
@@ -1198,8 +1198,8 @@ export default function SchoolCampaigns() {
                                 onChange={handleChange}
                                 error={!!formErrors.year}
                                 helperText={formErrors.year}
-                                required
-                                inputProps={{min: CURRENT_YEAR, max: CURRENT_YEAR + 30}}
+                                /* required — tắt validation tạo */
+                                /* inputProps={{min: CURRENT_YEAR, max: CURRENT_YEAR + 30}} */
                                 sx={{
                                     maxWidth: {sm: 160},
                                     "& .MuiOutlinedInput-root": {borderRadius: "12px"},
@@ -1249,7 +1249,7 @@ export default function SchoolCampaigns() {
                                 error={!!formErrors.startDate}
                                 helperText={formErrors.startDate}
                                 InputLabelProps={{shrink: true}}
-                                required
+                                /* required — tắt validation tạo */
                                 sx={{"& .MuiOutlinedInput-root": {borderRadius: "12px"}}}
                             />
                             <TextField
@@ -1262,7 +1262,7 @@ export default function SchoolCampaigns() {
                                 error={!!formErrors.endDate}
                                 helperText={formErrors.endDate}
                                 InputLabelProps={{shrink: true}}
-                                required
+                                /* required — tắt validation tạo */
                                 sx={{"& .MuiOutlinedInput-root": {borderRadius: "12px"}}}
                             />
                         </Stack>
