@@ -18,6 +18,7 @@ import {updateProfile, signout} from '../../services/AccountService';
 import backgroundLogin from '../../assets/backgroundLogin.png';
 import {useNavigate} from 'react-router-dom';
 import {enqueueSnackbar} from 'notistack';
+import {notifyAuthUserStorageChanged, sanitizeUserForLocalStorage} from '../../utils/userRole.js';
 
 const genderOptions = [
     {value: 'MALE', label: 'Nam'},
@@ -173,7 +174,11 @@ const ParentRegistrationForm = ({email, name: initialName, onBack, isFirstLogin 
                 if (storedUser) {
                     try {
                         const parsed = JSON.parse(storedUser);
-                        localStorage.setItem('user', JSON.stringify({...parsed, firstLogin: false}));
+                        localStorage.setItem(
+                            'user',
+                            JSON.stringify(sanitizeUserForLocalStorage({...parsed, firstLogin: false})),
+                        );
+                        notifyAuthUserStorageChanged();
                     } catch {
                         // ignore
                     }

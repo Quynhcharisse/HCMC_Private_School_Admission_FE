@@ -90,6 +90,13 @@ function parseScoreForPayload(val) {
     return Number.isFinite(n) ? n : null;
 }
 
+/** Chỉ gửi môn khi có đủ tên môn (không rỗng) và điểm hợp lệ. */
+function shouldIncludeSubjectRow(subjectName, score) {
+    const name = subjectName != null ? String(subjectName).trim() : '';
+    if (!name) return false;
+    return score != null && Number.isFinite(score);
+}
+
 export function resolveFavouriteJobString(favoriteMajorCodes, majorGroups) {
     if (!favoriteMajorCodes?.length) return '';
     const code = favoriteMajorCodes[0];
@@ -104,6 +111,21 @@ export function resolveFavouriteJobString(favoriteMajorCodes, majorGroups) {
     }
     return String(code);
 }
+
+/**
+ * Theo BE academicProfileMetadata / subjectResults: chỉ khi `isAvailable === false` mới hiện nhãn "Không khả dụng".
+ * Thiếu field hoặc true → coi là khả dụng (không hiện gì).
+ */
+export function readSubjectResultIsAvailable(sr) {
+    if (sr == null || typeof sr !== 'object') return true;
+    const v = sr.isAvailable ?? sr.available;
+    if (v === false || v === 'false' || v === 0) return false;
+    return true;
+}
+
+/** Giải thích hiển thị kèm nhãn "Không khả dụng" (metadata / BE tắt isAvailable). */
+export const SUBJECT_UNAVAILABLE_TOOLTIP =
+    'Môn này không còn nằm trong danh mục môn đang áp dụng trên hệ thống. Điểm đã lưu trong hồ sơ vẫn hiển thị để tham khảo.';
 
 export function gradeLevelApiToKey(gl) {
     const s = String(gl ?? '').trim();
@@ -141,8 +163,34 @@ export function mergeAcademicInfosIntoGrades(academicInfos, regularSubjects, for
         return rowId;
     };
 
+    /** Môn trong academicProfileMetadata không khớng danh mục (vd. id null) — giữ đúng tên từ BE. */
+    const ensureCustomForeignRow = (displayName) => {
+        const n = String(displayName || '').trim();
+        if (!n) return null;
+        const existing = foreignRows.find((r) => String(r.customSubjectName || '').trim() === n);
+        if (existing) return existing.rowId;
+        const rowId = `foreign-meta-${foreignRows.length}-${Date.now()}`;
+        foreignRows.push({rowId, subjectId: '', customSubjectName: n});
+        foreignGrades[rowId] = emptyGrades();
+        return rowId;
+    };
+
     if (!Array.isArray(academicInfos)) {
-        return {regularGrades, foreignRows, foreignGrades};
+        const regularSubjectAvailable = {};
+        (regularSubjects || []).forEach((s) => {
+            regularSubjectAvailable[String(s.id)] = true;
+        });
+        const foreignRowAvailable = {};
+        foreignRows.forEach((r) => {
+            foreignRowAvailable[r.rowId] = true;
+        });
+        return {
+            regularGrades,
+            foreignRows,
+            foreignGrades,
+            regularSubjectAvailable,
+            foreignRowAvailable,
+        };
     }
 
     for (const ai of academicInfos) {
@@ -168,11 +216,75 @@ export function mergeAcademicInfosIntoGrades(academicInfos, regularSubjects, for
             if (forSub) {
                 const rowId = ensureForeignRowForSubjectId(forSub.id);
                 foreignGrades[rowId][key] = scoreStr;
+                continue;
+            }
+            const customRowId = ensureCustomForeignRow(name);
+            if (customRowId) {
+                foreignGrades[customRowId][key] = scoreStr;
             }
         }
     }
 
-    return {regularGrades, foreignRows, foreignGrades};
+    const regularSubjectAvailable = {};
+    (regularSubjects || []).forEach((s) => {
+        regularSubjectAvailable[String(s.id)] = true;
+    });
+    const foreignRowAvailable = {};
+    foreignRows.forEach((r) => {
+        foreignRowAvailable[r.rowId] = true;
+    });
+
+    for (const ai of academicInfos) {
+        const key = gradeLevelApiToKey(ai.gradeLevel);
+        if (!key) continue;
+        const rows = ai.subjectResults ?? ai.subjectResultList ?? ai.results ?? [];
+        for (const sr of rows) {
+            const nameRaw = sr?.subjectName ?? sr?.name ?? sr?.subject;
+            if (!sr || nameRaw == null || String(nameRaw).trim() === '') continue;
+            const name = String(nameRaw).trim();
+            const av = readSubjectResultIsAvailable(sr);
+
+            const reg = (regularSubjects || []).find(
+                (x) => String(x.name).trim() === name,
+            );
+            if (reg) {
+                const id = String(reg.id);
+                regularSubjectAvailable[id] = regularSubjectAvailable[id] && av;
+                continue;
+            }
+            const forSub = (foreignSubjects || []).find(
+                (x) => String(x.name).trim() === name,
+            );
+            if (forSub) {
+                const existing = foreignRows.find(
+                    (r) =>
+                        r.subjectId !== '' &&
+                        (Number(r.subjectId) === Number(forSub.id) ||
+                            String(r.subjectId) === String(forSub.id)),
+                );
+                if (existing) {
+                    foreignRowAvailable[existing.rowId] =
+                        foreignRowAvailable[existing.rowId] && av;
+                }
+                continue;
+            }
+            const existingCustom = foreignRows.find(
+                (r) => String(r.customSubjectName || '').trim() === name,
+            );
+            if (existingCustom) {
+                foreignRowAvailable[existingCustom.rowId] =
+                    foreignRowAvailable[existingCustom.rowId] && av;
+            }
+        }
+    }
+
+    return {
+        regularGrades,
+        foreignRows,
+        foreignGrades,
+        regularSubjectAvailable,
+        foreignRowAvailable,
+    };
 }
 
 function normalizeGradeObject(v) {
@@ -242,6 +354,8 @@ export function getEmptyStudentState() {
         regularGrades: {},
         foreignRows: [{rowId: 'foreign-0', subjectId: ''}],
         foreignGrades: {},
+        regularSubjectAvailable: {},
+        foreignRowAvailable: {},
         pendingAcademicInfos: null,
         pendingFavouriteJobLabel: null,
         studentId: null,
@@ -369,24 +483,34 @@ export function buildStudentPayload({
             const sid = String(s.id);
             const rawCell = regularGrades[sid]?.[key];
             const score = parseScoreForPayload(rawCell);
-            subjectResults.push({
-                subjectName: s.name != null ? String(s.name) : sid,
-                score,
-            });
+            const subjectName = s.name != null ? String(s.name).trim() : '';
+            if (!shouldIncludeSubjectRow(subjectName, score)) continue;
+            subjectResults.push({subjectName, score});
         }
         for (const fr of foreignRows || []) {
+            const customName =
+                fr.customSubjectName != null ? String(fr.customSubjectName).trim() : '';
+            if (customName) {
+                const rawCell = foreignGrades[fr.rowId]?.[key];
+                const score = parseScoreForPayload(rawCell);
+                if (!shouldIncludeSubjectRow(customName, score)) continue;
+                subjectResults.push({subjectName: customName, score});
+                continue;
+            }
             if (fr.subjectId === '' || fr.subjectId == null) continue;
             const subj = (foreignSubjects || []).find(
                 (x) => String(x.id) === String(fr.subjectId),
             );
-            const name =
-                subj?.name != null ? String(subj.name) : String(fr.subjectId);
+            const subjectName = (
+                subj?.name != null ? String(subj.name) : String(fr.subjectId)
+            ).trim();
             const rawCell = foreignGrades[fr.rowId]?.[key];
             const score = parseScoreForPayload(rawCell);
-            subjectResults.push({subjectName: name, score});
+            if (!shouldIncludeSubjectRow(subjectName, score)) continue;
+            subjectResults.push({subjectName, score});
         }
         return {gradeLevel, subjectResults};
-    });
+    }).filter((block) => (block.subjectResults || []).length > 0);
 
     return {
         studentName: form.name != null ? String(form.name) : '',
@@ -404,6 +528,12 @@ export function setStudentState(setters, mapped) {
     setters.setRegularGrades(mapped.regularGrades);
     setters.setForeignRows(mapped.foreignRows);
     setters.setForeignGrades(mapped.foreignGrades);
+    if (setters.setRegularSubjectAvailable) {
+        setters.setRegularSubjectAvailable(mapped.regularSubjectAvailable ?? {});
+    }
+    if (setters.setForeignRowAvailable) {
+        setters.setForeignRowAvailable(mapped.foreignRowAvailable ?? {});
+    }
     if (setters.setPendingAcademicInfos) {
         setters.setPendingAcademicInfos(mapped.pendingAcademicInfos ?? null);
     }

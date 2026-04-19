@@ -35,6 +35,7 @@ import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import { enqueueSnackbar } from "notistack";
 import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 import { getProfile, updateProfile } from "../../../services/AccountService.jsx";
+import {notifyAuthUserStorageChanged, sanitizeUserForLocalStorage} from "../../../utils/userRole.js";
 import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
 import { CircleMarker, MapContainer, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -160,7 +161,11 @@ function syncSchoolFirstLoginInStorage(nextFirstLogin) {
     try {
         const u = JSON.parse(raw);
         if (u?.role === "SCHOOL" && nextFirstLogin !== undefined) {
-            localStorage.setItem("user", JSON.stringify({ ...u, firstLogin: nextFirstLogin }));
+            localStorage.setItem(
+                "user",
+                JSON.stringify(sanitizeUserForLocalStorage({ ...u, firstLogin: nextFirstLogin })),
+            );
+            notifyAuthUserStorageChanged();
         }
     } catch {
         /* ignore */

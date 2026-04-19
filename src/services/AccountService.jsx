@@ -1,5 +1,10 @@
 import axiosClient from "../configs/APIConfig.jsx";
-import {normalizeUserRole, pickRoleFromAccessBody} from "../utils/userRole.js";
+import {
+    normalizeUserRole,
+    notifyAuthUserStorageChanged,
+    pickRoleFromAccessBody,
+    sanitizeUserForLocalStorage,
+} from "../utils/userRole.js";
 
 const normalizeProfileResponse = (response) => {
     const body = response?.data?.body;
@@ -55,14 +60,15 @@ export async function syncLocalUserWithAccess() {
             prev = {};
         }
 
-        const merged = {
+        const merged = sanitizeUserForLocalStorage({
             ...prev,
             role: normalizedRole,
             ...(body.email != null ? {email: body.email} : {}),
             ...(body.firstLogin !== undefined ? {firstLogin: body.firstLogin} : {}),
-            ...(body.name != null ? {name: body.name} : {})
-        };
+            ...(body.name != null ? {name: body.name} : {}),
+        });
         localStorage.setItem("user", JSON.stringify(merged));
+        notifyAuthUserStorageChanged();
         return merged;
     } catch {
         return null;

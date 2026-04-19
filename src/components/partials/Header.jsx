@@ -43,17 +43,21 @@ import {enqueueSnackbar} from "notistack";
 import {signout, getProfile} from "../../services/AccountService.jsx";
 import {createParentConversation, getParentConversations} from "../../services/ConversationService.jsx";
 import {getParentMessagesHistory, markParentMessagesRead} from "../../services/MessageService.jsx";
-import {getParentStudent} from "../../services/ParentService.jsx";
+import {
+    getParentStudentById,
+    getStudents,
+    normalizeStudentDetailBodyForPanel,
+    pickStudentDetailBodyFromResponse,
+} from "../../services/ParentService.jsx";
 import {
     buildPrivateChatPayload,
     connectPrivateMessageSocket,
     removePrivateMessageListener,
-    normalizeCampusId,
     sendMessage,
 } from "../../services/WebSocketService.jsx";
 import logo from "../../assets/logo.png";
 import {useLocation, useNavigate} from "react-router-dom";
-import {normalizeUserRole} from "../../utils/userRole.js";
+import {normalizeUserRole, notifyAuthUserStorageChanged, sanitizeUserForLocalStorage} from "../../utils/userRole.js";
 import {
     APP_PRIMARY_DARK,
     BRAND_NAVY,
@@ -65,17 +69,23 @@ import {OPEN_PARENT_CHAT_EVENT, PARENT_CHAT_WINDOW_STATE_EVENT} from "../../cons
 import ParentStudentInfoPanel, {
     getStudentCompactInfo,
     buildAcademicScoreTable,
-    extractPersonalityInsights
+    extractPersonalityInsights,
+    parseMessagesHistoryPayloadRoot,
+    extractSubjectsInSystemFromPayload,
 } from "../chat/ParentStudentInfoPanel.jsx";
 
-const PARENT_CHAT_POLL_INTERVAL_MS = 3500;
-/** Đồng bộ GET /parent/conversations định kỳ khi WS không cập nhật unread (tab phụ huynh). */
-/** Poll dự phòng; sau mỗi tin WS từ tư vấn còn gọi GET ngắn (debounce) để unread danh sách khớp BE nhanh hơn. */
+/** Khi bật poll: khoảng cách tối thiểu giữa các lần GET lịch sử tin (chỉ khi ENABLE_PARENT_CHAT_POLLING). */
+const PARENT_CHAT_POLL_INTERVAL_MS = 30000;
+/** Poll GET /parent/conversations (đang tắt — ENABLE_PARENT_CONVERSATION_POLL). */
+/** Debounce GET khi handler WS cần đồng bộ danh sách (thiếu conversationId, …) — không gọi sau mỗi tin TVV. */
 const PARENT_CONVERSATION_POLL_INTERVAL_MS = 5500;
 const PARENT_WS_CONVERSATION_REFRESH_DEBOUNCE_MS = 320;
-/** Bật khi BE chưa push tin tới queue /user của phụ huynh (WS chỉ ping, không có MESSAGE) — đồng bộ REST định kỳ. Tắt lại sau khi sửa convertAndSendToUser phía server. */
-const ENABLE_PARENT_CHAT_POLLING = true;
-const ENABLE_PARENT_CONVERSATION_POLL = true;
+/**
+ * Poll GET lịch sử tin nhắn trong khi cửa chat mở — dễ gây nhiều request liên tục trên Network.
+ * Tin mới nên qua WebSocket; chỉ bật lại (và có thể giảm PARENT_CHAT_POLL_INTERVAL_MS) nếu BE chưa push tin tới /user.
+ */
+const ENABLE_PARENT_CHAT_POLLING = false;
+const ENABLE_PARENT_CONVERSATION_POLL = false;
 
 const isSameConversationId = (a, b) => a != null && b != null && String(a) === String(b);
 
@@ -84,6 +94,12 @@ const sessionCampusLoose = (o) => {
     if (raw == null || String(raw).trim() === '') return null;
     const n = Number(raw);
     return Number.isFinite(n) ? n : null;
+};
+
+/** campusId > 0 — BE hay gửi 0 (primitive int default); không dùng để loại tin WS hoặc chặn khớp draft. */
+const meaningfulSessionCampus = (o) => {
+    const c = sessionCampusLoose(o);
+    return c != null && c > 0 ? c : null;
 };
 
 const sessionStudentIdLoose = (o) => String(o?.studentProfileId ?? o?.studentId ?? o?.student?.id ?? '').trim();
@@ -232,21 +248,36 @@ const receiverMatchesParent = (payload, emailFallbackLower) => {
 };
 
 /**
- * Echo tin tự gửi: chỉ bỏ qua khi mọi trường nhận dạng người gửi (nếu có) đều khớp principal phụ huynh.
- * Tránh lỗi BE gửi senderName = phụ huynh nhưng senderEmail = tư vấn — chỉ nhìn senderName sẽ tăng unread sai;
- * và tránh bỏ qua nhầm tin tư vấn khi BE chỉ gửi senderEmail đúng mà senderName trống/sai.
+ * Echo tin tự gửi (bỏ qua khỏi WS handler).
+ * Ưu tiên senderEmail: có email và không phải phụ huynh → luôn là tin đối phương (TVV/system), không lọc.
+ * Tránh lỗi cũ: senderName + senderEmail cùng TVV nhưng .every() lên cả hai field vẫn false — OK;
+ * nhưng chỉ một field khớp parent + field kia TVV có thể làm every false — tin vẫn nhận;
+ * quan trọng: BE chỉ gửi senderEmail TVV → không còn nhầm với “self” vì thiếu email.
+ * Chỉ một field (vd senderName) trùng parent + receiverName rỗng: BE thường bỏ receiver — không coi echo
+ * (tránh nuốt tin; echo thật từ server thường có receiverName = TVV).
  */
 const senderLooksLikeParentSelf = (payload) => {
+    if (!payload || typeof payload !== 'object') return false;
     const candidates = getParentPrincipalCandidatesLower();
+    const email = normalizeWsPrincipal(payload?.senderEmail);
+    if (email) {
+        if (!candidates.has(email)) return false;
+        return true;
+    }
     const identifiers = [
         normalizeWsPrincipal(payload?.senderName),
-        normalizeWsPrincipal(payload?.senderEmail),
         normalizeWsPrincipal(typeof payload?.sender === 'string' ? payload.sender : ''),
         normalizeWsPrincipal(payload?.fromUser),
         normalizeWsPrincipal(payload?.username),
     ].filter(Boolean);
     if (identifiers.length === 0) return false;
-    return identifiers.every((id) => candidates.has(id));
+    const allSelf = identifiers.every((id) => candidates.has(id));
+    if (!allSelf) return false;
+    const recv = normalizeWsPrincipal(payload?.receiverName);
+    if (identifiers.length === 1 && !recv) {
+        return false;
+    }
+    return true;
 };
 
 /**
@@ -292,20 +323,24 @@ const privateMessageBelongsToParentSelection = (
     const send = normalizeWsPrincipal(payload?.senderName);
     if (!send || senderLooksLikeParentSelf(payload)) return false;
 
-    const selCampus = sessionCampusLoose(selected);
-    if (
-        selCampus != null &&
-        payload?.campusId != null &&
-        String(payload.campusId).trim() !== '' &&
-        normalizeCampusId(payload.campusId) !== selCampus
-    ) {
+    const selCampus = meaningfulSessionCampus(selected);
+    const payloadCampus = meaningfulSessionCampus(payload);
+    if (selCampus != null && payloadCampus != null && payloadCampus !== selCampus) {
         return false;
     }
 
+    /**
+     * BE/STOMP thường chỉ gửi conversationId + nội dung; campusId/studentProfileId có thể thiếu hoặc = 0.
+     * Khi phụ huynh mở chat từ trang trường (draft đã có campus + con), lấy campus/student từ selected
+     * khi payload không có giá trị có nghĩa — không thì tin TVV không khớp phiên → không append bubble.
+     */
     const payloadSession = {
         conversationId: incomingConversationId,
-        campusId: payload?.campusId ?? payload?.campusID ?? null,
-        studentProfileId: payload?.studentProfileId ?? payload?.studentId ?? payload?.student?.id ?? null,
+        campusId: meaningfulSessionCampus(payload) ?? meaningfulSessionCampus(selected),
+        studentProfileId:
+            sessionStudentIdLoose(payload) ||
+            sessionStudentIdLoose(selected) ||
+            null,
     };
 
     const counsellor = (
@@ -527,7 +562,8 @@ const areStudentProfilesEquivalent = (a, b) => {
         String(a?.gender ?? '') === String(b?.gender ?? '') &&
         String(a?.personalityCode ?? a?.personalityTypeCode ?? '') ===
             String(b?.personalityCode ?? b?.personalityTypeCode ?? '') &&
-        String(a?.academicProfileMetadata?.length ?? 0) === String(b?.academicProfileMetadata?.length ?? 0)
+        String(a?.academicProfileMetadata?.length ?? 0) === String(b?.academicProfileMetadata?.length ?? 0) &&
+        String(a?.subjectsInSystem?.length ?? 0) === String(b?.subjectsInSystem?.length ?? 0)
     );
 };
 
@@ -572,6 +608,9 @@ function MainHeader() {
     const [chatWindowOpen, setChatWindowOpen] = useState(false);
     const [chatWindowMinimized, setChatWindowMinimized] = useState(false);
     const [selectedConversationStudent, setSelectedConversationStudent] = useState(null);
+    /** Chi tiết đầy đủ từ GET /parent/student/{id} khi bấm « i »; không lấy từ payload history sau khi BE tách. */
+    const [studentProfileDetailForPanel, setStudentProfileDetailForPanel] = useState(null);
+    const [studentProfileDetailLoading, setStudentProfileDetailLoading] = useState(false);
     const [studentInfoOpen, setStudentInfoOpen] = useState(false);
     const [headerScrolled, setHeaderScrolled] = useState(false);
     const [studentSelectDialogOpen, setStudentSelectDialogOpen] = useState(false);
@@ -585,8 +624,11 @@ function MainHeader() {
     const loadingMoreRef = React.useRef(false);
     const hasMarkedReadRef = React.useRef(false);
     const markReadInFlightRef = React.useRef(false);
+    /** PUT read đang chạy mà có thêm yêu cầu force (WS / focus ô nhập) → chạy lại ngay sau khi xong. */
+    const pendingParentMarkReadAfterInFlightRef = React.useRef(false);
     const lastParentInputMarkReadAtRef = React.useRef(0);
     const parentWsPostRefreshTimerRef = React.useRef(null);
+    const markParentConversationReadRef = React.useRef(null);
     const selectedConversationRef = React.useRef(null);
     const chatWindowOpenRef = React.useRef(false);
     const chatWindowMinimizedRef = React.useRef(false);
@@ -616,7 +658,9 @@ function MainHeader() {
     const getUserInfo = () => {
         if (localStorage.getItem('user')) {
             try {
-                return JSON.parse(localStorage.getItem('user'));
+                const parsed = JSON.parse(localStorage.getItem('user'));
+                /** Không dùng studentProfile* đã từng lưu nhầm trong blob user (nhiều tài khoản / cùng máy). */
+                return sanitizeUserForLocalStorage(parsed) || null;
             } catch {
                 return null;
             }
@@ -642,24 +686,35 @@ function MainHeader() {
         );
     }, [userInfo]);
     const selectedParentStudent = useMemo(() => {
-        if (!selectedConversationStudent && !selectedConversation) return null;
+        const mergedRaw = studentProfileDetailForPanel ?? selectedConversationStudent;
+        if (!mergedRaw && !selectedConversation) return null;
         const idCandidate =
-            selectedConversationStudent?.studentProfileId ??
+            mergedRaw?.studentProfileId ??
+            mergedRaw?.id ??
             selectedConversation?.studentProfileId ??
             selectedConversation?.studentId ??
             selectedConversation?.student?.id;
         const nameCandidate =
-            selectedConversationStudent?.childName ??
-            selectedConversationStudent?.studentName ??
+            mergedRaw?.childName ??
+            mergedRaw?.studentName ??
             selectedConversation?.studentName ??
             selectedConversation?.childName;
+        const raw =
+            mergedRaw ||
+            (selectedConversation
+                ? {
+                      studentProfileId: selectedConversation?.studentProfileId ?? selectedConversation?.studentId,
+                      childName: selectedConversation?.childName ?? selectedConversation?.studentName,
+                      studentName: selectedConversation?.studentName ?? selectedConversation?.childName,
+                  }
+                : null);
         return {
             id: idCandidate != null ? String(idCandidate) : '',
             name: String(nameCandidate || '').trim() || 'Học sinh',
             index: 0,
-            raw: selectedConversationStudent || selectedConversation || null
+            raw
         };
-    }, [selectedConversationStudent, selectedConversation]);
+    }, [studentProfileDetailForPanel, selectedConversationStudent, selectedConversation]);
     const filteredConversationItems = useMemo(
         () => conversationItems,
         [conversationItems]
@@ -685,6 +740,12 @@ function MainHeader() {
         () => extractPersonalityInsights(selectedParentStudent?.raw),
         [selectedParentStudent]
     );
+
+    React.useEffect(() => {
+        setStudentProfileDetailForPanel(null);
+        setStudentProfileDetailLoading(false);
+    }, [selectedConversation?.conversationId, selectedConversation?.id, selectedConversation?.studentProfileId]);
+
     const selectedConversationTitle = useMemo(
         () => getConversationDisplayTitle(selectedConversation),
         [selectedConversation]
@@ -760,8 +821,12 @@ function MainHeader() {
             campusId: Number.isFinite(campusIdParsed) ? campusIdParsed : null,
             unreadCount: unreadNorm,
             unreadMessages: unreadNorm,
-            participantEmail: conversation?.otherUser ?? conversation?.participantEmail ?? conversation?.counsellorEmail ?? '',
-            counsellorEmail: conversation?.otherUser ?? conversation?.counsellorEmail ?? conversation?.participantEmail ?? '',
+            participantEmail: conversation?.participantEmail ?? conversation?.otherUser ?? conversation?.counsellorEmail ?? '',
+            /** Chỉ email TVV được gán rõ — không dùng otherUser/participantEmail làm TVV (thường là trường/inbox), kẻo WS gửi receiverName khác rỗng và BE không fan-out campus. */
+            counsellorEmail:
+                String(conversation?.counsellorEmail ?? '').trim() ||
+                String(conversation?.participantCounsellorEmail ?? '').trim() ||
+                '',
             schoolEmail: conversation?.schoolEmail ?? conversation?.otherUser ?? conversation?.participantEmail ?? '',
             schoolName: conversation?.schoolName ?? conversation?.school ?? '',
             schoolLogoUrl: pickConversationSchoolLogoUrl(conversation),
@@ -782,22 +847,51 @@ function MainHeader() {
                 conversation?.otherUser ??
                 'Cuộc trò chuyện',
             lastMessage: conversation?.lastMessage?.content ?? conversation?.lastMessage ?? conversation?.latestMessage ?? '',
-            updatedAt: conversation?.updatedAt ?? conversation?.lastMessageTime ?? conversation?.time ?? null
+            updatedAt: conversation?.updatedAt ?? conversation?.lastMessageTime ?? conversation?.time ?? null,
+            childName: String(conversation?.childName ?? conversation?.student?.childName ?? '').trim(),
+            studentName: String(
+                conversation?.studentName ?? conversation?.childName ?? conversation?.student?.name ?? ''
+            ).trim()
         };
     };
 
-    const parseHistoryResponse = (response) => {
-        const payload = response?.data?.body?.body || response?.data?.body || response?.data || {};
+    /**
+     * History chat BE có thể không còn gender / traits / favouriteJob / academicProfileMetadata / subjectsInSystem —
+     * các trường đó lấy qua GET /parent/student/{id} khi bấm « i ».
+     */
+    const parseHistoryResponse = (response, conversation) => {
+        const payload = parseMessagesHistoryPayloadRoot(response);
         const items = Array.isArray(payload?.messages)
             ? payload.messages
             : Array.isArray(payload?.items)
               ? payload.items
               : [];
+        const subjectsInSystem = extractSubjectsInSystemFromPayload(payload);
+        const sid =
+            conversation?.studentProfileId ??
+            conversation?.studentId ??
+            conversation?.student?.id ??
+            payload?.studentProfileId ??
+            payload?.studentId ??
+            null;
+        const nameFromConv = String(conversation?.childName ?? conversation?.studentName ?? '').trim();
+        const nameFromPayload = String(
+            payload?.childName ?? payload?.ChildName ?? payload?.studentName ?? ''
+        ).trim();
+        const displayName = nameFromPayload || nameFromConv;
         const studentProfile = {
-            ...payload,
-            studentProfileId: payload?.studentProfileId ?? payload?.studentId ?? null,
-            childName: payload?.childName ?? payload?.studentName ?? '',
-            personalityTypeCode: payload?.personalityCode ?? payload?.personalityTypeCode ?? ''
+            studentProfileId: sid,
+            childName: displayName,
+            studentName: displayName,
+            personalityTypeCode:
+                payload?.personalityCode ?? payload?.personalityTypeCode ?? payload?.personalityType?.code ?? '',
+            favouriteJob: payload?.favouriteJob ?? payload?.favoriteJob ?? '',
+            traits: Array.isArray(payload?.traits) ? payload.traits : [],
+            academicProfileMetadata: Array.isArray(payload?.academicProfileMetadata)
+                ? payload.academicProfileMetadata
+                : [],
+            academicInfos: Array.isArray(payload?.academicInfos) ? payload.academicInfos : [],
+            subjectsInSystem,
         };
         return {
             items,
@@ -899,6 +993,22 @@ function MainHeader() {
         [userIdentitySet, userInfo]
     );
 
+    /** Bubble tin từ tư vấn: vệt nền xanh theo unreadCount (N tin peer gần nhất). */
+    const peerUnreadBubbleIdSet = React.useMemo(() => {
+        const raw = Number(selectedConversationUnreadCount || 0) || 0;
+        const n = Math.min(40, raw);
+        if (n <= 0 || !messageItems.length) return new Set();
+        const set = new Set();
+        let counted = 0;
+        for (let i = messageItems.length - 1; i >= 0 && counted < n; i -= 1) {
+            const m = messageItems[i];
+            if (!m || isParentMessageMine(m)) continue;
+            set.add(String(m.id ?? ''));
+            counted += 1;
+        }
+        return set;
+    }, [messageItems, selectedConversationUnreadCount, isParentMessageMine]);
+
     /** Tránh 2 bubble: optimistic + cùng tin từ API sau poll/refresh history (khác id). */
     const removeOptimisticShadowedByServer = React.useCallback(
         (merged, serverNormalized) => {
@@ -939,13 +1049,33 @@ function MainHeader() {
                     // API thường trả unread=0 — giữ max với state local; giữ dòng chỉ có từ WS (chưa có trong API)
                     const mergedFromApi = normalizedItems.map((norm) => {
                         const id = norm?.conversationId ?? norm?.id;
+                        const openChatSameConv =
+                            chatWindowOpenRef.current &&
+                            !chatWindowMinimizedRef.current &&
+                            selectedConversationRef.current &&
+                            id != null &&
+                            String(id).trim() !== '' &&
+                            isSameConversationId(
+                                selectedConversationRef.current?.conversationId ??
+                                    selectedConversationRef.current?.id,
+                                id
+                            );
+                        /** Đã chạm ô nhập trong cuộc đang mở → GET ép unread 0. */
+                        const viewingThisAsRead =
+                            openChatSameConv && parentComposerEngagedRef.current;
                         const prevHit = prev.find((p) =>
                             isSameConversationId(p?.conversationId ?? p?.id, id)
                         );
-                        if (!prevHit) return norm;
+                        if (!prevHit) {
+                            if (viewingThisAsRead) {
+                                return {...norm, unreadCount: 0, unreadMessages: 0};
+                            }
+                            return norm;
+                        }
                         const pu = Number(prevHit.unreadCount ?? prevHit.unreadMessages ?? 0) || 0;
                         const nu = Number(norm.unreadCount ?? norm.unreadMessages ?? 0) || 0;
-                        const u = Math.max(pu, nu);
+                        /** Không ép u=0 chỉ vì đang mở popup (openChatSameConv) — dễ nuốt unread mới khi chưa PUT mark read. */
+                        const u = viewingThisAsRead ? 0 : Math.max(pu, nu);
                         return {...norm, unreadCount: u, unreadMessages: u};
                     });
                     const apiIdSet = new Set(
@@ -999,6 +1129,21 @@ function MainHeader() {
         const parentEmail = userInfo?.email || conversation?.parentEmail || conversation?.participantParentEmail || '';
         const counsellorEmail = conversation?.counsellorEmail || conversation?.otherUser || conversation?.participantCounsellorEmail || conversation?.participantEmail || '';
         return {parentEmail, counsellorEmail};
+    };
+
+    /**
+     * Người nhận STOMP: khớp hiển thị "Tư vấn viên:" (counsellorEmail → participantEmail → otherUser).
+     * BE đôi khi chỉ trả email TVV ở otherUser/participantEmail, không điền counsellorEmail — vẫn phải gửi receiverName cho TVV.
+     * Chỉ fallback sang otherUser/participantEmail khi có dạng email (@) để tránh inbox trường/tên hiển thị làm hết fan-out campus.
+     */
+    const resolveWebSocketReceiverName = (conversation) => {
+        const explicit =
+            String(conversation?.counsellorEmail ?? '').trim() ||
+            String(conversation?.participantCounsellorEmail ?? '').trim();
+        if (explicit) return explicit;
+        const peer = String(conversation?.participantEmail ?? conversation?.otherUser ?? '').trim();
+        if (peer.includes('@')) return peer;
+        return '';
     };
 
     const resolveHistoryCampusId = (conversation) => {
@@ -1091,7 +1236,7 @@ function MainHeader() {
             });
             if (response?.status === 200) {
                 if (conversationKey) forbiddenHistoryConversationIdsRef.current.delete(conversationKey);
-                const parsed = parseHistoryResponse(response);
+                const parsed = parseHistoryResponse(response, conversation);
                 const loadedCampusId = resolveCampusIdFromHistory(parsed);
                 const loadedConversationId = resolveConversationIdFromHistory(parsed);
                 if (loadedCampusId != null) {
@@ -1162,6 +1307,45 @@ function MainHeader() {
                         return next;
                     });
                 }
+                const childNameFromHistory = String(parsed.studentProfile?.childName ?? '').trim();
+                if (childNameFromHistory) {
+                    const targetConversationId = conversation?.conversationId ?? conversation?.id;
+                    setConversationItems((prev) =>
+                        prev.map((item) => {
+                            const id = item?.conversationId ?? item?.id;
+                            const matchById =
+                                targetConversationId != null &&
+                                String(targetConversationId).trim() !== '' &&
+                                isSameConversationId(id, targetConversationId);
+                            const matchDraft =
+                                (targetConversationId == null || String(targetConversationId).trim() === '') &&
+                                (id == null || String(id).trim() === '') &&
+                                isSameConversationSession(item, conversation);
+                            if (!matchById && !matchDraft) return item;
+                            return {...item, childName: childNameFromHistory, studentName: childNameFromHistory};
+                        })
+                    );
+                    setSelectedConversation((prev) => {
+                        if (!prev) return prev;
+                        const selectedId = prev?.conversationId ?? prev?.id;
+                        const matchById =
+                            targetConversationId != null &&
+                            String(targetConversationId).trim() !== '' &&
+                            isSameConversationId(selectedId, targetConversationId);
+                        const matchDraft =
+                            (targetConversationId == null || String(targetConversationId).trim() === '') &&
+                            (selectedId == null || String(selectedId).trim() === '') &&
+                            isSameConversationSession(prev, conversation);
+                        if (!matchById && !matchDraft) return prev;
+                        const next = {
+                            ...prev,
+                            childName: childNameFromHistory,
+                            studentName: childNameFromHistory
+                        };
+                        selectedConversationRef.current = next;
+                        return next;
+                    });
+                }
                 setSelectedConversationStudent((prev) =>
                     areStudentProfilesEquivalent(prev, parsed.studentProfile || null) ? prev : (parsed.studentProfile || null)
                 );
@@ -1200,7 +1384,8 @@ function MainHeader() {
     };
 
     /**
-     * PUT đánh dấu đã đọc. `syncComposerEngaged: true` khi user chạm ô nhập (WS sẽ không “nuốt” unread khi chỉ mở xem).
+     * PUT đánh dấu đã đọc — chỉ gọi khi: (1) chọn một cuộc trong danh sách Tin nhắn, (2) focus/chạm ô nhập.
+     * Không gọi khi chỉ mở popup, nhận tin WS, hay gửi tin; hai PUT force chồng nhau thì xếp hàng sau khi xong.
      */
     const markParentConversationRead = React.useCallback(
         async (conv, opts = {}) => {
@@ -1216,7 +1401,12 @@ function MainHeader() {
             const u = getUserInfo();
             const username = (u?.email || u?.username || '').trim();
             if (conversationId == null || String(conversationId).trim() === '' || !username) return;
-            if (markReadInFlightRef.current) return;
+            if (markReadInFlightRef.current) {
+                if (force) {
+                    pendingParentMarkReadAfterInFlightRef.current = true;
+                }
+                return;
+            }
 
             markReadInFlightRef.current = true;
             try {
@@ -1242,10 +1432,19 @@ function MainHeader() {
                 console.error('Error marking messages as read:', error);
             } finally {
                 markReadInFlightRef.current = false;
+                if (pendingParentMarkReadAfterInFlightRef.current) {
+                    pendingParentMarkReadAfterInFlightRef.current = false;
+                    const nextConv = selectedConversationRef.current ?? target;
+                    queueMicrotask(() => {
+                        void markParentConversationReadRef.current?.(nextConv, {force: true});
+                    });
+                }
             }
         },
         [selectedConversation]
     );
+
+    markParentConversationReadRef.current = markParentConversationRead;
 
     loadMessageHistoryRef.current = loadMessageHistory;
 
@@ -1272,6 +1471,8 @@ function MainHeader() {
         setParentWsUnreadBump(0);
         parentStickToBottomRef.current = true;
         setSelectedConversationStudent(null);
+        setStudentProfileDetailForPanel(null);
+        setStudentProfileDetailLoading(false);
         setSelectedConversation(conversation);
         selectedConversationRef.current = conversation;
         setMessageItems([]);
@@ -1287,7 +1488,7 @@ function MainHeader() {
         hasMarkedReadRef.current = false;
         await loadMessageHistory({conversation});
         const convAfterHistory = selectedConversationRef.current || conversation;
-        void markParentConversationRead(convAfterHistory, {syncComposerEngaged: false});
+        await markParentConversationRead(convAfterHistory, {force: true});
     };
 
     const handleChatScroll = async (event) => {
@@ -1340,9 +1541,9 @@ function MainHeader() {
         if (!trimmed || !convEffective) return;
 
         let workingConversation = convEffective;
-        const {parentEmail, counsellorEmail} = resolveConversationEmails(workingConversation);
+        const {parentEmail} = resolveConversationEmails(workingConversation);
         const senderName = (parentEmail || userInfo?.email || '').trim();
-        const receiverName = (counsellorEmail || '').trim();
+        const receiverName = resolveWebSocketReceiverName(workingConversation);
         let conversationId = workingConversation?.conversationId ?? workingConversation?.id ?? null;
 
         if (conversationId == null || String(conversationId).trim() === '') {
@@ -1408,6 +1609,11 @@ function MainHeader() {
             senderName,
             receiverName,
             campusId: resolveHistoryCampusId(workingConversation),
+            studentProfileId:
+                workingConversation?.studentProfileId ??
+                workingConversation?.studentId ??
+                selectedConversationStudent?.studentProfileId ??
+                undefined,
         });
         const sent = sendMessage(payload);
         if (!sent) {
@@ -1501,17 +1707,165 @@ function MainHeader() {
             return p;
         };
 
+        const inferCounsellorEmailFromIncomingWs = (msgRoot, parentEmailLower) => {
+            const guess = String(msgRoot?.senderEmail ?? msgRoot?.senderName ?? msgRoot?.from ?? '').trim();
+            if (!guess.includes('@')) return '';
+            if (!parentEmailLower || guess.toLowerCase() === parentEmailLower) return '';
+            return guess;
+        };
+
+        /**
+         * Sự kiện điều khiển (CONVERSATION_READ, …).
+         * Không lấy type từ data/payload khi đã có nội dung tin — BE đôi khi lồng metadata khiến tin TVV bị coi nhầm CONVERSATION_READ
+         * → return sớm, không append bubble (lỗi: phụ huynh “không bắt” tin chat).
+         */
+        const pickWsControlEventType = (obj) => {
+            if (!obj || typeof obj !== 'object') return '';
+            /** Phải ưu tiên nội dung tin: BE có thể gửi type/status (vd MESSAGE_SENT) cùng message → không được coi là control trước khi thấy body. */
+            const hasChatBody =
+                (obj.message != null && String(obj.message).trim() !== '') ||
+                (obj.content != null && String(obj.content).trim() !== '') ||
+                (obj.text != null && String(obj.text).trim() !== '');
+            if (hasChatBody) return '';
+
+            const direct = String(obj.type ?? obj.eventType ?? '').trim().toUpperCase();
+            if (direct) return direct;
+
+            const nested = String(
+                obj?.data?.type ?? obj?.payload?.type ?? obj?.body?.type ?? ''
+            )
+                .trim()
+                .toUpperCase();
+            return nested;
+        };
+
+        /**
+         * CONVERSATION_READ từ BE có thể broadcast khi TVV xác nhậnh cuộc — không được xóa unread inbox phụ huynh.
+         * Chỉ đồng bộ unread=0 khi payload nói rõ phụ huynh (chính user) là người đọc (đồng bộ tab/máy khác).
+         */
+        const conversationReadTargetsParentInbox = (root, rawPayload, parentEmailLower) => {
+            const identities = new Set();
+            const add = (x) => {
+                const s = String(x || '').trim().toLowerCase();
+                if (s) identities.add(s);
+            };
+            add(parentEmailLower);
+            try {
+                const u = getUserInfo();
+                add(u?.email);
+                add(u?.username);
+                add(u?.userName);
+                add(u?.sub);
+            } catch {
+                /* ignore */
+            }
+            if (!identities.size) return false;
+
+            const actorFields = (obj) => {
+                if (!obj || typeof obj !== 'object') return [];
+                return [
+                    obj.readBy,
+                    obj.readerEmail,
+                    obj.readByEmail,
+                    obj.readerUsername,
+                    obj.username,
+                    obj.userEmail,
+                    obj.userName,
+                    obj.email,
+                    obj.actor,
+                    obj.markedBy,
+                    obj.readByUser,
+                    obj.reader,
+                    obj.user,
+                    obj?.data?.readBy,
+                    obj?.payload?.readBy
+                ];
+            };
+
+            const flattenActor = (v) => {
+                if (v == null) return [];
+                if (typeof v === 'object' && !Array.isArray(v)) {
+                    const parts = [
+                        v.email,
+                        v.username,
+                        v.userName,
+                        v.name,
+                        v.sub
+                    ]
+                        .map((x) => String(x || '').trim().toLowerCase())
+                        .filter(Boolean);
+                    return parts;
+                }
+                const s = String(v).trim().toLowerCase();
+                return s ? [s] : [];
+            };
+
+            const actors = new Set();
+            for (const v of [...actorFields(root), ...actorFields(rawPayload)]) {
+                for (const a of flattenActor(v)) {
+                    actors.add(a);
+                }
+            }
+            if (!actors.size) return false;
+            for (const a of actors) {
+                if (identities.has(a)) return true;
+            }
+            return false;
+        };
+
         const onPrivateMessage = (payload) => {
                 const root = unwrapWsPayload(payload);
                 const emailForMatch = getParentUserEmailLower() || String(userInfo?.email || '').trim().toLowerCase();
+
+                /** BE: CONVERSATION_READ — chỉ xóa unread phụ huynh khi sự kiện thuộc hành động đọc của chính phụ huynh. */
+                const wsEventType = pickWsControlEventType(root) || pickWsControlEventType(payload);
+                if (wsEventType === 'CONVERSATION_READ') {
+                    const readConversationId =
+                        pickIncomingConversationId(root) ?? pickIncomingConversationId(payload);
+                    if (readConversationId == null || String(readConversationId).trim() === '') {
+                        scheduleSilentConversationRefresh();
+                        return;
+                    }
+                    if (!conversationReadTargetsParentInbox(root, payload, emailForMatch)) {
+                        return;
+                    }
+                    const readTime = root?.timestamp ?? root?.sentAt ?? root?.time ?? null;
+                    setConversationItems((prev) =>
+                        prev.map((item) => {
+                            const id = item?.conversationId || item?.id;
+                            if (!isSameConversationId(id, readConversationId)) return item;
+                            return {
+                                ...item,
+                                unreadCount: 0,
+                                unreadMessages: 0,
+                                ...(readTime != null ? {time: readTime, updatedAt: readTime} : {}),
+                            };
+                        })
+                    );
+                    setSelectedConversation((prev) => {
+                        if (!prev) return prev;
+                        const sid = prev?.conversationId ?? prev?.id;
+                        if (!isSameConversationId(sid, readConversationId)) return prev;
+                        const next = {
+                            ...prev,
+                            unreadCount: 0,
+                            unreadMessages: 0,
+                            ...(readTime != null ? {time: readTime, updatedAt: readTime} : {}),
+                        };
+                        selectedConversationRef.current = next;
+                        return next;
+                    });
+                    return;
+                }
+
                 if (senderLooksLikeParentSelf(root)) return;
 
                 const conversationId = pickIncomingConversationId(root);
+                const inferredCounsellorEmail = inferCounsellorEmailFromIncomingWs(root, emailForMatch);
                 if (conversationId == null || String(conversationId).trim() === "") {
                     if (import.meta.env.DEV) {
-                        console.warn('[parent chat WS] Thiếu conversationId trên payload — chỉ tăng badge header.', root);
+                        console.warn('[parent chat WS] Thiếu conversationId — refresh danh sách từ API.', root);
                     }
-                    setParentWsUnreadBump((b) => Math.min(99, b + 1));
                     scheduleSilentConversationRefresh();
                     return;
                 }
@@ -1524,20 +1878,35 @@ function MainHeader() {
                 const currentSelected = selectedConversationRef.current;
                 const chatOpen = chatWindowOpenRef.current;
                 const chatMinimized = chatWindowMinimizedRef.current;
-                const tabVisible = typeof document === 'undefined' || document.visibilityState === 'visible';
-                /** Mở đúng cuộc: vẫn append bubble tin mới. */
+                /**
+                 * “Đang xem đúng cuộc” = popup chat mở và không thu nhỏ in-app.
+                 * Unread cục bộ +1 khi nhận tin TVV nếu chưa chạm ô nhập — GET thường trả unread=0 (BE lệch DB).
+                 */
+                const wsBelongsToSelection = privateMessageBelongsToParentSelection(
+                    currentSelected,
+                    conversationId,
+                    root,
+                    emailForMatch,
+                    conversationItemsRef.current
+                );
+                const selectedIdForThread = currentSelected?.conversationId ?? currentSelected?.id;
+                const sameConversationIdAsSelection =
+                    currentSelected != null &&
+                    selectedIdForThread != null &&
+                    String(selectedIdForThread).trim() !== '' &&
+                    isSameConversationId(selectedIdForThread, conversationId);
                 const liveViewingThread =
                     chatOpen &&
                     !chatMinimized &&
-                    tabVisible &&
                     currentSelected &&
-                    privateMessageBelongsToParentSelection(
-                        currentSelected,
-                        conversationId,
-                        root,
-                        emailForMatch,
-                        conversationItemsRef.current
-                    );
+                    (wsBelongsToSelection || sameConversationIdAsSelection);
+                /**
+                 * Luôn +1 unread cho tin từ đối phương (đã loại echo phụ huynh ở trên).
+                 * Không gắn với liveViewingThread / ô nhập: khi đang mở chat và vừa gửi “Hi”, ref composer = true
+                 * mà vẫn cần badge + unread list khi TVV trả lời/intro.
+                 * PUT mark read / merge GET sau đọc sẽ về 0.
+                 */
+                const shouldBumpLocalUnreadFromCounsellorWs = true;
                 if (liveViewingThread && currentSelected) {
                     const sid = currentSelected?.conversationId ?? currentSelected?.id;
                     if (
@@ -1545,10 +1914,20 @@ function MainHeader() {
                         String(sid).trim() === '' ||
                         !isSameConversationId(sid, conversationId)
                     ) {
+                        const prevCe = String(currentSelected?.counsellorEmail ?? '').trim();
+                        const prevPc = String(currentSelected?.participantCounsellorEmail ?? '').trim();
+                        const fillIntroCounsellor =
+                            inferredCounsellorEmail && !prevCe && !prevPc;
                         const merged = {
                             ...currentSelected,
                             conversationId,
                             id: conversationId,
+                            ...(fillIntroCounsellor
+                                ? {
+                                      counsellorEmail: inferredCounsellorEmail,
+                                      participantCounsellorEmail: inferredCounsellorEmail,
+                                  }
+                                : {}),
                         };
                         selectedConversationRef.current = merged;
                         setSelectedConversation(merged);
@@ -1562,9 +1941,21 @@ function MainHeader() {
                         if (!isSameConversationId(id, conversationId)) return item;
                         matched = true;
                         const currentUnread = Number(item?.unreadCount ?? item?.unreadMessages ?? 0) || 0;
-                        const nextUnread = Math.min(99, currentUnread + 1);
+                        const nextUnread = shouldBumpLocalUnreadFromCounsellorWs
+                            ? Math.min(99, currentUnread + 1)
+                            : currentUnread;
+                        const itemCe = String(item?.counsellorEmail ?? '').trim();
+                        const itemPc = String(item?.participantCounsellorEmail ?? '').trim();
+                        const fillIntroCounsellor =
+                            inferredCounsellorEmail && !itemCe && !itemPc;
                         return {
                             ...item,
+                            ...(fillIntroCounsellor
+                                ? {
+                                      counsellorEmail: inferredCounsellorEmail,
+                                      participantCounsellorEmail: inferredCounsellorEmail,
+                                  }
+                                : {}),
                             lastMessage: previewText || item?.lastMessage,
                             ...(previewTime != null ? {time: previewTime, updatedAt: previewTime} : {}),
                             unreadCount: nextUnread,
@@ -1592,8 +1983,8 @@ function MainHeader() {
                         lastMessage: previewText,
                         time: previewTime,
                         updatedAt: previewTime,
-                        unreadCount: 1,
-                        unreadMessages: 1,
+                        unreadCount: shouldBumpLocalUnreadFromCounsellorWs ? 1 : 0,
+                        unreadMessages: shouldBumpLocalUnreadFromCounsellorWs ? 1 : 0,
                     });
                     return [synthetic, ...mapped];
                 });
@@ -1603,12 +1994,25 @@ function MainHeader() {
                     const selectedId = prev?.conversationId ?? prev?.id;
                     if (!isSameConversationId(selectedId, conversationId)) return prev;
                     const currentUnread = Number(prev?.unreadCount ?? prev?.unreadMessages ?? 0) || 0;
+                    const nextUnreadSel = shouldBumpLocalUnreadFromCounsellorWs
+                        ? Math.min(99, currentUnread + 1)
+                        : currentUnread;
+                    const prevCe = String(prev?.counsellorEmail ?? '').trim();
+                    const prevPc = String(prev?.participantCounsellorEmail ?? '').trim();
+                    const fillIntroCounsellor =
+                        inferredCounsellorEmail && !prevCe && !prevPc;
                     const next = {
                         ...prev,
+                        ...(fillIntroCounsellor
+                            ? {
+                                  counsellorEmail: inferredCounsellorEmail,
+                                  participantCounsellorEmail: inferredCounsellorEmail,
+                              }
+                            : {}),
                         lastMessage: previewText || prev?.lastMessage,
                         ...(previewTime != null ? {time: previewTime, updatedAt: previewTime} : {}),
-                        unreadCount: Math.min(99, currentUnread + 1),
-                        unreadMessages: Math.min(99, currentUnread + 1),
+                        unreadCount: nextUnreadSel,
+                        unreadMessages: nextUnreadSel,
                     };
                     selectedConversationRef.current = next;
                     return next;
@@ -1616,7 +2020,21 @@ function MainHeader() {
 
                 if (liveViewingThread) {
                     setMessageItems((prev) => {
-                        const normalizedIncoming = normalizeMessage(root);
+                        const tsFromPayload =
+                            root?.timestamp ??
+                            root?.sentAt ??
+                            root?.time ??
+                            root?.createdAt ??
+                            payload?.timestamp ??
+                            payload?.sentAt ??
+                            null;
+                        const rootForNormalize =
+                            root && typeof root === 'object'
+                                ? tsFromPayload != null && String(tsFromPayload).trim() !== ''
+                                    ? root
+                                    : {...root, sentAt: new Date().toISOString()}
+                                : root;
+                        const normalizedIncoming = normalizeMessage(rootForNormalize);
                         let replacedOptimistic = false;
                         const withoutMatchingOptimistic = prev.filter((m) => {
                             if (!String(m.id).startsWith('optimistic-')) return true;
@@ -1629,9 +2047,8 @@ function MainHeader() {
                     });
                 }
 
-                /** BE đôi khi cập nhật unread trên GET trước/sau WS — refresh ngắn giúp dòng trong menu khớp nhanh (tư vấn → phụ huynh). */
-                scheduleSilentConversationRefresh();
-        };
+                /** Không GET /parent/conversations sau mỗi tin TVV — đã merge preview + unread cục bộ ở trên; GET dễ trùng request và (nếu BE lỗi) tác động read state. */
+        }
 
         connectPrivateMessageSocket({onMessage: onPrivateMessage});
 
@@ -1683,6 +2100,8 @@ function MainHeader() {
         setMessageError('');
         setChatInput('');
         setStudentInfoOpen(false);
+        setStudentProfileDetailForPanel(null);
+        setStudentProfileDetailLoading(false);
     };
 
     const handleMinimizeChatWindow = () => {
@@ -1695,14 +2114,40 @@ function MainHeader() {
         parentComposerEngagedRef.current = false;
         setChatWindowMinimized(false);
         hasMarkedReadRef.current = false;
-        const conv = selectedConversationRef.current;
-        if (conv) {
-            void markParentConversationRead(conv, {syncComposerEngaged: false});
-        }
     };
 
+    const fetchStudentProfileDetailForPanel = React.useCallback(async () => {
+        const conv = selectedConversationRef.current;
+        const sid = conv?.studentProfileId ?? conv?.studentId ?? conv?.student?.id ?? null;
+        if (sid == null || String(sid).trim() === '') {
+            enqueueSnackbar('Thiếu mã hồ sơ học sinh để tải chi tiết.', {variant: 'warning'});
+            return;
+        }
+        setStudentProfileDetailLoading(true);
+        try {
+            const res = await getParentStudentById(sid);
+            if (res?.status !== 200) {
+                enqueueSnackbar('Không tải được chi tiết hồ sơ học sinh.', {variant: 'error'});
+                return;
+            }
+            const body = pickStudentDetailBodyFromResponse(res);
+            const norm = normalizeStudentDetailBodyForPanel(body);
+            if (norm) setStudentProfileDetailForPanel(norm);
+        } catch (e) {
+            console.error(e);
+            enqueueSnackbar('Không tải được chi tiết hồ sơ học sinh.', {variant: 'error'});
+        } finally {
+            setStudentProfileDetailLoading(false);
+        }
+    }, []);
+
     const handleToggleStudentInfo = () => {
-        setStudentInfoOpen((open) => !open);
+        setStudentInfoOpen((prev) => {
+            if (!prev) {
+                void fetchStudentProfileDetailForPanel();
+            }
+            return !prev;
+        });
     };
 
     const handleCloseStudentInfo = () => {
@@ -1743,6 +2188,8 @@ function MainHeader() {
                 childName
             });
             setSelectedConversationStudent(null);
+            setStudentProfileDetailForPanel(null);
+            setStudentProfileDetailLoading(false);
             setSelectedConversation(draftConversation);
             selectedConversationRef.current = draftConversation;
             setMessageItems([]);
@@ -1756,10 +2203,8 @@ function MainHeader() {
             setParentWsUnreadBump(0);
             hasMarkedReadRef.current = false;
             await loadMessageHistory({conversation: draftConversation});
-            const convAfter = selectedConversationRef.current || draftConversation;
-            void markParentConversationRead(convAfter, {syncComposerEngaged: false});
         },
-        [loadMessageHistory, markParentConversationRead, normalizeConversation, userInfo?.email]
+        [loadMessageHistory, normalizeConversation, userInfo?.email]
     );
 
     const openParentChatRef = React.useRef(null);
@@ -1792,7 +2237,8 @@ function MainHeader() {
         
             try {
                 setStudentSelectLoading(true);
-                const response = await getParentStudent();
+                /** Luôn lấy danh sách hồ sơ từ API; không lưu studentProfile / studentProfileId trong localStorage. */
+                const response = await getStudents();
                 if (response?.status !== 200) {
                     enqueueSnackbar("Không tải được danh sách học sinh.", {variant: "error"});
                     return;
@@ -1801,8 +2247,11 @@ function MainHeader() {
                     .map(normalizeParentStudent)
                     .filter((s) => s.studentProfileId);
                 if (!normalizedStudents.length) {
-                    enqueueSnackbar("Bạn chưa có hồ sơ học sinh. Vui lòng thêm thông tin con trước.", {variant: "info"});
-                    navigate("/children-info");
+                    enqueueSnackbar(
+                        "Chưa có hồ sơ học sinh. Chuyển tới trang hồ sơ con để tạo mới, sau đó mở lại chat từ trường.",
+                        {variant: "info"}
+                    );
+                    navigate("/children-info", {state: {fromCampusChat: true}});
                     return;
                 }
                 const target = {schoolName, schoolEmail, counsellorEmail, campusId: campusIdNum, schoolLogoUrl};
@@ -1866,6 +2315,7 @@ function MainHeader() {
                 if (sessionStorage.length > 0) {
                     sessionStorage.clear();
                 }
+                notifyAuthUserStorageChanged();
                 enqueueSnackbar('Đăng xuất thành công.', {variant: 'success', autoHideDuration: 1000});
                 setTimeout(() => {
                     window.location.href = '/home';
@@ -2285,6 +2735,9 @@ function MainHeader() {
                                                 {filteredConversationItems.map((conversation, index) => {
                                                     const conversationId = conversation?.id || conversation?.conversationId;
                                                     const conversationName = conversation?.title || conversation?.name || conversation?.schoolName || conversation?.participantName || 'Cuộc trò chuyện';
+                                                    const studentDisplayName = String(
+                                                        conversation?.studentName || conversation?.childName || ''
+                                                    ).trim();
                                                     const latestMessage = conversation?.lastMessage?.content || conversation?.lastMessage || conversation?.latestMessage || 'Chưa có nội dung';
                                                     const unreadCount = Number(conversation?.unreadCount ?? conversation?.unreadMessages ?? 0) || 0;
                                                     const hasUnread = unreadCount > 0;
@@ -2320,6 +2773,20 @@ function MainHeader() {
                                                                 <Typography noWrap sx={{fontSize: 14, fontWeight: hasUnread ? 800 : 700, color: '#1e293b'}}>
                                                                     {conversationName}
                                                                 </Typography>
+                                                                {studentDisplayName ? (
+                                                                    <Typography
+                                                                        noWrap
+                                                                        sx={{
+                                                                            fontSize: 12,
+                                                                            fontWeight: 600,
+                                                                            color: '#2563eb',
+                                                                            lineHeight: 1.35,
+                                                                            mt: 0.1
+                                                                        }}
+                                                                    >
+                                                                        Học sinh: {studentDisplayName}
+                                                                    </Typography>
+                                                                ) : null}
                                                                 <Typography noWrap sx={{fontSize: 13, color: hasUnread ? '#1e3a8a' : '#475569', fontWeight: hasUnread ? 600 : 500}}>
                                                                     {latestMessage}
                                                                 </Typography>
@@ -2426,18 +2893,8 @@ function MainHeader() {
                                                     }}
                                                 >
                                                     <Typography
-                                                        sx={{
-                                                            fontSize: 14,
-                                                            fontWeight: 600,
-                                                            color: '#fff',
-                                                            lineHeight: 1.25,
-                                                            m: 0,
-                                                            display: 'block',
-                                                            whiteSpace: 'normal',
-                                                            overflowWrap: 'anywhere',
-                                                            wordBreak: 'break-word',
-                                                            maxWidth: '100%'
-                                                        }}
+                                                        sx={{fontSize: 14, fontWeight: 800, color: '#fff', lineHeight: 1.2, m: 0, display: 'block'}}
+                                                        noWrap
                                                     >
                                                         {selectedConversationTitle}
                                                     </Typography>
@@ -2610,13 +3067,16 @@ function MainHeader() {
                                                             </Box>
                                                             {group.items.map((msg, idx) => {
                                                                 const isMine = isParentMessageMine(msg);
+                                                                const peerUnreadHighlight =
+                                                                    !isMine &&
+                                                                    peerUnreadBubbleIdSet.has(String(msg.id ?? ''));
                                                                 const prev = idx > 0 ? group.items[idx - 1] : null;
                                                                 const prevIsMine = prev ? isParentMessageMine(prev) : null;
                                                                 const showPeerAvatar = !isMine && (idx === 0 || prevIsMine === true);
                                                                 const stackTight = idx > 0 && prevIsMine === isMine;
                                                                 return (
                                                                     <Box
-                                                                        key={msg.id}
+                                                                        key={`${group.key}-${idx}-${msg.id}-${msg.sentAt ?? ''}`}
                                                                         sx={{
                                                                             display: 'flex',
                                                                             justifyContent: isMine ? 'flex-end' : 'flex-start',
@@ -2658,12 +3118,20 @@ function MainHeader() {
                                                                                     borderTopRightRadius: isMine ? (stackTight ? 2.25 : 0.5) : 2.25,
                                                                                     background: isMine
                                                                                         ? selectedStudentTheme.bubbleGradient
-                                                                                        : '#ffffff',
+                                                                                        : peerUnreadHighlight
+                                                                                          ? 'linear-gradient(135deg, rgba(219,234,254,0.98) 0%, rgba(191,219,254,0.92) 100%)'
+                                                                                          : '#ffffff',
                                                                                     color: isMine ? '#ffffff' : '#1e293b',
-                                                                                    border: isMine ? 'none' : '1px solid rgba(148,163,184,0.4)',
+                                                                                    border: isMine
+                                                                                        ? 'none'
+                                                                                        : peerUnreadHighlight
+                                                                                          ? '1px solid rgba(37,99,235,0.42)'
+                                                                                          : '1px solid rgba(148,163,184,0.4)',
                                                                                     boxShadow: isMine
                                                                                         ? '0 2px 8px rgba(59,130,246,0.3), 0 1px 0 rgba(255,255,255,0.12) inset'
-                                                                                        : '0 1px 3px rgba(51,65,85,0.06)'
+                                                                                        : peerUnreadHighlight
+                                                                                          ? '0 2px 8px rgba(37,99,235,0.12)'
+                                                                                          : '0 1px 3px rgba(51,65,85,0.06)'
                                                                                 }}
                                                                             >
                                                                                 <Typography sx={{fontSize: 13.5, whiteSpace: 'pre-wrap', lineHeight: 1.5, wordBreak: 'break-word'}}>
@@ -2911,12 +3379,19 @@ function MainHeader() {
                                                 p: 1.2
                                             }}
                                         >
-                                            <ParentStudentInfoPanel
-                                                studentName={selectedStudentName}
-                                                compactInfo={selectedStudentCompactInfo}
-                                                gradeTable={selectedStudentGradeTable}
-                                                personalityInsights={selectedStudentPersonalityInsights}
-                                            />
+                                            {studentProfileDetailLoading ? (
+                                                <Box sx={{display: 'flex', justifyContent: 'center', alignItems: 'center', py: 5}}>
+                                                    <CircularProgress size={36} sx={{color: selectedStudentTheme.accent}} />
+                                                </Box>
+                                            ) : (
+                                                <ParentStudentInfoPanel
+                                                    studentName={selectedStudentName}
+                                                    compactInfo={selectedStudentCompactInfo}
+                                                    gradeTable={selectedStudentGradeTable}
+                                                    personalityInsights={selectedStudentPersonalityInsights}
+                                                    subjectsInSystem={selectedParentStudent?.raw?.subjectsInSystem}
+                                                />
+                                            )}
                                         </Box>
                                     </Box>
                                 </Zoom>

@@ -1,5 +1,5 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {useNavigate} from 'react-router-dom';
+import {useNavigate, useLocation} from 'react-router-dom';
 import {enqueueSnackbar} from 'notistack';
 import {
     getParentMajors,
@@ -22,9 +22,12 @@ import {
     parseBody,
     setStudentState,
 } from './childrenInfoHelpers.js';
+import {AUTH_USER_STORAGE_CHANGED_EVENT} from '../../../utils/userRole.js';
 
 export function useChildrenInfoPage() {
     const navigate = useNavigate();
+    const location = useLocation();
+    const [authSessionTick, setAuthSessionTick] = useState(0);
     const [loading, setLoading] = useState(true);
     const [editMode, setEditMode] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -49,6 +52,8 @@ export function useChildrenInfoPage() {
     ]);
     const [foreignGrades, setForeignGrades] = useState({});
     const [pendingAcademicInfos, setPendingAcademicInfos] = useState(null);
+    const [regularSubjectAvailable, setRegularSubjectAvailable] = useState({});
+    const [foreignRowAvailable, setForeignRowAvailable] = useState({});
     const [pendingFavouriteJobLabel, setPendingFavouriteJobLabel] = useState(null);
     const [studentRecords, setStudentRecords] = useState([]);
     const [activeStudentTab, setActiveStudentTab] = useState(0);
@@ -63,6 +68,8 @@ export function useChildrenInfoPage() {
         setForeignRows,
         setForeignGrades,
         setPendingAcademicInfos,
+        setRegularSubjectAvailable,
+        setForeignRowAvailable,
         setPendingFavouriteJobLabel,
         setCurrentStudentId,
     };
@@ -79,6 +86,20 @@ export function useChildrenInfoPage() {
         const mapped = applyStudentBodyToState(record);
         setStudentState(setters, mapped);
     };
+
+    /** Cùng tab: đăng nhập đổi tài khoản; tab khác: `storage`. Tránh giữ form học sinh của phiên trước. */
+    useEffect(() => {
+        const bump = () => setAuthSessionTick((t) => t + 1);
+        const onStorage = (e) => {
+            if (e.key === 'user' || e.key === null) bump();
+        };
+        window.addEventListener(AUTH_USER_STORAGE_CHANGED_EVENT, bump);
+        window.addEventListener('storage', onStorage);
+        return () => {
+            window.removeEventListener(AUTH_USER_STORAGE_CHANGED_EVENT, bump);
+            window.removeEventListener('storage', onStorage);
+        };
+    }, []);
 
     useEffect(() => {
         let cancelled = false;
@@ -121,7 +142,7 @@ export function useChildrenInfoPage() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [location.key, authSessionTick]);
 
     useEffect(() => {
         let cancelled = false;
@@ -266,6 +287,8 @@ export function useChildrenInfoPage() {
         setRegularGrades(merged.regularGrades);
         setForeignRows(merged.foreignRows);
         setForeignGrades(merged.foreignGrades);
+        setRegularSubjectAvailable(merged.regularSubjectAvailable ?? {});
+        setForeignRowAvailable(merged.foreignRowAvailable ?? {});
         setPendingAcademicInfos(null);
     }, [pendingAcademicInfos, regularSubjects, foreignSubjects, subjectGroupsLoading]);
 
@@ -307,6 +330,7 @@ export function useChildrenInfoPage() {
 
     const handleRegularGradeChange = (subjectId, gradeKey, value) => {
         const id = String(subjectId);
+        if (regularSubjectAvailable[id] === false) return;
         setRegularGrades((prev) => ({
             ...prev,
             [id]: {...(prev[id] || emptyGrades()), [gradeKey]: value},
@@ -314,6 +338,7 @@ export function useChildrenInfoPage() {
     };
 
     const handleForeignGradeChange = (rowId, gradeKey, value) => {
+        if (foreignRowAvailable[rowId] === false) return;
         setForeignGrades((prev) => ({
             ...prev,
             [rowId]: {...(prev[rowId] || emptyGrades()), [gradeKey]: value},
@@ -321,8 +346,17 @@ export function useChildrenInfoPage() {
     };
 
     const handleForeignSubjectChange = (rowId, subjectId) => {
+        if (foreignRowAvailable[rowId] === false) return;
         setForeignRows((prev) =>
-            prev.map((r) => (r.rowId === rowId ? {...r, subjectId} : r)),
+            prev.map((r) =>
+                r.rowId === rowId
+                    ? {
+                          ...r,
+                          subjectId: subjectId === '' ? '' : Number(subjectId),
+                          customSubjectName: undefined,
+                      }
+                    : r,
+            ),
         );
     };
 
@@ -334,6 +368,27 @@ export function useChildrenInfoPage() {
                 subjectId: '',
             },
         ]);
+    };
+
+    /** Xóa một dòng ngoại ngữ (catalog / metadata / dòng trống thêm tay). Giữ ít nhất một dòng trống để có thể thêm lại. */
+    const removeForeignLanguageRow = (rowId) => {
+        setForeignRows((prev) => {
+            const next = prev.filter((r) => r.rowId !== rowId);
+            if (next.length === 0) {
+                return [
+                    {
+                        rowId: `foreign-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+                        subjectId: '',
+                    },
+                ];
+            }
+            return next;
+        });
+        setForeignGrades((prev) => {
+            if (!prev || typeof prev !== 'object') return prev;
+            const {[rowId]: _removed, ...rest} = prev;
+            return rest;
+        });
     };
 
     const foreignOptionsForRow = (rowId, currentSubjectId) => {
@@ -379,25 +434,6 @@ export function useChildrenInfoPage() {
                 foreignGrades,
                 foreignSubjects,
             });
-            const academicBlock = payload.academicInfos;
-            if (!Array.isArray(academicBlock) || academicBlock.length === 0) {
-                enqueueSnackbar('Thiếu dữ liệu học bạ (academicInfos).', {
-                    variant: 'error',
-                });
-                return;
-            }
-            const subjectRowCount = academicBlock.reduce((n, ai) => {
-                const rows =
-                    ai.subjectResults ?? ai.subjectResultList ?? ai.results ?? [];
-                return n + rows.length;
-            }, 0);
-            if (subjectRowCount === 0) {
-                enqueueSnackbar(
-                    'Chưa có môn học để lưu điểm. Vui lòng đợi danh sách môn tải xong hoặc tải lại trang.',
-                    {variant: 'warning'},
-                );
-                return;
-            }
             const usePut =
                 !creatingNewStudent &&
                 currentStudentId != null &&
@@ -441,6 +477,8 @@ export function useChildrenInfoPage() {
                                 setRegularGrades(merged.regularGrades);
                                 setForeignRows(merged.foreignRows);
                                 setForeignGrades(merged.foreignGrades);
+                                setRegularSubjectAvailable(merged.regularSubjectAvailable ?? {});
+                                setForeignRowAvailable(merged.foreignRowAvailable ?? {});
                                 setPendingAcademicInfos(null);
                             }
                         } else {
@@ -506,6 +544,8 @@ export function useChildrenInfoPage() {
         regularGrades,
         foreignRows,
         foreignGrades,
+        regularSubjectAvailable,
+        foreignRowAvailable,
         handleChange,
         handlePersonalityListScroll,
         handlePersonalityChange,
@@ -514,6 +554,7 @@ export function useChildrenInfoPage() {
         handleForeignGradeChange,
         handleForeignSubjectChange,
         addForeignLanguageRow,
+        removeForeignLanguageRow,
         foreignOptionsForRow,
         studentRecords,
         activeStudentTab,

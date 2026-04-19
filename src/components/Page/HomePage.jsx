@@ -24,7 +24,7 @@ import {
 } from "@mui/material";
 import {useTheme} from "@mui/material/styles";
 import {syncLocalUserWithAccess, updateProfile} from "../../services/AccountService";
-import {normalizeUserRole} from "../../utils/userRole.js";
+import {normalizeUserRole, notifyAuthUserStorageChanged, sanitizeUserForLocalStorage} from "../../utils/userRole.js";
 import {enqueueSnackbar} from "notistack";
 import {
     ArrowForward as ArrowForwardIcon,
@@ -1729,7 +1729,8 @@ export default function HomePage() {
                     try {
                         const user = JSON.parse(userData);
                         user.firstLogin = false;
-                        localStorage.setItem('user', JSON.stringify(user));
+                        localStorage.setItem('user', JSON.stringify(sanitizeUserForLocalStorage(user)));
+                        notifyAuthUserStorageChanged();
                     } catch (e) {
                         console.error('Error updating user data:', e);
                     }
