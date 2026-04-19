@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {useEffect, useMemo, useRef, useState} from "react";
 import {
     Alert,
     Autocomplete,
@@ -7,6 +7,7 @@ import {
     Card,
     CardContent,
     Chip,
+    CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
@@ -16,20 +17,19 @@ import {
     InputAdornment,
     MenuItem,
     Skeleton,
-    CircularProgress,
     Stack,
     Step,
     StepLabel,
     Stepper,
     Switch,
     Tab,
-    Tabs,
     Table,
     TableBody,
     TableCell,
     TableContainer,
     TableHead,
     TableRow,
+    Tabs,
     TextField,
     Tooltip,
     Typography,
@@ -58,12 +58,12 @@ import PersonIcon from "@mui/icons-material/Person";
 import ComputerIcon from "@mui/icons-material/Computer";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 
-import { enqueueSnackbar } from "notistack";
-import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
+import {enqueueSnackbar} from "notistack";
+import {ConfirmHighlight} from "../../ui/ConfirmDialog.jsx";
 
-import { useSchool } from "../../../contexts/SchoolContext.jsx";
-import { getCurriculumList } from "../../../services/CurriculumService.jsx";
-import { cloneProgram, getProgramList, handleProgramAction, saveProgram } from "../../../services/ProgramService.jsx";
+import {useSchool} from "../../../contexts/SchoolContext.jsx";
+import {getCurriculumList} from "../../../services/CurriculumService.jsx";
+import {cloneProgram, getProgramList, handleProgramAction, saveProgram} from "../../../services/ProgramService.jsx";
 import CreatePostRichTextEditor from "../../ui/CreatePostRichTextEditor.jsx";
 
 const modalPaperSx = {
@@ -80,27 +80,27 @@ const modalBackdropSx = {
 };
 
 const PROGRAM_STATUS_OPTIONS = [
-    { value: "all", label: "Tất cả" },
-    { value: "PRO_DRAFT", label: "Nháp" },
-    { value: "PRO_ACTIVE", label: "Hoạt động" },
-    { value: "PRO_INACTIVE", label: "Không hoạt động" },
+    {value: "all", label: "Tất cả"},
+    {value: "PRO_DRAFT", label: "Nháp"},
+    {value: "PRO_ACTIVE", label: "Hoạt động"},
+    {value: "PRO_INACTIVE", label: "Không hoạt động"},
 ];
 
 const LANGUAGE_OPTIONS = [
-    { value: "VIETNAMESE", label: "Tiếng Việt" },
-    { value: "ENGLISH", label: "Tiếng Anh" },
-    { value: "FRENCH", label: "Tiếng Pháp" },
-    { value: "JAPANESE", label: "Tiếng Nhật" },
-    { value: "CHINESE", label: "Tiếng Trung" },
-    { value: "KOREAN", label: "Tiếng Hàn" },
-    { value: "GERMAN", label: "Tiếng Đức" },
+    {value: "VIETNAMESE", label: "Tiếng Việt"},
+    {value: "ENGLISH", label: "Tiếng Anh"},
+    {value: "FRENCH", label: "Tiếng Pháp"},
+    {value: "JAPANESE", label: "Tiếng Nhật"},
+    {value: "CHINESE", label: "Tiếng Trung"},
+    {value: "KOREAN", label: "Tiếng Hàn"},
+    {value: "GERMAN", label: "Tiếng Đức"},
 ];
 
 const FEE_UNIT_OPTIONS = [
-    { value: "YEAR", label: "Theo năm" },
-    { value: "SEMESTER", label: "Theo học kỳ" },
-    { value: "QUARTER", label: "Theo quý" },
-    { value: "MONTH", label: "Theo tháng" },
+    {value: "YEAR", label: "Theo năm"},
+    {value: "SEMESTER", label: "Theo học kỳ"},
+    {value: "QUARTER", label: "Theo quý"},
+    {value: "MONTH", label: "Theo tháng"},
 ];
 
 const CURRICULUM_TYPE_OPTIONS = ["INTEGRATED", "NATIONAL", "INTERNATIONAL"];
@@ -211,10 +211,10 @@ function mapCurriculumForProgramSelect(item) {
     const methodLearningList = Array.isArray(item.methodLearnings)
         ? item.methodLearnings.map((m) => m?.code).filter(Boolean)
         : Array.isArray(item.methodLearningList)
-          ? item.methodLearningList.filter(Boolean)
-          : item.methodLearning
-            ? [item.methodLearning]
-            : [];
+            ? item.methodLearningList.filter(Boolean)
+            : item.methodLearning
+                ? [item.methodLearning]
+                : [];
     const enrollmentYear = item.enrollmentYear ?? item.year ?? item.enrollment_year ?? "";
     return {
         id: item.id ?? item.curriculumId ?? item.curriculumID ?? item.curriculum_id ?? null,
@@ -231,17 +231,17 @@ function mapCurriculumForProgramSelect(item) {
         methodLearningList,
         subjects: Array.isArray(item.subjects)
             ? item.subjects.map((s) => ({
-                  name: s.name ?? "",
-                  description: s.description ?? "",
-                  isMandatory: !!s.isMandatory,
-              }))
+                name: s.name ?? "",
+                description: s.description ?? "",
+                isMandatory: !!s.isMandatory,
+            }))
             : [],
     };
 }
 
 const MAX_TEXT_FIELD_LEN = 2000;
 const MAX_PROGRAM_NAME_LEN = 100;
-const createEmptyExtraSubject = () => ({ name: "", description: "", isMandatory: false });
+const createEmptyExtraSubject = () => ({name: "", description: "", isMandatory: false});
 
 function tuitionFeeToDigitString(value) {
     if (value === "" || value == null) return "";
@@ -285,8 +285,8 @@ function mapProgramFromApi(item) {
         languageOfInstructionList: Array.isArray(item.languageOfInstructionList)
             ? item.languageOfInstructionList.filter(Boolean)
             : item.languageOfInstruction
-              ? [item.languageOfInstruction]
-              : [],
+                ? [item.languageOfInstruction]
+                : [],
         feeUnit: item.feeUnit ?? item.fee_unit ?? "",
 
         baseTuitionFee: Number(item.baseTuitionFee ?? 0),
@@ -312,14 +312,14 @@ function toEpoch(value) {
 
 function getProgramStatusMeta(status, isActiveBool) {
     const s = normalizeStatus(status);
-    if (s === "PRO_ACTIVE") return { label: "Hoạt động", bg: "rgba(34, 197, 94, 0.12)", color: "#16a34a" };
-    if (s === "PRO_INACTIVE") return { label: "Không hoạt động", bg: "rgba(148, 163, 184, 0.2)", color: "#64748b" };
-    if (s === "PRO_DRAFT") return { label: "Nháp", bg: "rgba(234, 179, 8, 0.14)", color: "#b45309" };
-    if (isActiveBool) return { label: "Hoạt động", bg: "rgba(34, 197, 94, 0.12)", color: "#16a34a" };
-    return { label: "Không hoạt động", bg: "rgba(148, 163, 184, 0.2)", color: "#64748b" };
+    if (s === "PRO_ACTIVE") return {label: "Hoạt động", bg: "rgba(34, 197, 94, 0.12)", color: "#16a34a"};
+    if (s === "PRO_INACTIVE") return {label: "Không hoạt động", bg: "rgba(148, 163, 184, 0.2)", color: "#64748b"};
+    if (s === "PRO_DRAFT") return {label: "Nháp", bg: "rgba(234, 179, 8, 0.14)", color: "#b45309"};
+    if (isActiveBool) return {label: "Hoạt động", bg: "rgba(34, 197, 94, 0.12)", color: "#16a34a"};
+    return {label: "Không hoạt động", bg: "rgba(148, 163, 184, 0.2)", color: "#64748b"};
 }
 
-function ProgramStatusBadge({ status, isActiveBool }) {
+function ProgramStatusBadge({status, isActiveBool}) {
     const meta = getProgramStatusMeta(status, isActiveBool);
     return (
         <Box
@@ -376,11 +376,11 @@ function programRichTextLooksLikeHtml(raw) {
     return /<[a-z][\s/>]/i.test(s);
 }
 
-function ProgramRichTextDisplay({ value, emptyLabel = "—", sx }) {
+function ProgramRichTextDisplay({value, emptyLabel = "—", sx}) {
     const s = safeString(value).trim();
     if (!s) {
         return (
-            <Typography sx={{ color: "#334155", ...sx }} component="span">
+            <Typography sx={{color: "#334155", ...sx}} component="span">
                 {emptyLabel}
             </Typography>
         );
@@ -391,18 +391,18 @@ function ProgramRichTextDisplay({ value, emptyLabel = "—", sx }) {
                 component="div"
                 sx={{
                     color: "#334155",
-                    "& p": { margin: "0.35em 0" },
-                    "& p:first-of-type": { marginTop: 0 },
-                    "& p:last-of-type": { marginBottom: 0 },
-                    "& ul, & ol": { margin: "0.35em 0", paddingLeft: "1.25rem" },
+                    "& p": {margin: "0.35em 0"},
+                    "& p:first-of-type": {marginTop: 0},
+                    "& p:last-of-type": {marginBottom: 0},
+                    "& ul, & ol": {margin: "0.35em 0", paddingLeft: "1.25rem"},
                     ...sx,
                 }}
-                dangerouslySetInnerHTML={{ __html: s }}
+                dangerouslySetInnerHTML={{__html: s}}
             />
         );
     }
     return (
-        <Typography sx={{ color: "#334155", whiteSpace: "pre-wrap", ...sx }} component="div">
+        <Typography sx={{color: "#334155", whiteSpace: "pre-wrap", ...sx}} component="div">
             {s}
         </Typography>
     );
@@ -511,7 +511,7 @@ function mapProgramBackendMessageToVi(message) {
 }
 
 /** Nội dung chi tiết Curriculum (read-only), bố cục đồng bộ với dialog Chi tiết chương trình — SchoolCurriculums. */
-function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
+function ProgramCurriculumDetailPanel({curriculum, isPrimaryBranch}) {
     const viewCurriculum = curriculum;
     if (!viewCurriculum) return null;
 
@@ -522,7 +522,7 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
     return (
         <Stack spacing={2.5}>
             {!isPrimaryBranch ? (
-                <Alert severity="info" sx={{ py: 0.75 }}>
+                <Alert severity="info" sx={{py: 0.75}}>
                     Cơ sở phụ chỉ xem được thông tin. Tạo, chỉnh sửa khung chương trình chỉ thực hiện tại cơ sở chính.
                 </Alert>
             ) : null}
@@ -535,16 +535,17 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
                     p: 3,
                 }}
             >
-                <Box sx={{ display: "flex", justifyContent: "space-between", gap: 3, flexWrap: "wrap" }}>
-                    <Box sx={{ minWidth: 260, flex: 1 }}>
-                        <Typography sx={{ fontWeight: 950, color: "#1e293b", fontSize: { xs: 20, sm: 24 }, lineHeight: 1.25 }}>
+                <Box sx={{display: "flex", justifyContent: "space-between", gap: 3, flexWrap: "wrap"}}>
+                    <Box sx={{minWidth: 260, flex: 1}}>
+                        <Typography
+                            sx={{fontWeight: 950, color: "#1e293b", fontSize: {xs: 20, sm: 24}, lineHeight: 1.25}}>
                             {displayName}
                         </Typography>
-                        <Typography variant="body2" sx={{ color: "#64748b", mt: 1.1, lineHeight: 1.6, maxWidth: 640 }}>
+                        <Typography variant="body2" sx={{color: "#64748b", mt: 1.1, lineHeight: 1.6, maxWidth: 640}}>
                             {viewCurriculum.description || "—"}
                         </Typography>
                     </Box>
-                    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1.2 }}>
+                    <Box sx={{display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1.2}}>
                         <Box
                             sx={{
                                 px: 1.6,
@@ -554,14 +555,14 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
                                     statusKey === "CUR_DRAFT"
                                         ? "rgba(245, 158, 11, 0.16)"
                                         : statusKey === "CUR_ACTIVE"
-                                          ? "rgba(37, 99, 235, 0.14)"
-                                          : "rgba(100, 116, 139, 0.16)",
+                                            ? "rgba(37, 99, 235, 0.14)"
+                                            : "rgba(100, 116, 139, 0.16)",
                                 color:
                                     statusKey === "CUR_DRAFT"
                                         ? "#d97706"
                                         : statusKey === "CUR_ACTIVE"
-                                          ? "#2563eb"
-                                          : "#475569",
+                                            ? "#2563eb"
+                                            : "#475569",
                                 fontWeight: 900,
                                 fontSize: 12,
                                 border: "1px solid rgba(148, 163, 184, 0.35)",
@@ -570,7 +571,7 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
                             {statusLabel}
                         </Box>
                         {viewCurriculum.versionDisplay ? (
-                            <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 600 }}>
+                            <Typography variant="caption" sx={{color: "#94a3b8", fontWeight: 600}}>
                                 {viewCurriculum.isLatest
                                     ? `Phiên bản: ${viewCurriculum.versionDisplay} (Mới nhất)`
                                     : viewCurriculum.versionDisplay}
@@ -583,13 +584,13 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
             <Box
                 sx={{
                     display: "grid",
-                    gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
+                    gridTemplateColumns: {xs: "1fr", sm: "1fr 1fr"},
                     gap: 2,
                 }}
             >
                 {[
-                    { label: "Mã nhóm", value: viewCurriculum.groupCode || "—" },
-                    { label: "Loại chương trình", value: toCurriculumTypeLabel(viewCurriculum.curriculumType) },
+                    {label: "Mã nhóm", value: viewCurriculum.groupCode || "—"},
+                    {label: "Loại chương trình", value: toCurriculumTypeLabel(viewCurriculum.curriculumType)},
                     {
                         label: "Năm áp dụng",
                         value: viewCurriculum.applicationYear ?? viewCurriculum.enrollmentYear ?? "—",
@@ -599,7 +600,7 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
                     <Box
                         key={`${item.label}-${idx}`}
                         sx={{
-                            gridColumn: item.wide ? { xs: "1 / -1", sm: "1 / -1" } : "auto",
+                            gridColumn: item.wide ? {xs: "1 / -1", sm: "1 / -1"} : "auto",
                             border: "1px solid rgba(226, 232, 240, 1)",
                             borderRadius: 3,
                             bgcolor: "#ffffff",
@@ -612,10 +613,10 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
                             },
                         }}
                     >
-                        <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.7 }}>
+                        <Typography variant="caption" sx={{color: "#94a3b8", display: "block", mb: 0.7}}>
                             {item.label}
                         </Typography>
-                        <Typography sx={{ fontWeight: 800, color: "#1e293b" }}>{item.value}</Typography>
+                        <Typography sx={{fontWeight: 800, color: "#1e293b"}}>{item.value}</Typography>
                     </Box>
                 ))}
             </Box>
@@ -629,9 +630,9 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
                     boxShadow: "0 6px 20px rgba(2, 6, 23, 0.04)",
                 }}
             >
-                <CardContent sx={{ p: 2.5 }}>
-                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.6 }}>
-                        <Typography sx={{ fontWeight: 950, color: "#1e293b", fontSize: 16 }}>Phương pháp học</Typography>
+                <CardContent sx={{p: 2.5}}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{mb: 1.6}}>
+                        <Typography sx={{fontWeight: 950, color: "#1e293b", fontSize: 16}}>Phương pháp học</Typography>
                         <Typography
                             variant="caption"
                             sx={{
@@ -651,14 +652,19 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
                         <Box
                             sx={{
                                 display: "grid",
-                                gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" },
+                                gridTemplateColumns: {
+                                    xs: "1fr",
+                                    sm: "repeat(2, minmax(0, 1fr))",
+                                    md: "repeat(4, minmax(0, 1fr))"
+                                },
                                 gap: 1.6,
                             }}
                         >
                             {(viewCurriculum.methodLearningList || []).map((method) => {
                                 const IconComp = methodLearningIconMap[method] || MenuBookIcon;
                                 return (
-                                    <Tooltip key={method} title={methodLearningDescriptionI18N[method] || ""} arrow placement="top">
+                                    <Tooltip key={method} title={methodLearningDescriptionI18N[method] || ""} arrow
+                                             placement="top">
                                         <Box
                                             sx={{
                                                 height: "100%",
@@ -689,9 +695,10 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
                                                     color: PROGRAM_VIEW_HEADER_ACCENT,
                                                 }}
                                             >
-                                                <IconComp sx={{ fontSize: 18 }} />
+                                                <IconComp sx={{fontSize: 18}}/>
                                             </Box>
-                                            <Typography sx={{ mt: 1.1, fontWeight: 850, color: "#1e293b", lineHeight: 1.35 }}>
+                                            <Typography
+                                                sx={{mt: 1.1, fontWeight: 850, color: "#1e293b", lineHeight: 1.35}}>
                                                 {toMethodLearningLabel(method)}
                                             </Typography>
                                             <Typography
@@ -714,7 +721,7 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
                             })}
                         </Box>
                     ) : (
-                        <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+                        <Typography variant="body2" sx={{color: "#94a3b8"}}>
                             Chưa có phương pháp học
                         </Typography>
                     )}
@@ -729,8 +736,8 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
                     borderRadius: 3,
                 }}
             >
-                <CardContent sx={{ p: 2.7 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1.1, mb: 1 }}>
+                <CardContent sx={{p: 2.7}}>
+                    <Box sx={{display: "flex", alignItems: "center", gap: 1.1, mb: 1}}>
                         <Box
                             sx={{
                                 width: 34,
@@ -743,11 +750,11 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
                                 justifyContent: "center",
                             }}
                         >
-                            <DescriptionIcon sx={{ fontSize: 18 }} />
+                            <DescriptionIcon sx={{fontSize: 18}}/>
                         </Box>
-                        <Typography sx={{ fontWeight: 900, color: "#1e293b" }}>Mô tả</Typography>
+                        <Typography sx={{fontWeight: 900, color: "#1e293b"}}>Mô tả</Typography>
                     </Box>
-                    <Typography sx={{ color: "#374151", lineHeight: 1.65, whiteSpace: "pre-wrap" }}>
+                    <Typography sx={{color: "#374151", lineHeight: 1.65, whiteSpace: "pre-wrap"}}>
                         {viewCurriculum.description || "—"}
                     </Typography>
                 </CardContent>
@@ -761,10 +768,10 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
                     borderRadius: 3,
                 }}
             >
-                <CardContent sx={{ p: 2.5 }}>
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1.4 }}>
-                        <MenuBookIcon sx={{ fontSize: 18, color: PROGRAM_VIEW_HEADER_ACCENT }} />
-                        <Typography sx={{ fontWeight: 950, color: "#1e293b", fontSize: 16 }}>Môn học</Typography>
+                <CardContent sx={{p: 2.5}}>
+                    <Box sx={{display: "flex", alignItems: "center", gap: 1, mb: 1.4}}>
+                        <MenuBookIcon sx={{fontSize: 18, color: PROGRAM_VIEW_HEADER_ACCENT}}/>
+                        <Typography sx={{fontWeight: 950, color: "#1e293b", fontSize: 16}}>Môn học</Typography>
                     </Box>
 
                     <Stack spacing={1.2}>
@@ -786,7 +793,7 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
                                 }}
                             >
                                 <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-                                    <Typography sx={{ fontWeight: 850, color: "#1e293b" }}>{s.name}</Typography>
+                                    <Typography sx={{fontWeight: 850, color: "#1e293b"}}>{s.name}</Typography>
                                     <Box
                                         sx={{
                                             px: 1.2,
@@ -805,7 +812,7 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
                                     >
                                         {s.isMandatory ? (
                                             <>
-                                                <DoneAllIcon fontSize="small" sx={{ color: "#16a34a" }} />
+                                                <DoneAllIcon fontSize="small" sx={{color: "#16a34a"}}/>
                                                 Bắt buộc
                                             </>
                                         ) : (
@@ -813,11 +820,12 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
                                         )}
                                     </Box>
                                 </Stack>
-                                <Typography sx={{ color: "#64748b", mt: 1, lineHeight: 1.6 }}>{s.description || "—"}</Typography>
+                                <Typography
+                                    sx={{color: "#64748b", mt: 1, lineHeight: 1.6}}>{s.description || "—"}</Typography>
                             </Box>
                         ))}
                         {(viewCurriculum.subjects || []).length === 0 && (
-                            <Typography variant="body2" sx={{ color: "#94a3b8", px: 0.5 }}>
+                            <Typography variant="body2" sx={{color: "#94a3b8", px: 0.5}}>
                                 Chưa có môn học.
                             </Typography>
                         )}
@@ -829,7 +837,7 @@ function ProgramCurriculumDetailPanel({ curriculum, isPrimaryBranch }) {
 }
 
 export default function SchoolPrograms() {
-    const { isPrimaryBranch } = useSchool();
+    const {isPrimaryBranch} = useSchool();
     const [loading, setLoading] = useState(true);
     const [programs, setPrograms] = useState([]);
     const [totalItems, setTotalItems] = useState(0);
@@ -963,7 +971,7 @@ export default function SchoolPrograms() {
             console.error("Fetch programs error:", err);
             setPrograms([]);
             setTotalItems(0);
-            enqueueSnackbar(err?.response?.data?.message || "Không tải được danh sách program", { variant: "error" });
+            enqueueSnackbar(err?.response?.data?.message || "Không tải được danh sách program", {variant: "error"});
         } finally {
             setLoading(false);
         }
@@ -1000,7 +1008,7 @@ export default function SchoolPrograms() {
             setCurriculumOptions(active);
         } catch (err) {
             console.error("Fetch curriculum options error:", err);
-            enqueueSnackbar(err?.response?.data?.message || "Không tải được curriculum để tạo program", { variant: "error" });
+            enqueueSnackbar(err?.response?.data?.message || "Không tải được curriculum để tạo program", {variant: "error"});
             setCurriculumOptions([]);
         } finally {
             setCurriculumOptionsLoading(false);
@@ -1096,7 +1104,7 @@ export default function SchoolPrograms() {
         await ensureCurriculumOptionsLoaded();
     };
 
-    const handleOpenEdit = async (program, { startStep = 0, markAsClonedDraft = false } = {}) => {
+    const handleOpenEdit = async (program, {startStep = 0, markAsClonedDraft = false} = {}) => {
         if (!isPrimaryBranch) return;
         setModalMode("edit");
         setProgramWizardReviewTab(0);
@@ -1113,8 +1121,8 @@ export default function SchoolPrograms() {
             isActiveProgram
                 ? "Chương trình đang hoạt động: không thể thay đổi Khung chương trình (Curriculum), học phí gốc và đơn vị học phí."
                 : hasOfferingHistory
-                  ? "Chương trình đã có lịch sử tuyển sinh (offering). Không thể thay đổi Khung chương trình (Curriculum)."
-                  : ""
+                    ? "Chương trình đã có lịch sử tuyển sinh (offering). Không thể thay đổi Khung chương trình (Curriculum)."
+                    : ""
         );
         setSelectedCurriculum(null);
         setFormErrors({});
@@ -1129,10 +1137,10 @@ export default function SchoolPrograms() {
             targetStudentDescription: program.targetStudentDescription ?? "",
             extraSubjectList: Array.isArray(program.extraSubjectList)
                 ? program.extraSubjectList.map((s) => ({
-                      name: s?.name ?? "",
-                      description: s?.description ?? "",
-                      isMandatory: !!s?.isMandatory,
-                  }))
+                    name: s?.name ?? "",
+                    description: s?.description ?? "",
+                    isMandatory: !!s?.isMandatory,
+                }))
                 : [],
         });
         setProgramRichTextEditorsKey((k) => k + 1);
@@ -1164,10 +1172,10 @@ export default function SchoolPrograms() {
             targetStudentDescription: program.targetStudentDescription ?? "",
             extraSubjectList: Array.isArray(program.extraSubjectList)
                 ? program.extraSubjectList.map((s) => ({
-                      name: s?.name ?? "",
-                      description: s?.description ?? "",
-                      isMandatory: !!s?.isMandatory,
-                  }))
+                    name: s?.name ?? "",
+                    description: s?.description ?? "",
+                    isMandatory: !!s?.isMandatory,
+                }))
                 : [],
         });
         setProgramRichTextEditorsKey((k) => k + 1);
@@ -1216,7 +1224,7 @@ export default function SchoolPrograms() {
                     "Không thể sử dụng khung chương trình này. Chỉ những khung chương trình đang HOẠT ĐỘNG mới có thể liên kết với chương trình đào tạo.";
             }
         }
-        setFormErrors((prev) => ({ ...prev, ...errors }));
+        setFormErrors((prev) => ({...prev, ...errors}));
         return Object.keys(errors).length === 0;
     };
 
@@ -1321,7 +1329,7 @@ export default function SchoolPrograms() {
             if (dupGs) errors.graduationStandard = "Chuẩn đầu ra đã tồn tại trong khung chương trình này";
         }
 
-        setFormErrors((prev) => ({ ...prev, ...errors }));
+        setFormErrors((prev) => ({...prev, ...errors}));
         return Object.keys(errors).length === 0;
     };
 
@@ -1344,7 +1352,7 @@ export default function SchoolPrograms() {
         if (modalMode === "view") return;
         const el = formDialogContentRef.current;
         if (!el) return;
-        el.scrollTo({ top: 0, behavior: "smooth" });
+        el.scrollTo({top: 0, behavior: "smooth"});
     }, [activeStep, programModalOpen, modalMode]);
 
     const buildPayload = (curriculumIdOverride) => {
@@ -1389,7 +1397,7 @@ export default function SchoolPrograms() {
 
         const curriculumId = effectiveCurriculumId;
         if (!curriculumId) {
-            enqueueSnackbar("Yêu cầu mã khung chương trình (Curriculum ID)", { variant: "error" });
+            enqueueSnackbar("Yêu cầu mã khung chương trình (Curriculum ID)", {variant: "error"});
             return;
         }
 
@@ -1399,7 +1407,7 @@ export default function SchoolPrograms() {
             const res = await saveProgram(payload);
             const ok = res?.status >= 200 && res?.status < 300;
             if (ok || res?.data?.message) {
-                enqueueSnackbar(res?.data?.message || "Tạo/cập nhật program thành công", { variant: "success" });
+                enqueueSnackbar(res?.data?.message || "Tạo/cập nhật program thành công", {variant: "success"});
                 setProgramModalOpen(false);
                 setFormErrors({});
                 setIsClonedDraftEdit(false);
@@ -1414,7 +1422,7 @@ export default function SchoolPrograms() {
                 return;
             }
 
-            enqueueSnackbar(res?.data?.message || "Lỗi khi lưu program", { variant: "error" });
+            enqueueSnackbar(res?.data?.message || "Lỗi khi lưu program", {variant: "error"});
         } catch (err) {
             console.error("Submit program error:", err);
             const status = err?.response?.status;
@@ -1470,14 +1478,14 @@ export default function SchoolPrograms() {
                 );
             }
 
-            enqueueSnackbar(backendMsgVi, { variant: "error" });
+            enqueueSnackbar(backendMsgVi, {variant: "error"});
         } finally {
             setSubmitLoading(false);
         }
     };
 
     const currencyInputAdornment = (
-        <InputAdornment position="start" sx={{ fontWeight: 800, color: "#64748b" }}>
+        <InputAdornment position="start" sx={{fontWeight: 800, color: "#64748b"}}>
             VND
         </InputAdornment>
     );
@@ -1490,7 +1498,7 @@ export default function SchoolPrograms() {
         modalMode === "edit" && selectedProgram != null && normalizeStatus(selectedProgram.status) === "PRO_ACTIVE";
 
     return (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 3, width: "100%" }}>
+        <Box sx={{display: "flex", flexDirection: "column", gap: 3, width: "100%"}}>
             {/* Header */}
             <Box
                 sx={{
@@ -1504,27 +1512,26 @@ export default function SchoolPrograms() {
                 <Box
                     sx={{
                         display: "flex",
-                        flexDirection: { xs: "column", sm: "row" },
-                        alignItems: { xs: "stretch", sm: "center" },
+                        flexDirection: {xs: "column", sm: "row"},
+                        alignItems: {xs: "stretch", sm: "center"},
                         justifyContent: "space-between",
                         gap: 2,
                     }}
                 >
                     <Box>
-                        <Typography variant="h4" sx={{ fontWeight: 850, letterSpacing: "-0.02em", textShadow: "0 1px 2px rgba(0,0,0,0.1)" }}>
-                            Quản lý Program
-                        </Typography>
-                        <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.95 }}>
-                            {isPrimaryBranch
-                                ? "Tạo mới, cập nhật và kích hoạt/tạm dừng trạng thái các program."
-                                : "Xem danh sách program của trường (cơ sở phụ không được tạo/sửa)."}
+                        <Typography variant="h4" sx={{
+                            fontWeight: 850,
+                            letterSpacing: "-0.02em",
+                            textShadow: "0 1px 2px rgba(0,0,0,0.1)"
+                        }}>
+                            Quản lý chương trình <Program></Program>
                         </Typography>
                     </Box>
 
                     {isPrimaryBranch && (
                         <Button
                             variant="contained"
-                            startIcon={<AddIcon />}
+                            startIcon={<AddIcon/>}
                             onClick={handleOpenCreate}
                             sx={{
                                 bgcolor: "rgba(255,255,255,0.95)",
@@ -1535,7 +1542,7 @@ export default function SchoolPrograms() {
                                 px: 3,
                                 py: 1.5,
                                 boxShadow: "0 4px 14px rgba(0,0,0,0.15)",
-                                "&:hover": { bgcolor: "white", boxShadow: "0 6px 20px rgba(0,0,0,0.2)" },
+                                "&:hover": {bgcolor: "white", boxShadow: "0 6px 20px rgba(0,0,0,0.2)"},
                             }}
                         >
                             Tạo Program
@@ -1554,8 +1561,8 @@ export default function SchoolPrograms() {
                     bgcolor: "#F8FAFC",
                 }}
             >
-                <CardContent sx={{ p: 2.5 }}>
-                    <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ xs: "stretch", md: "center" }}>
+                <CardContent sx={{p: 2.5}}>
+                    <Stack direction={{xs: "column", md: "row"}} spacing={2} alignItems={{xs: "stretch", md: "center"}}>
                         <TextField
                             placeholder="Tìm theo tên program hoặc khung chương trình..."
                             value={search}
@@ -1567,25 +1574,25 @@ export default function SchoolPrograms() {
                             sx={{
                                 flex: 1,
                                 minWidth: 220,
-                                maxWidth: { md: 360 },
-                                "& .MuiOutlinedInput-root": { borderRadius: 2, bgcolor: "white" },
+                                maxWidth: {md: 360},
+                                "& .MuiOutlinedInput-root": {borderRadius: 2, bgcolor: "white"},
                             }}
                             InputProps={{
                                 startAdornment: (
                                     <InputAdornment position="start">
-                                        <SearchIcon sx={{ color: "#64748b" }} />
+                                        <SearchIcon sx={{color: "#64748b"}}/>
                                     </InputAdornment>
                                 ),
                             }}
                         />
 
-                        <Box sx={{ minWidth: 180 }}>
+                        <Box sx={{minWidth: 180}}>
                             <SelectLike
                                 label="Năm tuyển sinh"
                                 value={enrollmentYearFilter}
                                 options={[
-                                    { value: "all", label: "Tất cả" },
-                                    ...enrollmentYearOptions.map((y) => ({ value: String(y), label: String(y) })),
+                                    {value: "all", label: "Tất cả"},
+                                    ...enrollmentYearOptions.map((y) => ({value: String(y), label: String(y)})),
                                 ]}
                                 onChange={(v) => {
                                     setEnrollmentYearFilter(v);
@@ -1594,12 +1601,12 @@ export default function SchoolPrograms() {
                             />
                         </Box>
 
-                        <Box sx={{ minWidth: 180 }}>
+                        <Box sx={{minWidth: 180}}>
                             <SelectLike
                                 label="Loại khung chương trình"
                                 value={curriculumTypeFilter}
                                 options={[
-                                    { value: "all", label: "Tất cả" },
+                                    {value: "all", label: "Tất cả"},
                                     ...(curriculumTypeOptions.length > 0 ? curriculumTypeOptions : CURRICULUM_TYPE_OPTIONS).map((t) => ({
                                         value: t,
                                         label: toCurriculumTypeLabel(t),
@@ -1612,7 +1619,7 @@ export default function SchoolPrograms() {
                             />
                         </Box>
 
-                        <Box sx={{ minWidth: 180 }}>
+                        <Box sx={{minWidth: 180}}>
                             <SelectLike
                                 label="Trạng thái"
                                 value={statusFilter}
@@ -1641,13 +1648,15 @@ export default function SchoolPrograms() {
                 <TableContainer>
                     <Table>
                         <TableHead>
-                            <TableRow sx={{ bgcolor: "#f1f5f9" }}>
-                                <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Program / Khung CT</TableCell>
-                                <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Loại khung chương trình</TableCell>
-                                <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Học phí gốc</TableCell>
-                                <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }}>Trạng thái</TableCell>
+                            <TableRow sx={{bgcolor: "#f1f5f9"}}>
+                                <TableCell sx={{fontWeight: 800, color: "#1e293b", py: 2}}>Program / Khung
+                                    CT</TableCell>
+                                <TableCell sx={{fontWeight: 800, color: "#1e293b", py: 2}}>Loại khung chương
+                                    trình</TableCell>
+                                <TableCell sx={{fontWeight: 800, color: "#1e293b", py: 2}}>Học phí gốc</TableCell>
+                                <TableCell sx={{fontWeight: 800, color: "#1e293b", py: 2}}>Trạng thái</TableCell>
                                 {isPrimaryBranch && (
-                                    <TableCell sx={{ fontWeight: 800, color: "#1e293b", py: 2 }} align="right">
+                                    <TableCell sx={{fontWeight: 800, color: "#1e293b", py: 2}} align="right">
                                         Thao tác
                                     </TableCell>
                                 )}
@@ -1655,36 +1664,41 @@ export default function SchoolPrograms() {
                         </TableHead>
                         <TableBody>
                             {loading ? (
-                                Array.from({ length: 5 }).map((_, i) => (
+                                Array.from({length: 5}).map((_, i) => (
                                     <TableRow key={i}>
                                         <TableCell>
-                                            <Skeleton variant="text" width="55%" />
+                                            <Skeleton variant="text" width="55%"/>
                                         </TableCell>
                                         <TableCell>
-                                            <Skeleton variant="text" width="45%" />
+                                            <Skeleton variant="text" width="45%"/>
                                         </TableCell>
                                         <TableCell>
-                                            <Skeleton variant="text" width="45%" />
+                                            <Skeleton variant="text" width="45%"/>
                                         </TableCell>
                                         <TableCell>
-                                            <Skeleton variant="rounded" width={90} height={24} />
+                                            <Skeleton variant="rounded" width={90} height={24}/>
                                         </TableCell>
                                         {isPrimaryBranch && (
                                             <TableCell align="right">
-                                                <Skeleton variant="rounded" width={100} height={32} />
+                                                <Skeleton variant="rounded" width={100} height={32}/>
                                             </TableCell>
                                         )}
                                     </TableRow>
                                 ))
                             ) : filteredPrograms.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={tableColSpan} align="center" sx={{ py: 8 }}>
-                                        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5 }}>
-                                            <SchoolIcon sx={{ fontSize: 56, color: "#cbd5e1" }} />
-                                            <Typography variant="h6" sx={{ color: "#64748b", fontWeight: 800 }}>
+                                    <TableCell colSpan={tableColSpan} align="center" sx={{py: 8}}>
+                                        <Box sx={{
+                                            display: "flex",
+                                            flexDirection: "column",
+                                            alignItems: "center",
+                                            gap: 1.5
+                                        }}>
+                                            <SchoolIcon sx={{fontSize: 56, color: "#cbd5e1"}}/>
+                                            <Typography variant="h6" sx={{color: "#64748b", fontWeight: 800}}>
                                                 Chưa có program
                                             </Typography>
-                                            <Typography variant="body2" sx={{ color: "#94a3b8", maxWidth: 420 }}>
+                                            <Typography variant="body2" sx={{color: "#94a3b8", maxWidth: 420}}>
                                                 {programs.length === 0
                                                     ? isPrimaryBranch
                                                         ? "Hãy tạo program đầu tiên để bắt đầu."
@@ -1694,7 +1708,7 @@ export default function SchoolPrograms() {
                                             {programs.length === 0 && isPrimaryBranch && (
                                                 <Button
                                                     variant="contained"
-                                                    startIcon={<AddIcon />}
+                                                    startIcon={<AddIcon/>}
                                                     onClick={handleOpenCreate}
                                                     sx={{
                                                         mt: 1,
@@ -1718,7 +1732,7 @@ export default function SchoolPrograms() {
                                         onClick={() => handleOpenView(row)}
                                         sx={{
                                             cursor: "pointer",
-                                            "&:hover": { bgcolor: "rgba(122, 169, 235, 0.06)" },
+                                            "&:hover": {bgcolor: "rgba(122, 169, 235, 0.06)"},
                                         }}
                                     >
                                         <TableCell>
@@ -1730,25 +1744,28 @@ export default function SchoolPrograms() {
                                                 }
                                             >
                                                 <Box>
-                                                    <Typography sx={{ fontWeight: 800, color: "#1e293b" }} noWrap>
+                                                    <Typography sx={{fontWeight: 800, color: "#1e293b"}} noWrap>
                                                         {safeString(row.name).trim() || row.curriculumName || "—"}
                                                     </Typography>
                                                     {safeString(row.name).trim() && row.curriculumName ? (
-                                                        <Typography variant="caption" sx={{ color: "#64748b", display: "block" }} noWrap>
+                                                        <Typography variant="caption"
+                                                                    sx={{color: "#64748b", display: "block"}} noWrap>
                                                             {row.curriculumName}
                                                         </Typography>
                                                     ) : null}
                                                 </Box>
                                             </Tooltip>
                                         </TableCell>
-                                        <TableCell sx={{ color: "#64748b" }}>{toCurriculumTypeLabel(row.curriculumType)}</TableCell>
-                                        <TableCell sx={{ color: "#64748b" }}>{formatVND(row.baseTuitionFee)}</TableCell>
+                                        <TableCell
+                                            sx={{color: "#64748b"}}>{toCurriculumTypeLabel(row.curriculumType)}</TableCell>
+                                        <TableCell sx={{color: "#64748b"}}>{formatVND(row.baseTuitionFee)}</TableCell>
                                         <TableCell>
-                                            <ProgramStatusBadge status={row.status} isActiveBool={row.isActiveBool} />
+                                            <ProgramStatusBadge status={row.status} isActiveBool={row.isActiveBool}/>
                                         </TableCell>
                                         {isPrimaryBranch && (
                                             <TableCell align="right">
-                                                <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
+                                                <Stack direction="row" spacing={0.5} justifyContent="flex-end"
+                                                       alignItems="center">
                                                     <IconButton
                                                         size="small"
                                                         onClick={(e) => {
@@ -1757,11 +1774,14 @@ export default function SchoolPrograms() {
                                                         }}
                                                         sx={{
                                                             color: "#64748b",
-                                                            "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" },
+                                                            "&:hover": {
+                                                                color: "#0D64DE",
+                                                                bgcolor: "rgba(13, 100, 222, 0.08)"
+                                                            },
                                                         }}
                                                         title="Xem chi tiết"
                                                     >
-                                                        <VisibilityIcon fontSize="small" />
+                                                        <VisibilityIcon fontSize="small"/>
                                                     </IconButton>
                                                     <IconButton
                                                         size="small"
@@ -1773,11 +1793,14 @@ export default function SchoolPrograms() {
                                                         }}
                                                         sx={{
                                                             color: "#64748b",
-                                                            "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" },
+                                                            "&:hover": {
+                                                                color: "#0D64DE",
+                                                                bgcolor: "rgba(13, 100, 222, 0.08)"
+                                                            },
                                                         }}
                                                         title="Nhân bản chương trình này"
                                                     >
-                                                        <ContentCopyRoundedIcon fontSize="small" />
+                                                        <ContentCopyRoundedIcon fontSize="small"/>
                                                     </IconButton>
                                                     <IconButton
                                                         size="small"
@@ -1787,11 +1810,14 @@ export default function SchoolPrograms() {
                                                         }}
                                                         sx={{
                                                             color: "#64748b",
-                                                            "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" },
+                                                            "&:hover": {
+                                                                color: "#0D64DE",
+                                                                bgcolor: "rgba(13, 100, 222, 0.08)"
+                                                            },
                                                         }}
                                                         title="Chỉnh sửa"
                                                     >
-                                                        <EditIcon fontSize="small" />
+                                                        <EditIcon fontSize="small"/>
                                                     </IconButton>
                                                 </Stack>
                                             </TableCell>
@@ -1834,21 +1860,34 @@ export default function SchoolPrograms() {
                 }}
                 fullWidth
                 maxWidth="md"
-                PaperProps={{ sx: modalPaperSx }}
-                slotProps={{ backdrop: { sx: modalBackdropSx } }}
+                PaperProps={{sx: modalPaperSx}}
+                slotProps={{backdrop: {sx: modalBackdropSx}}}
             >
-                <DialogTitle sx={{ fontWeight: 900, color: "#1e293b", px: 3, pt: 2.6, pb: 0 }}>
-                    <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", width: "100%", gap: 2 }}>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, flexWrap: "wrap", flex: 1, minWidth: 0 }}>
+                <DialogTitle sx={{fontWeight: 900, color: "#1e293b", px: 3, pt: 2.6, pb: 0}}>
+                    <Box sx={{
+                        display: "flex",
+                        alignItems: "flex-start",
+                        justifyContent: "space-between",
+                        width: "100%",
+                        gap: 2
+                    }}>
+                        <Box sx={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 1.25,
+                            flexWrap: "wrap",
+                            flex: 1,
+                            minWidth: 0
+                        }}>
                             {modalMode === "create"
                                 ? "Tạo Program"
                                 : modalMode === "edit"
-                                  ? isClonedDraftEdit
-                                      ? "Chỉnh sửa Chương trình (Bản sao)"
-                                      : "Chỉnh sửa Program"
-                                  : "Chi tiết Program"}
+                                    ? isClonedDraftEdit
+                                        ? "Chỉnh sửa Chương trình (Bản sao)"
+                                        : "Chỉnh sửa Program"
+                                    : "Chi tiết Program"}
                         </Box>
-                        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
+                        <Box sx={{display: "flex", alignItems: "center", gap: 1, flexShrink: 0}}>
                             {modalMode === "edit" && isClonedDraftEdit ? (
                                 <Chip
                                     label="BẢN NHÁP"
@@ -1865,20 +1904,21 @@ export default function SchoolPrograms() {
                                 onClick={handleCloseProgramModal}
                                 disabled={submitLoading}
                                 size="small"
-                                sx={{ mt: -0.5, mr: -0.5, color: "#64748b" }}
+                                sx={{mt: -0.5, mr: -0.5, color: "#64748b"}}
                             >
-                                <CloseIcon fontSize="small" />
+                                <CloseIcon fontSize="small"/>
                             </IconButton>
                         </Box>
                     </Box>
                 </DialogTitle>
 
-                <DialogContent ref={formDialogContentRef} dividers={false} sx={{ px: 3, pt: 1.6, pb: 1 }}>
+                <DialogContent ref={formDialogContentRef} dividers={false} sx={{px: 3, pt: 1.6, pb: 1}}>
                     {modalMode === "view" && selectedProgram ? (
-                        <Stack spacing={2.2} sx={{ mt: 0.5 }}>
+                        <Stack spacing={2.2} sx={{mt: 0.5}}>
                             {!isPrimaryBranch ? (
-                                <Alert severity="info" sx={{ py: 0.75 }}>
-                                    Cơ sở phụ chỉ xem được thông tin. Tạo và cập nhật program chỉ thực hiện tại cơ sở chính.
+                                <Alert severity="info" sx={{py: 0.75}}>
+                                    Cơ sở phụ chỉ xem được thông tin. Tạo và cập nhật program chỉ thực hiện tại cơ sở
+                                    chính.
                                 </Alert>
                             ) : null}
 
@@ -1893,8 +1933,8 @@ export default function SchoolPrograms() {
                             >
                                 <Box
                                     sx={{
-                                        px: { xs: 1.5, sm: 2 },
-                                        pt: { xs: 1.75, sm: 2 },
+                                        px: {xs: 1.5, sm: 2},
+                                        pt: {xs: 1.75, sm: 2},
                                         pb: 0,
                                         background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 55%, #f1f5f9 100%)",
                                         borderBottom: "1px solid rgba(226, 232, 240, 0.95)",
@@ -1915,7 +1955,7 @@ export default function SchoolPrograms() {
                                             value={programViewDetailTab}
                                             onChange={(_, v) => setProgramViewDetailTab(v)}
                                             variant="fullWidth"
-                                            TabIndicatorProps={{ sx: { display: "none" } }}
+                                            TabIndicatorProps={{sx: {display: "none"}}}
                                             sx={{
                                                 width: "100%",
                                                 minHeight: 0,
@@ -1960,12 +2000,17 @@ export default function SchoolPrograms() {
                                             <Tab
                                                 disableRipple
                                                 label={
-                                                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
-                                                        <SchoolIcon sx={{ fontSize: 22 }} />
-                                                        <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
+                                                    <Stack direction="row" spacing={1} alignItems="center"
+                                                           justifyContent="center">
+                                                        <SchoolIcon sx={{fontSize: 22}}/>
+                                                        <Box component="span"
+                                                             sx={{display: {xs: "none", sm: "inline"}}}>
                                                             Thông tin Program
                                                         </Box>
-                                                        <Box component="span" sx={{ display: { xs: "inline", sm: "none" }, fontWeight: 800 }}>
+                                                        <Box component="span" sx={{
+                                                            display: {xs: "inline", sm: "none"},
+                                                            fontWeight: 800
+                                                        }}>
                                                             Program
                                                         </Box>
                                                     </Stack>
@@ -1974,15 +2019,21 @@ export default function SchoolPrograms() {
                                             <Tab
                                                 disableRipple
                                                 label={
-                                                    <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
-                                                        <MenuBookIcon sx={{ fontSize: 22 }} />
-                                                        <Box component="span" sx={{ display: { xs: "none", md: "inline" } }}>
+                                                    <Stack direction="row" spacing={1} alignItems="center"
+                                                           justifyContent="center">
+                                                        <MenuBookIcon sx={{fontSize: 22}}/>
+                                                        <Box component="span"
+                                                             sx={{display: {xs: "none", md: "inline"}}}>
                                                             Khung chương trình
                                                         </Box>
-                                                        <Box component="span" sx={{ display: { xs: "none", sm: "inline", md: "none" } }}>
+                                                        <Box component="span"
+                                                             sx={{display: {xs: "none", sm: "inline", md: "none"}}}>
                                                             Curriculum
                                                         </Box>
-                                                        <Box component="span" sx={{ display: { xs: "inline", sm: "none" }, fontWeight: 800 }}>
+                                                        <Box component="span" sx={{
+                                                            display: {xs: "inline", sm: "none"},
+                                                            fontWeight: 800
+                                                        }}>
                                                             CT
                                                         </Box>
                                                     </Stack>
@@ -2008,23 +2059,28 @@ export default function SchoolPrograms() {
                                     </Typography>
                                 </Box>
 
-                                <CardContent sx={{ p: { xs: 2, sm: 2.6 }, pt: 2.4 }}>
+                                <CardContent sx={{p: {xs: 2, sm: 2.6}, pt: 2.4}}>
                                     {programViewDetailTab === 0 ? (
                                         <Stack spacing={1.5}>
                                             <Stack
-                                                direction={{ xs: "column", sm: "row" }}
+                                                direction={{xs: "column", sm: "row"}}
                                                 spacing={2}
-                                                alignItems={{ xs: "stretch", sm: "flex-start" }}
+                                                alignItems={{xs: "stretch", sm: "flex-start"}}
                                                 justifyContent="space-between"
                                             >
-                                                <Box sx={{ flex: 1, minWidth: 0 }}>
-                                                    <Typography variant="caption" sx={{ color: "#0D64DE", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                <Box sx={{flex: 1, minWidth: 0}}>
+                                                    <Typography variant="caption" sx={{
+                                                        color: "#0D64DE",
+                                                        display: "block",
+                                                        mb: 0.6,
+                                                        fontWeight: 900
+                                                    }}>
                                                         Khung chương trình
                                                     </Typography>
-                                                    <Typography sx={{ fontWeight: 900, color: "#1e293b" }}>
+                                                    <Typography sx={{fontWeight: 900, color: "#1e293b"}}>
                                                         {selectedProgram.curriculumName}
                                                     </Typography>
-                                                    <Typography variant="body2" sx={{ color: "#64748b" }}>
+                                                    <Typography variant="body2" sx={{color: "#64748b"}}>
                                                         {selectedProgram.enrollmentYear || "—"} {toCurriculumTypeLabel(selectedProgram.curriculumType)}
                                                     </Typography>
                                                 </Box>
@@ -2032,13 +2088,14 @@ export default function SchoolPrograms() {
                                                     <Stack
                                                         direction="row"
                                                         spacing={1}
-                                                        justifyContent={{ xs: "flex-start", sm: "flex-end" }}
-                                                        sx={{ flexShrink: 0, pt: { xs: 0, sm: 0.25 } }}
+                                                        justifyContent={{xs: "flex-start", sm: "flex-end"}}
+                                                        sx={{flexShrink: 0, pt: {xs: 0, sm: 0.25}}}
                                                     >
                                                         {normalizeStatus(selectedProgram.status) === "PRO_ACTIVE" ? (
                                                             <Button
                                                                 variant="contained"
-                                                                startIcon={<PowerSettingsNewRoundedIcon fontSize="small" />}
+                                                                startIcon={<PowerSettingsNewRoundedIcon
+                                                                    fontSize="small"/>}
                                                                 onClick={() => {
                                                                     setActionTargetProgram(selectedProgram);
                                                                     setActionType("DEACTIVATE");
@@ -2050,7 +2107,7 @@ export default function SchoolPrograms() {
                                                                     fontWeight: 900,
                                                                     borderRadius: 2,
                                                                     bgcolor: "#fb923c",
-                                                                    "&:hover": { bgcolor: "#f97316" },
+                                                                    "&:hover": {bgcolor: "#f97316"},
                                                                 }}
                                                             >
                                                                 Tạm dừng
@@ -2058,7 +2115,7 @@ export default function SchoolPrograms() {
                                                         ) : (
                                                             <Button
                                                                 variant="contained"
-                                                                startIcon={<CheckCircleOutlineIcon fontSize="small" />}
+                                                                startIcon={<CheckCircleOutlineIcon fontSize="small"/>}
                                                                 onClick={() => {
                                                                     setActionTargetProgram(selectedProgram);
                                                                     setActionType("ACTIVATE");
@@ -2070,7 +2127,7 @@ export default function SchoolPrograms() {
                                                                     fontWeight: 900,
                                                                     borderRadius: 2,
                                                                     bgcolor: "#22c55e",
-                                                                    "&:hover": { bgcolor: "#16a34a" },
+                                                                    "&:hover": {bgcolor: "#16a34a"},
                                                                 }}
                                                             >
                                                                 Kích hoạt
@@ -2080,58 +2137,93 @@ export default function SchoolPrograms() {
                                                 ) : null}
                                             </Stack>
 
-                                            <Divider />
+                                            <Divider/>
 
                                             <Box>
-                                                <Typography variant="caption" sx={{ color: "#0D64DE", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                <Typography variant="caption" sx={{
+                                                    color: "#0D64DE",
+                                                    display: "block",
+                                                    mb: 0.6,
+                                                    fontWeight: 900
+                                                }}>
                                                     Tên program
                                                 </Typography>
-                                                <Typography sx={{ fontWeight: 900, color: "#1e293b" }}>
+                                                <Typography sx={{fontWeight: 900, color: "#1e293b"}}>
                                                     {safeString(formValues.name).trim() || "—"}
                                                 </Typography>
                                             </Box>
 
                                             <Box>
-                                                <Typography variant="caption" sx={{ color: "#0D64DE", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                <Typography variant="caption" sx={{
+                                                    color: "#0D64DE",
+                                                    display: "block",
+                                                    mb: 0.6,
+                                                    fontWeight: 900
+                                                }}>
                                                     Ngôn ngữ giảng dạy
                                                 </Typography>
-                                                <Typography sx={{ fontWeight: 900, color: "#1e293b" }}>
+                                                <Typography sx={{fontWeight: 900, color: "#1e293b"}}>
                                                     {getLanguageInstructionListDisplayLabel(formValues.languageOfInstructionList)}
                                                 </Typography>
                                             </Box>
 
                                             <Box>
-                                                <Typography variant="caption" sx={{ color: "#0D64DE", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                <Typography variant="caption" sx={{
+                                                    color: "#0D64DE",
+                                                    display: "block",
+                                                    mb: 0.6,
+                                                    fontWeight: 900
+                                                }}>
                                                     Học phí gốc
                                                 </Typography>
-                                                <Typography sx={{ fontWeight: 950, color: "#1e293b" }}>
+                                                <Typography sx={{fontWeight: 950, color: "#1e293b"}}>
                                                     {formatVND(formValues.baseTuitionFee)} • {getEnumLabel(FEE_UNIT_OPTIONS, formValues.feeUnit)}
                                                 </Typography>
                                             </Box>
 
                                             <Box>
-                                                <Typography variant="caption" sx={{ color: "#0D64DE", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                <Typography variant="caption" sx={{
+                                                    color: "#0D64DE",
+                                                    display: "block",
+                                                    mb: 0.6,
+                                                    fontWeight: 900
+                                                }}>
                                                     Đối tượng học sinh
                                                 </Typography>
-                                                <ProgramRichTextDisplay value={formValues.targetStudentDescription} />
+                                                <ProgramRichTextDisplay value={formValues.targetStudentDescription}/>
                                             </Box>
 
                                             <Box>
-                                                <Typography variant="caption" sx={{ color: "#0D64DE", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                <Typography variant="caption" sx={{
+                                                    color: "#0D64DE",
+                                                    display: "block",
+                                                    mb: 0.6,
+                                                    fontWeight: 900
+                                                }}>
                                                     Tiêu chuẩn đầu ra
                                                 </Typography>
-                                                <ProgramRichTextDisplay value={formValues.graduationStandard} />
+                                                <ProgramRichTextDisplay value={formValues.graduationStandard}/>
                                             </Box>
 
                                             <Box>
-                                                <Typography variant="caption" sx={{ color: "#0D64DE", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                <Typography variant="caption" sx={{
+                                                    color: "#0D64DE",
+                                                    display: "block",
+                                                    mb: 0.6,
+                                                    fontWeight: 900
+                                                }}>
                                                     Môn bổ sung
                                                 </Typography>
-                                                <ExtraSubjectReadOnlyList value={formValues.extraSubjectList} />
+                                                <ExtraSubjectReadOnlyList value={formValues.extraSubjectList}/>
                                             </Box>
 
                                             <Box>
-                                                <Typography variant="caption" sx={{ color: "#0D64DE", display: "block", mb: 0.6, fontWeight: 900 }}>
+                                                <Typography variant="caption" sx={{
+                                                    color: "#0D64DE",
+                                                    display: "block",
+                                                    mb: 0.6,
+                                                    fontWeight: 900
+                                                }}>
                                                     Trạng thái
                                                 </Typography>
                                                 <ProgramStatusBadge
@@ -2142,10 +2234,10 @@ export default function SchoolPrograms() {
                                         </Stack>
                                     ) : curriculumOptionsLoading ? (
                                         <Stack spacing={2}>
-                                            <Skeleton variant="rounded" height={120} sx={{ borderRadius: 3 }} />
-                                            <Skeleton variant="rounded" height={88} sx={{ borderRadius: 3 }} />
-                                            <Skeleton variant="rounded" height={160} sx={{ borderRadius: 3 }} />
-                                            <Skeleton variant="rounded" height={200} sx={{ borderRadius: 3 }} />
+                                            <Skeleton variant="rounded" height={120} sx={{borderRadius: 3}}/>
+                                            <Skeleton variant="rounded" height={88} sx={{borderRadius: 3}}/>
+                                            <Skeleton variant="rounded" height={160} sx={{borderRadius: 3}}/>
+                                            <Skeleton variant="rounded" height={200} sx={{borderRadius: 3}}/>
                                         </Stack>
                                     ) : programDetailLinkedCurriculum ? (
                                         <ProgramCurriculumDetailPanel
@@ -2153,8 +2245,9 @@ export default function SchoolPrograms() {
                                             isPrimaryBranch={isPrimaryBranch}
                                         />
                                     ) : (
-                                        <Alert severity="warning" sx={{ borderRadius: 2 }}>
-                                            Không tìm thấy dữ liệu khung chương trình đầy đủ (có thể curriculum đã lưu trữ và không còn trong danh
+                                        <Alert severity="warning" sx={{borderRadius: 2}}>
+                                            Không tìm thấy dữ liệu khung chương trình đầy đủ (có thể curriculum đã lưu
+                                            trữ và không còn trong danh
                                             sách hoạt động). Vẫn hiển thị tóm tắt trên tab đầu tiên (Thông tin Program).
                                         </Alert>
                                     )}
@@ -2164,11 +2257,12 @@ export default function SchoolPrograms() {
                     ) : (
                         <>
                             {modalMode === "edit" && isClonedDraftEdit ? (
-                                <Alert severity="info" sx={{ py: 1.1, mt: 1.25, mb: 2 }}>
-                                    Đây là bản sao mới khởi tạo. Bạn có thể thay đổi học phí và khung chương trình tại đây.
+                                <Alert severity="info" sx={{py: 1.1, mt: 1.25, mb: 2}}>
+                                    Đây là bản sao mới khởi tạo. Bạn có thể thay đổi học phí và khung chương trình tại
+                                    đây.
                                 </Alert>
                             ) : null}
-                            <Stepper activeStep={activeStep} sx={{ pt: 1.5, pb: 1.8 }}>
+                            <Stepper activeStep={activeStep} sx={{pt: 1.5, pb: 1.8}}>
                                 <Step>
                                     <StepLabel>Chọn Curriculum</StepLabel>
                                 </Step>
@@ -2180,203 +2274,223 @@ export default function SchoolPrograms() {
                                 </Step>
                             </Stepper>
 
-                            <Stack spacing={2.2} sx={{ mt: 0.5 }}>
-                        {activeStep === 0 && (
-                            <>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
-                                    Bước 1: Chọn khung chương trình (Curriculum)
-                                </Typography>
+                            <Stack spacing={2.2} sx={{mt: 0.5}}>
+                                {activeStep === 0 && (
+                                    <>
+                                        <Typography variant="subtitle1" sx={{fontWeight: 900, color: "#1e293b"}}>
+                                            Bước 1: Chọn khung chương trình (Curriculum)
+                                        </Typography>
 
-                                {curriculumSelectionWarning ? (
-                                    <Alert severity="warning" sx={{ py: 0.75 }}>
-                                        {curriculumSelectionWarning}
-                                    </Alert>
-                                ) : null}
+                                        {curriculumSelectionWarning ? (
+                                            <Alert severity="warning" sx={{py: 0.75}}>
+                                                {curriculumSelectionWarning}
+                                            </Alert>
+                                        ) : null}
 
-                                <Autocomplete
-                                    value={selectedCurriculum}
-                                    onChange={(e, newValue) => {
-                                        setSelectedCurriculum(newValue);
-                                        setFormErrors({});
-                                    }}
-                                    options={curriculumOptions}
-                                    loading={curriculumOptionsLoading}
-                                    getOptionLabel={(opt) =>
-                                        opt ? `${opt.subTypeName} - ${opt.enrollmentYear}` : ""
-                                    }
-                                    isOptionEqualToValue={(a, b) => (a && b ? a.id === b.id : a === b)}
-                                    disabled={disableCurriculumSelection || curriculumOptionsLoading}
-                                    renderInput={(params) => (
-                                        <TextField
-                                            {...params}
-                                            label="Khung chương trình"
-                                            placeholder="Chọn khung chương trình..."
-                                            error={!!formErrors.curriculumId}
-                                            helperText={formErrors.curriculumId || ""}
-                                        />
-                                    )}
-                                    renderOption={(props, option) => (
-                                        <Box component="li" {...props} key={option.id}>
-                                            <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ width: "100%" }}>
-                                                <Box>
-                                                    <Typography sx={{ fontWeight: 800, color: "#1e293b" }}>
-                                                        {option.subTypeName}
-                                                    </Typography>
-                                                    <Typography variant="caption" sx={{ color: "#64748b" }}>
-                                                        {option.enrollmentYear} • {toCurriculumTypeLabel(option.curriculumType)}
-                                                    </Typography>
-                                                </Box>
-                                                {option.isLatest && (
-                                                    <Chip
-                                                        icon={<VerifiedIcon fontSize="small" />}
-                                                        label="Mới nhất"
-                                                        size="small"
-                                                        sx={{
-                                                            bgcolor: "rgba(13, 100, 222, 0.10)",
-                                                            color: "#0D64DE",
-                                                            fontWeight: 900,
-                                                        }}
-                                                    />
-                                                )}
-                                            </Stack>
-                                        </Box>
-                                    )}
-                                />
-
-                                <Box sx={{ mt: 0.5 }}>
-                                    {curriculumPreview ? (
-                                        <Card
-                                            elevation={0}
-                                            sx={{
-                                                border: "1px solid #e2e8f0",
-                                                borderRadius: 3,
-                                                bgcolor: "#F8FAFC",
+                                        <Autocomplete
+                                            value={selectedCurriculum}
+                                            onChange={(e, newValue) => {
+                                                setSelectedCurriculum(newValue);
+                                                setFormErrors({});
                                             }}
-                                        >
-                                            <CardContent sx={{ p: 2.4 }}>
-                                                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ xs: "flex-start", sm: "center" }} justifyContent="space-between">
-                                                    <Box>
-                                                        <Typography sx={{ fontWeight: 950, color: "#1e293b" }}>
-                                                            {curriculumPreview.subTypeName}
-                                                        </Typography>
-                                                        <Typography variant="body2" sx={{ color: "#64748b" }}>
-                                                            {curriculumPreview.enrollmentYear} • {toCurriculumTypeLabel(curriculumPreview.curriculumType)}
-                                                        </Typography>
-                                                    </Box>
-                                                    <Box>
-                                                        {curriculumPreview.isLatest ? <Chip label="Mới nhất" sx={{ fontWeight: 900 }} /> : null}
-                                                    </Box>
-                                                </Stack>
-
-                                                <Box sx={{ mt: 2 }}>
-                                                    <Typography variant="subtitle2" sx={{ fontWeight: 900, color: "#1e293b", mb: 1 }}>
-                                                        Preview môn học
-                                                    </Typography>
-                                                    <Stack spacing={1.2}>
-                                                        {(curriculumPreview.subjects || []).slice(0, 8).map((s, idx) => (
-                                                            <Box
-                                                                key={`${s.name}-${idx}`}
-                                                                sx={{
-                                                                    border: "1px solid #e2e8f0",
-                                                                    borderRadius: 2,
-                                                                    bgcolor: "#ffffff",
-                                                                    px: 1.8,
-                                                                    py: 1.2,
-                                                                }}
-                                                            >
-                                                                <Stack direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
-                                                                    <Typography sx={{ fontWeight: 850, color: "#1e293b" }}>{s.name || "—"}</Typography>
-                                                                    {s.isMandatory ? (
-                                                                        <Typography variant="caption" sx={{ color: "#16a34a", fontWeight: 900 }}>
-                                                                            Bắt buộc
-                                                                        </Typography>
-                                                                    ) : (
-                                                                        <Typography variant="caption" sx={{ color: "#94a3b8", fontWeight: 900 }}>
-                                                                            Không bắt buộc
-                                                                        </Typography>
-                                                                    )}
-                                                                </Stack>
-                                                                <Typography variant="body2" sx={{ color: "#64748b", mt: 0.7 }}>
-                                                                    {s.description || "—"}
-                                                                </Typography>
-                                                            </Box>
-                                                        ))}
-                                                        {(curriculumPreview.subjects || []).length === 0 && (
-                                                            <Typography variant="body2" sx={{ color: "#94a3b8" }}>
-                                                                Chưa có môn học.
+                                            options={curriculumOptions}
+                                            loading={curriculumOptionsLoading}
+                                            getOptionLabel={(opt) =>
+                                                opt ? `${opt.subTypeName} - ${opt.enrollmentYear}` : ""
+                                            }
+                                            isOptionEqualToValue={(a, b) => (a && b ? a.id === b.id : a === b)}
+                                            disabled={disableCurriculumSelection || curriculumOptionsLoading}
+                                            renderInput={(params) => (
+                                                <TextField
+                                                    {...params}
+                                                    label="Khung chương trình"
+                                                    placeholder="Chọn khung chương trình..."
+                                                    error={!!formErrors.curriculumId}
+                                                    helperText={formErrors.curriculumId || ""}
+                                                />
+                                            )}
+                                            renderOption={(props, option) => (
+                                                <Box component="li" {...props} key={option.id}>
+                                                    <Stack direction="row" spacing={1} alignItems="center"
+                                                           justifyContent="space-between" sx={{width: "100%"}}>
+                                                        <Box>
+                                                            <Typography sx={{fontWeight: 800, color: "#1e293b"}}>
+                                                                {option.subTypeName}
                                                             </Typography>
+                                                            <Typography variant="caption" sx={{color: "#64748b"}}>
+                                                                {option.enrollmentYear} • {toCurriculumTypeLabel(option.curriculumType)}
+                                                            </Typography>
+                                                        </Box>
+                                                        {option.isLatest && (
+                                                            <Chip
+                                                                icon={<VerifiedIcon fontSize="small"/>}
+                                                                label="Mới nhất"
+                                                                size="small"
+                                                                sx={{
+                                                                    bgcolor: "rgba(13, 100, 222, 0.10)",
+                                                                    color: "#0D64DE",
+                                                                    fontWeight: 900,
+                                                                }}
+                                                            />
                                                         )}
                                                     </Stack>
                                                 </Box>
-                                            </CardContent>
-                                        </Card>
-                                    ) : curriculumOptionsLoading ? (
-                                        <Stack spacing={1.2}>
-                                            <Skeleton variant="rounded" height={28} />
-                                            <Skeleton variant="rounded" height={18} width="65%" />
-                                            {Array.from({ length: 4 }).map((_, i) => (
-                                                <Skeleton key={i} variant="rounded" height={62} />
-                                            ))}
-                                        </Stack>
-                                    ) : (
-                                        <Box
-                                            sx={{
-                                                border: "1px dashed #cbd5e1",
-                                                borderRadius: 3,
-                                                bgcolor: "#ffffff",
-                                                p: 2.2,
-                                            }}
-                                        >
-                                            <Typography variant="body2" sx={{ color: "#64748b" }}>
-                                                Chọn curriculum để xem preview môn học.
-                                            </Typography>
+                                            )}
+                                        />
+
+                                        <Box sx={{mt: 0.5}}>
+                                            {curriculumPreview ? (
+                                                <Card
+                                                    elevation={0}
+                                                    sx={{
+                                                        border: "1px solid #e2e8f0",
+                                                        borderRadius: 3,
+                                                        bgcolor: "#F8FAFC",
+                                                    }}
+                                                >
+                                                    <CardContent sx={{p: 2.4}}>
+                                                        <Stack direction={{xs: "column", sm: "row"}} spacing={2}
+                                                               alignItems={{xs: "flex-start", sm: "center"}}
+                                                               justifyContent="space-between">
+                                                            <Box>
+                                                                <Typography sx={{fontWeight: 950, color: "#1e293b"}}>
+                                                                    {curriculumPreview.subTypeName}
+                                                                </Typography>
+                                                                <Typography variant="body2" sx={{color: "#64748b"}}>
+                                                                    {curriculumPreview.enrollmentYear} • {toCurriculumTypeLabel(curriculumPreview.curriculumType)}
+                                                                </Typography>
+                                                            </Box>
+                                                            <Box>
+                                                                {curriculumPreview.isLatest ? <Chip label="Mới nhất"
+                                                                                                    sx={{fontWeight: 900}}/> : null}
+                                                            </Box>
+                                                        </Stack>
+
+                                                        <Box sx={{mt: 2}}>
+                                                            <Typography variant="subtitle2"
+                                                                        sx={{fontWeight: 900, color: "#1e293b", mb: 1}}>
+                                                                Preview môn học
+                                                            </Typography>
+                                                            <Stack spacing={1.2}>
+                                                                {(curriculumPreview.subjects || []).slice(0, 8).map((s, idx) => (
+                                                                    <Box
+                                                                        key={`${s.name}-${idx}`}
+                                                                        sx={{
+                                                                            border: "1px solid #e2e8f0",
+                                                                            borderRadius: 2,
+                                                                            bgcolor: "#ffffff",
+                                                                            px: 1.8,
+                                                                            py: 1.2,
+                                                                        }}
+                                                                    >
+                                                                        <Stack direction="row"
+                                                                               justifyContent="space-between"
+                                                                               alignItems="center" spacing={2}>
+                                                                            <Typography sx={{
+                                                                                fontWeight: 850,
+                                                                                color: "#1e293b"
+                                                                            }}>{s.name || "—"}</Typography>
+                                                                            {s.isMandatory ? (
+                                                                                <Typography variant="caption" sx={{
+                                                                                    color: "#16a34a",
+                                                                                    fontWeight: 900
+                                                                                }}>
+                                                                                    Bắt buộc
+                                                                                </Typography>
+                                                                            ) : (
+                                                                                <Typography variant="caption" sx={{
+                                                                                    color: "#94a3b8",
+                                                                                    fontWeight: 900
+                                                                                }}>
+                                                                                    Không bắt buộc
+                                                                                </Typography>
+                                                                            )}
+                                                                        </Stack>
+                                                                        <Typography variant="body2"
+                                                                                    sx={{color: "#64748b", mt: 0.7}}>
+                                                                            {s.description || "—"}
+                                                                        </Typography>
+                                                                    </Box>
+                                                                ))}
+                                                                {(curriculumPreview.subjects || []).length === 0 && (
+                                                                    <Typography variant="body2" sx={{color: "#94a3b8"}}>
+                                                                        Chưa có môn học.
+                                                                    </Typography>
+                                                                )}
+                                                            </Stack>
+                                                        </Box>
+                                                    </CardContent>
+                                                </Card>
+                                            ) : curriculumOptionsLoading ? (
+                                                <Stack spacing={1.2}>
+                                                    <Skeleton variant="rounded" height={28}/>
+                                                    <Skeleton variant="rounded" height={18} width="65%"/>
+                                                    {Array.from({length: 4}).map((_, i) => (
+                                                        <Skeleton key={i} variant="rounded" height={62}/>
+                                                    ))}
+                                                </Stack>
+                                            ) : (
+                                                <Box
+                                                    sx={{
+                                                        border: "1px dashed #cbd5e1",
+                                                        borderRadius: 3,
+                                                        bgcolor: "#ffffff",
+                                                        p: 2.2,
+                                                    }}
+                                                >
+                                                    <Typography variant="body2" sx={{color: "#64748b"}}>
+                                                        Chọn curriculum để xem preview môn học.
+                                                    </Typography>
+                                                </Box>
+                                            )}
                                         </Box>
-                                    )}
-                                </Box>
-                            </>
-                        )}
-
-                        {activeStep === 1 && (
-                            <>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
-                                    Bước 2: Nhập thông tin Program
-                                </Typography>
-
-                                {curriculumSelectionWarning && (
-                                    <Alert severity="warning">{curriculumSelectionWarning}</Alert>
+                                    </>
                                 )}
 
-                                <TextField
-                                    label="Tên program"
-                                    fullWidth
-                                    required
-                                    value={formValues.name}
-                                    inputRef={nameInputRef}
-                                    onChange={(e) => {
-                                        setFormValues((prev) => ({ ...prev, name: e.target.value }));
-                                        setFormErrors((prev) => ({ ...prev, name: undefined }));
-                                    }}
-                                    inputProps={{ maxLength: MAX_PROGRAM_NAME_LEN }}
-                                    error={!!formErrors.name}
-                                    helperText={
-                                        formErrors.name || `Tên hiển thị của program. Tối đa ${MAX_PROGRAM_NAME_LEN} ký tự.`
-                                    }
-                                />
+                                {activeStep === 1 && (
+                                    <>
+                                        <Typography variant="subtitle1" sx={{fontWeight: 900, color: "#1e293b"}}>
+                                            Bước 2: Nhập thông tin Program
+                                        </Typography>
 
-                                <LanguageInstructionSelector
-                                    value={formValues.languageOfInstructionList}
-                                    options={LANGUAGE_OPTIONS}
-                                    onChange={(next) => {
-                                        setFormValues((prev) => ({ ...prev, languageOfInstructionList: next }));
-                                        setFormErrors((prev) => ({ ...prev, languageOfInstructionList: undefined }));
-                                    }}
-                                    error={formErrors.languageOfInstructionList}
-                                />
+                                        {curriculumSelectionWarning && (
+                                            <Alert severity="warning">{curriculumSelectionWarning}</Alert>
+                                        )}
 
-                                <Tooltip
-                                    title={coreLockedByActive ? "Không thể sửa thông tin cốt lõi của chương trình đang hoạt động" : ""}
-                                    disableHoverListener={!coreLockedByActive}
-                                >
+                                        <TextField
+                                            label="Tên program"
+                                            fullWidth
+                                            required
+                                            value={formValues.name}
+                                            inputRef={nameInputRef}
+                                            onChange={(e) => {
+                                                setFormValues((prev) => ({...prev, name: e.target.value}));
+                                                setFormErrors((prev) => ({...prev, name: undefined}));
+                                            }}
+                                            inputProps={{maxLength: MAX_PROGRAM_NAME_LEN}}
+                                            error={!!formErrors.name}
+                                            helperText={
+                                                formErrors.name || `Tên hiển thị của program. Tối đa ${MAX_PROGRAM_NAME_LEN} ký tự.`
+                                            }
+                                        />
+
+                                        <LanguageInstructionSelector
+                                            value={formValues.languageOfInstructionList}
+                                            options={LANGUAGE_OPTIONS}
+                                            onChange={(next) => {
+                                                setFormValues((prev) => ({...prev, languageOfInstructionList: next}));
+                                                setFormErrors((prev) => ({
+                                                    ...prev,
+                                                    languageOfInstructionList: undefined
+                                                }));
+                                            }}
+                                            error={formErrors.languageOfInstructionList}
+                                        />
+
+                                        <Tooltip
+                                            title={coreLockedByActive ? "Không thể sửa thông tin cốt lõi của chương trình đang hoạt động" : ""}
+                                            disableHoverListener={!coreLockedByActive}
+                                        >
                                     <span>
                                         <TextField
                                             label="Học phí gốc"
@@ -2393,9 +2507,9 @@ export default function SchoolPrograms() {
                                                     ...prev,
                                                     baseTuitionFee: digits,
                                                 }));
-                                                setFormErrors((prev) => ({ ...prev, baseTuitionFee: undefined }));
+                                                setFormErrors((prev) => ({...prev, baseTuitionFee: undefined}));
                                             }}
-                                            inputProps={{ inputMode: "numeric", maxLength: 18 }}
+                                            inputProps={{inputMode: "numeric", maxLength: 18}}
                                             error={!!formErrors.baseTuitionFee}
                                             helperText={
                                                 formErrors.baseTuitionFee ||
@@ -2406,354 +2520,424 @@ export default function SchoolPrograms() {
                                             }}
                                         />
                                     </span>
-                                </Tooltip>
+                                        </Tooltip>
 
-                                <Tooltip
-                                    title={coreLockedByActive ? "Không thể sửa thông tin cốt lõi của chương trình đang hoạt động" : ""}
-                                    disableHoverListener={!coreLockedByActive}
-                                >
+                                        <Tooltip
+                                            title={coreLockedByActive ? "Không thể sửa thông tin cốt lõi của chương trình đang hoạt động" : ""}
+                                            disableHoverListener={!coreLockedByActive}
+                                        >
                                     <span>
                                         <SelectLike
                                             label="Đơn vị học phí"
                                             value={formValues.feeUnit}
                                             options={FEE_UNIT_OPTIONS}
                                             onChange={(v) => {
-                                                setFormValues((prev) => ({ ...prev, feeUnit: v }));
-                                                setFormErrors((prev) => ({ ...prev, feeUnit: undefined }));
+                                                setFormValues((prev) => ({...prev, feeUnit: v}));
+                                                setFormErrors((prev) => ({...prev, feeUnit: undefined}));
                                             }}
                                             error={!!formErrors.feeUnit}
                                             helperText={formErrors.feeUnit || ""}
                                             disabled={coreLockedByActive}
                                         />
                                     </span>
-                                </Tooltip>
+                                        </Tooltip>
 
-                                <Box>
-                                    <Typography
-                                        component="label"
-                                        variant="body2"
-                                        sx={{
-                                            display: "block",
-                                            mb: 0.75,
-                                            fontWeight: 700,
-                                            color: "#64748b",
-                                        }}
-                                    >
-                                        Tiêu chuẩn đầu ra
-                                    </Typography>
-                                    <CreatePostRichTextEditor
-                                        key={`${programRichTextEditorsKey}-graduation`}
-                                        initialHtml={programRichTextToInitialHtml(formValues.graduationStandard)}
-                                        onChange={(html) => {
-                                            setFormValues((prev) => ({ ...prev, graduationStandard: html }));
-                                            setFormErrors((prev) => ({ ...prev, graduationStandard: undefined }));
-                                        }}
-                                        disabled={submitLoading}
-                                        minEditorHeight={220}
-                                        maxEditorHeight={400}
-                                    />
-                                    {formErrors.graduationStandard ? (
-                                        <Typography variant="caption" sx={{ mt: 0.75, display: "block", color: "error.main" }}>
-                                            {formErrors.graduationStandard}
-                                        </Typography>
-                                    ) : (
-                                        <Typography variant="caption" sx={{ mt: 0.75, display: "block", color: "text.secondary" }}>
-                                            {`Mô tả các chứng chỉ/kỹ năng đạt được. Tối đa ${MAX_TEXT_FIELD_LEN} ký tự.`}
-                                        </Typography>
-                                    )}
-                                </Box>
-
-                                <Box>
-                                    <Typography
-                                        component="label"
-                                        variant="body2"
-                                        sx={{
-                                            display: "block",
-                                            mb: 0.75,
-                                            fontWeight: 700,
-                                            color: "#64748b",
-                                        }}
-                                    >
-                                        Đối tượng học sinh
-                                    </Typography>
-                                    <CreatePostRichTextEditor
-                                        key={`${programRichTextEditorsKey}-target`}
-                                        initialHtml={programRichTextToInitialHtml(formValues.targetStudentDescription)}
-                                        onChange={(html) => {
-                                            setFormValues((prev) => ({ ...prev, targetStudentDescription: html }));
-                                            setFormErrors((prev) => ({ ...prev, targetStudentDescription: undefined }));
-                                        }}
-                                        disabled={submitLoading}
-                                        minEditorHeight={220}
-                                        maxEditorHeight={400}
-                                    />
-                                    {formErrors.targetStudentDescription ? (
-                                        <Typography variant="caption" sx={{ mt: 0.75, display: "block", color: "error.main" }}>
-                                            {formErrors.targetStudentDescription}
-                                        </Typography>
-                                    ) : (
-                                        <Typography variant="caption" sx={{ mt: 0.75, display: "block", color: "text.secondary" }}>
-                                            {`Ví dụ: học sinh giỏi, định hướng du học... Tối đa ${MAX_TEXT_FIELD_LEN} ký tự.`}
-                                        </Typography>
-                                    )}
-                                </Box>
-
-                                <ExtraSubjectEditor
-                                    value={formValues.extraSubjectList}
-                                    onChange={(next) => {
-                                        setFormValues((prev) => ({ ...prev, extraSubjectList: next }));
-                                        setFormErrors((prev) => ({ ...prev, extraSubjectList: undefined }));
-                                    }}
-                                    error={formErrors.extraSubjectList}
-                                    disabled={false}
-                                />
-
-                                {coreLockedByActive ? (
-                                    <Alert severity="info" sx={{ py: 1, mt: 1.2 }}>
-                                        Không thể sửa thông tin cốt lõi của chương trình đang hoạt động.
-                                    </Alert>
-                                ) : null}
-                            </>
-                        )}
-
-                        {activeStep === 2 && (
-                            <>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
-                                    Bước 3: Xem lại & Gửi yêu cầu
-                                </Typography>
-
-                                {curriculumSelectionWarning && (
-                                    <Alert severity="warning">{curriculumSelectionWarning}</Alert>
-                                )}
-
-                                <Card
-                                    elevation={0}
-                                    sx={{
-                                        border: "1px solid #e2e8f0",
-                                        borderRadius: 3,
-                                        bgcolor: "#F8FAFC",
-                                        overflow: "hidden",
-                                    }}
-                                >
-                                    <Box
-                                        sx={{
-                                            px: { xs: 1.5, sm: 2 },
-                                            pt: { xs: 1.75, sm: 2 },
-                                            pb: 0,
-                                            background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 55%, #f1f5f9 100%)",
-                                            borderBottom: "1px solid rgba(226, 232, 240, 0.95)",
-                                        }}
-                                    >
-                                        <Box
-                                            sx={{
-                                                display: "flex",
-                                                p: 0.5,
-                                                gap: 0.5,
-                                                borderRadius: 2.5,
-                                                bgcolor: "rgba(15, 23, 42, 0.045)",
-                                                border: "1px solid rgba(226, 232, 240, 0.95)",
-                                                boxShadow: "inset 0 1px 1px rgba(255,255,255,0.9), 0 1px 2px rgba(15, 23, 42, 0.04)",
-                                            }}
-                                        >
-                                            <Tabs
-                                                value={programWizardReviewTab}
-                                                onChange={(_, v) => setProgramWizardReviewTab(v)}
-                                                variant="fullWidth"
-                                                TabIndicatorProps={{ sx: { display: "none" } }}
+                                        <Box>
+                                            <Typography
+                                                component="label"
+                                                variant="body2"
                                                 sx={{
-                                                    width: "100%",
-                                                    minHeight: 0,
-                                                    "& .MuiTabs-flexContainer": { gap: 0.5 },
-                                                    "& .MuiTab-root": {
-                                                        flex: 1,
-                                                        minHeight: 48,
-                                                        py: 1,
-                                                        px: 1,
-                                                        borderRadius: 2,
-                                                        textTransform: "none",
-                                                        fontWeight: 700,
-                                                        fontSize: 14,
-                                                        letterSpacing: "-0.01em",
-                                                        color: "#64748b",
-                                                        transition:
-                                                            "color 200ms ease, background-color 200ms ease, box-shadow 200ms ease, transform 200ms ease",
-                                                    },
-                                                    "& .MuiTab-root:hover": {
-                                                        color: "#475569",
-                                                        bgcolor: "rgba(255, 255, 255, 0.55)",
-                                                    },
-                                                    "& .MuiTab-root.Mui-selected": {
-                                                        color: PROGRAM_VIEW_HEADER_ACCENT,
-                                                        bgcolor: "#ffffff",
-                                                        fontWeight: 800,
-                                                        boxShadow:
-                                                            "0 2px 10px rgba(13, 100, 222, 0.14), 0 1px 3px rgba(15, 23, 42, 0.08)",
-                                                        transform: "translateY(-0.5px)",
-                                                    },
-                                                    "& .MuiTab-root .MuiSvgIcon-root": {
-                                                        transition: "color 200ms ease, opacity 200ms ease",
-                                                        opacity: 0.72,
-                                                    },
-                                                    "& .MuiTab-root.Mui-selected .MuiSvgIcon-root": {
-                                                        opacity: 1,
-                                                        color: PROGRAM_VIEW_HEADER_ACCENT,
-                                                    },
+                                                    display: "block",
+                                                    mb: 0.75,
+                                                    fontWeight: 700,
+                                                    color: "#64748b",
                                                 }}
                                             >
-                                                <Tab
-                                                    disableRipple
-                                                    label={
-                                                        <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
-                                                            <SchoolIcon sx={{ fontSize: 22 }} />
-                                                            <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>
-                                                                Thông tin Program
-                                                            </Box>
-                                                            <Box component="span" sx={{ display: { xs: "inline", sm: "none" }, fontWeight: 800 }}>
-                                                                Program
-                                                            </Box>
-                                                        </Stack>
-                                                    }
-                                                />
-                                                <Tab
-                                                    disableRipple
-                                                    label={
-                                                        <Stack direction="row" spacing={1} alignItems="center" justifyContent="center">
-                                                            <MenuBookIcon sx={{ fontSize: 22 }} />
-                                                            <Box component="span" sx={{ display: { xs: "none", md: "inline" } }}>
-                                                                Khung chương trình
-                                                            </Box>
-                                                            <Box component="span" sx={{ display: { xs: "none", sm: "inline", md: "none" } }}>
-                                                                Curriculum
-                                                            </Box>
-                                                            <Box component="span" sx={{ display: { xs: "inline", sm: "none" }, fontWeight: 800 }}>
-                                                                CT
-                                                            </Box>
-                                                        </Stack>
-                                                    }
-                                                />
-                                            </Tabs>
+                                                Tiêu chuẩn đầu ra
+                                            </Typography>
+                                            <CreatePostRichTextEditor
+                                                key={`${programRichTextEditorsKey}-graduation`}
+                                                initialHtml={programRichTextToInitialHtml(formValues.graduationStandard)}
+                                                onChange={(html) => {
+                                                    setFormValues((prev) => ({...prev, graduationStandard: html}));
+                                                    setFormErrors((prev) => ({...prev, graduationStandard: undefined}));
+                                                }}
+                                                disabled={submitLoading}
+                                                minEditorHeight={220}
+                                                maxEditorHeight={400}
+                                            />
+                                            {formErrors.graduationStandard ? (
+                                                <Typography variant="caption"
+                                                            sx={{mt: 0.75, display: "block", color: "error.main"}}>
+                                                    {formErrors.graduationStandard}
+                                                </Typography>
+                                            ) : (
+                                                <Typography variant="caption"
+                                                            sx={{mt: 0.75, display: "block", color: "text.secondary"}}>
+                                                    {`Mô tả các chứng chỉ/kỹ năng đạt được. Tối đa ${MAX_TEXT_FIELD_LEN} ký tự.`}
+                                                </Typography>
+                                            )}
                                         </Box>
-                                        <Typography
-                                            variant="caption"
+
+                                        <Box>
+                                            <Typography
+                                                component="label"
+                                                variant="body2"
+                                                sx={{
+                                                    display: "block",
+                                                    mb: 0.75,
+                                                    fontWeight: 700,
+                                                    color: "#64748b",
+                                                }}
+                                            >
+                                                Đối tượng học sinh
+                                            </Typography>
+                                            <CreatePostRichTextEditor
+                                                key={`${programRichTextEditorsKey}-target`}
+                                                initialHtml={programRichTextToInitialHtml(formValues.targetStudentDescription)}
+                                                onChange={(html) => {
+                                                    setFormValues((prev) => ({
+                                                        ...prev,
+                                                        targetStudentDescription: html
+                                                    }));
+                                                    setFormErrors((prev) => ({
+                                                        ...prev,
+                                                        targetStudentDescription: undefined
+                                                    }));
+                                                }}
+                                                disabled={submitLoading}
+                                                minEditorHeight={220}
+                                                maxEditorHeight={400}
+                                            />
+                                            {formErrors.targetStudentDescription ? (
+                                                <Typography variant="caption"
+                                                            sx={{mt: 0.75, display: "block", color: "error.main"}}>
+                                                    {formErrors.targetStudentDescription}
+                                                </Typography>
+                                            ) : (
+                                                <Typography variant="caption"
+                                                            sx={{mt: 0.75, display: "block", color: "text.secondary"}}>
+                                                    {`Ví dụ: học sinh giỏi, định hướng du học... Tối đa ${MAX_TEXT_FIELD_LEN} ký tự.`}
+                                                </Typography>
+                                            )}
+                                        </Box>
+
+                                        <ExtraSubjectEditor
+                                            value={formValues.extraSubjectList}
+                                            onChange={(next) => {
+                                                setFormValues((prev) => ({...prev, extraSubjectList: next}));
+                                                setFormErrors((prev) => ({...prev, extraSubjectList: undefined}));
+                                            }}
+                                            error={formErrors.extraSubjectList}
+                                            disabled={false}
+                                        />
+
+                                        {coreLockedByActive ? (
+                                            <Alert severity="info" sx={{py: 1, mt: 1.2}}>
+                                                Không thể sửa thông tin cốt lõi của chương trình đang hoạt động.
+                                            </Alert>
+                                        ) : null}
+                                    </>
+                                )}
+
+                                {activeStep === 2 && (
+                                    <>
+                                        <Typography variant="subtitle1" sx={{fontWeight: 900, color: "#1e293b"}}>
+                                            Bước 3: Xem lại & Gửi yêu cầu
+                                        </Typography>
+
+                                        {curriculumSelectionWarning && (
+                                            <Alert severity="warning">{curriculumSelectionWarning}</Alert>
+                                        )}
+
+                                        <Card
+                                            elevation={0}
                                             sx={{
-                                                display: "block",
-                                                mt: 1.1,
-                                                mb: 0.25,
-                                                px: 0.25,
-                                                color: "#94a3b8",
-                                                fontWeight: 600,
-                                                letterSpacing: "0.02em",
+                                                border: "1px solid #e2e8f0",
+                                                borderRadius: 3,
+                                                bgcolor: "#F8FAFC",
+                                                overflow: "hidden",
                                             }}
                                         >
-                                            {programWizardReviewTab === 0
-                                                ? "Xem lại thông tin program trước khi gửi yêu cầu."
-                                                : "Chi tiết khung chương trình đã chọn (đọc)."}
-                                        </Typography>
-                                    </Box>
-
-                                    <CardContent sx={{ p: { xs: 2, sm: 2.6 }, pt: 2.4 }}>
-                                        {programWizardReviewTab === 0 ? (
-                                            <Stack spacing={1.5}>
-                                                <Box>
-                                                    <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
-                                                        Curriculum
-                                                    </Typography>
-                                                    <Typography sx={{ fontWeight: 900, color: "#1e293b" }}>
-                                                        {curriculumPreview?.subTypeName || selectedCurriculum?.subTypeName || "—"}
-                                                    </Typography>
-                                                    <Typography variant="body2" sx={{ color: "#64748b" }}>
-                                                        {curriculumPreview?.enrollmentYear || selectedCurriculum?.enrollmentYear || "—"}{" "}
-                                                        {toCurriculumTypeLabel(curriculumPreview?.curriculumType || selectedCurriculum?.curriculumType)}
-                                                    </Typography>
+                                            <Box
+                                                sx={{
+                                                    px: {xs: 1.5, sm: 2},
+                                                    pt: {xs: 1.75, sm: 2},
+                                                    pb: 0,
+                                                    background: "linear-gradient(180deg, #ffffff 0%, #f8fafc 55%, #f1f5f9 100%)",
+                                                    borderBottom: "1px solid rgba(226, 232, 240, 0.95)",
+                                                }}
+                                            >
+                                                <Box
+                                                    sx={{
+                                                        display: "flex",
+                                                        p: 0.5,
+                                                        gap: 0.5,
+                                                        borderRadius: 2.5,
+                                                        bgcolor: "rgba(15, 23, 42, 0.045)",
+                                                        border: "1px solid rgba(226, 232, 240, 0.95)",
+                                                        boxShadow: "inset 0 1px 1px rgba(255,255,255,0.9), 0 1px 2px rgba(15, 23, 42, 0.04)",
+                                                    }}
+                                                >
+                                                    <Tabs
+                                                        value={programWizardReviewTab}
+                                                        onChange={(_, v) => setProgramWizardReviewTab(v)}
+                                                        variant="fullWidth"
+                                                        TabIndicatorProps={{sx: {display: "none"}}}
+                                                        sx={{
+                                                            width: "100%",
+                                                            minHeight: 0,
+                                                            "& .MuiTabs-flexContainer": {gap: 0.5},
+                                                            "& .MuiTab-root": {
+                                                                flex: 1,
+                                                                minHeight: 48,
+                                                                py: 1,
+                                                                px: 1,
+                                                                borderRadius: 2,
+                                                                textTransform: "none",
+                                                                fontWeight: 700,
+                                                                fontSize: 14,
+                                                                letterSpacing: "-0.01em",
+                                                                color: "#64748b",
+                                                                transition:
+                                                                    "color 200ms ease, background-color 200ms ease, box-shadow 200ms ease, transform 200ms ease",
+                                                            },
+                                                            "& .MuiTab-root:hover": {
+                                                                color: "#475569",
+                                                                bgcolor: "rgba(255, 255, 255, 0.55)",
+                                                            },
+                                                            "& .MuiTab-root.Mui-selected": {
+                                                                color: PROGRAM_VIEW_HEADER_ACCENT,
+                                                                bgcolor: "#ffffff",
+                                                                fontWeight: 800,
+                                                                boxShadow:
+                                                                    "0 2px 10px rgba(13, 100, 222, 0.14), 0 1px 3px rgba(15, 23, 42, 0.08)",
+                                                                transform: "translateY(-0.5px)",
+                                                            },
+                                                            "& .MuiTab-root .MuiSvgIcon-root": {
+                                                                transition: "color 200ms ease, opacity 200ms ease",
+                                                                opacity: 0.72,
+                                                            },
+                                                            "& .MuiTab-root.Mui-selected .MuiSvgIcon-root": {
+                                                                opacity: 1,
+                                                                color: PROGRAM_VIEW_HEADER_ACCENT,
+                                                            },
+                                                        }}
+                                                    >
+                                                        <Tab
+                                                            disableRipple
+                                                            label={
+                                                                <Stack direction="row" spacing={1} alignItems="center"
+                                                                       justifyContent="center">
+                                                                    <SchoolIcon sx={{fontSize: 22}}/>
+                                                                    <Box component="span"
+                                                                         sx={{display: {xs: "none", sm: "inline"}}}>
+                                                                        Thông tin Program
+                                                                    </Box>
+                                                                    <Box component="span" sx={{
+                                                                        display: {xs: "inline", sm: "none"},
+                                                                        fontWeight: 800
+                                                                    }}>
+                                                                        Program
+                                                                    </Box>
+                                                                </Stack>
+                                                            }
+                                                        />
+                                                        <Tab
+                                                            disableRipple
+                                                            label={
+                                                                <Stack direction="row" spacing={1} alignItems="center"
+                                                                       justifyContent="center">
+                                                                    <MenuBookIcon sx={{fontSize: 22}}/>
+                                                                    <Box component="span"
+                                                                         sx={{display: {xs: "none", md: "inline"}}}>
+                                                                        Khung chương trình
+                                                                    </Box>
+                                                                    <Box component="span" sx={{
+                                                                        display: {
+                                                                            xs: "none",
+                                                                            sm: "inline",
+                                                                            md: "none"
+                                                                        }
+                                                                    }}>
+                                                                        Curriculum
+                                                                    </Box>
+                                                                    <Box component="span" sx={{
+                                                                        display: {xs: "inline", sm: "none"},
+                                                                        fontWeight: 800
+                                                                    }}>
+                                                                        CT
+                                                                    </Box>
+                                                                </Stack>
+                                                            }
+                                                        />
+                                                    </Tabs>
                                                 </Box>
+                                                <Typography
+                                                    variant="caption"
+                                                    sx={{
+                                                        display: "block",
+                                                        mt: 1.1,
+                                                        mb: 0.25,
+                                                        px: 0.25,
+                                                        color: "#94a3b8",
+                                                        fontWeight: 600,
+                                                        letterSpacing: "0.02em",
+                                                    }}
+                                                >
+                                                    {programWizardReviewTab === 0
+                                                        ? "Xem lại thông tin program trước khi gửi yêu cầu."
+                                                        : "Chi tiết khung chương trình đã chọn (đọc)."}
+                                                </Typography>
+                                            </Box>
 
-                                                <Divider />
+                                            <CardContent sx={{p: {xs: 2, sm: 2.6}, pt: 2.4}}>
+                                                {programWizardReviewTab === 0 ? (
+                                                    <Stack spacing={1.5}>
+                                                        <Box>
+                                                            <Typography variant="caption" sx={{
+                                                                color: "#94a3b8",
+                                                                display: "block",
+                                                                mb: 0.6,
+                                                                fontWeight: 900
+                                                            }}>
+                                                                Curriculum
+                                                            </Typography>
+                                                            <Typography sx={{fontWeight: 900, color: "#1e293b"}}>
+                                                                {curriculumPreview?.subTypeName || selectedCurriculum?.subTypeName || "—"}
+                                                            </Typography>
+                                                            <Typography variant="body2" sx={{color: "#64748b"}}>
+                                                                {curriculumPreview?.enrollmentYear || selectedCurriculum?.enrollmentYear || "—"}{" "}
+                                                                {toCurriculumTypeLabel(curriculumPreview?.curriculumType || selectedCurriculum?.curriculumType)}
+                                                            </Typography>
+                                                        </Box>
 
-                                                <Box>
-                                                    <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
-                                                        Tên program
-                                                    </Typography>
-                                                    <Typography sx={{ fontWeight: 900, color: "#1e293b" }}>
-                                                        {safeString(formValues.name).trim() || "—"}
-                                                    </Typography>
-                                                </Box>
+                                                        <Divider/>
 
-                                                <Box>
-                                                    <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
-                                                        Ngôn ngữ giảng dạy
-                                                    </Typography>
-                                                    <Typography sx={{ fontWeight: 900, color: "#1e293b" }}>
-                                                        {getLanguageInstructionListDisplayLabel(formValues.languageOfInstructionList)}
-                                                    </Typography>
-                                                </Box>
+                                                        <Box>
+                                                            <Typography variant="caption" sx={{
+                                                                color: "#94a3b8",
+                                                                display: "block",
+                                                                mb: 0.6,
+                                                                fontWeight: 900
+                                                            }}>
+                                                                Tên program
+                                                            </Typography>
+                                                            <Typography sx={{fontWeight: 900, color: "#1e293b"}}>
+                                                                {safeString(formValues.name).trim() || "—"}
+                                                            </Typography>
+                                                        </Box>
 
-                                                <Box>
-                                                    <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
-                                                        Học phí gốc
-                                                    </Typography>
-                                                    <Typography sx={{ fontWeight: 950, color: "#1e293b" }}>
-                                                        {formatVND(formValues.baseTuitionFee)} • {getEnumLabel(FEE_UNIT_OPTIONS, formValues.feeUnit)}
-                                                    </Typography>
-                                                </Box>
+                                                        <Box>
+                                                            <Typography variant="caption" sx={{
+                                                                color: "#94a3b8",
+                                                                display: "block",
+                                                                mb: 0.6,
+                                                                fontWeight: 900
+                                                            }}>
+                                                                Ngôn ngữ giảng dạy
+                                                            </Typography>
+                                                            <Typography sx={{fontWeight: 900, color: "#1e293b"}}>
+                                                                {getLanguageInstructionListDisplayLabel(formValues.languageOfInstructionList)}
+                                                            </Typography>
+                                                        </Box>
 
-                                                <Box>
-                                                    <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
-                                                        Đối tượng học sinh
-                                                    </Typography>
-                                                    <ProgramRichTextDisplay value={formValues.targetStudentDescription} />
-                                                </Box>
+                                                        <Box>
+                                                            <Typography variant="caption" sx={{
+                                                                color: "#94a3b8",
+                                                                display: "block",
+                                                                mb: 0.6,
+                                                                fontWeight: 900
+                                                            }}>
+                                                                Học phí gốc
+                                                            </Typography>
+                                                            <Typography sx={{fontWeight: 950, color: "#1e293b"}}>
+                                                                {formatVND(formValues.baseTuitionFee)} • {getEnumLabel(FEE_UNIT_OPTIONS, formValues.feeUnit)}
+                                                            </Typography>
+                                                        </Box>
 
-                                                <Box>
-                                                    <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
-                                                        Tiêu chuẩn đầu ra
-                                                    </Typography>
-                                                    <ProgramRichTextDisplay value={formValues.graduationStandard} />
-                                                </Box>
+                                                        <Box>
+                                                            <Typography variant="caption" sx={{
+                                                                color: "#94a3b8",
+                                                                display: "block",
+                                                                mb: 0.6,
+                                                                fontWeight: 900
+                                                            }}>
+                                                                Đối tượng học sinh
+                                                            </Typography>
+                                                            <ProgramRichTextDisplay
+                                                                value={formValues.targetStudentDescription}/>
+                                                        </Box>
 
-                                                <Box>
-                                                    <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
-                                                        Môn bổ sung
-                                                    </Typography>
-                                                    <ExtraSubjectReadOnlyList value={formValues.extraSubjectList} />
-                                                </Box>
+                                                        <Box>
+                                                            <Typography variant="caption" sx={{
+                                                                color: "#94a3b8",
+                                                                display: "block",
+                                                                mb: 0.6,
+                                                                fontWeight: 900
+                                                            }}>
+                                                                Tiêu chuẩn đầu ra
+                                                            </Typography>
+                                                            <ProgramRichTextDisplay
+                                                                value={formValues.graduationStandard}/>
+                                                        </Box>
 
-                                                <Box>
-                                                    <Typography variant="caption" sx={{ color: "#94a3b8", display: "block", mb: 0.6, fontWeight: 900 }}>
-                                                        Trạng thái
-                                                    </Typography>
-                                                    <ProgramStatusBadge
-                                                        status={modalMode === "create" ? "PRO_DRAFT" : selectedProgram?.status}
-                                                        isActiveBool={modalMode === "create" ? false : selectedProgram?.isActiveBool}
+                                                        <Box>
+                                                            <Typography variant="caption" sx={{
+                                                                color: "#94a3b8",
+                                                                display: "block",
+                                                                mb: 0.6,
+                                                                fontWeight: 900
+                                                            }}>
+                                                                Môn bổ sung
+                                                            </Typography>
+                                                            <ExtraSubjectReadOnlyList
+                                                                value={formValues.extraSubjectList}/>
+                                                        </Box>
+
+                                                        <Box>
+                                                            <Typography variant="caption" sx={{
+                                                                color: "#94a3b8",
+                                                                display: "block",
+                                                                mb: 0.6,
+                                                                fontWeight: 900
+                                                            }}>
+                                                                Trạng thái
+                                                            </Typography>
+                                                            <ProgramStatusBadge
+                                                                status={modalMode === "create" ? "PRO_DRAFT" : selectedProgram?.status}
+                                                                isActiveBool={modalMode === "create" ? false : selectedProgram?.isActiveBool}
+                                                            />
+                                                        </Box>
+                                                    </Stack>
+                                                ) : curriculumPreview ? (
+                                                    <ProgramCurriculumDetailPanel
+                                                        curriculum={curriculumPreview}
+                                                        isPrimaryBranch={isPrimaryBranch}
                                                     />
-                                                </Box>
-                                            </Stack>
-                                        ) : curriculumPreview ? (
-                                            <ProgramCurriculumDetailPanel
-                                                curriculum={curriculumPreview}
-                                                isPrimaryBranch={isPrimaryBranch}
-                                            />
-                                        ) : (
-                                            <Alert severity="warning" sx={{ borderRadius: 2 }}>
-                                                Chưa có khung chương trình để xem chi tiết. Quay lại bước 1 và chọn curriculum.
-                                            </Alert>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            </>
-                        )}
+                                                ) : (
+                                                    <Alert severity="warning" sx={{borderRadius: 2}}>
+                                                        Chưa có khung chương trình để xem chi tiết. Quay lại bước 1 và
+                                                        chọn curriculum.
+                                                    </Alert>
+                                                )}
+                                            </CardContent>
+                                        </Card>
+                                    </>
+                                )}
                             </Stack>
                         </>
                     )}
                 </DialogContent>
 
-                <DialogActions sx={{ px: 3, py: 2.2, borderTop: "1px solid #e2e8f0", gap: 1 }}>
+                <DialogActions sx={{px: 3, py: 2.2, borderTop: "1px solid #e2e8f0", gap: 1}}>
                     {modalMode === "view" ? (
                         <>
                             <Button
                                 onClick={handleCloseProgramModal}
                                 variant="text"
                                 color="inherit"
-                                sx={{ textTransform: "none", fontWeight: 800 }}
+                                sx={{textTransform: "none", fontWeight: 800}}
                                 disabled={cloneLoading || actionLoading}
                             >
                                 Quay lại
@@ -2762,13 +2946,13 @@ export default function SchoolPrograms() {
                             {isPrimaryBranch ? (
                                 <Button
                                     variant="outlined"
-                                    startIcon={<ContentCopyRoundedIcon fontSize="small" />}
+                                    startIcon={<ContentCopyRoundedIcon fontSize="small"/>}
                                     onClick={() => {
                                         setCloneTargetProgram(selectedProgram);
                                         setCloneConfirmOpen(true);
                                     }}
                                     disabled={cloneLoading || actionLoading || !selectedProgram}
-                                    sx={{ textTransform: "none", fontWeight: 800, borderRadius: 2, px: 3 }}
+                                    sx={{textTransform: "none", fontWeight: 800, borderRadius: 2, px: 3}}
                                 >
                                     Nhân bản chương trình
                                 </Button>
@@ -2797,7 +2981,7 @@ export default function SchoolPrograms() {
                                 onClick={handleCloseProgramModal}
                                 variant="text"
                                 color="inherit"
-                                sx={{ textTransform: "none", fontWeight: 800 }}
+                                sx={{textTransform: "none", fontWeight: 800}}
                                 disabled={submitLoading}
                             >
                                 Hủy
@@ -2808,12 +2992,12 @@ export default function SchoolPrograms() {
                                     onClick={handleBack}
                                     variant="outlined"
                                     disabled={submitLoading}
-                                    sx={{ textTransform: "none", fontWeight: 800, borderRadius: 2, px: 3 }}
+                                    sx={{textTransform: "none", fontWeight: 800, borderRadius: 2, px: 3}}
                                 >
                                     Quay lại
                                 </Button>
                             ) : (
-                                <Box sx={{ flex: 1 }} />
+                                <Box sx={{flex: 1}}/>
                             )}
 
                             {activeStep < 2 ? (
@@ -2847,8 +3031,8 @@ export default function SchoolPrograms() {
                                     {submitLoading
                                         ? "Đang gửi..."
                                         : modalMode === "create"
-                                          ? "Tạo Program"
-                                          : "Cập nhật Program"}
+                                            ? "Tạo Program"
+                                            : "Cập nhật Program"}
                                 </Button>
                             )}
                         </>
@@ -2865,40 +3049,41 @@ export default function SchoolPrograms() {
                 }}
                 fullWidth
                 maxWidth="sm"
-                PaperProps={{ sx: { borderRadius: "16px", position: "relative" } }}
+                PaperProps={{sx: {borderRadius: "16px", position: "relative"}}}
             >
                 <IconButton
                     aria-label="Đóng"
                     onClick={() => !cloneLoading && !actionLoading && setCloneConfirmOpen(false)}
                     disabled={cloneLoading || actionLoading}
-                    sx={{ position: "absolute", right: 8, top: 8, zIndex: 1, color: "#64748b" }}
+                    sx={{position: "absolute", right: 8, top: 8, zIndex: 1, color: "#64748b"}}
                 >
-                    <CloseIcon fontSize="small" />
+                    <CloseIcon fontSize="small"/>
                 </IconButton>
-                <DialogContent sx={{ pt: 3, px: 3, pr: 6 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900 }}>
+                <DialogContent sx={{pt: 3, px: 3, pr: 6}}>
+                    <Typography variant="h6" sx={{fontWeight: 900}}>
                         Nhân bản chương trình đào tạo?
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25 }}>
-                        Hệ thống sẽ tạo <ConfirmHighlight>một bản sao mới (trạng thái Nháp)</ConfirmHighlight> dựa trên toàn bộ thông tin của chương trình này. Bạn có muốn{" "}
+                    <Typography variant="body2" color="text.secondary" sx={{mt: 1.25}}>
+                        Hệ thống sẽ tạo <ConfirmHighlight>một bản sao mới (trạng thái Nháp)</ConfirmHighlight> dựa trên
+                        toàn bộ thông tin của chương trình này. Bạn có muốn{" "}
                         <ConfirmHighlight>tiếp tục</ConfirmHighlight> không?
                     </Typography>
 
                     {cloneLoading ? (
-                        <Box sx={{ mt: 2.5, display: "flex", alignItems: "center", gap: 1.5 }}>
-                            <CircularProgress size={22} />
-                            <Typography variant="body2" sx={{ color: "#64748b", fontWeight: 800 }}>
+                        <Box sx={{mt: 2.5, display: "flex", alignItems: "center", gap: 1.5}}>
+                            <CircularProgress size={22}/>
+                            <Typography variant="body2" sx={{color: "#64748b", fontWeight: 800}}>
                                 Đang khởi tạo bản sao, vui lòng đợi trong giây lát...
                             </Typography>
                         </Box>
                     ) : null}
                 </DialogContent>
 
-                <DialogActions sx={{ px: 3, pb: 2.5 }}>
+                <DialogActions sx={{px: 3, pb: 2.5}}>
                     <Button
                         onClick={() => setCloneConfirmOpen(false)}
                         disabled={cloneLoading || actionLoading}
-                        sx={{ textTransform: "none" }}
+                        sx={{textTransform: "none"}}
                     >
                         Hủy
                     </Button>
@@ -2911,37 +3096,37 @@ export default function SchoolPrograms() {
                                 const res = await cloneProgram(cloneTargetProgram.id);
                                 const ok = res?.status >= 200 && res?.status < 300;
                                 if (!ok) {
-                                    enqueueSnackbar(res?.data?.message || "Không thể nhân bản chương trình.", { variant: "error" });
+                                    enqueueSnackbar(res?.data?.message || "Không thể nhân bản chương trình.", {variant: "error"});
                                     return;
                                 }
 
                                 const rawBody = res?.data?.body ?? res?.data ?? {};
                                 const mapped = mapProgramFromApi(rawBody);
                                 if (!mapped) {
-                                    enqueueSnackbar("Đã nhân bản nhưng không đọc được dữ liệu bản sao mới.", { variant: "warning" });
+                                    enqueueSnackbar("Đã nhân bản nhưng không đọc được dữ liệu bản sao mới.", {variant: "warning"});
                                     return;
                                 }
 
                                 enqueueSnackbar(
                                     "Thành công! Đã tạo bản sao mới. Bạn đang ở chế độ chỉnh sửa bản nháp.",
-                                    { variant: "success" }
+                                    {variant: "success"}
                                 );
                                 setCloneConfirmOpen(false);
                                 setCloneTargetProgram(null);
 
-                                await handleOpenEdit(mapped, { startStep: 0, markAsClonedDraft: true });
+                                await handleOpenEdit(mapped, {startStep: 0, markAsClonedDraft: true});
                             } catch (err) {
                                 console.error("Clone program error:", err);
                                 enqueueSnackbar(
                                     err?.response?.data?.message || "Không thể nhân bản chương trình. Vui lòng thử lại.",
-                                    { variant: "error" }
+                                    {variant: "error"}
                                 );
                             } finally {
                                 setCloneLoading(false);
                             }
                         }}
                         disabled={cloneLoading || actionLoading || !cloneTargetProgram}
-                        sx={{ textTransform: "none", fontWeight: 800, borderRadius: "12px", bgcolor: "#3b82f6" }}
+                        sx={{textTransform: "none", fontWeight: 800, borderRadius: "12px", bgcolor: "#3b82f6"}}
                     >
                         Xác nhận nhân bản
                     </Button>
@@ -2957,48 +3142,51 @@ export default function SchoolPrograms() {
                 }}
                 fullWidth
                 maxWidth="sm"
-                PaperProps={{ sx: { borderRadius: "16px", position: "relative" } }}
+                PaperProps={{sx: {borderRadius: "16px", position: "relative"}}}
             >
                 <IconButton
                     aria-label="Đóng"
                     onClick={() => !actionLoading && !cloneLoading && setActionConfirmOpen(false)}
                     disabled={actionLoading || cloneLoading}
-                    sx={{ position: "absolute", right: 8, top: 8, zIndex: 1, color: "#64748b" }}
+                    sx={{position: "absolute", right: 8, top: 8, zIndex: 1, color: "#64748b"}}
                 >
-                    <CloseIcon fontSize="small" />
+                    <CloseIcon fontSize="small"/>
                 </IconButton>
-                <DialogContent sx={{ pt: 3, px: 3, pr: 6 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 900 }}>
+                <DialogContent sx={{pt: 3, px: 3, pr: 6}}>
+                    <Typography variant="h6" sx={{fontWeight: 900}}>
                         {actionType === "DEACTIVATE" ? "Xác nhận tạm dừng chương trình?" : "Xác nhận kích hoạt chương trình này?"}
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25 }}>
+                    <Typography variant="body2" color="text.secondary" sx={{mt: 1.25}}>
                         {actionType === "DEACTIVATE" ? (
                             <>
-                                Các trường học phí và khung chương trình sẽ được mở khóa để chỉnh sửa. Lưu ý: Các cơ sở sẽ tạm thời{" "}
-                                <ConfirmHighlight>không thấy chương trình này</ConfirmHighlight> để tạo mới đợt tuyển sinh.
+                                Các trường học phí và khung chương trình sẽ được mở khóa để chỉnh sửa. Lưu ý: Các cơ sở
+                                sẽ tạm thời{" "}
+                                <ConfirmHighlight>không thấy chương trình này</ConfirmHighlight> để tạo mới đợt tuyển
+                                sinh.
                             </>
                         ) : (
                             <>
-                                Sau khi kích hoạt, bạn sẽ <ConfirmHighlight>không thể thay đổi Học phí và Khung chương trình</ConfirmHighlight> trực tiếp.
+                                Sau khi kích hoạt, bạn sẽ <ConfirmHighlight>không thể thay đổi Học phí và Khung chương
+                                trình</ConfirmHighlight> trực tiếp.
                             </>
                         )}
                     </Typography>
 
                     {actionLoading ? (
-                        <Box sx={{ mt: 2.5, display: "flex", alignItems: "center", gap: 1.5 }}>
-                            <CircularProgress size={22} />
-                            <Typography variant="body2" sx={{ color: "#64748b", fontWeight: 800 }}>
+                        <Box sx={{mt: 2.5, display: "flex", alignItems: "center", gap: 1.5}}>
+                            <CircularProgress size={22}/>
+                            <Typography variant="body2" sx={{color: "#64748b", fontWeight: 800}}>
                                 Đang xử lý...
                             </Typography>
                         </Box>
                     ) : null}
                 </DialogContent>
 
-                <DialogActions sx={{ px: 3, pb: 2.5 }}>
+                <DialogActions sx={{px: 3, pb: 2.5}}>
                     <Button
                         onClick={() => setActionConfirmOpen(false)}
                         disabled={actionLoading || cloneLoading}
-                        sx={{ textTransform: "none" }}
+                        sx={{textTransform: "none"}}
                     >
                         Hủy
                     </Button>
@@ -3015,7 +3203,7 @@ export default function SchoolPrograms() {
                                         actionType === "ACTIVATE"
                                             ? "Chương trình đã được kích hoạt thành công. Các cơ sở hiện đã có thể tạo đợt tuyển sinh."
                                             : "Chương trình đã tạm dừng. Bạn hiện có thể chỉnh sửa các thông tin cốt lõi.",
-                                        { variant: "success" }
+                                        {variant: "success"}
                                     );
                                     setActionConfirmOpen(false);
                                     setActionTargetProgram(null);
@@ -3032,7 +3220,7 @@ export default function SchoolPrograms() {
                                         actionType === "ACTIVATE"
                                             ? "Không thể kích hoạt. Vui lòng kiểm tra lại dữ liệu chương trình."
                                             : "Hành động không hợp lệ hoặc chương trình đã ở trạng thái Inactive.",
-                                        { variant: "error" }
+                                        {variant: "error"}
                                     );
                                 }
                             } catch (err) {
@@ -3041,7 +3229,7 @@ export default function SchoolPrograms() {
                                     actionType === "ACTIVATE"
                                         ? "Không thể kích hoạt. Vui lòng kiểm tra lại dữ liệu chương trình."
                                         : "Hành động không hợp lệ hoặc chương trình đã ở trạng thái Inactive.",
-                                    { variant: "error" }
+                                    {variant: "error"}
                                 );
                             } finally {
                                 setActionLoading(false);
@@ -3064,7 +3252,7 @@ export default function SchoolPrograms() {
     );
 }
 
-function SelectLike({ value, options, onChange, label, error, helperText, disabled = false }) {
+function SelectLike({value, options, onChange, label, error, helperText, disabled = false}) {
     return (
         <TextField
             select
@@ -3076,7 +3264,7 @@ function SelectLike({ value, options, onChange, label, error, helperText, disabl
             error={!!error}
             helperText={helperText || ""}
             disabled={disabled}
-            sx={{ borderRadius: 2, bgcolor: "white" }}
+            sx={{borderRadius: 2, bgcolor: "white"}}
         >
             {(options || []).map((opt) => (
                 <MenuItem key={String(opt.value)} value={opt.value}>
@@ -3087,7 +3275,7 @@ function SelectLike({ value, options, onChange, label, error, helperText, disabl
     );
 }
 
-function LanguageInstructionSelector({ value, options, onChange, error }) {
+function LanguageInstructionSelector({value, options, onChange, error}) {
     const selectedValues = Array.isArray(value) ? value : [];
 
     const toggleValue = (nextValue) => {
@@ -3097,14 +3285,14 @@ function LanguageInstructionSelector({ value, options, onChange, error }) {
 
     return (
         <Box>
-            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-                <Typography sx={{ fontWeight: 800, color: "#1e293b" }}>Ngôn ngữ giảng dạy</Typography>
-                <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700 }}>
+            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{mb: 1}}>
+                <Typography sx={{fontWeight: 800, color: "#1e293b"}}>Ngôn ngữ giảng dạy</Typography>
+                <Typography variant="caption" sx={{color: "#64748b", fontWeight: 700}}>
                     Có thể chọn nhiều
                 </Typography>
             </Stack>
 
-            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mb: 1.5 }}>
+            <Box sx={{display: "flex", flexWrap: "wrap", gap: 1, mb: 1.5}}>
                 {selectedValues.length > 0 ? (
                     selectedValues.map((item) => (
                         <Chip
@@ -3120,7 +3308,7 @@ function LanguageInstructionSelector({ value, options, onChange, error }) {
                         />
                     ))
                 ) : (
-                    <Typography variant="caption" sx={{ color: "#94a3b8" }}>
+                    <Typography variant="caption" sx={{color: "#94a3b8"}}>
                         Chưa chọn ngôn ngữ giảng dạy
                     </Typography>
                 )}
@@ -3129,7 +3317,7 @@ function LanguageInstructionSelector({ value, options, onChange, error }) {
             <Box
                 sx={{
                     display: "grid",
-                    gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" },
+                    gridTemplateColumns: {xs: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))"},
                     gap: 1.75,
                 }}
             >
@@ -3181,10 +3369,10 @@ function LanguageInstructionSelector({ value, options, onChange, error }) {
                                         }}
                                     />
                                 ) : null}
-                                <Typography sx={{ mt: 0.2, fontWeight: 800, color: "#1e293b", fontSize: 13.5 }}>
+                                <Typography sx={{mt: 0.2, fontWeight: 800, color: "#1e293b", fontSize: 13.5}}>
                                     {item.label}
                                 </Typography>
-                                <Typography variant="caption" sx={{ color: "#64748b", mt: 0.2, display: "block" }}>
+                                <Typography variant="caption" sx={{color: "#64748b", mt: 0.2, display: "block"}}>
                                     {item.value}
                                 </Typography>
                             </Box>
@@ -3194,7 +3382,7 @@ function LanguageInstructionSelector({ value, options, onChange, error }) {
             </Box>
 
             {error ? (
-                <Typography variant="caption" sx={{ color: "#d32f2f", ml: 0.2, mt: 1, display: "block" }}>
+                <Typography variant="caption" sx={{color: "#d32f2f", ml: 0.2, mt: 1, display: "block"}}>
                     {error}
                 </Typography>
             ) : null}
@@ -3202,7 +3390,7 @@ function LanguageInstructionSelector({ value, options, onChange, error }) {
     );
 }
 
-function ExtraSubjectEditor({ value, onChange, error, disabled = false }) {
+function ExtraSubjectEditor({value, onChange, error, disabled = false}) {
     const subjects = Array.isArray(value) ? value : [];
     const extraSubjectItemRefs = useRef([]);
     const [pendingScrollIndex, setPendingScrollIndex] = useState(null);
@@ -3212,7 +3400,7 @@ function ExtraSubjectEditor({ value, onChange, error, disabled = false }) {
         const target = extraSubjectItemRefs.current[pendingScrollIndex];
         if (!target) return;
         requestAnimationFrame(() => {
-            target.scrollIntoView({ behavior: "smooth", block: "center" });
+            target.scrollIntoView({behavior: "smooth", block: "center"});
         });
         setPendingScrollIndex(null);
     }, [subjects.length, pendingScrollIndex]);
@@ -3227,41 +3415,41 @@ function ExtraSubjectEditor({ value, onChange, error, disabled = false }) {
             subjects.map((item, idx) =>
                 idx === index
                     ? {
-                          ...item,
-                          [field]: field === "isMandatory" ? !!nextValue : nextValue,
-                      }
+                        ...item,
+                        [field]: field === "isMandatory" ? !!nextValue : nextValue,
+                    }
                     : item
             )
         );
     };
 
     return (
-        <Box sx={{ mt: 0.6 }}>
+        <Box sx={{mt: 0.6}}>
             <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
+                <Typography variant="subtitle1" sx={{fontWeight: 900, color: "#1e293b"}}>
                     Môn bổ sung
                 </Typography>
                 <Button
                     size="small"
                     variant="outlined"
-                    startIcon={<AddIcon />}
+                    startIcon={<AddIcon/>}
                     onClick={addItem}
                     disabled={disabled}
-                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                    sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
                 >
                     Thêm môn
                 </Button>
             </Stack>
 
             {error && typeof error === "string" ? (
-                <Typography variant="caption" sx={{ color: "#d32f2f", display: "block", mt: 1.2 }}>
+                <Typography variant="caption" sx={{color: "#d32f2f", display: "block", mt: 1.2}}>
                     {error}
                 </Typography>
             ) : null}
 
-            <Stack spacing={1.2} sx={{ mt: 1.2 }}>
+            <Stack spacing={1.2} sx={{mt: 1.2}}>
                 {subjects.length === 0 ? (
-                    <Typography variant="body2" sx={{ color: "#94a3b8", px: 0.5 }}>
+                    <Typography variant="body2" sx={{color: "#94a3b8", px: 0.5}}>
                         Chưa có môn bổ sung.
                     </Typography>
                 ) : null}
@@ -3269,7 +3457,7 @@ function ExtraSubjectEditor({ value, onChange, error, disabled = false }) {
                 {subjects.map((subject, index) => {
                     const subjectErr = Array.isArray(error) && error[index] ? error[index] : null;
                     return (
-                        <Grow in={true} style={{ transformOrigin: "0 0 0" }} key={`extra-subject-${index}`}>
+                        <Grow in={true} style={{transformOrigin: "0 0 0"}} key={`extra-subject-${index}`}>
                             <Box
                                 ref={(el) => {
                                     extraSubjectItemRefs.current[index] = el;
@@ -3282,8 +3470,9 @@ function ExtraSubjectEditor({ value, onChange, error, disabled = false }) {
                                     py: 1.6,
                                 }}
                             >
-                                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
-                                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800 }}>
+                                <Stack direction="row" justifyContent="space-between" alignItems="flex-start"
+                                       spacing={2}>
+                                    <Typography variant="caption" sx={{color: "#64748b", fontWeight: 800}}>
                                         Môn {index + 1}
                                     </Typography>
                                     <IconButton
@@ -3291,16 +3480,16 @@ function ExtraSubjectEditor({ value, onChange, error, disabled = false }) {
                                         onClick={() => removeItem(index)}
                                         sx={{
                                             color: "#64748b",
-                                            "&:hover": { color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)" },
+                                            "&:hover": {color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)"},
                                         }}
                                         disabled={disabled}
                                         title="Xóa"
                                     >
-                                        <DeleteOutlineIcon fontSize="small" />
+                                        <DeleteOutlineIcon fontSize="small"/>
                                     </IconButton>
                                 </Stack>
 
-                                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 1 }}>
+                                <Stack direction={{xs: "column", sm: "row"}} spacing={2} sx={{mt: 1}}>
                                     <TextField
                                         label="Tên môn"
                                         fullWidth
@@ -3322,14 +3511,15 @@ function ExtraSubjectEditor({ value, onChange, error, disabled = false }) {
                                     />
                                 </Stack>
 
-                                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mt: 1.2 }}>
-                                    <Typography sx={{ fontWeight: 800, color: "#1e293b" }}>Bắt buộc</Typography>
+                                <Stack direction="row" justifyContent="space-between" alignItems="center"
+                                       sx={{mt: 1.2}}>
+                                    <Typography sx={{fontWeight: 800, color: "#1e293b"}}>Bắt buộc</Typography>
                                     <Switch
                                         checked={!!subject?.isMandatory}
                                         onChange={(e) => updateItem(index, "isMandatory", e.target.checked)}
                                         disabled={disabled}
                                         sx={{
-                                            "& .MuiSwitch-switchBase.Mui-checked": { color: "#16a34a" },
+                                            "& .MuiSwitch-switchBase.Mui-checked": {color: "#16a34a"},
                                             "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
                                                 backgroundColor: "#16a34a",
                                             },
@@ -3343,7 +3533,7 @@ function ExtraSubjectEditor({ value, onChange, error, disabled = false }) {
             </Stack>
 
             {error && typeof error !== "string" ? (
-                <Typography variant="caption" sx={{ color: "#d32f2f", ml: 0.2, mt: 1, display: "block" }}>
+                <Typography variant="caption" sx={{color: "#d32f2f", ml: 0.2, mt: 1, display: "block"}}>
                     Vui lòng kiểm tra thông tin môn bổ sung.
                 </Typography>
             ) : (
@@ -3353,18 +3543,19 @@ function ExtraSubjectEditor({ value, onChange, error, disabled = false }) {
     );
 }
 
-function ExtraSubjectReadOnlyList({ value }) {
+function ExtraSubjectReadOnlyList({value}) {
     const subjects = Array.isArray(value) ? value.filter((s) => safeString(s?.name).trim()) : [];
     if (subjects.length === 0) {
-        return <Typography sx={{ color: "#94a3b8" }}>Không có môn bổ sung.</Typography>;
+        return <Typography sx={{color: "#94a3b8"}}>Không có môn bổ sung.</Typography>;
     }
 
     return (
         <Stack spacing={1}>
             {subjects.map((subject, index) => (
-                <Box key={`readonly-extra-subject-${index}`} sx={{ border: "1px solid #e2e8f0", borderRadius: 2, p: 1.2, bgcolor: "#fff" }}>
+                <Box key={`readonly-extra-subject-${index}`}
+                     sx={{border: "1px solid #e2e8f0", borderRadius: 2, p: 1.2, bgcolor: "#fff"}}>
                     <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
-                        <Typography sx={{ color: "#1e293b", fontWeight: 800 }}>{subject.name}</Typography>
+                        <Typography sx={{color: "#1e293b", fontWeight: 800}}>{subject.name}</Typography>
                         <Chip
                             size="small"
                             label={subject.isMandatory ? "Bắt buộc" : "Tự chọn"}
@@ -3375,7 +3566,7 @@ function ExtraSubjectReadOnlyList({ value }) {
                             }}
                         />
                     </Stack>
-                    <Typography variant="body2" sx={{ color: "#64748b", mt: 0.6, whiteSpace: "pre-wrap" }}>
+                    <Typography variant="body2" sx={{color: "#64748b", mt: 0.6, whiteSpace: "pre-wrap"}}>
                         {safeString(subject.description).trim() || "—"}
                     </Typography>
                 </Box>

@@ -1195,12 +1195,7 @@ export default function SchoolCurriculums() {
                                 textShadow: "0 1px 2px rgba(0,0,0,0.1)",
                             }}
                         >
-                            Quản lý chương trình học
-                        </Typography>
-                        <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.95 }}>
-                            {isPrimaryBranch
-                                ? "Tạo mới, công bố, chỉnh sửa phiên bản (Revise) và lưu trữ khung theo nhu cầu trường. Lưu trữ do trường thực hiện; không tự ẩn theo năm hệ thống."
-                                : "Xem chương trình học của trường (cơ sở phụ không được tạo/sửa/công bố)."}
+                            Quản lý khung chương trình
                         </Typography>
                     </Box>
 
