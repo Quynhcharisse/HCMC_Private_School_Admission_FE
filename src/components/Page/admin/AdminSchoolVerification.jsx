@@ -9,6 +9,7 @@ import {
     Chip,
     Stack,
     IconButton,
+    Button,
     Tooltip,
     Paper,
     Table,
@@ -22,6 +23,7 @@ import {
     Dialog,
     DialogTitle,
     DialogContent,
+    DialogActions,
 } from "@mui/material";
 import SchoolIcon from "@mui/icons-material/School";
 import ApartmentIcon from "@mui/icons-material/Apartment";
@@ -32,7 +34,6 @@ import BadgeIcon from "@mui/icons-material/Badge";
 import LockIcon from "@mui/icons-material/Lock";
 import CloseIcon from "@mui/icons-material/Close";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
-import VisibilityIcon from "@mui/icons-material/Visibility";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import PendingRoundedIcon from "@mui/icons-material/PendingRounded";
 import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
@@ -166,6 +167,7 @@ export default function AdminSchoolVerification() {
                     );
                 }
                 await fetchRegistrations();
+                closeDetail();
             }
         } catch (error) {
             console.error("Verify school registration failed", error);
@@ -285,7 +287,7 @@ export default function AdminSchoolVerification() {
         },
     ];
 
-    const tableColCount = 9;
+    const tableColCount = 8;
 
     const detailSectionSx = {
         border: "1px solid #bfdbfe",
@@ -528,11 +530,8 @@ export default function AdminSchoolVerification() {
                                     <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 130}}>
                                         Trạng thái
                                     </TableCell>
-                                    <TableCell align="center" sx={{...adminTableHeadCellSx, width: 72, px: 0.5}}>
-                                        Chi tiết
-                                    </TableCell>
-                                    <TableCell align="center" sx={{...adminTableHeadCellSx, width: 100, px: 0.5}}>
-                                        Thao tác
+                                    <TableCell align="center" sx={{...adminTableHeadCellSx, width: 88, px: 0.5}}>
+                                        Xác thực
                                     </TableCell>
                                 </TableRow>
                             </TableHead>
@@ -601,25 +600,13 @@ export default function AdminSchoolVerification() {
                                             </TableCell>
                                             <TableCell align="center">{renderStatusChip(item.status)}</TableCell>
                                             <TableCell align="center" sx={{px: 0.5}}>
-                                                <Tooltip title="Xem chi tiết hồ sơ">
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={() => openDetail(item)}
-                                                        aria-label="Xem chi tiết hồ sơ"
-                                                        sx={{color: "#38bdf8"}}
-                                                    >
-                                                        <VisibilityIcon fontSize="small"/>
-                                                    </IconButton>
-                                                </Tooltip>
-                                            </TableCell>
-                                            <TableCell align="center" sx={{px: 0.5}}>
-                                                <Tooltip title={item.status === "VERIFIED" ? "Đã xác thực" : "Xác thực trường học"}>
+                                                <Tooltip title={item.status === "VERIFIED" ? "Đã xác thực" : "Mở hồ sơ để xác thực"}>
                                                     <span>
                                                         <IconButton
                                                             size="small"
                                                             disabled={!!verifyingId || item.status === "VERIFIED"}
-                                                            onClick={() => openConfirm(item)}
-                                                            aria-label="Xác thực trường học"
+                                                            onClick={() => openDetail(item)}
+                                                            aria-label="Mở hồ sơ để xác thực"
                                                             sx={{
                                                                 background: "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)",
                                                                 color: "#ffffff",
@@ -822,6 +809,46 @@ export default function AdminSchoolVerification() {
                         </Stack>
                     )}
                 </DialogContent>
+                {detailItem && (
+                    <DialogActions
+                        sx={{
+                            px: 2.5,
+                            py: 2,
+                            bgcolor: "#eff6ff",
+                            borderTop: "1px solid #bfdbfe",
+                            justifyContent: "flex-end",
+                        }}
+                    >
+                        <Tooltip title={detailItem.status === "VERIFIED" ? "Đã xác thực" : "Xác thực trường học"}>
+                            <span>
+                                <Button
+                                    variant="contained"
+                                    disabled={!!verifyingId || detailItem.status === "VERIFIED"}
+                                    onClick={() => openConfirm(detailItem)}
+                                    aria-label="Xác thực trường học"
+                                    sx={{
+                                        textTransform: "none",
+                                        fontWeight: 700,
+                                        minWidth: 120,
+                                        background: "linear-gradient(135deg, #22c55e 0%, #16a34a 100%)",
+                                        boxShadow: "0 4px 14px rgba(22, 163, 74, 0.45)",
+                                        "&:hover": {
+                                            background: "linear-gradient(135deg, #16a34a 0%, #15803d 100%)",
+                                            boxShadow: "0 6px 18px rgba(22, 163, 74, 0.5)",
+                                        },
+                                        "&.Mui-disabled": {
+                                            background: "#e2e8f0",
+                                            color: "#94a3b8",
+                                            boxShadow: "none",
+                                        },
+                                    }}
+                                >
+                                    Xác thực
+                                </Button>
+                            </span>
+                        </Tooltip>
+                    </DialogActions>
+                )}
             </Dialog>
 
             <ConfirmDialog

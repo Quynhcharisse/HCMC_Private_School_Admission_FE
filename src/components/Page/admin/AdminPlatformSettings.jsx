@@ -951,9 +951,6 @@ export default function AdminPlatformSettings() {
                         <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#0f172a" }}>
                             Danh sách phương thức
                         </Typography>
-                        <Typography variant="caption" sx={{ color: "#64748b", display: "block", mt: 0.25 }}>
-                            Mỗi dòng: mã duy nhất (không dấu cách thừa), tên hiển thị và mô tả ngắn. Gõ trực tiếp trong ô — không cần phím Enter; sau khi sửa nhấn <strong>Lưu mẫu</strong> (ngay dưới bảng hoặc cuối tab).
-                        </Typography>
                     </Box>
                     <TableContainer sx={{ maxWidth: "100%" }}>
                         <Table size="small" sx={{ minWidth: 800, tableLayout: "fixed" }}>
