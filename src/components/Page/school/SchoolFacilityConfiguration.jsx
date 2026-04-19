@@ -40,8 +40,6 @@ import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
 import ConfirmDialog, {ConfirmHighlight} from "../../ui/ConfirmDialog.jsx";
 import CreatePostRichTextEditor from "../../ui/CreatePostRichTextEditor.jsx";
 
-const MAX_OVERVIEW_CHARS = 500;
-
 function plainTextLengthFromHtml(html) {
   if (html == null || html === "") return 0;
   const s = String(html);
@@ -473,9 +471,9 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                 <Box sx={{display: "flex", justifyContent: "space-between", mt: 1}}>
                   <Typography
                     variant="caption"
-                    sx={{color: overviewPlainLen >= MAX_OVERVIEW_CHARS ? "#ef4444" : "#94a3b8"}}
+                    sx={{color: "#94a3b8"}}
                   >
-                    {overviewPlainLen}/{MAX_OVERVIEW_CHARS}
+                    {overviewPlainLen} ký tự
                   </Typography>
                 </Box>
               </Box>
