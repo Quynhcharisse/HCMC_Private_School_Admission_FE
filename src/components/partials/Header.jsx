@@ -2318,8 +2318,8 @@ function MainHeader() {
                 notifyAuthUserStorageChanged();
                 enqueueSnackbar('Đăng xuất thành công.', {variant: 'success', autoHideDuration: 1000});
                 setTimeout(() => {
-                    window.location.href = '/home';
-                }, 1000);
+                    window.location.replace('/home');
+                }, 0);
             } else {
                 enqueueSnackbar('Không thể đăng xuất.', {variant: 'error'});
             }
