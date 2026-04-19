@@ -109,6 +109,78 @@ const buildSourceViewUrl = (sourceUrl) => {
     return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(normalized)}`;
 };
 
+/** BE có thể ghép nhiều URL bằng dấu `;` — mỗi URL là một nguồn riêng */
+const parseSourceUrls = (source) => {
+    const raw = String(source || '').trim();
+    if (!raw) return [];
+    return raw
+        .split(';')
+        .map((s) => s.trim())
+        .filter(Boolean);
+};
+
+const TRAILING_UUID_RE =
+    /_?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+const stripTrailingUuid = (segment) => {
+    let s = String(segment || '').trim();
+    if (!s) return s;
+    let prev;
+    do {
+        prev = s;
+        s = s.replace(TRAILING_UUID_RE, '');
+    } while (s !== prev);
+    return s;
+};
+
+const humanizeStorageSegment = (segment) => {
+    const core = stripTrailingUuid(String(segment || '').trim()).replace(/\.[^.]+$/i, '');
+    return core.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+};
+
+/**
+ * Lấy chữ hiển thị từ URL storage (slug thư mục trường / cơ sở trong path EduBridge/...).
+ */
+const getSourceLinkLabel = (rawUrl) => {
+    const fallback = String(rawUrl || '').trim();
+    if (!fallback) return '';
+    try {
+        const u = new URL(fallback);
+        const parts = u.pathname.split('/').filter(Boolean);
+        const eduIdx = parts.findIndex((p) => p.toLowerCase() === 'edubridge');
+        const segs = eduIdx >= 0 ? parts.slice(eduIdx + 1) : parts;
+        if (segs.length === 0) return fallback;
+
+        const last = segs[segs.length - 1];
+        const lastIsFile = /\.[a-z0-9]{2,8}$/i.test(last);
+        const fileExt = lastIsFile
+            ? (last.match(/(\.[^./]+)$/i)?.[1] || '').toLowerCase()
+            : '';
+        const lastNoExt = last.replace(/\.[^.]+$/i, '');
+        const baseCore = stripTrailingUuid(lastNoExt);
+
+        let chosen = lastNoExt;
+        if (lastIsFile && segs.length >= 2) {
+            const parent = segs[segs.length - 2];
+            if (/^(school|campus)_info$/i.test(baseCore)) {
+                chosen = parent;
+            } else {
+                chosen = lastNoExt;
+            }
+        } else if (!lastIsFile) {
+            chosen = last;
+        }
+
+        const label = humanizeStorageSegment(chosen);
+        if (!label) return fallback;
+        const withExt = fileExt ? `${label}${fileExt}` : label;
+        if (withExt.length > 120) return `${withExt.slice(0, 117)}…`;
+        return withExt;
+    } catch {
+        return fallback;
+    }
+};
+
 const Chatbot = () => {
     const user = getStoredUser();
     const sessionId = getSessionIdFromUser(user);
@@ -218,18 +290,6 @@ const Chatbot = () => {
             e.preventDefault();
             handleSendMessage();
         }
-    };
-
-    const quickQuestions = [
-        'Tìm trường THPT tại Quận 1',
-        'Học phí các trường công lập',
-        'Thủ tục đăng ký tuyển sinh',
-        'Học bổng có sẵn'
-    ];
-
-    const handleQuickQuestion = (question) => {
-        setInputMessage('');
-        handleSendMessage(question);
     };
 
     if (!sessionId) {
@@ -367,7 +427,10 @@ const Chatbot = () => {
                                     }
                                 }}
                             >
-                                {messages.map((message) => (
+                                {messages.map((message) => {
+                                    const sourceUrls =
+                                        message.sender === 'bot' ? parseSourceUrls(message.source) : [];
+                                    return (
                                     <Box
                                         key={message.id}
                                         sx={{
@@ -460,24 +523,42 @@ const Chatbot = () => {
                                                     ))}
                                                 </Box>
                                             )}
-                                            {message.sender === 'bot' && message.source && (
-                                                <Typography
-                                                    component="a"
-                                                    href={buildSourceViewUrl(message.source)}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    variant="caption"
-                                                    sx={{
-                                                        display: 'inline-block',
-                                                        mt: 0.9,
-                                                        fontSize: '0.75rem',
-                                                        textDecoration: 'underline',
-                                                        color: message.sender === 'user' ? 'rgba(255,255,255,0.9)' : APP_PRIMARY_MAIN
-                                                    }}
-                                                >
-                                                    Nguồn tham khảo
-                                                </Typography>
-                                            )}
+                                            {sourceUrls.length > 0 && (
+                                                    <Box
+                                                        sx={{
+                                                            display: 'flex',
+                                                            flexDirection: 'column',
+                                                            gap: 0.35,
+                                                            mt: 0.9,
+                                                            alignItems: 'flex-start'
+                                                        }}
+                                                    >
+                                                        {sourceUrls.map((url, idx) => (
+                                                            <Typography
+                                                                key={`${message.id}-source-${idx}`}
+                                                                component="a"
+                                                                href={buildSourceViewUrl(url)}
+                                                                title={url}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                variant="caption"
+                                                                sx={{
+                                                                    display: 'inline-block',
+                                                                    fontSize: '0.75rem',
+                                                                    textDecoration: 'underline',
+                                                                    color:
+                                                                        message.sender === 'user'
+                                                                            ? 'rgba(255,255,255,0.9)'
+                                                                            : APP_PRIMARY_MAIN,
+                                                                    wordBreak: 'break-word',
+                                                                    maxWidth: '100%'
+                                                                }}
+                                                            >
+                                                                {getSourceLinkLabel(url)}
+                                                            </Typography>
+                                                        ))}
+                                                    </Box>
+                                                )}
                                             <Typography
                                                 variant="caption"
                                                 sx={{
@@ -512,56 +593,10 @@ const Chatbot = () => {
                                             </Avatar>
                                         )}
                                     </Box>
-                                ))}
+                                    );
+                                })}
                                 <div ref={messagesEndRef} />
                             </Box>
-
-                            {messages.length === 1 && (
-                                <Box
-                                    sx={{
-                                        p: 1.5,
-                                        bgcolor: '#ffffff',
-                                        borderTop: '1px solid #e5e7eb'
-                                    }}
-                                >
-                                    <Typography
-                                        variant="caption"
-                                        sx={{
-                                            display: 'block',
-                                            mb: 1,
-                                            color: '#6b7280',
-                                            fontSize: '0.75rem',
-                                            fontWeight: 600
-                                        }}
-                                    >
-                                        Câu hỏi thường gặp:
-                                    </Typography>
-                                    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                                        {quickQuestions.map((question, index) => (
-                                            <Box
-                                                key={index}
-                                                onClick={() => handleQuickQuestion(question)}
-                                                sx={{
-                                                    px: 1.5,
-                                                    py: 0.75,
-                                                    borderRadius: 2,
-                                                    bgcolor: '#dbeafe',
-                                                    color: APP_PRIMARY_MAIN,
-                                                    fontSize: '0.75rem',
-                                                    cursor: 'pointer',
-                                                    transition: 'all 0.2s ease',
-                                                    '&:hover': {
-                                                        bgcolor: '#bfdbfe',
-                                                        transform: 'translateY(-2px)'
-                                                    }
-                                                }}
-                                            >
-                                                {question}
-                                            </Box>
-                                        ))}
-                                    </Box>
-                                </Box>
-                            )}
 
                             <Box
                                 sx={{
