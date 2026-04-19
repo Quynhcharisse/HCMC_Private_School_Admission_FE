@@ -394,85 +394,78 @@ export default function SchoolCampaigns() {
     }, [filteredCampaigns, page]);
 
     const validateForm = () => {
-        /*
-         * TEMP: Tắt toàn bộ validation local theo yêu cầu.
-         * Giữ nguyên logic cũ để có thể bật lại nhanh khi cần.
-         *
-         * const errors = {};
-         * const name = formValues.name?.trim() ?? "";
-         * const descriptionPlain = campaignDescriptionPlainText(formValues.description ?? "");
-         * const yearRaw = formValues.year;
-         * const yearNum = typeof yearRaw === "number" ? yearRaw : parseInt(String(yearRaw), 10);
-         *
-         * if (!name) errors.name = "Tên chiến dịch không được để trống";
-         * else if (name.length > 100) errors.name = "Tên chiến dịch quá dài. Độ dài tối đa là 100 ký tự";
-         *
-         * if (!descriptionPlain) errors.description = "Mô tả chiến dịch không được để trống";
-         *
-         * if (!Number.isFinite(yearNum) || yearNum <= 0) {
-         *     errors.year = "Năm học không được để trống";
-         * } else if (yearNum < CURRENT_YEAR) {
-         *     errors.year = "Không thể tạo chiến dịch cho một năm học trong quá khứ";
-         * }
-         *
-         * const startIso = formValues.startDate?.trim() ?? "";
-         * const endIso = formValues.endDate?.trim() ?? "";
-         * if (!startIso) errors.startDate = "Ngày bắt đầu không được để trống";
-         * if (!endIso) errors.endDate = "Ngày kết thúc không được để trống";
-         *
-         * const start = parseLocalDate(startIso);
-         * const end = parseLocalDate(endIso);
-         * if (startIso && !start) errors.startDate = "Ngày bắt đầu không hợp lệ";
-         * if (endIso && !end) errors.endDate = "Ngày kết thúc không hợp lệ";
-         *
-         * const today = startOfLocalToday();
-         * const earliestStartAllowed = addLocalDays(today, -1);
-         *
-         * if (start && !errors.startDate) {
-         *     if (start.getTime() < earliestStartAllowed.getTime()) {
-         *         errors.startDate = "Ngày bắt đầu không được ở trong quá khứ";
-         *     }
-         * }
-         * if (end && !errors.endDate) {
-         *     if (end.getTime() < today.getTime()) {
-         *         errors.endDate = "Ngày kết thúc phải ở trong tương lai";
-         *     }
-         * }
-         * if (start && end && !errors.startDate && !errors.endDate) {
-         *     if (end.getTime() <= start.getTime()) {
-         *         errors.endDate = "Ngày kết thúc phải sau ngày bắt đầu";
-         *     }
-         * }
-         *
-         * if (Number.isFinite(yearNum) && yearNum > 0 && start && !errors.startDate) {
-         *     const oct1Prev = new Date(yearNum - 1, 9, 1);
-         *     if (start.getTime() < oct1Prev.getTime()) {
-         *         errors.startDate = `Ngày bắt đầu quá sớm. Đợt tuyển sinh sớm cho năm ${yearNum} nên bắt đầu từ tháng 10 năm ${yearNum - 1}`;
-         *     }
-         * }
-         * if (Number.isFinite(yearNum) && yearNum > 0 && end && !errors.endDate) {
-         *     const dec31Prev = new Date(yearNum - 1, 11, 31);
-         *     if (end.getTime() < dec31Prev.getTime()) {
-         *         errors.endDate = `Ngày kết thúc không hợp lệ. Chiến dịch cho năm ${yearNum} phải kéo dài ít nhất đến hết năm ${yearNum - 1}`;
-         *     } else if (end.getFullYear() !== yearNum) {
-         *         errors.endDate = `Ngày kết thúc phải nằm trong năm học ${yearNum}`;
-         *     }
-         * }
-         *
-         * if (
-         *     Number.isFinite(yearNum) &&
-         *     yearNum > 0 &&
-         *     !errors.year &&
-         *     campaigns.some((c) => Number(c.year) === yearNum && String(c.status || "").toUpperCase() === "OPEN")
-         * ) {
-         *     errors.year = `Mẫu chiến dịch cho năm học ${yearNum} đã tồn tại`;
-         * }
-         *
-         * setFormErrors(errors);
-         * return Object.keys(errors).length === 0;
-         */
-        setFormErrors({});
-        return true;
+        const errors = {};
+        const name = formValues.name?.trim() ?? "";
+        const descriptionPlain = campaignDescriptionPlainText(formValues.description ?? "");
+        const yearRaw = formValues.year;
+        const yearNum = typeof yearRaw === "number" ? yearRaw : parseInt(String(yearRaw), 10);
+
+        if (!name) errors.name = "Tên chiến dịch không được để trống";
+        else if (name.length > 100) errors.name = "Tên chiến dịch quá dài. Độ dài tối đa là 100 ký tự";
+
+        if (!descriptionPlain) errors.description = "Mô tả chiến dịch không được để trống";
+
+        if (!Number.isFinite(yearNum) || yearNum <= 0) {
+            errors.year = "Năm học không được để trống";
+        } else if (yearNum < CURRENT_YEAR) {
+            errors.year = "Không thể tạo chiến dịch cho một năm học trong quá khứ";
+        }
+
+        const startIso = formValues.startDate?.trim() ?? "";
+        const endIso = formValues.endDate?.trim() ?? "";
+        if (!startIso) errors.startDate = "Ngày bắt đầu không được để trống";
+        if (!endIso) errors.endDate = "Ngày kết thúc không được để trống";
+
+        const start = parseLocalDate(startIso);
+        const end = parseLocalDate(endIso);
+        if (startIso && !start) errors.startDate = "Ngày bắt đầu không hợp lệ";
+        if (endIso && !end) errors.endDate = "Ngày kết thúc không hợp lệ";
+
+        const today = startOfLocalToday();
+        const earliestStartAllowed = addLocalDays(today, -1);
+
+        if (start && !errors.startDate) {
+            if (start.getTime() < earliestStartAllowed.getTime()) {
+                errors.startDate = "Ngày bắt đầu không được ở trong quá khứ";
+            }
+        }
+        if (end && !errors.endDate) {
+            if (end.getTime() < today.getTime()) {
+                errors.endDate = "Ngày kết thúc phải ở trong tương lai";
+            }
+        }
+        if (start && end && !errors.startDate && !errors.endDate) {
+            if (end.getTime() <= start.getTime()) {
+                errors.endDate = "Ngày kết thúc phải sau ngày bắt đầu";
+            }
+        }
+
+        if (Number.isFinite(yearNum) && yearNum > 0 && start && !errors.startDate) {
+            const oct1Prev = new Date(yearNum - 1, 9, 1);
+            if (start.getTime() < oct1Prev.getTime()) {
+                errors.startDate = `Ngày bắt đầu quá sớm. Đợt tuyển sinh sớm cho năm ${yearNum} nên bắt đầu từ tháng 10 năm ${yearNum - 1}`;
+            }
+        }
+        if (Number.isFinite(yearNum) && yearNum > 0 && end && !errors.endDate) {
+            const dec31Prev = new Date(yearNum - 1, 11, 31);
+            if (end.getTime() < dec31Prev.getTime()) {
+                errors.endDate = `Ngày kết thúc không hợp lệ. Chiến dịch cho năm ${yearNum} phải kéo dài ít nhất đến hết năm ${yearNum - 1}`;
+            } else if (end.getFullYear() !== yearNum) {
+                errors.endDate = `Ngày kết thúc phải nằm trong năm học ${yearNum}`;
+            }
+        }
+
+        if (
+            Number.isFinite(yearNum) &&
+            yearNum > 0 &&
+            !errors.year &&
+            campaigns.some((c) => Number(c.year) === yearNum && String(c.status || "").toUpperCase() === "OPEN")
+        ) {
+            errors.year = `Mẫu chiến dịch cho năm học ${yearNum} đã tồn tại`;
+        }
+
+        setFormErrors(errors);
+        return Object.keys(errors).length === 0;
     };
 
     const getCreatePayload = () => {
@@ -514,9 +507,7 @@ export default function SchoolCampaigns() {
     }, [isPastYearView, isPrimaryBranch, location.pathname, location.state, navigate]);
 
     const handleCreateSubmit = async () => {
-        // TEMP: Tắt toàn bộ validation local khi tạo — không gọi validateForm().
-        // if (!validateForm()) return;
-        // validateForm();
+        if (!validateForm()) return;
         setSubmitLoading(true);
         try {
             const payload = getCreatePayload();
@@ -1186,7 +1177,7 @@ export default function SchoolCampaigns() {
                                 onChange={handleChange}
                                 error={!!formErrors.name}
                                 helperText={formErrors.name}
-                                /* required — tắt validation tạo */
+                                required
                                 sx={{"& .MuiOutlinedInput-root": {borderRadius: "12px"}}}
                             />
                             <TextField
@@ -1198,8 +1189,8 @@ export default function SchoolCampaigns() {
                                 onChange={handleChange}
                                 error={!!formErrors.year}
                                 helperText={formErrors.year}
-                                /* required — tắt validation tạo */
-                                /* inputProps={{min: CURRENT_YEAR, max: CURRENT_YEAR + 30}} */
+                                required
+                                inputProps={{min: CURRENT_YEAR, max: CURRENT_YEAR + 30}} 
                                 sx={{
                                     maxWidth: {sm: 160},
                                     "& .MuiOutlinedInput-root": {borderRadius: "12px"},
@@ -1249,7 +1240,7 @@ export default function SchoolCampaigns() {
                                 error={!!formErrors.startDate}
                                 helperText={formErrors.startDate}
                                 InputLabelProps={{shrink: true}}
-                                /* required — tắt validation tạo */
+                                required
                                 sx={{"& .MuiOutlinedInput-root": {borderRadius: "12px"}}}
                             />
                             <TextField
@@ -1262,7 +1253,7 @@ export default function SchoolCampaigns() {
                                 error={!!formErrors.endDate}
                                 helperText={formErrors.endDate}
                                 InputLabelProps={{shrink: true}}
-                                /* required — tắt validation tạo */
+                                required
                                 sx={{"& .MuiOutlinedInput-root": {borderRadius: "12px"}}}
                             />
                         </Stack>
