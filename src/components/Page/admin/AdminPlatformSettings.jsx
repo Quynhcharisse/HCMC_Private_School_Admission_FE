@@ -9,17 +9,14 @@ import {
     CardContent,
     Chip,
     CircularProgress,
-    FormControl,
     IconButton,
     InputAdornment,
     Link,
-    MenuItem,
     Dialog,
     DialogActions,
     DialogContent,
     DialogTitle,
     Paper,
-    Select,
     Stack,
     Tab,
     Table,
@@ -40,10 +37,28 @@ import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import { BarChart } from "@mui/x-charts/BarChart";
 import { getSystemConfig, updateSystemConfig } from "../../../services/SystemConfigService.jsx";
 import { enqueueSnackbar } from "notistack";
 import { sanitizeAdmissionSettingsForApi } from "../../../utils/admissionSettingsShared.js";
+
+/** Hạn mức theo năm học: GET thường trả `admissionQuota`; bản cũ có thể là `quota`. */
+function getAdmissionQuotaMap(cfg) {
+    if (!cfg || typeof cfg !== "object") return {};
+    const m = cfg.admissionQuota ?? cfg.quota;
+    return m && typeof m === "object" && !Array.isArray(m) ? m : {};
+}
+
+function mergeSystemConfigPayload(cfg, patch) {
+    if (!cfg || typeof cfg !== "object") return patch;
+    return { ...cfg, ...patch };
+}
+
+function apiErrorMessage(e, fallback) {
+    const d = e?.response?.data;
+    const m = d?.message ?? d?.body?.message ?? d?.error ?? e?.message;
+    const s = m != null ? String(m).trim() : "";
+    return s || fallback;
+}
 
 export default function AdminPlatformSettings() {
     const tabs = useMemo(
@@ -56,10 +71,8 @@ export default function AdminPlatformSettings() {
         []
     );
 
-    const currencyOptions = ["VND"];
     const [activeTab, setActiveTab] = useState(0);
     const activeTabKey = tabs[activeTab]?.key;
-    const [currency, setCurrency] = useState(currencyOptions[0]);
 
     const [configBody, setConfigBody] = useState(null);
     const [loadingConfig, setLoadingConfig] = useState(false);
@@ -115,30 +128,6 @@ export default function AdminPlatformSettings() {
         maxDocSize: "",
     });
     const [mediaLimitsErrors, setMediaLimitsErrors] = useState({});
-
-    const [reportEditing, setReportEditing] = useState(false);
-    const [reportForm, setReportForm] = useState({
-        maxResolutionDay: "",
-        responseDeadline: "",
-        activationDeadline: "",
-        bonusDays: "",
-        bonusCondition: "",
-        description: "",
-    });
-    const [reportErrors, setReportErrors] = useState({});
-    const [severityDraft, setSeverityDraft] = useState([]);
-    const [severityDialogOpen, setSeverityDialogOpen] = useState(false);
-    const [severityDialogMode, setSeverityDialogMode] = useState("add");
-    const [severityDialogIndex, setSeverityDialogIndex] = useState(-1);
-    const [severityDialogValue, setSeverityDialogValue] = useState({
-        name: "",
-        description: "",
-        compensationPct: "",
-    });
-    const [severityDialogError, setSeverityDialogError] = useState({
-        name: "",
-        compensationPct: "",
-    });
 
     const [formatDialogOpen, setFormatDialogOpen] = useState(false);
     const [formatDialogMode, setFormatDialogMode] = useState("add");
@@ -284,21 +273,6 @@ export default function AdminPlatformSettings() {
         return errors;
     };
 
-    const validateReport = (form) => {
-        const errors = {};
-        const maxResolutionDay = parseFinite(form.maxResolutionDay);
-        const bonusDays = parseFinite(form.bonusDays);
-
-        if (maxResolutionDay === null) errors.maxResolutionDay = "Vui lòng nhập số ngày giải quyết tối đa.";
-        if (bonusDays === null) errors.bonusDays = "Vui lòng nhập số ngày thưởng.";
-
-        if (maxResolutionDay !== null && maxResolutionDay < 0)
-            errors.maxResolutionDay = "Số ngày giải quyết tối đa không được âm.";
-        if (bonusDays !== null && bonusDays < 0) errors.bonusDays = "Số ngày thưởng không được âm.";
-
-        return errors;
-    };
-
     const getAdmissionInitialForm = (cfg) => {
         const adm = cfg?.admissionSettingsData;
         if (!adm || typeof adm !== "object") {
@@ -346,7 +320,7 @@ export default function AdminPlatformSettings() {
         setBusinessForm(bizInit);
         setBusinessErrors(validateBusiness(bizInit));
 
-        const quotaYears = Object.keys(configBody?.quota || {});
+        const quotaYears = Object.keys(getAdmissionQuotaMap(configBody));
         setSelectedQuotaYear((prev) => prev || quotaYears[0] || "");
 
         const media = configBody?.media || {};
@@ -361,27 +335,6 @@ export default function AdminPlatformSettings() {
         });
         setMediaLimitsErrors({});
 
-        const report = configBody?.report || {};
-        setSeverityDraft(report.severityLevels || []);
-        setReportForm({
-            maxResolutionDay: report.maxResolutionDay ?? "",
-            responseDeadline: report.responseDeadline ?? "",
-            activationDeadline: report.activationDeadline ?? "",
-            bonusDays: report.bonusDays ?? "",
-            bonusCondition: report.bonusCondition ?? "",
-            description: report.description ?? "",
-        });
-        setReportErrors({});
-        setReportEditing(false);
-        setSeverityDialogOpen(false);
-        setSeverityDialogMode("add");
-        setSeverityDialogIndex(-1);
-        setSeverityDialogValue({
-            name: "",
-            description: "",
-            compensationPct: "",
-        });
-        setSeverityDialogError({ name: "", compensationPct: "" });
         setFormatDialogOpen(false);
         setFormatDialogMode("add");
         setFormatDialogIndex(-1);
@@ -390,7 +343,6 @@ export default function AdminPlatformSettings() {
 
         setBusinessEditing(false);
         setMediaEditing(false);
-        setReportEditing(false);
         setQuotaEditing(false);
 
         const admInit = getAdmissionInitialForm(configBody);
@@ -459,153 +411,6 @@ export default function AdminPlatformSettings() {
     const saveMediaEdit = async () => {
         const ok = await saveMediaFormats();
         if (ok) setMediaEditing(false);
-    };
-
-    const startReportEdit = () => {
-        setReportEditing(true);
-        setStatus({ type: "", message: "" });
-    };
-
-    const cancelReport = () => {
-        if (!configBody) return;
-        const report = configBody?.report || {};
-        setSeverityDraft(report.severityLevels || []);
-        setReportForm({
-            maxResolutionDay: report.maxResolutionDay ?? "",
-            responseDeadline: report.responseDeadline ?? "",
-            activationDeadline: report.activationDeadline ?? "",
-            bonusDays: report.bonusDays ?? "",
-            bonusCondition: report.bonusCondition ?? "",
-            description: report.description ?? "",
-        });
-        setReportErrors({});
-        setStatus({ type: "", message: "" });
-    };
-
-    const cancelReportEdit = () => {
-        cancelReport();
-        setReportEditing(false);
-    };
-
-    const saveReportEdit = async () => {
-        if (!configBody) return;
-        const errors = validateReport(reportForm);
-        setReportErrors(errors);
-        if (Object.keys(errors).length > 0) return;
-
-        setSaving(true);
-        let ok = false;
-        setStatus({ type: "", message: "" });
-        try {
-            const currentReport = configBody.report || {};
-            const maxResolutionDay = parseFinite(reportForm.maxResolutionDay);
-            const bonusDays = parseFinite(reportForm.bonusDays);
-
-            const updatedBody = {
-                reportData: {
-                    maxResolutionDay: maxResolutionDay ?? 0,
-                    responseDeadline: reportForm.responseDeadline || null,
-                    activationDeadline: reportForm.activationDeadline || null,
-                    bonusDays: bonusDays ?? 0,
-                    bonusCondition: reportForm.bonusCondition || "",
-                    description: reportForm.description || "",
-                    levels: (severityDraft || []).map((lvl) => ({
-                        name: lvl.name,
-                    })),
-                    // giữ lại các field khác nếu backend có
-                    ...currentReport,
-                },
-            };
-            await updateSystemConfig(updatedBody);
-            enqueueSnackbar("Cập nhật Cài đặt Báo cáo thành công.", {
-                variant: "success",
-            });
-            setStatus({ type: "success", message: "Cập nhật thành công." });
-            await fetchConfig();
-            ok = true;
-        } catch (e) {
-            console.error("saveReportEdit failed", e);
-            const msg =
-                e?.response?.data?.message || "Cập nhật thất bại. Vui lòng thử lại.";
-            enqueueSnackbar(msg, { variant: "error" });
-            setStatus({ type: "error", message: msg });
-        } finally {
-            setSaving(false);
-        }
-        if (ok) setReportEditing(false);
-        return ok;
-    };
-
-    const openSeverityDialog = (mode, index = -1) => {
-        setSeverityDialogMode(mode);
-        setSeverityDialogIndex(index);
-        setSeverityDialogError({ name: "", compensationPct: "" });
-        if (mode === "edit" && index >= 0 && index < severityDraft.length) {
-            const item = severityDraft[index];
-            const compRaw = Number(item?.compensation) || 0;
-            const compensationPct = compRaw <= 1 ? compRaw * 100 : compRaw;
-            setSeverityDialogValue({
-                name: item?.name || "",
-                description: item?.description || "",
-                compensationPct: String(compensationPct),
-            });
-        } else {
-            setSeverityDialogValue({
-                name: "",
-                description: "",
-                compensationPct: "",
-            });
-        }
-        setSeverityDialogOpen(true);
-    };
-
-    const closeSeverityDialog = () => {
-        setSeverityDialogOpen(false);
-        setSeverityDialogIndex(-1);
-        setSeverityDialogMode("add");
-        setSeverityDialogError({ name: "", compensationPct: "" });
-    };
-
-    const submitSeverityDialog = () => {
-        const errors = { name: "", compensationPct: "" };
-        const name = severityDialogValue.name.trim();
-        const pctNum = parseFinite(severityDialogValue.compensationPct);
-        if (!name) {
-            errors.name = "Vui lòng nhập tên mức độ.";
-        }
-        if (pctNum === null || pctNum < 0 || pctNum > 100) {
-            errors.compensationPct = "Phần trăm bồi thường phải trong khoảng 0–100.";
-        }
-        if (errors.name || errors.compensationPct) {
-            setSeverityDialogError(errors);
-            return;
-        }
-        const compensationDecimal = pctNum / 100;
-
-        if (severityDialogMode === "add") {
-            setSeverityDraft((prev) => [
-                ...prev,
-                {
-                    name,
-                    description: severityDialogValue.description.trim(),
-                    compensation: compensationDecimal,
-                },
-            ]);
-        } else if (severityDialogMode === "edit") {
-            setSeverityDraft((prev) => {
-                const idx = severityDialogIndex;
-                if (idx < 0 || idx >= prev.length) return prev;
-                const next = [...prev];
-                next[idx] = {
-                    ...(next[idx] || {}),
-                    name,
-                    description: severityDialogValue.description.trim(),
-                    compensation: compensationDecimal,
-                };
-                return next;
-            });
-        }
-        closeSeverityDialog();
     };
 
     const toRateDecimal = (ratePctValue) => {
@@ -690,24 +495,35 @@ export default function AdminPlatformSettings() {
         let ok = false;
         setStatus({ type: "", message: "" });
         try {
-            const updatedBody = {
+            const prevMedia = configBody.media || {};
+            const {
+                imgFormats: _imgF,
+                videoFormats: _vidF,
+                docFormats: _docF,
+                imgFormat: _imgOld,
+                videoFormat: _vidOld,
+                docFormat: _docOld,
+                ...mediaRest
+            } = prevMedia;
+            const mediaPatch = {
                 mediaData: {
+                    ...mediaRest,
                     maxImgSize: parseFinite(mediaLimitsForm.maxImgSize),
                     maxVideoSize: parseFinite(mediaLimitsForm.maxVideoSize),
                     maxDocSize: parseFinite(mediaLimitsForm.maxDocSize),
-                    imgFormats: imgFormatsDraft.map((f) => ({ format: f })),
-                    videoFormats: videoFormatsDraft.map((f) => ({ format: f })),
-                    docFormats: docFormatsDraft.map((f) => ({ format: f })),
+                    imgFormat: imgFormatsDraft.map((f) => ({ format: f })),
+                    videoFormat: videoFormatsDraft.map((f) => ({ format: f })),
+                    docFormat: docFormatsDraft.map((f) => ({ format: f })),
                 },
             };
-            await updateSystemConfig(updatedBody);
+            await updateSystemConfig(mergeSystemConfigPayload(configBody, mediaPatch));
             enqueueSnackbar("Cập nhật cấu hình phương tiện thành công.", { variant: "success" });
             setStatus({ type: "success", message: "Cập nhật thành công." });
             await fetchConfig();
             ok = true;
         } catch (e) {
             console.error("saveMediaFormats failed", e);
-            const msg = e?.response?.data?.message || "Cập nhật thất bại. Vui lòng thử lại.";
+            const msg = apiErrorMessage(e, "Cập nhật thất bại. Vui lòng thử lại.");
             enqueueSnackbar(msg, { variant: "error" });
             setStatus({ type: "error", message: msg });
         } finally {
@@ -717,7 +533,7 @@ export default function AdminPlatformSettings() {
     };
 
     const getQuotaInitialForm = (year) => {
-        const quota = configBody?.quota || {};
+        const quota = getAdmissionQuotaMap(configBody);
         const item = quota[year] || {};
         return {
             sourceUrl: item.sourceUrl || "",
@@ -763,9 +579,9 @@ export default function AdminPlatformSettings() {
         let ok = false;
         setStatus({ type: "", message: "" });
         try {
-            const currentQuota = configBody.quota || {};
+            const currentQuota = getAdmissionQuotaMap(configBody);
             const existing = currentQuota[selectedQuotaYear] || {};
-            const updatedQuota = {
+            const updatedAdmissionQuota = {
                 ...currentQuota,
                 [selectedQuotaYear]: {
                     ...existing,
@@ -773,7 +589,9 @@ export default function AdminPlatformSettings() {
                 },
             };
 
-            const updatedBody = { quota: updatedQuota };
+            const updatedBody = mergeSystemConfigPayload(configBody, {
+                admissionQuotaData: updatedAdmissionQuota,
+            });
 
             await updateSystemConfig(updatedBody);
             enqueueSnackbar("Cập nhật Cài đặt Hạn mức Tuyển sinh thành công.", { variant: "success" });
@@ -782,7 +600,7 @@ export default function AdminPlatformSettings() {
             ok = true;
         } catch (e) {
             console.error("saveQuotaEdit failed", e);
-            const msg = e?.response?.data?.message || "Cập nhật thất bại. Vui lòng thử lại.";
+            const msg = apiErrorMessage(e, "Cập nhật thất bại. Vui lòng thử lại.");
             enqueueSnackbar(msg, { variant: "error" });
             setStatus({ type: "error", message: msg });
         } finally {
@@ -807,14 +625,15 @@ export default function AdminPlatformSettings() {
             const taxRate = toRateDecimal(businessForm.taxRatePct);
             const serviceRate = toRateDecimal(businessForm.serviceRatePct);
 
-            const updatedBody = {
-                business: {
-                    minPay,
-                    maxPay,
+            const updatedBody = mergeSystemConfigPayload(configBody, {
+                businessData: {
+                    ...(configBody.businessData || {}),
+                    minPay: minPay != null ? Math.trunc(minPay) : minPay,
+                    maxPay: maxPay != null ? Math.trunc(maxPay) : maxPay,
                     taxRate,
                     serviceRate,
                 },
-            };
+            });
 
             await updateSystemConfig(updatedBody);
             enqueueSnackbar("Cập nhật Cài đặt Doanh nghiệp thành công.", { variant: "success" });
@@ -823,7 +642,7 @@ export default function AdminPlatformSettings() {
             ok = true;
         } catch (e) {
             console.error("saveBusiness failed", e);
-            const msg = e?.response?.data?.message || "Cập nhật thất bại. Vui lòng thử lại.";
+            const msg = apiErrorMessage(e, "Cập nhật thất bại. Vui lòng thử lại.");
             enqueueSnackbar(msg, { variant: "error" });
             setStatus({ type: "error", message: msg });
         } finally {
@@ -849,7 +668,9 @@ export default function AdminPlatformSettings() {
         setStatus({ type: "", message: "" });
         try {
             const sanitized = sanitizeAdmissionSettingsForApi(admissionTemplateForm);
-            await updateSystemConfig({ admissionSettingsData: sanitized });
+            await updateSystemConfig(
+                mergeSystemConfigPayload(configBody, { admissionSettingsData: sanitized })
+            );
             enqueueSnackbar(
                 "Đã cập nhật mẫu phương thức. Các trường đang dùng bản riêng không tự đổi.",
                 { variant: "success" }
@@ -859,7 +680,7 @@ export default function AdminPlatformSettings() {
             setAdmissionTemplateEditing(false);
         } catch (e) {
             console.error("saveAdmissionTemplate failed", e);
-            const msg = e?.response?.data?.message || "Cập nhật thất bại. Vui lòng thử lại.";
+            const msg = apiErrorMessage(e, "Cập nhật thất bại. Vui lòng thử lại.");
             enqueueSnackbar(msg, { variant: "error" });
             setStatus({ type: "error", message: msg });
         } finally {
@@ -1642,7 +1463,7 @@ export default function AdminPlatformSettings() {
     };
 
     const renderLimitsTab = () => {
-        const quota = configBody?.quota || {};
+        const quota = getAdmissionQuotaMap(configBody);
         const quotaYears = Object.keys(quota);
         const selectedYear = selectedQuotaYear || quotaYears[0] || "";
         const isEditing = quotaEditing;
@@ -1825,541 +1646,6 @@ export default function AdminPlatformSettings() {
                             </Alert>
                         ) : null}
                 </Box>
-            </Box>
-        );
-    };
-
-    const renderReportTab = () => {
-        const report = configBody?.report || {};
-        const levels = report.severityLevels || [];
-        const sortedLevels = [...levels]
-            .filter((x) => typeof x?.name === "string")
-            .sort((a, b) => {
-                const ca = Number(a?.compensation) || 0;
-                const cb = Number(b?.compensation) || 0;
-                return cb - ca;
-            });
-
-        const severityNameMap = {
-            Minor: "Nhẹ",
-            Moderate: "Trung bình",
-            Major: "Nặng",
-            Critical: "Nghiêm trọng",
-        };
-
-        const isEditing = reportEditing;
-
-        return (
-            <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#2563eb", mb: 1.5 }}>
-                    Cài đặt Báo cáo
-                </Typography>
-
-                <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid #e2e8f0", width: "100%" }}>
-                    <CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
-                        <Box>
-                            <Box>
-                                <Typography
-                                        sx={{
-                                            fontWeight: 700,
-                                            fontSize: 14,
-                                            color: "#0f172a",
-                                            mb: 1.5,
-                                        }}
-                                    >
-                                        Cấu hình thời gian chi trả
-                                    </Typography>
-
-                                    {isEditing ? (
-                                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5 }}>
-                                            <Box sx={{ flex: "1 1 200px", minWidth: 220, ...settingsFieldCardSx }}>
-                                                <Typography sx={settingsFieldLabelSx}>
-                                                    Số ngày giải quyết tối đa
-                                                </Typography>
-                                                <TextField
-                                                    size="small"
-                                                    fullWidth
-                                                    type="number"
-                                                    value={reportForm.maxResolutionDay}
-                                                    onChange={(e) => {
-                                                        const next = { ...reportForm, maxResolutionDay: e.target.value };
-                                                        setReportForm(next);
-                                                        setReportErrors(validateReport(next));
-                                                    }}
-                                                    error={Boolean(reportErrors.maxResolutionDay)}
-                                                    helperText={reportErrors.maxResolutionDay || ""}
-                                                    sx={settingsInputSx}
-                                                    inputProps={{ min: 0 }}
-                                                    InputProps={{
-                                                        endAdornment: (
-                                                            <InputAdornment position="end">
-                                                                ngày
-                                                            </InputAdornment>
-                                                        ),
-                                                    }}
-                                                />
-                                            </Box>
-
-                                            <Box sx={{ flex: "1 1 260px", minWidth: 260, ...settingsFieldCardSx }}>
-                                                <Typography sx={settingsFieldLabelSx}>
-                                                    Hạn xử lý báo cáo
-                                                </Typography>
-                                                <TextField
-                                                    size="small"
-                                                    fullWidth
-                                                    type="datetime-local"
-                                                    value={reportForm.responseDeadline}
-                                                    onChange={(e) =>
-                                                        setReportForm((prev) => ({
-                                                            ...prev,
-                                                            responseDeadline: e.target.value,
-                                                        }))
-                                                    }
-                                                    sx={settingsInputSx}
-                                                />
-                                            </Box>
-
-                                            <Box sx={{ flex: "1 1 260px", minWidth: 260, ...settingsFieldCardSx }}>
-                                                <Typography sx={settingsFieldLabelSx}>
-                                                    Hạn kích hoạt chi trả
-                                                </Typography>
-                                                <TextField
-                                                    size="small"
-                                                    fullWidth
-                                                    type="datetime-local"
-                                                    value={reportForm.activationDeadline}
-                                                    onChange={(e) =>
-                                                        setReportForm((prev) => ({
-                                                            ...prev,
-                                                            activationDeadline: e.target.value,
-                                                        }))
-                                                    }
-                                                    sx={settingsInputSx}
-                                                />
-                                            </Box>
-                                        </Box>
-                                    ) : (
-                                        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5 }}>
-                                            <Box sx={{ flex: "1 1 200px", minWidth: 220, ...settingsFieldCardSx }}>
-                                                <Typography sx={settingsFieldLabelSx}>
-                                                    Số ngày chi trả tối đa
-                                                </Typography>
-                                                <Typography sx={{ fontSize: 14, color: "#0f172a" }}>
-                                                    {report.maxDisbursementDay ?? "-"} ngày
-                                                </Typography>
-                                            </Box>
-                                        </Box>
-                                    )}
-
-                                    <Box sx={{ mt: 2.5, p: { xs: 1.5, md: 2 }, bgcolor: "#f9fafb", borderRadius: 2, border: "1px solid #e5e7eb" }}>
-                                        <Typography
-                                            sx={{
-                                                fontWeight: 700,
-                                                fontSize: 13,
-                                                color: "#0f172a",
-                                                mb: 1,
-                                            }}
-                                        >
-                                            Quy trình chi trả
-                                        </Typography>
-                                        <Typography
-                                            variant="body2"
-                                            sx={{
-                                                fontSize: 13,
-                                                color: "#64748b",
-                                                mb: 1.25,
-                                            }}
-                                        >
-                                            Sau khi báo cáo được giải quyết và khoản bồi thường được phê
-                                            duyệt, hệ thống bắt đầu quy trình chi trả cho người dùng.
-                                        </Typography>
-                                        {isEditing ? (
-                                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, mt: 0.5 }}>
-                                                <Box sx={{ flex: "1 1 260px", minWidth: 260, ...settingsFieldCardSx }}>
-                                                    <Typography sx={settingsFieldLabelSx}>
-                                                        Số ngày thưởng thêm
-                                                    </Typography>
-                                                    <TextField
-                                                        size="small"
-                                                        fullWidth
-                                                        type="number"
-                                                        value={reportForm.bonusDays}
-                                                        onChange={(e) => {
-                                                            const next = { ...reportForm, bonusDays: e.target.value };
-                                                            setReportForm(next);
-                                                            setReportErrors(validateReport(next));
-                                                        }}
-                                                        error={Boolean(reportErrors.bonusDays)}
-                                                        helperText={reportErrors.bonusDays || ""}
-                                                        sx={settingsInputSx}
-                                                        inputProps={{ min: 0 }}
-                                                        InputProps={{
-                                                            endAdornment: (
-                                                                <InputAdornment position="end">
-                                                                    ngày
-                                                                </InputAdornment>
-                                                            ),
-                                                        }}
-                                                    />
-                                                </Box>
-                                                <Box sx={{ flex: "1 1 260px", minWidth: 260, ...settingsFieldCardSx }}>
-                                                    <Typography sx={settingsFieldLabelSx}>
-                                                        Điều kiện áp dụng thưởng
-                                                    </Typography>
-                                                    <TextField
-                                                        size="small"
-                                                        fullWidth
-                                                        value={reportForm.bonusCondition}
-                                                        onChange={(e) =>
-                                                            setReportForm((prev) => ({
-                                                                ...prev,
-                                                                bonusCondition: e.target.value,
-                                                            }))
-                                                        }
-                                                        sx={settingsInputSx}
-                                                    />
-                                                </Box>
-                                                <Box sx={{ width: "100%", ...settingsFieldCardSx }}>
-                                                    <Typography sx={settingsFieldLabelSx}>
-                                                        Mô tả quy tắc chi trả
-                                                    </Typography>
-                                                    <TextField
-                                                        size="small"
-                                                        fullWidth
-                                                        multiline
-                                                        minRows={3}
-                                                        value={reportForm.description}
-                                                        onChange={(e) =>
-                                                            setReportForm((prev) => ({
-                                                                ...prev,
-                                                                description: e.target.value,
-                                                            }))
-                                                        }
-                                                        sx={settingsInputSx}
-                                                    />
-                                                </Box>
-                                            </Box>
-                                        ) : null}
-                            </Box>
-
-                            <Box sx={{ mt: 3 }}>
-                                    <Box
-                                        sx={{
-                                            display: "flex",
-                                            justifyContent: "space-between",
-                                            alignItems: "center",
-                                            mb: 1.5,
-                                        }}
-                                    >
-                                        <Typography
-                                            sx={{
-                                                fontWeight: 700,
-                                                fontSize: 14,
-                                                color: "#0f172a",
-                                            }}
-                                        >
-                                            Cấu hình mức độ nghiêm trọng
-                                        </Typography>
-                                        <Button
-                                            variant="contained"
-                                            onClick={() => openSeverityDialog("add")}
-                                            sx={{
-                                                bgcolor: "#0ea5e9",
-                                                fontWeight: 700,
-                                                borderRadius: 2,
-                                                textTransform: "none",
-                                                "&:hover": { bgcolor: "#0284c7" },
-                                            }}
-                                        >
-                                            + Thêm mức độ
-                                        </Button>
-                                    </Box>
-
-                                    {sortedLevels.length ? (
-                                        <Stack spacing={1}>
-                                            {sortedLevels.map((level) => {
-                                                const compRaw = Number(level.compensation) || 0;
-                                                const compensationPct =
-                                                    compRaw <= 1 ? compRaw * 100 : compRaw;
-                                                const pctLabel = `${compensationPct}% bồi thường`;
-                                                const nameVi =
-                                                    severityNameMap[level.name] || level.name;
-                                                return (
-                                                    <Box
-                                                        key={level.name}
-                                                        sx={{
-                                                            border: "1px solid #e2e8f0",
-                                                            borderRadius: 2,
-                                                            px: 1.5,
-                                                            py: 1,
-                                                            display: "flex",
-                                                            alignItems: "center",
-                                                            justifyContent: "space-between",
-                                                            gap: 2,
-                                                            bgcolor: "#ffffff",
-                                                        }}
-                                                    >
-                                                        <Box
-                                                            sx={{
-                                                                display: "flex",
-                                                                alignItems: "center",
-                                                                gap: 1.25,
-                                                                flex: 1,
-                                                                minWidth: 0,
-                                                            }}
-                                                        >
-                                                            <Box
-                                                                sx={{
-                                                                    width: 10,
-                                                                    height: 10,
-                                                                    borderRadius: "50%",
-                                                                    bgcolor:
-                                                                        level.name === "Critical"
-                                                                            ? "#ef4444"
-                                                                            : level.name ===
-                                                                              "Major"
-                                                                            ? "#f97316"
-                                                                            : level.name ===
-                                                                              "Moderate"
-                                                                            ? "#eab308"
-                                                                            : "#22c55e",
-                                                                }}
-                                                            />
-                                                            <Box sx={{ flex: 1, minWidth: 0 }}>
-                                                                <Box
-                                                                    sx={{
-                                                                        display: "flex",
-                                                                        alignItems: "center",
-                                                                        gap: 1,
-                                                                        mb: 0.25,
-                                                                    }}
-                                                                >
-                                                                    <Typography
-                                                                        sx={{
-                                                                            fontWeight: 700,
-                                                                            fontSize: 14,
-                                                                            color: "#0f172a",
-                                                                        }}
-                                                                    >
-                                                                        {nameVi}
-                                                                    </Typography>
-                                                                    <Chip
-                                                                        label="Hoạt động"
-                                                                        size="small"
-                                                                        sx={{
-                                                                            bgcolor: "#16a34a",
-                                                                            color: "#ffffff",
-                                                                            fontSize: 11,
-                                                                            fontWeight: 700,
-                                                                            borderRadius: 999,
-                                                                            px: 0.75,
-                                                                        }}
-                                                                    />
-                                                                    <Chip
-                                                                        label={pctLabel}
-                                                                        size="small"
-                                                                        sx={{
-                                                                            bgcolor: "#eff6ff",
-                                                                            borderRadius: 999,
-                                                                            fontSize: 11,
-                                                                            fontWeight: 700,
-                                                                            color: "#1d4ed8",
-                                                                        }}
-                                                                    />
-                                                                </Box>
-                                                                {level.description ? (
-                                                                    <Typography
-                                                                        variant="body2"
-                                                                        sx={{
-                                                                            fontSize: 12,
-                                                                            color: "#6b7280",
-                                                                        }}
-                                                                    >
-                                                                        {level.description}
-                                                                    </Typography>
-                                                                ) : null}
-                                                            </Box>
-                                                        </Box>
-                                                        <Box
-                                                            sx={{
-                                                                display: "flex",
-                                                                alignItems: "center",
-                                                                gap: 0.5,
-                                                            }}
-                                                        >
-                                                            <IconButton
-                                                                size="small"
-                                                                disabled={!reportEditing}
-                                                                sx={{ color: "#6b7280" }}
-                                                                aria-label={`Chỉnh sửa mức ${nameVi}`}
-                                                                onClick={() =>
-                                                                    openSeverityDialog(
-                                                                        "edit",
-                                                                        severityDraft.findIndex(
-                                                                            (x) => x.name === level.name
-                                                                        )
-                                                                    )
-                                                                }
-                                                            >
-                                                                <EditIcon fontSize="small" />
-                                                            </IconButton>
-                                                            <IconButton
-                                                                size="small"
-                                                                disabled={!reportEditing}
-                                                                sx={{ color: "#ef4444" }}
-                                                                aria-label={`Xóa mức ${nameVi}`}
-                                                                onClick={() =>
-                                                                    setSeverityDraft((prev) =>
-                                                                        prev.filter(
-                                                                            (x) => x.name !== level.name
-                                                                        )
-                                                                    )
-                                                                }
-                                                            >
-                                                                <DeleteOutlineIcon fontSize="small" />
-                                                            </IconButton>
-                                                        </Box>
-                                                    </Box>
-                                                );
-                                            })}
-                                        </Stack>
-                                    ) : (
-                                        <Typography variant="body2" sx={{ color: "#64748b" }}>
-                                            Không có dữ liệu mức độ báo cáo.
-                                        </Typography>
-                                    )}
-                                </Box>
-
-                                <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
-                                    {reportEditing ? (
-                                        <>
-                                            <Button
-                                                variant="outlined"
-                                                onClick={cancelReportEdit}
-                                                disabled={saving}
-                                                sx={cancelButtonSx}
-                                            >
-                                                Hủy
-                                            </Button>
-                                            <Button
-                                                variant="contained"
-                                                disabled={saving}
-                                                onClick={() => void saveReportEdit()}
-                                                sx={saveButtonSx}
-                                            >
-                                                Lưu
-                                            </Button>
-                                        </>
-                                    ) : (
-                                        <Button
-                                            variant="outlined"
-                                            onClick={startReportEdit}
-                                            disabled={saving}
-                                            sx={cancelButtonSx}
-                                        >
-                                            Chỉnh sửa
-                                        </Button>
-                                    )}
-                                </Box>
-
-                                {activeTabKey === "report" && status.message ? (
-                                    <Alert severity={status.type || "success"} sx={{ mt: 2 }}>
-                                        {status.message}
-                                    </Alert>
-                                ) : null}
-                            </Box>
-                        </Box>
-                    </CardContent>
-                </Card>
-
-                <Dialog
-                    open={severityDialogOpen}
-                    onClose={closeSeverityDialog}
-                    fullWidth
-                    maxWidth="sm"
-                >
-                    <DialogTitle sx={{ fontWeight: 700 }}>
-                        {severityDialogMode === "add" ? "Thêm" : "Chỉnh sửa"} mức độ báo cáo
-                    </DialogTitle>
-                    <DialogContent sx={{ pt: 1.5 }}>
-                        <Stack spacing={2}>
-                            <TextField
-                                label="Tên mức độ"
-                                size="small"
-                                fullWidth
-                                value={severityDialogValue.name}
-                                onChange={(e) => {
-                                    setSeverityDialogValue((prev) => ({
-                                        ...prev,
-                                        name: e.target.value,
-                                    }));
-                                    if (severityDialogError.name) {
-                                        setSeverityDialogError((prev) => ({
-                                            ...prev,
-                                            name: "",
-                                        }));
-                                    }
-                                }}
-                                error={Boolean(severityDialogError.name)}
-                                helperText={severityDialogError.name || ""}
-                            />
-                            <TextField
-                                label="Mô tả"
-                                size="small"
-                                fullWidth
-                                multiline
-                                minRows={2}
-                                value={severityDialogValue.description}
-                                onChange={(e) =>
-                                    setSeverityDialogValue((prev) => ({
-                                        ...prev,
-                                        description: e.target.value,
-                                    }))
-                                }
-                            />
-                            <TextField
-                                label="Phần trăm bồi thường (%)"
-                                size="small"
-                                fullWidth
-                                type="number"
-                                value={severityDialogValue.compensationPct}
-                                onChange={(e) => {
-                                    setSeverityDialogValue((prev) => ({
-                                        ...prev,
-                                        compensationPct: e.target.value,
-                                    }));
-                                    if (severityDialogError.compensationPct) {
-                                        setSeverityDialogError((prev) => ({
-                                            ...prev,
-                                            compensationPct: "",
-                                        }));
-                                    }
-                                }}
-                                error={Boolean(severityDialogError.compensationPct)}
-                                helperText={
-                                    severityDialogError.compensationPct ||
-                                    "Nhập số nguyên từ 0 đến 100, ví dụ: 25."
-                                }
-                            />
-                        </Stack>
-                    </DialogContent>
-                    <DialogActions sx={{ px: 3, pb: 2 }}>
-                        <Button
-                            onClick={closeSeverityDialog}
-                            variant="outlined"
-                            sx={cancelButtonSx}
-                        >
-                            Hủy
-                        </Button>
-                        <Button
-                            onClick={submitSeverityDialog}
-                            variant="contained"
-                            sx={saveButtonSx}
-                        >
-                            Lưu
-                        </Button>
-                    </DialogActions>
-                </Dialog>
             </Box>
         );
     };
