@@ -32,23 +32,92 @@ export const normalizeCampusId = (value) => {
 };
 
 /**
- * Body for {@code /app/private-message} — must match the server DTO (senderName, receiverName, campusId, message, conversationId, timestamp).
- * Spring {@code convertAndSendToUser(username, "/private", ...)} dùng {@code username} trùng principal (thường là email) — gửi email, không gửi tên hiển thị.
- * Includes {@code content} / {@code sentAt} aliases for older handlers.
+ * Body gửi {@code /app/private-message} — khớp DTO tin nhắn chat phía BE:
+ * {@code senderName}, {@code receiverName}, {@code campusId}, {@code message}, {@code conversationId}, {@code timestamp}
+ * (+ alias {@code content}/{@code sentAt} nếu BE/handler cũ cần; không thêm {@code type}).
+ *
+ * Sự kiện {@code CONVERSATION_READ} sau mark-read: BE gửi tới {@code /user/queue/conversation-read};
+ * {@code /user/queue/private} chỉ {@code ChatMessage}.
+ *
+ * Spring {@code convertAndSendToUser} cần principal khớp email — dùng email trong sender/receiver, không dùng tên hiển thị.
+ * Khi {@code receiverName} rỗng và {@code campusId > 0}, thêm {@code broadcastToCampus: true} (fan-out TVV cơ sở).
+ * {@code studentProfileId} tùy chọn — route/push đúng phiên phụ huynh.
  */
-export const buildPrivateChatPayload = ({conversationId, message, senderName, receiverName, campusId}) => {
-    const text = message ?? "";
+export const buildPrivateChatPayload = ({
+    conversationId,
+    message,
+    senderName,
+    receiverName,
+    campusId,
+    studentProfileId,
+}) => {
+    const text = String(message ?? "").trim();
     const ts = toLocalDateTimeIso();
-    return {
-        senderName: senderName ?? "",
-        receiverName: receiverName ?? "",
-        campusId: normalizeCampusId(campusId),
+    const recv = String(receiverName ?? "").trim();
+    const send = String(senderName ?? "").trim();
+    const cid = normalizeCampusId(campusId);
+    const broadcastToCampus = recv === "" && cid > 0;
+
+    let convOut = conversationId;
+    if (convOut != null && String(convOut).trim() !== "") {
+        const n = Number(convOut);
+        convOut = Number.isFinite(n) ? Math.trunc(n) : convOut;
+    }
+
+    const out = {
+        senderName: send,
+        receiverName: recv,
+        campusId: cid,
         message: text,
-        conversationId,
+        conversationId: convOut,
         timestamp: ts,
         content: text,
         sentAt: ts,
     };
+    if (broadcastToCampus) {
+        out.broadcastToCampus = true;
+    }
+    const sp = studentProfileId;
+    if (sp != null && String(sp).trim() !== "") {
+        const n = Number(sp);
+        if (Number.isFinite(n)) {
+            out.studentProfileId = Math.trunc(n);
+        } else {
+            out.studentProfileId = String(sp).trim();
+        }
+    }
+    return out;
+};
+
+/** Subscribe STOMP — khớp {@code convertAndSendToUser(..., "/queue/...", ...)} phía Spring. */
+const USER_CHAT_MESSAGE_QUEUES = [
+    "/user/queue/private",
+    "/user/queue/private-messages",
+    "/user/queue/messages",
+];
+
+/**
+ * Đích user-queue cho payload điều khiển (vd type CONVERSATION_READ) — tách khỏi tin chat.
+ * BE: {@code simpMessagingTemplate.convertAndSendToUser(email, "/queue/conversation-read", payload)}.
+ */
+const USER_READ_EVENT_QUEUES = ["/user/queue/conversation-read"];
+
+const dispatchIncomingStompFrame = (destination, frame) => {
+    try {
+        const payload = JSON.parse(frame.body || "{}");
+        if (import.meta.env.DEV) {
+            console.debug("[STOMP ←]", destination, payload);
+        }
+        messageListeners.forEach((listener) => {
+            try {
+                listener?.(payload);
+            } catch (err) {
+                console.error("[STOMP listener error]", err);
+            }
+        });
+    } catch (error) {
+        console.error("Invalid websocket payload:", error);
+    }
 };
 
 export const connectPrivateMessageSocket = ({onMessage}) => {
@@ -65,19 +134,9 @@ export const connectPrivateMessageSocket = ({onMessage}) => {
         heartbeatIncoming: 10000,
         heartbeatOutgoing: 10000,
         onConnect: () => {
-            // Spring convertAndSendToUser(..., "/private", ...) thường tới /user/queue/private
-            ["/user/queue/private", "/user/queue/private-messages", "/user/queue/messages"].forEach((destination) => {
+            [...USER_CHAT_MESSAGE_QUEUES, ...USER_READ_EVENT_QUEUES].forEach((destination) => {
                 stompClient.subscribe(destination, (frame) => {
-                    try {
-                        const payload = JSON.parse(frame.body || "{}");
-                        if (import.meta.env.DEV) {
-                            // Tab phụ huynh: nếu counsellor gửi mà không thấy log này → BE chưa push vào queue /user của phụ huynh
-                            console.debug("[STOMP ←]", destination, payload);
-                        }
-                        messageListeners.forEach((listener) => listener?.(payload));
-                    } catch (error) {
-                        console.error("Invalid websocket payload:", error);
-                    }
+                    dispatchIncomingStompFrame(destination, frame);
                 });
             });
         },

@@ -28,10 +28,12 @@ import {
     TableRow,
     Tabs,
     TextField,
+    Tooltip,
     Typography,
 } from '@mui/material';
-import {Add, ArrowBack} from '@mui/icons-material';
+import {Add, ArrowBack, DeleteOutline} from '@mui/icons-material';
 import {emptyGrades, genderOptions, GRADE_LEVELS} from './childrenInfo/childrenInfoHelpers.js';
+import {SubjectUnavailableHint} from './childrenInfo/SubjectUnavailableHint.jsx';
 import {
     backButtonSx,
     cardContentPaddingSx,
@@ -72,6 +74,8 @@ export default function ChildrenInfoPage() {
         regularGrades,
         foreignRows,
         foreignGrades,
+        regularSubjectAvailable,
+        foreignRowAvailable,
         studentRecords,
         activeStudentTab,
         creatingNewStudent,
@@ -85,6 +89,7 @@ export default function ChildrenInfoPage() {
         handleForeignGradeChange,
         handleForeignSubjectChange,
         addForeignLanguageRow,
+        removeForeignLanguageRow,
         foreignOptionsForRow,
         enterEditMode,
         handleSave,
@@ -1074,8 +1079,9 @@ export default function ChildrenInfoPage() {
                         <CardContent sx={cardContentPaddingSx}>
                             <Typography sx={sectionHeadingSx}>Học bạ</Typography>
                             <Typography sx={{fontSize: 14, color: '#64748b', mb: 1.5, lineHeight: 1.55}}>
-                                Điểm cả năm theo từng lớp (06–09). Phần ngoại ngữ: chọn ngôn ngữ và điền điểm; có thể
-                                thêm dòng nếu học nhiều ngôn ngữ.
+                                Điểm cả năm theo từng lớp (06–09).
+                                {(editMode || creatingNewStudent) &&
+                                    ' Phần ngoại ngữ: chọn ngôn ngữ và điền điểm; có thể thêm dòng nếu học nhiều ngôn ngữ.'}
                             </Typography>
                             <Box sx={sectionAccentBarSx}/>
                             {subjectGroupsLoading ? (
@@ -1155,17 +1161,36 @@ export default function ChildrenInfoPage() {
                                             {regularSubjects.map((sub) => {
                                                 const idStr = String(sub.id);
                                                 const row = regularGrades[idStr] || emptyGrades();
+                                                const regShowUnavailable =
+                                                    regularSubjectAvailable[idStr] === false;
                                                 return (
                                                     <TableRow key={`reg-${sub.id}`} hover>
                                                         <TableCell
                                                             sx={{
                                                                 border: '1px solid rgba(241, 245, 249, 0.95)',
-                                                                fontWeight: 600,
-                                                                fontSize: 14,
-                                                                color: '#1e293b',
+                                                                verticalAlign: 'middle',
                                                             }}
                                                         >
-                                                            {sub.name}
+                                                            <Box
+                                                                sx={{
+                                                                    display: 'flex',
+                                                                    flexDirection: 'column',
+                                                                    alignItems: 'flex-start',
+                                                                    gap: 0.25,
+                                                                }}
+                                                            >
+                                                                <Typography
+                                                                    component="span"
+                                                                    sx={{
+                                                                        fontWeight: 600,
+                                                                        fontSize: 14,
+                                                                        color: '#1e293b',
+                                                                    }}
+                                                                >
+                                                                    {sub.name}
+                                                                </Typography>
+                                                                {regShowUnavailable && <SubjectUnavailableHint/>}
+                                                            </Box>
                                                         </TableCell>
                                                         {GRADE_LEVELS.map((g) => (
                                                             <TableCell
@@ -1189,7 +1214,15 @@ export default function ChildrenInfoPage() {
                                                                     size="small"
                                                                     fullWidth
                                                                     placeholder="—"
-                                                                    disabled={fieldsDisabled}
+                                                                    disabled={
+                                                                        fieldsDisabled ||
+                                                                        regShowUnavailable
+                                                                    }
+                                                                    title={
+                                                                        regShowUnavailable
+                                                                            ? 'Môn không khả dụng — không thể sửa điểm'
+                                                                            : undefined
+                                                                    }
                                                                     inputProps={{
                                                                         inputMode: 'decimal',
                                                                         style: {textAlign: 'center'},
@@ -1202,11 +1235,35 @@ export default function ChildrenInfoPage() {
                                                 );
                                             })}
                                             {foreignSubjects.length > 0 &&
-                                                [...foreignRows]
+                                                (() => {
+                                                    const canPickForeignLanguage =
+                                                        editMode || creatingNewStudent;
+                                                    const rowsSource = canPickForeignLanguage
+                                                        ? foreignRows
+                                                        : foreignRows.filter((r) => {
+                                                              const hasCustom =
+                                                                  r.customSubjectName &&
+                                                                  String(r.customSubjectName).trim();
+                                                              const hasCatalog =
+                                                                  r.subjectId !== '' &&
+                                                                  r.subjectId != null;
+                                                              return Boolean(hasCustom || hasCatalog);
+                                                          });
+                                                    return [...rowsSource]
                                                     .sort((a, b) => {
-                                                        const aPending = a.subjectId === '' ? 1 : 0;
-                                                        const bPending = b.subjectId === '' ? 1 : 0;
-                                                        return aPending - bPending;
+                                                        const rank = (r) => {
+                                                            if (
+                                                                r.customSubjectName &&
+                                                                String(r.customSubjectName).trim()
+                                                            ) {
+                                                                return 0;
+                                                            }
+                                                            if (r.subjectId !== '' && r.subjectId != null) {
+                                                                return 1;
+                                                            }
+                                                            return 2;
+                                                        };
+                                                        return rank(a) - rank(b);
                                                     })
                                                     .map((fr) => {
                                                     const rowGrades =
@@ -1215,12 +1272,21 @@ export default function ChildrenInfoPage() {
                                                         fr.rowId,
                                                         fr.subjectId,
                                                     );
+                                                    const customLabel =
+                                                        fr.customSubjectName != null
+                                                            ? String(fr.customSubjectName).trim()
+                                                            : '';
                                                     const selectedForeignSubject =
                                                         fr.subjectId === ''
                                                             ? null
                                                             : foreignSubjects.find(
                                                                   (s) => s.id === fr.subjectId,
                                                               ) || null;
+                                                    const canEditForeignGrades =
+                                                        Boolean(customLabel) || Boolean(selectedForeignSubject);
+                                                    const showForeignRowDelete = editMode || creatingNewStudent;
+                                                    const foreignShowUnavailable =
+                                                        foreignRowAvailable[fr.rowId] === false;
                                                     return (
                                                         <TableRow key={fr.rowId} hover>
                                                             <TableCell
@@ -1232,8 +1298,48 @@ export default function ChildrenInfoPage() {
                                                                     verticalAlign: 'middle',
                                                                 }}
                                                             >
-                                                                {!selectedForeignSubject ? (
-                                                                    <FormControl fullWidth size="small">
+                                                                <Box
+                                                                    sx={{
+                                                                        display: 'flex',
+                                                                        alignItems: 'center',
+                                                                        gap: 0.75,
+                                                                        justifyContent: 'space-between',
+                                                                        minWidth: 0,
+                                                                    }}
+                                                                >
+                                                                    <Box
+                                                                        sx={{
+                                                                            flex: 1,
+                                                                            minWidth: 0,
+                                                                            display: 'flex',
+                                                                            flexDirection: 'column',
+                                                                            gap: 0.25,
+                                                                        }}
+                                                                    >
+                                                                {customLabel ? (
+                                                                    <Typography
+                                                                        sx={{
+                                                                            fontWeight: 600,
+                                                                            fontSize: 14,
+                                                                            color: '#1e293b',
+                                                                            lineHeight: 1.45,
+                                                                            minHeight: 40,
+                                                                            display: 'flex',
+                                                                            alignItems: 'center',
+                                                                        }}
+                                                                    >
+                                                                        {customLabel}
+                                                                    </Typography>
+                                                                ) : !selectedForeignSubject ? (
+                                                                    <FormControl
+                                                                        fullWidth
+                                                                        size="small"
+                                                                        title={
+                                                                            foreignShowUnavailable
+                                                                                ? 'Môn không khả dụng — không đổi ngôn ngữ'
+                                                                                : undefined
+                                                                        }
+                                                                    >
                                                                         <InputLabel id={`fl-${fr.rowId}`}>
                                                                             Ngôn ngữ
                                                                         </InputLabel>
@@ -1245,7 +1351,10 @@ export default function ChildrenInfoPage() {
                                                                                     ? ''
                                                                                     : fr.subjectId
                                                                             }
-                                                                            disabled={fieldsDisabled}
+                                                                            disabled={
+                                                                                fieldsDisabled ||
+                                                                                foreignShowUnavailable
+                                                                            }
                                                                             onChange={(e) => {
                                                                                 const v = e.target.value;
                                                                                 handleForeignSubjectChange(
@@ -1279,6 +1388,30 @@ export default function ChildrenInfoPage() {
                                                                         {selectedForeignSubject.name}
                                                                     </Typography>
                                                                 )}
+                                                                {foreignShowUnavailable && <SubjectUnavailableHint/>}
+                                                                    </Box>
+                                                                    {showForeignRowDelete && (
+                                                                        <IconButton
+                                                                            size="small"
+                                                                            edge="end"
+                                                                            aria-label="Xóa dòng ngoại ngữ"
+                                                                            onClick={() =>
+                                                                                removeForeignLanguageRow(fr.rowId)
+                                                                            }
+                                                                            disabled={fieldsDisabled}
+                                                                            sx={{
+                                                                                color: '#94a3b8',
+                                                                                flexShrink: 0,
+                                                                                '&:hover': {
+                                                                                    color: '#dc2626',
+                                                                                    bgcolor: 'rgba(220,38,38,0.08)',
+                                                                                },
+                                                                            }}
+                                                                        >
+                                                                            <DeleteOutline fontSize="small"/>
+                                                                        </IconButton>
+                                                                    )}
+                                                                </Box>
                                                             </TableCell>
                                                             {GRADE_LEVELS.map((g) => (
                                                                 <TableCell
@@ -1304,12 +1437,15 @@ export default function ChildrenInfoPage() {
                                                                         placeholder="—"
                                                                         disabled={
                                                                             fieldsDisabled ||
-                                                                            !selectedForeignSubject
+                                                                            !canEditForeignGrades ||
+                                                                            foreignShowUnavailable
                                                                         }
                                                                         title={
-                                                                            !selectedForeignSubject
-                                                                                ? 'Chọn ngôn ngữ trước khi nhập điểm'
-                                                                                : undefined
+                                                                            foreignShowUnavailable
+                                                                                ? 'Môn không khả dụng — không thể sửa điểm'
+                                                                                : !canEditForeignGrades
+                                                                                  ? 'Chọn ngôn ngữ trước khi nhập điểm'
+                                                                                  : undefined
                                                                         }
                                                                         inputProps={{
                                                                             inputMode: 'decimal',
@@ -1321,8 +1457,9 @@ export default function ChildrenInfoPage() {
                                                             ))}
                                                         </TableRow>
                                                     );
-                                                })}
-                                            {foreignSubjects.length > 0 && (
+                                                });
+                                                })()}
+                                            {foreignSubjects.length > 0 && (editMode || creatingNewStudent) && (
                                                 <TableRow>
                                                     <TableCell
                                                         colSpan={5}
@@ -1339,19 +1476,23 @@ export default function ChildrenInfoPage() {
                                                                 gap: 1,
                                                             }}
                                                         >
-                                                            <IconButton
-                                                                color="primary"
-                                                                size="small"
-                                                                onClick={addForeignLanguageRow}
-                                                                disabled={fieldsDisabled}
-                                                                aria-label="Thêm dòng ngoại ngữ"
-                                                                sx={{
-                                                                    border: '1px solid rgba(37, 99, 235, 0.35)',
-                                                                    bgcolor: 'rgba(255, 255, 255, 0.9)',
-                                                                }}
-                                                            >
-                                                                <Add fontSize="small"/>
-                                                            </IconButton>
+                                                            <Tooltip title="Thêm dòng ngoại ngữ">
+                                                                <span>
+                                                                    <IconButton
+                                                                        color="primary"
+                                                                        size="small"
+                                                                        onClick={addForeignLanguageRow}
+                                                                        disabled={fieldsDisabled}
+                                                                        aria-label="Thêm dòng ngoại ngữ"
+                                                                        sx={{
+                                                                            border: '1px solid rgba(37, 99, 235, 0.35)',
+                                                                            bgcolor: 'rgba(255, 255, 255, 0.9)',
+                                                                        }}
+                                                                    >
+                                                                        <Add fontSize="small"/>
+                                                                    </IconButton>
+                                                                </span>
+                                                            </Tooltip>
                                                             <Typography sx={{fontSize: 14, color: '#475569'}}>
                                                                 Thêm ngôn ngữ (nếu học thêm ngoại ngữ thứ hai, thứ
                                                                 ba…)
