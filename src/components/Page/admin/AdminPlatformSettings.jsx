@@ -45,6 +45,25 @@ import { getSystemConfig, updateSystemConfig } from "../../../services/SystemCon
 import { enqueueSnackbar } from "notistack";
 import { sanitizeAdmissionSettingsForApi } from "../../../utils/admissionSettingsShared.js";
 
+/** Hạn mức theo năm học: GET thường trả `admissionQuota`; bản cũ có thể là `quota`. */
+function getAdmissionQuotaMap(cfg) {
+    if (!cfg || typeof cfg !== "object") return {};
+    const m = cfg.admissionQuota ?? cfg.quota;
+    return m && typeof m === "object" && !Array.isArray(m) ? m : {};
+}
+
+function mergeSystemConfigPayload(cfg, patch) {
+    if (!cfg || typeof cfg !== "object") return patch;
+    return { ...cfg, ...patch };
+}
+
+function apiErrorMessage(e, fallback) {
+    const d = e?.response?.data;
+    const m = d?.message ?? d?.body?.message ?? d?.error ?? e?.message;
+    const s = m != null ? String(m).trim() : "";
+    return s || fallback;
+}
+
 export default function AdminPlatformSettings() {
     const tabs = useMemo(
         () => [
@@ -385,7 +404,7 @@ export default function AdminPlatformSettings() {
         setSubscriptionForm(subInit);
         setSubscriptionErrors(validateSubscription(subInit));
 
-        const quotaYears = Object.keys(configBody?.quota || {});
+        const quotaYears = Object.keys(getAdmissionQuotaMap(configBody));
         setSelectedQuotaYear((prev) => prev || quotaYears[0] || "");
 
         const media = configBody?.media || {};
@@ -564,7 +583,7 @@ export default function AdminPlatformSettings() {
             const maxResolutionDay = parseFinite(reportForm.maxResolutionDay);
             const bonusDays = parseFinite(reportForm.bonusDays);
 
-            const updatedBody = {
+            const reportPatch = {
                 reportData: {
                     maxResolutionDay: maxResolutionDay ?? 0,
                     responseDeadline: reportForm.responseDeadline || null,
@@ -575,11 +594,10 @@ export default function AdminPlatformSettings() {
                     levels: (severityDraft || []).map((lvl) => ({
                         name: lvl.name,
                     })),
-                    // giữ lại các field khác nếu backend có
                     ...currentReport,
                 },
             };
-            await updateSystemConfig(updatedBody);
+            await updateSystemConfig(mergeSystemConfigPayload(configBody, reportPatch));
             enqueueSnackbar("Cập nhật Cài đặt Báo cáo thành công.", {
                 variant: "success",
             });
@@ -588,8 +606,7 @@ export default function AdminPlatformSettings() {
             ok = true;
         } catch (e) {
             console.error("saveReportEdit failed", e);
-            const msg =
-                e?.response?.data?.message || "Cập nhật thất bại. Vui lòng thử lại.";
+            const msg = apiErrorMessage(e, "Cập nhật thất bại. Vui lòng thử lại.");
             enqueueSnackbar(msg, { variant: "error" });
             setStatus({ type: "error", message: msg });
         } finally {
@@ -753,24 +770,35 @@ export default function AdminPlatformSettings() {
         let ok = false;
         setStatus({ type: "", message: "" });
         try {
-            const updatedBody = {
-                mediaData: {
+            const prevMedia = configBody.media || {};
+            const {
+                imgFormats: _imgF,
+                videoFormats: _vidF,
+                docFormats: _docF,
+                imgFormat: _imgOld,
+                videoFormat: _vidOld,
+                docFormat: _docOld,
+                ...mediaRest
+            } = prevMedia;
+            const mediaPatch = {
+                media: {
+                    ...mediaRest,
                     maxImgSize: parseFinite(mediaLimitsForm.maxImgSize),
                     maxVideoSize: parseFinite(mediaLimitsForm.maxVideoSize),
                     maxDocSize: parseFinite(mediaLimitsForm.maxDocSize),
-                    imgFormats: imgFormatsDraft.map((f) => ({ format: f })),
-                    videoFormats: videoFormatsDraft.map((f) => ({ format: f })),
-                    docFormats: docFormatsDraft.map((f) => ({ format: f })),
+                    imgFormat: imgFormatsDraft.map((f) => ({ format: f })),
+                    videoFormat: videoFormatsDraft.map((f) => ({ format: f })),
+                    docFormat: docFormatsDraft.map((f) => ({ format: f })),
                 },
             };
-            await updateSystemConfig(updatedBody);
+            await updateSystemConfig(mergeSystemConfigPayload(configBody, mediaPatch));
             enqueueSnackbar("Cập nhật cấu hình phương tiện thành công.", { variant: "success" });
             setStatus({ type: "success", message: "Cập nhật thành công." });
             await fetchConfig();
             ok = true;
         } catch (e) {
             console.error("saveMediaFormats failed", e);
-            const msg = e?.response?.data?.message || "Cập nhật thất bại. Vui lòng thử lại.";
+            const msg = apiErrorMessage(e, "Cập nhật thất bại. Vui lòng thử lại.");
             enqueueSnackbar(msg, { variant: "error" });
             setStatus({ type: "error", message: msg });
         } finally {
@@ -780,7 +808,7 @@ export default function AdminPlatformSettings() {
     };
 
     const getQuotaInitialForm = (year) => {
-        const quota = configBody?.quota || {};
+        const quota = getAdmissionQuotaMap(configBody);
         const item = quota[year] || {};
         return {
             sourceUrl: item.sourceUrl || "",
@@ -826,9 +854,9 @@ export default function AdminPlatformSettings() {
         let ok = false;
         setStatus({ type: "", message: "" });
         try {
-            const currentQuota = configBody.quota || {};
+            const currentQuota = getAdmissionQuotaMap(configBody);
             const existing = currentQuota[selectedQuotaYear] || {};
-            const updatedQuota = {
+            const updatedAdmissionQuota = {
                 ...currentQuota,
                 [selectedQuotaYear]: {
                     ...existing,
@@ -836,7 +864,9 @@ export default function AdminPlatformSettings() {
                 },
             };
 
-            const updatedBody = { quota: updatedQuota };
+            const updatedBody = mergeSystemConfigPayload(configBody, {
+                admissionQuota: updatedAdmissionQuota,
+            });
 
             await updateSystemConfig(updatedBody);
             enqueueSnackbar("Cập nhật Cài đặt Hạn mức Tuyển sinh thành công.", { variant: "success" });
@@ -845,7 +875,7 @@ export default function AdminPlatformSettings() {
             ok = true;
         } catch (e) {
             console.error("saveQuotaEdit failed", e);
-            const msg = e?.response?.data?.message || "Cập nhật thất bại. Vui lòng thử lại.";
+            const msg = apiErrorMessage(e, "Cập nhật thất bại. Vui lòng thử lại.");
             enqueueSnackbar(msg, { variant: "error" });
             setStatus({ type: "error", message: msg });
         } finally {
@@ -870,14 +900,15 @@ export default function AdminPlatformSettings() {
             const taxRate = toRateDecimal(businessForm.taxRatePct);
             const serviceRate = toRateDecimal(businessForm.serviceRatePct);
 
-            const updatedBody = {
+            const updatedBody = mergeSystemConfigPayload(configBody, {
                 business: {
-                    minPay,
-                    maxPay,
+                    ...(configBody.business || {}),
+                    minPay: minPay != null ? Math.trunc(minPay) : minPay,
+                    maxPay: maxPay != null ? Math.trunc(maxPay) : maxPay,
                     taxRate,
                     serviceRate,
                 },
-            };
+            });
 
             await updateSystemConfig(updatedBody);
             enqueueSnackbar("Cập nhật Cài đặt Doanh nghiệp thành công.", { variant: "success" });
@@ -886,7 +917,7 @@ export default function AdminPlatformSettings() {
             ok = true;
         } catch (e) {
             console.error("saveBusiness failed", e);
-            const msg = e?.response?.data?.message || "Cập nhật thất bại. Vui lòng thử lại.";
+            const msg = apiErrorMessage(e, "Cập nhật thất bại. Vui lòng thử lại.");
             enqueueSnackbar(msg, { variant: "error" });
             setStatus({ type: "error", message: msg });
         } finally {
@@ -909,13 +940,14 @@ export default function AdminPlatformSettings() {
             const gracePeriod = parseFinite(subscriptionForm.gracePeriod);
             const minSubscriptionMonth = parseFinite(subscriptionForm.minSubscriptionMonth);
 
-            const updatedBody = {
+            const updatedBody = mergeSystemConfigPayload(configBody, {
                 subscription: {
+                    ...(configBody.subscription || {}),
                     trialDays,
                     gracePeriod,
                     minSubscriptionMonth,
                 },
-            };
+            });
 
             await updateSystemConfig(updatedBody);
             enqueueSnackbar("Cập nhật Chính sách Đăng ký thành công.", { variant: "success" });
@@ -924,7 +956,7 @@ export default function AdminPlatformSettings() {
             ok = true;
         } catch (e) {
             console.error("saveSubscriptionPolicy failed", e);
-            const msg = e?.response?.data?.message || "Cập nhật thất bại. Vui lòng thử lại.";
+            const msg = apiErrorMessage(e, "Cập nhật thất bại. Vui lòng thử lại.");
             enqueueSnackbar(msg, { variant: "error" });
             setStatus({ type: "error", message: msg });
         } finally {
@@ -950,7 +982,9 @@ export default function AdminPlatformSettings() {
         setStatus({ type: "", message: "" });
         try {
             const sanitized = sanitizeAdmissionSettingsForApi(admissionTemplateForm);
-            await updateSystemConfig({ admissionSettingsData: sanitized });
+            await updateSystemConfig(
+                mergeSystemConfigPayload(configBody, { admissionSettingsData: sanitized })
+            );
             enqueueSnackbar(
                 "Đã cập nhật mẫu phương thức. Các trường đang dùng bản riêng không tự đổi.",
                 { variant: "success" }
@@ -960,7 +994,7 @@ export default function AdminPlatformSettings() {
             setAdmissionTemplateEditing(false);
         } catch (e) {
             console.error("saveAdmissionTemplate failed", e);
-            const msg = e?.response?.data?.message || "Cập nhật thất bại. Vui lòng thử lại.";
+            const msg = apiErrorMessage(e, "Cập nhật thất bại. Vui lòng thử lại.");
             enqueueSnackbar(msg, { variant: "error" });
             setStatus({ type: "error", message: msg });
         } finally {
@@ -1876,7 +1910,7 @@ export default function AdminPlatformSettings() {
     };
 
     const renderLimitsTab = () => {
-        const quota = configBody?.quota || {};
+        const quota = getAdmissionQuotaMap(configBody);
         const quotaYears = Object.keys(quota);
         const selectedYear = selectedQuotaYear || quotaYears[0] || "";
         const isEditing = quotaEditing;
