@@ -65,7 +65,7 @@ export const saveCurriculum = upsertCurriculum;
  * Perform curriculum status action by curriculumId.
  *
  * @param {number|string} id
- * @param {"PUBLISH"|"REVISE"} action
+ * @param {"PUBLISH"|"REVISE"|"ARCHIVE"} action
  */
 export const activateCurriculum = async (id, action) => {
     const response = await axiosClient.patch(`/school/${id}/activate/curriculum`, {}, {
