@@ -2,6 +2,7 @@ import React from "react";
 import {
     Box,
     Button,
+    ButtonBase,
     Card,
     CardContent,
     CardMedia,
@@ -20,7 +21,8 @@ import {
     Select,
     CircularProgress,
     IconButton,
-    useMediaQuery
+    useMediaQuery,
+    Link
 } from "@mui/material";
 import {useTheme} from "@mui/material/styles";
 import {syncLocalUserWithAccess, updateProfile} from "../../services/AccountService";
@@ -29,8 +31,6 @@ import {enqueueSnackbar} from "notistack";
 import {
     ArrowForward as ArrowForwardIcon,
     LocationOn as LocationIcon,
-    Star as StarIcon,
-    AttachMoney as MoneyIcon,
     ChevronLeft as ChevronLeftIcon,
     ChevronRight as ChevronRightIcon,
     Search as SearchIcon,
@@ -38,7 +38,13 @@ import {
     FormatQuote as FormatQuoteIcon,
     HeadsetMicOutlined as HeadsetMicIcon,
     CalendarMonthOutlined as CalendarMonthIcon,
-    SmartToyOutlined as SmartToyIcon
+    SmartToyOutlined as SmartToyIcon,
+    Add as AddIcon,
+    CheckCircle as CheckCircleIcon,
+    Favorite as FavoriteIcon,
+    FavoriteBorder as FavoriteBorderIcon,
+    Language as LanguageIcon,
+    Phone as PhoneIcon
 } from "@mui/icons-material";
 import {useLocation, useNavigate} from "react-router-dom";
 import {
@@ -61,7 +67,19 @@ import {createSchoolSubscriptionPayment} from "../../services/SchoolSubscription
 import {getPostList} from "../../services/PostService.jsx";
 import SchoolServicePackagesGrid from "../ui/SchoolServicePackagesGrid.jsx";
 import SchoolSearchDetailView from "./SchoolSearchDetailView.jsx";
-import {mapPublicSchoolDetailToRow} from "../../utils/schoolPublicMapper.js";
+import {mapPublicSchoolDetailToRow, DEFAULT_SCHOOL_IMAGE} from "../../utils/schoolPublicMapper.js";
+import {showSuccessSnackbar, showWarningSnackbar} from "../ui/AppSnackbar.jsx";
+import {
+    getCompareSchools,
+    MAX_COMPARE_SCHOOLS,
+    setCompareSchools
+} from "../../utils/compareSchoolsStorage";
+import {getSchoolStorageKey, getUserIdentity} from "../../utils/savedSchoolsStorage";
+import {
+    deleteParentFavouriteSchool,
+    getParentFavouriteSchools,
+    postParentFavouriteSchool
+} from "../../services/ParentService.jsx";
 
 const ADMISSION_CAROUSEL_INTERVAL_MS = 7000;
 const ADMISSION_ANIM_MS = 1400;
@@ -90,8 +108,29 @@ const HOME_ABOUT_MEDIA = [
     }
 ];
 
-const DEFAULT_SCHOOL_IMAGE =
-    "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=900&q=80";
+const FAVOURITE_SYNC_PAGE_SIZE = 200;
+
+function parseFavouriteListPayload(res) {
+    const raw = res?.data?.body ?? res?.body ?? res?.data ?? res;
+    if (Array.isArray(raw?.items)) return raw.items;
+    if (Array.isArray(raw?.content)) return raw.content;
+    if (Array.isArray(raw)) return raw;
+    return [];
+}
+
+function buildFavouriteIdBySchool(items) {
+    const map = {};
+    for (const item of items) {
+        const schoolId = Number(
+            item?.schoolId ?? item?.school?.schoolId ?? item?.school?.id ?? item?.id ?? null
+        );
+        const favouriteId = Number(item?.id ?? item?.favouriteId ?? null);
+        if (Number.isFinite(schoolId) && Number.isFinite(favouriteId)) {
+            map[schoolId] = favouriteId;
+        }
+    }
+    return map;
+}
 
 const CONSULT_STEPS = [
     {
@@ -515,8 +554,27 @@ function BlogCard({title, description, descriptionHtml, image, date, tags = [], 
     );
 }
 
-function SchoolCard({school, onOpenDetail}) {
-    const rating = Number(school.rating) || 0;
+function SchoolCard({school, onOpenDetail, onToggleCompare, onToggleSave, compareSchoolKeys}) {
+    const displayName = school.school || school.name || "Trường đang cập nhật";
+    const logoSrc = school.logoUrl || school.cover || DEFAULT_SCHOOL_IMAGE;
+    const description = school.description?.trim?.() ? String(school.description).trim() : "";
+    const address = school.address?.trim?.()
+        ? String(school.address).trim()
+        : school.location?.trim?.()
+          ? String(school.location).trim()
+          : "";
+    const website = school.website?.trim?.() ? String(school.website).trim() : "";
+    const phone = school.phone?.trim?.() ? String(school.phone).trim() : "";
+
+    const schoolKey = getSchoolStorageKey({
+        id: school.id,
+        province: school.province,
+        ward: school.ward,
+        school: displayName
+    });
+    const inCompare = compareSchoolKeys.has(schoolKey);
+    const isSaved = Boolean(school.isFavourite);
+
     return (
         <Card
             sx={{
@@ -526,93 +584,278 @@ function SchoolCard({school, onOpenDetail}) {
                 borderRadius: 3,
                 overflow: 'hidden',
                 bgcolor: '#fff',
-                border: '1px solid rgba(51,65,85,0.08)',
-                boxShadow: landingSectionShadow(2),
-                transition: 'transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease',
+                border: '1px solid rgba(203,213,225,0.95)',
+                boxShadow: '0 8px 28px rgba(15,23,42,0.06), 0 2px 10px rgba(15,23,42,0.04)',
+                transition:
+                    'transform 0.32s cubic-bezier(0.2, 0, 0.2, 1), box-shadow 0.32s cubic-bezier(0.2, 0, 0.2, 1), border-color 0.32s cubic-bezier(0.2, 0, 0.2, 1)',
                 '&:hover': {
-                    transform: 'translateY(-4px) scale(1.02)',
-                    boxShadow: '0 18px 36px rgba(51,65,85,0.14)',
-                    borderColor: APP_PRIMARY_SOFT_BORDER
+                    transform: 'translateY(-4px)',
+                    borderColor: 'rgba(148,163,184,0.65)',
+                    boxShadow: '0 14px 40px rgba(15,23,42,0.1), 0 4px 14px rgba(59,130,246,0.08)'
                 }
             }}
         >
             <Box
                 sx={{
-                    position: 'relative',
-                    height: 132,
+                    pt: 2.25,
+                    px: 2.25,
+                    pb: 1.5,
                     display: 'flex',
+                    flexDirection: 'row',
                     alignItems: 'center',
-                    justifyContent: 'center',
-                    p: 0
+                    gap: 1.75,
+                    minWidth: 0
                 }}
             >
-                {school.featured && (
-                    <Chip
-                        icon={<StarIcon sx={{fontSize: 14}} />}
-                        label={school.badge}
-                        size="small"
-                        sx={{
-                            position: 'absolute',
-                            top: 10,
-                            left: 10,
-                            bgcolor: 'rgba(255,255,255,0.95)',
-                            fontWeight: 700,
-                            '& .MuiChip-label': {px: 1}
-                        }}
-                    />
-                )}
-                <Box
+                <CardMedia
                     component="img"
-                    src={school.cover || DEFAULT_SCHOOL_IMAGE}
-                    alt={school.name || "School logo"}
+                    image={logoSrc}
+                    alt={`${displayName} logo`}
+                    imgProps={{
+                        referrerPolicy: 'no-referrer',
+                        onError: (e) => {
+                            if (e?.currentTarget?.src !== DEFAULT_SCHOOL_IMAGE) {
+                                e.currentTarget.src = DEFAULT_SCHOOL_IMAGE;
+                            }
+                        }
+                    }}
                     sx={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'contain'
+                        height: {xs: 92, sm: 96},
+                        width: {xs: 92, sm: 96},
+                        flexShrink: 0,
+                        borderRadius: '50%',
+                        objectFit: 'contain',
+                        objectPosition: 'center',
+                        bgcolor: 'rgba(248,250,252,0.95)',
+                        p: 0.65,
+                        border: '1px solid rgba(226,232,240,0.9)'
                     }}
                 />
+                <Typography
+                    sx={{
+                        textAlign: 'left',
+                        fontWeight: 700,
+                        fontSize: {xs: '1rem', sm: '1.08rem'},
+                        color: BRAND_NAVY,
+                        lineHeight: 1.4,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 4,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        minWidth: 0,
+                        flex: 1
+                    }}
+                >
+                    {displayName}
+                </Typography>
             </Box>
 
-            <CardContent sx={{pt: 2.25, px: 2, pb: 2, display: 'flex', flexDirection: 'column', gap: 1.25, flex: 1}}>
-                <Typography sx={{fontSize: '1.02rem', fontWeight: 800, color: '#1e293b', lineHeight: 1.35}}>
-                    {school.name}
-                </Typography>
+            <CardContent
+                sx={{
+                    pt: 0.5,
+                    px: 2.25,
+                    pb: 2.25,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flex: 1,
+                    minHeight: 0,
+                    gap: 0,
+                    '&:last-child': {pb: 2.25}
+                }}
+            >
+                <Box
+                    sx={{
+                        flex: '1 1 auto',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        gap: 2,
+                        minHeight: {xs: 200, md: 220}
+                    }}
+                >
+                    <Box>
+                        {description ? (
+                            <Typography
+                                sx={{
+                                    color: '#475569',
+                                    fontSize: {xs: '0.9rem', sm: '0.9375rem'},
+                                    fontWeight: 400,
+                                    lineHeight: 1.75,
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 12,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                    wordBreak: 'break-word'
+                                }}
+                            >
+                                {description}
+                            </Typography>
+                        ) : (
+                            <Typography
+                                sx={{
+                                    color: '#94a3b8',
+                                    fontSize: {xs: '0.9rem', sm: '0.9375rem'},
+                                    fontStyle: 'italic',
+                                    lineHeight: 1.75
+                                }}
+                            >
+                                Đang cập nhật giới thiệu trường.
+                            </Typography>
+                        )}
+                    </Box>
 
-                <Box sx={{display: 'flex', flexWrap: 'wrap', gap: 0.75}}>
-                    <Chip size="small" label={school.type || "Trường"} sx={{bgcolor: 'rgba(51,65,85,0.08)', fontWeight: 600}} />
-                    <Chip size="small" icon={<MoneyIcon sx={{fontSize: 14}} />} label={school.tuition || "Đang cập nhật"} sx={{bgcolor: APP_PRIMARY_SOFT_BG, fontWeight: 600}} />
-                    <Chip size="small" icon={<LocationIcon sx={{fontSize: 14}} />} label={school.district || "TP.HCM"} sx={{bgcolor: 'rgba(59,130,246,0.12)', fontWeight: 600}} />
+                    <Stack spacing={1.35} sx={{width: '100%'}}>
+                        <Box sx={{display: 'flex', alignItems: 'flex-start', gap: 0.75, minWidth: 0}}>
+                            <LocationIcon sx={{fontSize: 17, color: '#0f172a', flexShrink: 0, mt: '3px'}} />
+                            <Typography
+                                sx={{
+                                    fontSize: {xs: '0.8125rem', sm: '0.875rem'},
+                                    fontWeight: 400,
+                                    lineHeight: 1.55,
+                                    color: '#0f172a',
+                                    wordBreak: 'break-word'
+                                }}
+                            >
+                                {address || 'Đang cập nhật'}
+                            </Typography>
+                        </Box>
+                        <Box sx={{display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0}}>
+                            <LanguageIcon sx={{fontSize: 17, color: '#0f172a', flexShrink: 0}} />
+                            {website ? (
+                                <Link
+                                    href={website.startsWith('http') ? website : `https://${website}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    sx={{
+                                        fontSize: {xs: '0.8125rem', sm: '0.875rem'},
+                                        color: BRAND_NAVY,
+                                        fontWeight: 600,
+                                        textDecoration: 'none',
+                                        overflow: 'hidden',
+                                        textOverflow: 'ellipsis',
+                                        whiteSpace: 'nowrap',
+                                        maxWidth: '100%',
+                                        minWidth: 0,
+                                        '&:hover': {color: APP_PRIMARY_DARK, textDecoration: 'underline'}
+                                    }}
+                                >
+                                    {website.replace(/^https?:\/\//i, '')}
+                                </Link>
+                            ) : (
+                                <Typography sx={{fontSize: {xs: '0.8125rem', sm: '0.875rem'}, color: '#0f172a'}}>—</Typography>
+                            )}
+                        </Box>
+                        <Box sx={{display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0}}>
+                            <PhoneIcon sx={{fontSize: 17, color: '#0f172a', flexShrink: 0}} />
+                            <Typography
+                                sx={{
+                                    fontSize: {xs: '0.8125rem', sm: '0.875rem'},
+                                    fontWeight: 600,
+                                    color: '#0f172a',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                    maxWidth: '100%',
+                                    minWidth: 0
+                                }}
+                            >
+                                {phone || '—'}
+                            </Typography>
+                        </Box>
+                    </Stack>
                 </Box>
 
-                <Typography sx={{display: 'flex', alignItems: 'center', gap: 0.75, color: '#64748b', fontSize: '0.88rem'}}>
-                    <LocationIcon sx={{fontSize: 16}} />
-                    {school.location || "TP.HCM"}
-                </Typography>
-
-                <Box sx={{display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', mt: 'auto', pt: 0.5}}>
-                    <Box>
-                        <Typography sx={{fontSize: '1.08rem', fontWeight: 800, color: APP_PRIMARY_MAIN, lineHeight: 1}}>
-                            {rating > 0 ? rating.toFixed(1) : "—"}
-                            <Typography component="span" sx={{fontSize: '0.82rem', color: '#64748b', fontWeight: 600, ml: 0.75}}>
-                                ({school.reviews || 0} đánh giá)
-                            </Typography>
-                        </Typography>
-                        <Typography sx={{fontSize: '0.78rem', color: '#64748b', mt: 0.35}}>
-                            {school.grade ? `Xếp hạng học lực: ${school.grade}` : "Đang cập nhật"}
-                        </Typography>
-                    </Box>
+                <Box
+                    sx={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        alignItems: 'center',
+                        justifyContent: 'flex-end',
+                        gap: 0.65,
+                        mt: 2.25,
+                        pt: 2,
+                        flexShrink: 0,
+                        borderTop: '1px solid rgba(226, 232, 240, 0.95)'
+                    }}
+                >
+                    <ButtonBase
+                        onClick={() => onToggleCompare?.(school)}
+                        title={inCompare ? 'Gỡ khỏi so sánh' : 'Thêm vào so sánh'}
+                        sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 0.45,
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            borderRadius: 999,
+                            py: 0.45,
+                            px: 1,
+                            border: '1px solid',
+                            borderColor: inCompare ? 'rgba(59,130,246,0.45)' : 'rgba(203,213,225,0.95)',
+                            color: inCompare ? BRAND_NAVY : '#475569',
+                            bgcolor: inCompare ? 'rgba(59,130,246,0.12)' : 'rgba(241,245,249,0.98)',
+                            '&:hover': {
+                                bgcolor: inCompare ? 'rgba(59,130,246,0.18)' : 'rgba(226,232,240,0.95)',
+                                borderColor: inCompare ? 'rgba(59,130,246,0.55)' : 'rgba(148,163,184,0.85)'
+                            }
+                        }}
+                    >
+                        {inCompare ? (
+                            <CheckCircleIcon sx={{fontSize: 16, color: BRAND_NAVY}} />
+                        ) : (
+                            <AddIcon sx={{fontSize: 16, color: '#64748b'}} />
+                        )}
+                        So sánh
+                    </ButtonBase>
+                    <ButtonBase
+                        onClick={() => onToggleSave?.(school)}
+                        title={isSaved ? 'Bỏ yêu thích' : 'Thêm vào yêu thích (cần đăng nhập Phụ huynh)'}
+                        sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 0.45,
+                            fontSize: '0.75rem',
+                            fontWeight: 700,
+                            borderRadius: 999,
+                            py: 0.45,
+                            px: 1,
+                            border: '1px solid',
+                            borderColor: isSaved ? 'rgba(244,63,94,0.45)' : 'rgba(203,213,225,0.95)',
+                            color: isSaved ? '#e11d48' : '#475569',
+                            bgcolor: isSaved ? 'rgba(244,63,94,0.1)' : 'rgba(241,245,249,0.98)',
+                            '&:hover': {
+                                bgcolor: isSaved ? 'rgba(244,63,94,0.16)' : 'rgba(226,232,240,0.95)',
+                                borderColor: isSaved ? 'rgba(244,63,94,0.55)' : 'rgba(148,163,184,0.85)'
+                            }
+                        }}
+                    >
+                        {isSaved ? (
+                            <FavoriteIcon sx={{fontSize: 16, color: '#e11d48'}} />
+                        ) : (
+                            <FavoriteBorderIcon sx={{fontSize: 16, color: '#64748b'}} />
+                        )}
+                        {isSaved ? 'Đã yêu thích' : 'Yêu thích'}
+                    </ButtonBase>
                     <Button
                         size="small"
+                        variant="outlined"
                         endIcon={<ArrowForwardIcon sx={{fontSize: 16}} />}
                         onClick={() => onOpenDetail?.(school)}
                         sx={{
                             textTransform: 'none',
                             fontWeight: 700,
                             borderRadius: 999,
-                            px: 1.5,
-                            bgcolor: APP_PRIMARY_SOFT_BG,
-                            color: APP_PRIMARY_DARK,
-                            '&:hover': {bgcolor: 'rgba(37,99,235,0.16)'}
+                            px: 2,
+                            py: 0.5,
+                            fontSize: '0.8125rem',
+                            borderColor: 'rgba(59,130,246,0.4)',
+                            color: BRAND_NAVY,
+                            bgcolor: 'rgba(255,255,255,0.6)',
+                            '&:hover': {
+                                borderColor: BRAND_NAVY,
+                                bgcolor: 'rgba(255,255,255,0.95)'
+                            }
                         }}
                     >
                         Xem chi tiết
@@ -624,30 +867,38 @@ function SchoolCard({school, onOpenDetail}) {
 }
 
 function mapHomeSchoolCardToDetailRow(school) {
+    if (!school) return null;
+    if (school.hasDetailLoaded && school.school) {
+        return {
+            ...school,
+            logoUrl: school.logoUrl || school.cover || DEFAULT_SCHOOL_IMAGE
+        };
+    }
+    const name = school.school || school.name || "Trường đang cập nhật";
     return {
         id: school?.id ?? null,
-        school: school?.name || "Trường đang cập nhật",
-        province: "Hồ Chí Minh",
-        ward: "Đang cập nhật",
-        website: "",
-        phone: "",
-        email: "",
-        counsellorEmail: "",
-        consultantEmails: [],
-        address: school?.location || "TP.HCM",
-        locationLabel: school?.district || "TP.HCM",
-        description: "",
-        averageRating: Number(school?.rating) || 0,
-        totalCampus: 0,
-        logoUrl: school?.cover || DEFAULT_SCHOOL_IMAGE,
-        isFavourite: false,
-        foundingDate: "",
-        representativeName: "",
-        campusList: [],
-        curriculumList: [],
-        boardingType: "",
-        primaryCampusId: null,
-        hasDetailLoaded: false
+        school: name,
+        province: school?.province || "Hồ Chí Minh",
+        ward: school?.ward || "Đang cập nhật",
+        website: school?.website || "",
+        phone: school?.phone || "",
+        email: school?.email || "",
+        counsellorEmail: school?.counsellorEmail || "",
+        consultantEmails: school?.consultantEmails || [],
+        address: school?.address || school?.location || "Đang cập nhật",
+        locationLabel: school?.locationLabel || school?.district || "TP.HCM",
+        description: school?.description || "",
+        averageRating: Number(school?.averageRating ?? school?.rating) || 0,
+        totalCampus: school?.totalCampus ?? 0,
+        logoUrl: school?.logoUrl || school?.cover || DEFAULT_SCHOOL_IMAGE,
+        isFavourite: Boolean(school?.isFavourite),
+        foundingDate: school?.foundingDate || "",
+        representativeName: school?.representativeName || "",
+        campusList: school?.campusList || [],
+        curriculumList: school?.curriculumList || [],
+        boardingType: school?.boardingType || "",
+        primaryCampusId: school?.primaryCampusId ?? null,
+        hasDetailLoaded: Boolean(school?.hasDetailLoaded)
     };
 }
 
@@ -1320,18 +1571,156 @@ export default function HomePage() {
         workplace: '',
         currentAddress: ''
     });
+    const userInfo = React.useMemo(() => {
+        try {
+            const raw = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+            return raw ? JSON.parse(raw) : null;
+        } catch {
+            return null;
+        }
+    }, [isSignedIn]);
+    const userIdentity = getUserIdentity(userInfo);
+    const [compareSchoolKeys, setCompareSchoolKeys] = React.useState(() => new Set());
+    const [favouriteIdBySchool, setFavouriteIdBySchool] = React.useState({});
+
+    React.useEffect(() => {
+        const list = getCompareSchools(userInfo);
+        setCompareSchoolKeys(new Set(list.map((x) => x?.schoolKey).filter(Boolean)));
+    }, [userIdentity]);
+
     const showcaseSchools = React.useMemo(
-        () => [...homeSchools].sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0)).slice(0, 6),
+        () => [...homeSchools].sort((a, b) => (Number(b.rating ?? b.averageRating) || 0) - (Number(a.rating ?? a.averageRating) || 0)).slice(0, 6),
         [homeSchools]
     );
     const maptilerApiKey = import.meta.env.VITE_MAPTILER_API_KEY ?? "";
     const isParent = isParentRole;
-    const canSaveSchool = isParentRole;
-    const detailIsSaved = false;
-    const detailInCompare = false;
-    const toggleCompare = React.useCallback(() => {}, []);
-    const toggleSave = React.useCallback(() => {}, []);
+    const canSaveSchool = Boolean(isParentRole && userInfo);
+
+    const syncFavouriteLookup = React.useCallback(async () => {
+        if (!isParentRole) {
+            setFavouriteIdBySchool({});
+            return null;
+        }
+        try {
+            const res = await getParentFavouriteSchools(0, FAVOURITE_SYNC_PAGE_SIZE);
+            const items = parseFavouriteListPayload(res);
+            const nextMap = buildFavouriteIdBySchool(items);
+            setFavouriteIdBySchool(nextMap);
+            return nextMap;
+        } catch {
+            return null;
+        }
+    }, [isParentRole]);
+
+    const toggleCompare = React.useCallback(
+        (schoolRecord) => {
+            const schoolKey = getSchoolStorageKey(schoolRecord);
+            const current = getCompareSchools(userInfo);
+            const exists = current.some((x) => x?.schoolKey === schoolKey);
+            let next;
+            if (exists) {
+                next = current.filter((x) => x?.schoolKey !== schoolKey);
+            } else {
+                if (current.length >= MAX_COMPARE_SCHOOLS) {
+                    showWarningSnackbar(`Chỉ được chọn tối đa ${MAX_COMPARE_SCHOOLS} trường để so sánh.`);
+                    return;
+                }
+                next = [
+                    ...current,
+                    {
+                        schoolKey,
+                        schoolName: schoolRecord.school || schoolRecord.name,
+                        province: schoolRecord.province,
+                        ward: schoolRecord.ward,
+                        locationLabel: schoolRecord.locationLabel,
+                        gradeLevel: schoolRecord.gradeLevel,
+                        schoolType: schoolRecord.schoolType
+                    }
+                ];
+            }
+            setCompareSchools(userInfo, next);
+            setCompareSchoolKeys(new Set(next.map((x) => x?.schoolKey).filter(Boolean)));
+            showSuccessSnackbar(exists ? "Đã gỡ trường khỏi so sánh." : "Đã thêm vào danh sách so sánh.");
+        },
+        [userInfo]
+    );
+
+    const toggleSave = React.useCallback(
+        async (schoolRecord) => {
+            if (!isParentRole || !userInfo) {
+                showWarningSnackbar("Bạn phải đăng nhập với vai trò Phụ huynh để yêu thích trường.");
+                return;
+            }
+            const rawId =
+                schoolRecord?.schoolId ??
+                schoolRecord?.id ??
+                (String(schoolRecord?.schoolKey || "").startsWith("id:")
+                    ? String(schoolRecord.schoolKey).slice(3)
+                    : null);
+            const schoolId = Number(rawId);
+            if (!Number.isFinite(schoolId)) {
+                showWarningSnackbar("Không xác định được trường để cập nhật yêu thích.");
+                return;
+            }
+            let favouriteId = Number(favouriteIdBySchool[schoolId]);
+            const exists = Boolean(
+                (Number(selectedSchoolDetail?.id) === schoolId ? selectedSchoolDetail?.isFavourite : undefined) ??
+                    homeSchools.find((s) => Number(s?.id) === schoolId)?.isFavourite ??
+                    schoolRecord?.isFavourite ??
+                    Number.isFinite(favouriteId)
+            );
+            try {
+                if (exists) {
+                    if (!Number.isFinite(favouriteId)) {
+                        const refreshed = await syncFavouriteLookup();
+                        favouriteId = Number(refreshed?.[schoolId]);
+                    }
+                    if (!Number.isFinite(favouriteId)) {
+                        showWarningSnackbar("Không tìm thấy id yêu thích để bỏ yêu thích.");
+                        return;
+                    }
+                    await deleteParentFavouriteSchool(favouriteId);
+                } else {
+                    await postParentFavouriteSchool({schoolId});
+                }
+            } catch (e) {
+                const msg =
+                    e?.response?.data?.message ||
+                    e?.message ||
+                    "Không thể cập nhật trạng thái yêu thích trường lúc này. Vui lòng thử lại.";
+                showWarningSnackbar(msg);
+                return;
+            }
+            setHomeSchools((prev) =>
+                prev.map((item) =>
+                    Number(item?.id) === schoolId
+                        ? {
+                              ...item,
+                              isFavourite: !exists
+                          }
+                        : item
+                )
+            );
+            if (Number(selectedSchoolDetail?.id) === schoolId) {
+                setSelectedSchoolDetail((prev) => (prev ? {...prev, isFavourite: !exists} : prev));
+            }
+            await syncFavouriteLookup();
+            showSuccessSnackbar(exists ? "Đã bỏ trường khỏi Trường yêu thích." : "Đã thêm trường vào Trường yêu thích.");
+        },
+        [
+            isParentRole,
+            userInfo,
+            favouriteIdBySchool,
+            selectedSchoolDetail,
+            homeSchools,
+            syncFavouriteLookup
+        ]
+    );
+
     const detailKeyRaw = selectedSchoolDetail?.id ? String(selectedSchoolDetail.id) : "";
+    const detailKeyForActions = selectedSchoolDetail ? getSchoolStorageKey(selectedSchoolDetail) : "";
+    const detailIsSaved = Boolean(selectedSchoolDetail?.isFavourite);
+    const detailInCompare = Boolean(selectedSchoolDetail && compareSchoolKeys.has(detailKeyForActions));
 
     const loadSchoolDetailForHome = React.useCallback(async (schoolId, fallbackCard = null) => {
         if (!schoolId) return;
@@ -1383,21 +1772,82 @@ export default function HomePage() {
             try {
                 const rows = await getPublicSchoolList();
                 if (cancelled) return;
-                const mapped = (Array.isArray(rows) ? rows : []).map((item, idx) => ({
+                const list = Array.isArray(rows) ? rows : [];
+                if (list.length === 0) {
+                    setHomeSchools([]);
+                    return;
+                }
+                const light = list.map((item) => ({
                     id: item.id,
                     name: item.name || "Trường đang cập nhật",
-                    district: "TP.HCM",
-                    location: "TP.HCM",
-                    type: "Trường",
-                    tuition: "Đang cập nhật",
                     rating: typeof item.averageRating === "number" ? item.averageRating : 0,
-                    reviews: 0,
-                    grade: "",
-                    featured: idx < 3,
-                    badge: idx < 3 ? "Nổi bật" : "Gợi ý",
                     cover: item.logoUrl || DEFAULT_SCHOOL_IMAGE
                 }));
-                setHomeSchools(mapped);
+                const top6 = [...light]
+                    .sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0))
+                    .slice(0, 6);
+                const enriched = await Promise.all(
+                    top6.map(async (s) => {
+                        if (!s.id) {
+                            return {
+                                id: null,
+                                school: s.name,
+                                name: s.name,
+                                rating: s.rating,
+                                cover: s.cover,
+                                logoUrl: s.cover,
+                                hasDetailLoaded: false
+                            };
+                        }
+                        try {
+                            const detailBody = await getPublicSchoolDetail(s.id);
+                            const mapped = mapPublicSchoolDetailToRow(detailBody);
+                            if (!mapped) {
+                                return {
+                                    id: s.id,
+                                    school: s.name,
+                                    name: s.name,
+                                    rating: s.rating,
+                                    cover: s.cover,
+                                    logoUrl: s.cover,
+                                    hasDetailLoaded: false,
+                                    address: "",
+                                    description: "",
+                                    website: "",
+                                    phone: "",
+                                    province: "Hồ Chí Minh",
+                                    ward: "Đang cập nhật",
+                                    locationLabel: "TP.HCM"
+                                };
+                            }
+                            return {
+                                ...mapped,
+                                name: mapped.school,
+                                cover: mapped.logoUrl || s.cover,
+                                rating:
+                                    typeof mapped.averageRating === "number" ? mapped.averageRating : s.rating
+                            };
+                        } catch {
+                            return {
+                                id: s.id,
+                                school: s.name,
+                                name: s.name,
+                                rating: s.rating,
+                                cover: s.cover,
+                                logoUrl: s.cover,
+                                hasDetailLoaded: false,
+                                address: "",
+                                description: "",
+                                website: "",
+                                phone: "",
+                                province: "Hồ Chí Minh",
+                                ward: "Đang cập nhật",
+                                locationLabel: "TP.HCM"
+                            };
+                        }
+                    })
+                );
+                if (!cancelled) setHomeSchools(enriched);
             } catch {
                 if (!cancelled) {
                     setHomeSchools([]);
@@ -1410,6 +1860,24 @@ export default function HomePage() {
             cancelled = true;
         };
     }, []);
+
+    React.useEffect(() => {
+        if (!isParentRole || schoolLoading || homeSchools.length === 0) return;
+        let cancelled = false;
+        (async () => {
+            const map = await syncFavouriteLookup();
+            if (cancelled || !map) return;
+            setHomeSchools((prev) =>
+                prev.map((s) => ({
+                    ...s,
+                    isFavourite: Number.isFinite(Number(map[Number(s.id)]))
+                }))
+            );
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [isParentRole, schoolLoading, homeSchools.length, syncFavouriteLookup]);
 
     const syncUserRoleFlags = React.useCallback(() => {
         const userData = localStorage.getItem('user');
@@ -2091,7 +2559,7 @@ export default function HomePage() {
                 </Box>
             )}
             <Box
-                id="trường-nổi-bật"
+                id="danh-sach-truong-tu-thuc"
                 sx={{
                     position: 'relative',
                     zIndex: 2,
@@ -2104,94 +2572,39 @@ export default function HomePage() {
                     scrollMarginTop: '80px'
                 }}
             >
-                <Container maxWidth="xl" sx={{px: {xs: 2, sm: 3, md: 4}, position: 'relative', zIndex: 3}}>
-                    <Box sx={{mb: 4.5, textAlign: 'center'}}>
-                        <Box
-                            sx={{
-                                maxWidth: 720,
-                                mx: 'auto',
-                                px: {xs: 2.5, md: 3.75},
-                                py: {xs: 3, md: 3.75},
-                                borderRadius: 4,
-                                bgcolor: 'rgba(255,255,255,0.96)',
-                                border: '1px solid rgba(255,255,255,1)',
-                                boxShadow: `
-                                    0 28px 64px rgba(15, 23, 42, 0.11),
-                                    0 0 0 1px rgba(59, 130, 246, 0.08),
-                                    inset 0 1px 0 rgba(255,255,255,1)
-                                `,
-                                backdropFilter: 'blur(16px)',
-                                WebkitBackdropFilter: 'blur(16px)'
-                            }}
-                        >
-                            <Box
-                                sx={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    gap: 0.75,
-                                    mb: 1.5,
-                                    px: 2,
-                                    py: 0.75,
-                                    borderRadius: 999,
-                                    bgcolor: 'rgba(255,255,255,0.95)',
-                                    border: `1px solid ${APP_PRIMARY_SOFT_BORDER}`,
-                                    boxShadow: '0 4px 16px rgba(59,130,246,0.08)'
-                                }}
-                            >
-                                <StarIcon sx={{fontSize: 18, color: APP_PRIMARY_MAIN}} />
-                                <Typography sx={{fontSize: '0.8125rem', fontWeight: 800, color: APP_PRIMARY_DARK, letterSpacing: '0.06em', textTransform: 'uppercase'}}>
-                                    Trường tư thục
-                                </Typography>
-                            </Box>
-                            <Typography
-                                variant="h2"
-                                sx={{
-                                    fontWeight: 700,
-                                    mb: 1.25,
-                                    color: '#0f172a',
-                                    fontSize: {xs: '1.75rem', sm: '2.25rem', md: '2.5rem'},
-                                    letterSpacing: '-0.02em',
-                                    lineHeight: 1.2,
-                                    textShadow: '0 1px 0 rgba(255,255,255,0.9)'
-                                }}
-                            >
-                                Danh sách trường tư thục
-                            </Typography>
-                            <Typography
-                                variant="body1"
-                                sx={{
-                                    color: '#334155',
-                                    fontWeight: 500,
-                                    fontSize: {xs: '0.9375rem', md: '1.02rem'},
-                                    maxWidth: '640px',
-                                    mx: 'auto',
-                                    lineHeight: 1.7
-                                }}
-                            >
-                                Khám phá nhanh các trường đang được quan tâm để bắt đầu hành trình chọn trường phù hợp.
-                            </Typography>
-                        </Box>
-                    </Box>
-                    <Box sx={{mb: 1.5, position: 'relative', zIndex: 3}}>
+                <Container maxWidth="lg" sx={{px: {xs: 2.5, md: 4}, position: 'relative', zIndex: 3}}>
+                    <Box
+                        sx={{
+                            textAlign: 'center',
+                            mb: {xs: 3.5, md: 4.5}
+                        }}
+                    >
                         <Typography
+                            component="h2"
                             sx={{
                                 fontWeight: 700,
+                                fontSize: {xs: '1.8rem', md: '2.5rem'},
+                                lineHeight: 1.14,
                                 color: '#0f172a',
-                                fontSize: '1.12rem',
-                                mb: 1.5,
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 0.75,
-                                px: 1.75,
-                                py: 0.75,
-                                borderRadius: 2,
-                                bgcolor: 'rgba(255,255,255,0.88)',
-                                border: '1px solid rgba(59,130,246,0.15)',
-                                boxShadow: '0 6px 20px rgba(15,23,42,0.06)'
+                                letterSpacing: '-0.02em'
                             }}
                         >
-                            💰 Trường nổi bật
+                            Danh sách trường tư thục
                         </Typography>
+                        <Typography
+                            sx={{
+                                color: '#64748b',
+                                fontSize: {xs: '0.93rem', md: '1rem'},
+                                lineHeight: 1.75,
+                                maxWidth: 620,
+                                mx: 'auto',
+                                mt: 1.5
+                            }}
+                        >
+                            Khám phá nhanh các trường đang được quan tâm để bắt đầu hành trình chọn trường phù hợp.
+                        </Typography>
+                    </Box>
+                    <Box sx={{position: 'relative', zIndex: 3}}>
                         {schoolLoading ? (
                             <Box sx={{display: "flex", alignItems: "center", gap: 1}}>
                                 <CircularProgress size={18} sx={{color: BRAND_NAVY}} />
@@ -2200,21 +2613,61 @@ export default function HomePage() {
                         ) : showcaseSchools.length === 0 ? (
                             <Typography sx={{color: '#64748b', fontSize: '0.9rem'}}>Hiện chưa có dữ liệu trường.</Typography>
                         ) : (
-                            <Box
-                                sx={{
-                                    display: 'grid',
-                                    gridTemplateColumns: {
-                                        xs: '1fr',
-                                        sm: 'repeat(2, minmax(0, 1fr))',
-                                        md: 'repeat(3, minmax(0, 1fr))'
-                                    },
-                                    gap: 3
-                                }}
-                            >
-                                {showcaseSchools.map((school) => (
-                                    <SchoolCard key={school.id || school.name} school={school} onOpenDetail={handleOpenSchoolDetail} />
-                                ))}
-                            </Box>
+                            <>
+                                <Box
+                                    sx={{
+                                        display: 'grid',
+                                        width: '100%',
+                                        maxWidth: {xs: '100%', md: 1140},
+                                        mx: 'auto',
+                                        gridTemplateColumns: {
+                                            xs: 'minmax(0, 1fr)',
+                                            md: 'repeat(3, minmax(0, 1fr))'
+                                        },
+                                        gap: {xs: 2.5, md: 3},
+                                        alignItems: 'stretch'
+                                    }}
+                                >
+                                    {showcaseSchools.map((school) => (
+                                        <SchoolCard
+                                            key={school.id || school.name}
+                                            school={school}
+                                            onOpenDetail={handleOpenSchoolDetail}
+                                            onToggleCompare={toggleCompare}
+                                            onToggleSave={toggleSave}
+                                            compareSchoolKeys={compareSchoolKeys}
+                                        />
+                                    ))}
+                                </Box>
+                                {showcaseSchools.length > 3 && (
+                                    <Box sx={{display: 'flex', justifyContent: 'center', mt: {xs: 3, md: 3.5}}}>
+                                        <Button
+                                            variant="contained"
+                                            endIcon={<ArrowForwardIcon sx={{fontSize: 18}} />}
+                                            onClick={() => navigate('/search-schools')}
+                                            sx={{
+                                                borderRadius: 999,
+                                                textTransform: 'none',
+                                                fontWeight: 700,
+                                                px: 3,
+                                                py: 1.05,
+                                                fontSize: '0.9rem',
+                                                color: BRAND_NAVY,
+                                                bgcolor: '#dbeafe',
+                                                border: `2px solid ${BRAND_SKY}`,
+                                                boxShadow: '0 8px 22px rgba(37, 99, 235, 0.14)',
+                                                '&:hover': {
+                                                    bgcolor: '#bfdbfe',
+                                                    borderColor: BRAND_NAVY,
+                                                    boxShadow: '0 10px 26px rgba(37, 99, 235, 0.2)'
+                                                }
+                                            }}
+                                        >
+                                            Xem thêm trường
+                                        </Button>
+                                    </Box>
+                                )}
+                            </>
                         )}
                     </Box>
                 </Container>
