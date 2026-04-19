@@ -2859,7 +2859,7 @@ function MainHeader() {
                                                 px: 1.5,
                                                 py: 0.85,
                                                 display: 'flex',
-                                                alignItems: 'center',
+                                                alignItems: 'flex-start',
                                                 justifyContent: 'space-between',
                                                 background: parentChatHasUnread
                                                     ? 'linear-gradient(135deg, #f97316 0%, #fb923c 100%)'
@@ -2868,12 +2868,13 @@ function MainHeader() {
                                                 flexShrink: 0
                                             }}
                                         >
-                                            <Box sx={{display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 0}}>
+                                            <Box sx={{display: 'flex', alignItems: 'flex-start', gap: 1.25, minWidth: 0}}>
                                                 <Avatar
                                                     src={peerSchoolLogoUrl || undefined}
                                                     sx={{
                                                         width: 36,
                                                         height: 36,
+                                                        mt: 0.15,
                                                         bgcolor: 'rgba(255,255,255,0.22)',
                                                         fontSize: 15,
                                                         fontWeight: 800,
@@ -2893,8 +2894,17 @@ function MainHeader() {
                                                     }}
                                                 >
                                                     <Typography
-                                                        sx={{fontSize: 14, fontWeight: 800, color: '#fff', lineHeight: 1.2, m: 0, display: 'block'}}
-                                                        noWrap
+                                                        sx={{
+                                                            fontSize: 14,
+                                                            fontWeight: 500,
+                                                            color: '#fff',
+                                                            lineHeight: 1.35,
+                                                            m: 0,
+                                                            display: 'block',
+                                                            whiteSpace: 'normal',
+                                                            overflowWrap: 'break-word',
+                                                            wordBreak: 'break-word'
+                                                        }}
                                                     >
                                                         {selectedConversationTitle}
                                                     </Typography>
@@ -2976,7 +2986,7 @@ function MainHeader() {
                                                     </Box>
                                                 </Box>
                                             </Box>
-                                            <Box sx={{display: 'flex', alignItems: 'center', gap: 0.25}}>
+                                            <Box sx={{display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0, alignSelf: 'flex-start'}}>
                                                 <IconButton size="small" onClick={handleMinimizeChatWindow} sx={{color: 'rgba(255,255,255,0.92)'}}>
                                                     <RemoveIcon sx={{fontSize: 18}}/>
                                                 </IconButton>
@@ -3134,7 +3144,16 @@ function MainHeader() {
                                                                                           : '0 1px 3px rgba(51,65,85,0.06)'
                                                                                 }}
                                                                             >
-                                                                                <Typography sx={{fontSize: 13.5, whiteSpace: 'pre-wrap', lineHeight: 1.5, wordBreak: 'break-word'}}>
+                                                                                <Typography
+                                                                                    sx={{
+                                                                                        fontSize: 13.5,
+                                                                                        whiteSpace: 'pre-wrap',
+                                                                                        lineHeight: 1.5,
+                                                                                        wordBreak: 'break-word',
+                                                                                        overflowWrap: 'anywhere',
+                                                                                        maxWidth: '100%'
+                                                                                    }}
+                                                                                >
                                                                                     {msg.text}
                                                                                 </Typography>
                                                                             </Box>
@@ -3172,11 +3191,11 @@ function MainHeader() {
                                                 flexShrink: 0
                                             }}
                                         >
-                                            <Box sx={{display: 'flex', alignItems: 'center', gap: 1}}>
+                                            <Box sx={{display: 'flex', alignItems: 'flex-end', gap: 1}}>
                                                 <Box
                                                     sx={{
                                                         display: 'flex',
-                                                        alignItems: 'center',
+                                                        alignItems: 'flex-end',
                                                         gap: 1,
                                                         borderRadius: 2.5,
                                                         px: 1.35,
@@ -3184,10 +3203,14 @@ function MainHeader() {
                                                         bgcolor: selectedStudentTheme.accentSoft,
                                                         border: `1px solid ${selectedStudentTheme.border}`,
                                                         boxShadow: '0 1px 0 rgba(255,255,255,0.8) inset',
-                                                        flex: 1
+                                                        flex: 1,
+                                                        minWidth: 0
                                                     }}
                                                 >
                                                     <InputBase
+                                                        multiline
+                                                        minRows={1}
+                                                        maxRows={6}
                                                         value={chatInput}
                                                         onPointerDown={handleMarkRead}
                                                         onChange={(e) => {
@@ -3198,13 +3221,25 @@ function MainHeader() {
                                                         onFocus={handleMarkRead}
                                                         onKeyDown={(e) => {
                                                             parentComposerEngagedRef.current = true;
-                                                            if (e.key === 'Enter') {
+                                                            if (e.key === 'Enter' && !e.shiftKey) {
                                                                 e.preventDefault();
                                                                 handleSendMessage();
                                                             }
                                                         }}
                                                         placeholder="Nhập tin nhắn…"
-                                                        sx={{flex: 1, fontSize: 14, color: '#1e293b', '& ::placeholder': {color: '#94a3b8', opacity: 1}}}
+                                                        sx={{
+                                                            flex: 1,
+                                                            minWidth: 0,
+                                                            fontSize: 14,
+                                                            color: '#1e293b',
+                                                            alignItems: 'flex-start',
+                                                            '& ::placeholder': {color: '#94a3b8', opacity: 1},
+                                                            '& textarea': {
+                                                                wordBreak: 'break-word',
+                                                                overflowWrap: 'anywhere',
+                                                                resize: 'none'
+                                                            }
+                                                        }}
                                                     />
                                                     <IconButton
                                                         size="small"
