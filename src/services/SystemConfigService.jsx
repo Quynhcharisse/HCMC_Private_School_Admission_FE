@@ -36,7 +36,7 @@ export const fetchSystemAdmissionSettingsData = async () => {
     }
 };
 
-export const updateSystemConfig = async (body) => {
+    export const updateSystemConfig = async (body) => {
     const res = await axiosClient.put("/system/config", body);
     return res || null;
 };

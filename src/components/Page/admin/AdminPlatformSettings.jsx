@@ -506,7 +506,7 @@ export default function AdminPlatformSettings() {
                 ...mediaRest
             } = prevMedia;
             const mediaPatch = {
-                media: {
+                mediaData: {
                     ...mediaRest,
                     maxImgSize: parseFinite(mediaLimitsForm.maxImgSize),
                     maxVideoSize: parseFinite(mediaLimitsForm.maxVideoSize),
@@ -590,7 +590,7 @@ export default function AdminPlatformSettings() {
             };
 
             const updatedBody = mergeSystemConfigPayload(configBody, {
-                admissionQuota: updatedAdmissionQuota,
+                admissionQuotaData: updatedAdmissionQuota,
             });
 
             await updateSystemConfig(updatedBody);
@@ -626,8 +626,8 @@ export default function AdminPlatformSettings() {
             const serviceRate = toRateDecimal(businessForm.serviceRatePct);
 
             const updatedBody = mergeSystemConfigPayload(configBody, {
-                business: {
-                    ...(configBody.business || {}),
+                businessData: {
+                    ...(configBody.businessData || {}),
                     minPay: minPay != null ? Math.trunc(minPay) : minPay,
                     maxPay: maxPay != null ? Math.trunc(maxPay) : maxPay,
                     taxRate,
