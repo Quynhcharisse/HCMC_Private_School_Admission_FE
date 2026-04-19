@@ -4,7 +4,7 @@ import SockJS from "sockjs-client/dist/sockjs";
 let stompClient = null;
 const messageListeners = new Set();
 
-const getWsHttpBase = () => import.meta.env.VITE_SERVER_BE || "http://localhost:8080";
+const getWsHttpBase = () => import.meta.env.VITE_API_SERVER || "http://localhost:8080";
 const getWsEndpoint = () => import.meta.env.VITE_WS_ENDPOINT || "/ws";
 
 /** Local ISO-8601 date-time (no zone) for Jackson LocalDateTime on the server. */
