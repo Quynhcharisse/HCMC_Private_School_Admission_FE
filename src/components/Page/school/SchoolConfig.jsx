@@ -4273,7 +4273,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                           </Stack>
                         ) : null}
                         <TextField
-                          label="Số phụ huynh tối đa trong 1 ca"
+                          label="Số phụ huynh tối đa trong 1 slot"
                           type="number"
                           value={
                             config.operationSettingsData.maxBookingPerSlot === "" ||
@@ -4299,7 +4299,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                       </Box>
                       <Box sx={{minWidth: 0}}>
                         <TextField
-                          label="Tư vấn viên tối thiểu trong 1 ca"
+                          label="Tư vấn viên tối thiểu trong 1 slot"
                           type="number"
                           value={
                             config.operationSettingsData.minCounsellorPerSlot === "" ||
@@ -4373,7 +4373,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                           </Stack>
                         ) : null}
                         <TextField
-                          label="(*) Thời lượng 1 ca (phút)"
+                          label="(*) Thời lượng 1 slot (phút)"
                           type="number"
                           value={
                             config.operationSettingsData.slotDurationInMinutes === "" ||
@@ -4412,7 +4412,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                           </Stack>
                         ) : null}
                         <TextField
-                          label="(*) Nghỉ giữa hai tiết (phút)"
+                          label="(*) Nghỉ giữa hai slot (phút)"
                           type="number"
                           value={
                             config.operationSettingsData.bufferBetweenSlotsMinutes === "" ||
@@ -4433,7 +4433,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                             }))
                           }
                           size="small"
-                          helperText="(*) Thời gian nghỉ giữa hai tiết tư vấn liên tiếp (0 = không nghỉ). Bước giữa hai bắt đầu tiết = độ dài tiết + nghỉ"
+                          helperText="(*) Thời gian nghỉ giữa hai slot tư vấn liên tiếp (0 = không nghỉ). Bước giữa hai bắt đầu tiết = độ dài tiết + nghỉ"
                           FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
