@@ -7,7 +7,12 @@ import {getAccess} from '../../services/AccountService';
 import {showSuccessSnackbar} from '../ui/AppSnackbar.jsx';
 import {BRAND_NAVY, BRAND_SKY, landingSectionShadow} from '../../constants/homeLandingTheme';
 import {getRoleDashboardRoute} from '../../utils/roleRouting';
-import {normalizeUserRole, pickRoleFromAccessBody} from '../../utils/userRole.js';
+import {
+    normalizeUserRole,
+    notifyAuthUserStorageChanged,
+    pickRoleFromAccessBody,
+    sanitizeUserForLocalStorage,
+} from '../../utils/userRole.js';
 
 const LOGIN_MUTED = 'rgba(30, 58, 138, 0.82)';
 
@@ -65,14 +70,15 @@ export default function Login() {
 
         if (role) {
             const normalizedRole = normalizeUserRole(role);
-            const userData = {
+            const userData = sanitizeUserForLocalStorage({
                 email: email,
                 name: name,
                 ...(picture ? {picture} : {}),
                 role: normalizedRole,
                 firstLogin: firstLogin
-            };
+            });
             localStorage.setItem('user', JSON.stringify(userData));
+            notifyAuthUserStorageChanged();
         }
 
         const normalizedForRoute = role ? normalizeUserRole(role) : '';

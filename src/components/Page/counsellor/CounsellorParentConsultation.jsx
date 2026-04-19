@@ -1,4 +1,5 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { enqueueSnackbar } from "notistack";
 import {
   Avatar,
   Box,
@@ -27,8 +28,13 @@ import Zoom from "@mui/material/Zoom";
 import { getCounsellorConversations } from "../../../services/ConversationService.jsx";
 import {
   getCounsellorMessagesHistory,
+  getCounsellorStudentById,
   markCounsellorMessagesRead,
 } from "../../../services/MessageService.jsx";
+import {
+  normalizeStudentDetailBodyForPanel,
+  pickStudentDetailBodyFromResponse,
+} from "../../../services/ParentService.jsx";
 import {
   buildPrivateChatPayload,
   connectPrivateMessageSocket,
@@ -416,6 +422,9 @@ export default function CounsellorParentConsultation() {
   const [messageNextCursorId, setMessageNextCursorId] = useState(null);
   const [messageHasMore, setMessageHasMore] = useState(false);
   const [studentProfileData, setStudentProfileData] = useState(null);
+  /** Đầy đủ từ GET /counsellor/student/{id} khi bấm « i » (BE tách khỏi history). */
+  const [studentProfileDetailForPanel, setStudentProfileDetailForPanel] = useState(null);
+  const [studentProfileDetailLoading, setStudentProfileDetailLoading] = useState(false);
   const [studentInfoOpen, setStudentInfoOpen] = useState(false);
 
   const loadingMoreRef = useRef(false);
@@ -616,16 +625,20 @@ export default function CounsellorParentConsultation() {
     };
   };
 
-  const parseHistoryResponse = (response) => {
+  const parseHistoryResponse = (response, conversation) => {
     const payload = parseMessagesHistoryPayloadRoot(response);
     const subjectsInSystem = extractSubjectsInSystemFromPayload(payload);
-    const campusRaw = Number(payload?.campusId);
+    const campusRaw = Number(payload?.campusId ?? conversation?.campusId);
     const campusMeta =
       Number.isFinite(campusRaw) && campusRaw > 0 ? Math.trunc(campusRaw) : null;
     const spMeta =
-      payload?.studentProfileId != null && String(payload.studentProfileId).trim() !== ""
-        ? String(payload.studentProfileId).trim()
-        : null;
+      conversation?.studentProfileId != null && String(conversation.studentProfileId).trim() !== ""
+        ? String(conversation.studentProfileId).trim()
+        : payload?.studentProfileId != null && String(payload.studentProfileId).trim() !== ""
+          ? String(payload.studentProfileId).trim()
+          : null;
+    const childFromConv = String(conversation?.studentName ?? conversation?.childName ?? "").trim();
+    const childFromPayload = String(payload?.childName ?? payload?.ChildName ?? payload?.studentName ?? "").trim();
     return {
       items: Array.isArray(payload?.messages)
         ? payload.messages
@@ -645,7 +658,7 @@ export default function CounsellorParentConsultation() {
         conversationId: payload?.conversationId ?? null,
         academicInfos: Array.isArray(payload?.academicInfos) ? payload.academicInfos : [],
         academicProfileMetadata: Array.isArray(payload?.academicProfileMetadata) ? payload.academicProfileMetadata : [],
-        childName: payload?.childName ?? payload?.ChildName ?? "",
+        childName: childFromConv || childFromPayload,
         personalityCode: payload?.personalityCode ?? "",
         subjectsInSystem,
         campusId: campusMeta ?? undefined,
@@ -786,13 +799,16 @@ export default function CounsellorParentConsultation() {
 
   /** Shape giống phụ huynh (Header): name + raw cho panel thông tin học sinh */
   const counsellorStudentForPanel = useMemo(() => {
-    const sp = studentProfileData;
+    const sp = studentProfileDetailForPanel ?? studentProfileData;
     const name =
-      sp?.childName || selectedConversation?.studentName || "Học sinh";
+      sp?.childName ||
+      sp?.studentName ||
+      selectedConversation?.studentName ||
+      "Học sinh";
     const raw = sp
       ? {
           gender: sp.gender,
-          personalityTypeCode: sp.personalityCode,
+          personalityTypeCode: sp.personalityCode ?? sp.personalityTypeCode,
           favouriteJob: sp.favouriteJob,
           traits: sp.traits,
           academicInfos: Array.isArray(sp.academicInfos) ? sp.academicInfos : [],
@@ -801,7 +817,7 @@ export default function CounsellorParentConsultation() {
         }
       : {};
     return { name, raw };
-  }, [studentProfileData, selectedConversation]);
+  }, [studentProfileDetailForPanel, studentProfileData, selectedConversation]);
 
   const selectedStudentCompactInfo = useMemo(
     () => getStudentCompactInfo(counsellorStudentForPanel),
@@ -872,10 +888,17 @@ export default function CounsellorParentConsultation() {
     return false;
   };
 
+  useEffect(() => {
+    setStudentProfileDetailForPanel(null);
+    setStudentProfileDetailLoading(false);
+  }, [selectedConversationId, selectedConversation?.studentProfileId]);
+
   const handleSelectConversation = async (conversation) => {
     if (!conversation?.conversationId) return { ok: false };
     setSelectedConversationId(conversation.conversationId);
     setStudentProfileData(null);
+    setStudentProfileDetailForPanel(null);
+    setStudentProfileDetailLoading(false);
     setStudentInfoOpen(false);
     hasMarkedReadRef.current = false;
     setMessageItems([]);
@@ -1001,7 +1024,7 @@ export default function CounsellorParentConsultation() {
       });
 
       if (response?.status === 200) {
-        const parsed = parseHistoryResponse(response);
+        const parsed = parseHistoryResponse(response, conversation);
         const normalized = parsed.items.map(normalizeMessage);
         setMessageItems((prev) =>
           // If history returns empty while we're refreshing after sending,
@@ -1342,7 +1365,39 @@ export default function CounsellorParentConsultation() {
 
   const handleCloseStudentInfo = () => setStudentInfoOpen(false);
 
-  const handleToggleStudentInfo = () => setStudentInfoOpen((prev) => !prev);
+  const fetchCounsellorStudentDetailForPanel = useCallback(async () => {
+    const conv = selectedConversationRef.current;
+    const sid = conv?.studentProfileId ?? null;
+    if (sid == null || String(sid).trim() === "") {
+      enqueueSnackbar("Thiếu mã hồ sơ học sinh để tải chi tiết.", { variant: "warning" });
+      return;
+    }
+    setStudentProfileDetailLoading(true);
+    try {
+      const res = await getCounsellorStudentById(sid);
+      if (res?.status !== 200) {
+        enqueueSnackbar("Không tải được chi tiết hồ sơ học sinh.", { variant: "error" });
+        return;
+      }
+      const body = pickStudentDetailBodyFromResponse(res);
+      const norm = normalizeStudentDetailBodyForPanel(body);
+      if (norm) setStudentProfileDetailForPanel(norm);
+    } catch (e) {
+      console.error(e);
+      enqueueSnackbar("Không tải được chi tiết hồ sơ học sinh.", { variant: "error" });
+    } finally {
+      setStudentProfileDetailLoading(false);
+    }
+  }, []);
+
+  const handleToggleStudentInfo = () => {
+    setStudentInfoOpen((prev) => {
+      if (!prev) {
+        void fetchCounsellorStudentDetailForPanel();
+      }
+      return !prev;
+    });
+  };
 
   return (
     <Box
@@ -2149,13 +2204,19 @@ export default function CounsellorParentConsultation() {
                   WebkitOverflowScrolling: "touch",
                 }}
               >
-                <ParentStudentInfoPanel
-                  studentName={counsellorStudentForPanel.name}
-                  compactInfo={selectedStudentCompactInfo}
-                  gradeTable={selectedStudentGradeTable}
-                  personalityInsights={selectedStudentPersonalityInsights}
-                  subjectsInSystem={counsellorStudentForPanel.raw?.subjectsInSystem}
-                />
+                {studentProfileDetailLoading ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 5 }}>
+                    <CircularProgress size={36} sx={{ color: APP_PRIMARY_MAIN }} />
+                  </Box>
+                ) : (
+                  <ParentStudentInfoPanel
+                    studentName={counsellorStudentForPanel.name}
+                    compactInfo={selectedStudentCompactInfo}
+                    gradeTable={selectedStudentGradeTable}
+                    personalityInsights={selectedStudentPersonalityInsights}
+                    subjectsInSystem={counsellorStudentForPanel.raw?.subjectsInSystem}
+                  />
+                )}
               </Box>
             </Box>
           </Zoom>

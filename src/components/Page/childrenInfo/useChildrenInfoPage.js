@@ -1,5 +1,5 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react';
-import {useNavigate} from 'react-router-dom';
+import {useNavigate, useLocation} from 'react-router-dom';
 import {enqueueSnackbar} from 'notistack';
 import {
     getParentMajors,
@@ -22,9 +22,12 @@ import {
     parseBody,
     setStudentState,
 } from './childrenInfoHelpers.js';
+import {AUTH_USER_STORAGE_CHANGED_EVENT} from '../../../utils/userRole.js';
 
 export function useChildrenInfoPage() {
     const navigate = useNavigate();
+    const location = useLocation();
+    const [authSessionTick, setAuthSessionTick] = useState(0);
     const [loading, setLoading] = useState(true);
     const [editMode, setEditMode] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -84,6 +87,20 @@ export function useChildrenInfoPage() {
         setStudentState(setters, mapped);
     };
 
+    /** Cùng tab: đăng nhập đổi tài khoản; tab khác: `storage`. Tránh giữ form học sinh của phiên trước. */
+    useEffect(() => {
+        const bump = () => setAuthSessionTick((t) => t + 1);
+        const onStorage = (e) => {
+            if (e.key === 'user' || e.key === null) bump();
+        };
+        window.addEventListener(AUTH_USER_STORAGE_CHANGED_EVENT, bump);
+        window.addEventListener('storage', onStorage);
+        return () => {
+            window.removeEventListener(AUTH_USER_STORAGE_CHANGED_EVENT, bump);
+            window.removeEventListener('storage', onStorage);
+        };
+    }, []);
+
     useEffect(() => {
         let cancelled = false;
         (async () => {
@@ -125,7 +142,7 @@ export function useChildrenInfoPage() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [location.key, authSessionTick]);
 
     useEffect(() => {
         let cancelled = false;

@@ -43,7 +43,12 @@ import {enqueueSnackbar} from "notistack";
 import {signout, getProfile} from "../../services/AccountService.jsx";
 import {createParentConversation, getParentConversations} from "../../services/ConversationService.jsx";
 import {getParentMessagesHistory, markParentMessagesRead} from "../../services/MessageService.jsx";
-import {getParentStudent} from "../../services/ParentService.jsx";
+import {
+    getParentStudentById,
+    getStudents,
+    normalizeStudentDetailBodyForPanel,
+    pickStudentDetailBodyFromResponse,
+} from "../../services/ParentService.jsx";
 import {
     buildPrivateChatPayload,
     connectPrivateMessageSocket,
@@ -52,7 +57,7 @@ import {
 } from "../../services/WebSocketService.jsx";
 import logo from "../../assets/logo.png";
 import {useLocation, useNavigate} from "react-router-dom";
-import {normalizeUserRole} from "../../utils/userRole.js";
+import {normalizeUserRole, notifyAuthUserStorageChanged, sanitizeUserForLocalStorage} from "../../utils/userRole.js";
 import {
     APP_PRIMARY_DARK,
     BRAND_NAVY,
@@ -603,6 +608,9 @@ function MainHeader() {
     const [chatWindowOpen, setChatWindowOpen] = useState(false);
     const [chatWindowMinimized, setChatWindowMinimized] = useState(false);
     const [selectedConversationStudent, setSelectedConversationStudent] = useState(null);
+    /** Chi tiết đầy đủ từ GET /parent/student/{id} khi bấm « i »; không lấy từ payload history sau khi BE tách. */
+    const [studentProfileDetailForPanel, setStudentProfileDetailForPanel] = useState(null);
+    const [studentProfileDetailLoading, setStudentProfileDetailLoading] = useState(false);
     const [studentInfoOpen, setStudentInfoOpen] = useState(false);
     const [headerScrolled, setHeaderScrolled] = useState(false);
     const [studentSelectDialogOpen, setStudentSelectDialogOpen] = useState(false);
@@ -650,7 +658,9 @@ function MainHeader() {
     const getUserInfo = () => {
         if (localStorage.getItem('user')) {
             try {
-                return JSON.parse(localStorage.getItem('user'));
+                const parsed = JSON.parse(localStorage.getItem('user'));
+                /** Không dùng studentProfile* đã từng lưu nhầm trong blob user (nhiều tài khoản / cùng máy). */
+                return sanitizeUserForLocalStorage(parsed) || null;
             } catch {
                 return null;
             }
@@ -676,24 +686,35 @@ function MainHeader() {
         );
     }, [userInfo]);
     const selectedParentStudent = useMemo(() => {
-        if (!selectedConversationStudent && !selectedConversation) return null;
+        const mergedRaw = studentProfileDetailForPanel ?? selectedConversationStudent;
+        if (!mergedRaw && !selectedConversation) return null;
         const idCandidate =
-            selectedConversationStudent?.studentProfileId ??
+            mergedRaw?.studentProfileId ??
+            mergedRaw?.id ??
             selectedConversation?.studentProfileId ??
             selectedConversation?.studentId ??
             selectedConversation?.student?.id;
         const nameCandidate =
-            selectedConversationStudent?.childName ??
-            selectedConversationStudent?.studentName ??
+            mergedRaw?.childName ??
+            mergedRaw?.studentName ??
             selectedConversation?.studentName ??
             selectedConversation?.childName;
+        const raw =
+            mergedRaw ||
+            (selectedConversation
+                ? {
+                      studentProfileId: selectedConversation?.studentProfileId ?? selectedConversation?.studentId,
+                      childName: selectedConversation?.childName ?? selectedConversation?.studentName,
+                      studentName: selectedConversation?.studentName ?? selectedConversation?.childName,
+                  }
+                : null);
         return {
             id: idCandidate != null ? String(idCandidate) : '',
             name: String(nameCandidate || '').trim() || 'Học sinh',
             index: 0,
-            raw: selectedConversationStudent || selectedConversation || null
+            raw
         };
-    }, [selectedConversationStudent, selectedConversation]);
+    }, [studentProfileDetailForPanel, selectedConversationStudent, selectedConversation]);
     const filteredConversationItems = useMemo(
         () => conversationItems,
         [conversationItems]
@@ -719,6 +740,12 @@ function MainHeader() {
         () => extractPersonalityInsights(selectedParentStudent?.raw),
         [selectedParentStudent]
     );
+
+    React.useEffect(() => {
+        setStudentProfileDetailForPanel(null);
+        setStudentProfileDetailLoading(false);
+    }, [selectedConversation?.conversationId, selectedConversation?.id, selectedConversation?.studentProfileId]);
+
     const selectedConversationTitle = useMemo(
         () => getConversationDisplayTitle(selectedConversation),
         [selectedConversation]
@@ -828,7 +855,11 @@ function MainHeader() {
         };
     };
 
-    const parseHistoryResponse = (response) => {
+    /**
+     * History chat BE có thể không còn gender / traits / favouriteJob / academicProfileMetadata / subjectsInSystem —
+     * các trường đó lấy qua GET /parent/student/{id} khi bấm « i ».
+     */
+    const parseHistoryResponse = (response, conversation) => {
         const payload = parseMessagesHistoryPayloadRoot(response);
         const items = Array.isArray(payload?.messages)
             ? payload.messages
@@ -836,10 +867,22 @@ function MainHeader() {
               ? payload.items
               : [];
         const subjectsInSystem = extractSubjectsInSystemFromPayload(payload);
+        const sid =
+            conversation?.studentProfileId ??
+            conversation?.studentId ??
+            conversation?.student?.id ??
+            payload?.studentProfileId ??
+            payload?.studentId ??
+            null;
+        const nameFromConv = String(conversation?.childName ?? conversation?.studentName ?? '').trim();
+        const nameFromPayload = String(
+            payload?.childName ?? payload?.ChildName ?? payload?.studentName ?? ''
+        ).trim();
+        const displayName = nameFromPayload || nameFromConv;
         const studentProfile = {
-            ...payload,
-            studentProfileId: payload?.studentProfileId ?? payload?.studentId ?? null,
-            childName: payload?.childName ?? payload?.ChildName ?? payload?.studentName ?? '',
+            studentProfileId: sid,
+            childName: displayName,
+            studentName: displayName,
             personalityTypeCode:
                 payload?.personalityCode ?? payload?.personalityTypeCode ?? payload?.personalityType?.code ?? '',
             favouriteJob: payload?.favouriteJob ?? payload?.favoriteJob ?? '',
@@ -1193,7 +1236,7 @@ function MainHeader() {
             });
             if (response?.status === 200) {
                 if (conversationKey) forbiddenHistoryConversationIdsRef.current.delete(conversationKey);
-                const parsed = parseHistoryResponse(response);
+                const parsed = parseHistoryResponse(response, conversation);
                 const loadedCampusId = resolveCampusIdFromHistory(parsed);
                 const loadedConversationId = resolveConversationIdFromHistory(parsed);
                 if (loadedCampusId != null) {
@@ -1428,6 +1471,8 @@ function MainHeader() {
         setParentWsUnreadBump(0);
         parentStickToBottomRef.current = true;
         setSelectedConversationStudent(null);
+        setStudentProfileDetailForPanel(null);
+        setStudentProfileDetailLoading(false);
         setSelectedConversation(conversation);
         selectedConversationRef.current = conversation;
         setMessageItems([]);
@@ -2055,6 +2100,8 @@ function MainHeader() {
         setMessageError('');
         setChatInput('');
         setStudentInfoOpen(false);
+        setStudentProfileDetailForPanel(null);
+        setStudentProfileDetailLoading(false);
     };
 
     const handleMinimizeChatWindow = () => {
@@ -2069,8 +2116,38 @@ function MainHeader() {
         hasMarkedReadRef.current = false;
     };
 
+    const fetchStudentProfileDetailForPanel = React.useCallback(async () => {
+        const conv = selectedConversationRef.current;
+        const sid = conv?.studentProfileId ?? conv?.studentId ?? conv?.student?.id ?? null;
+        if (sid == null || String(sid).trim() === '') {
+            enqueueSnackbar('Thiếu mã hồ sơ học sinh để tải chi tiết.', {variant: 'warning'});
+            return;
+        }
+        setStudentProfileDetailLoading(true);
+        try {
+            const res = await getParentStudentById(sid);
+            if (res?.status !== 200) {
+                enqueueSnackbar('Không tải được chi tiết hồ sơ học sinh.', {variant: 'error'});
+                return;
+            }
+            const body = pickStudentDetailBodyFromResponse(res);
+            const norm = normalizeStudentDetailBodyForPanel(body);
+            if (norm) setStudentProfileDetailForPanel(norm);
+        } catch (e) {
+            console.error(e);
+            enqueueSnackbar('Không tải được chi tiết hồ sơ học sinh.', {variant: 'error'});
+        } finally {
+            setStudentProfileDetailLoading(false);
+        }
+    }, []);
+
     const handleToggleStudentInfo = () => {
-        setStudentInfoOpen((open) => !open);
+        setStudentInfoOpen((prev) => {
+            if (!prev) {
+                void fetchStudentProfileDetailForPanel();
+            }
+            return !prev;
+        });
     };
 
     const handleCloseStudentInfo = () => {
@@ -2111,6 +2188,8 @@ function MainHeader() {
                 childName
             });
             setSelectedConversationStudent(null);
+            setStudentProfileDetailForPanel(null);
+            setStudentProfileDetailLoading(false);
             setSelectedConversation(draftConversation);
             selectedConversationRef.current = draftConversation;
             setMessageItems([]);
@@ -2158,7 +2237,8 @@ function MainHeader() {
         
             try {
                 setStudentSelectLoading(true);
-                const response = await getParentStudent();
+                /** Luôn lấy danh sách hồ sơ từ API; không lưu studentProfile / studentProfileId trong localStorage. */
+                const response = await getStudents();
                 if (response?.status !== 200) {
                     enqueueSnackbar("Không tải được danh sách học sinh.", {variant: "error"});
                     return;
@@ -2167,8 +2247,11 @@ function MainHeader() {
                     .map(normalizeParentStudent)
                     .filter((s) => s.studentProfileId);
                 if (!normalizedStudents.length) {
-                    enqueueSnackbar("Bạn chưa có hồ sơ học sinh. Vui lòng thêm thông tin con trước.", {variant: "info"});
-                    navigate("/children-info");
+                    enqueueSnackbar(
+                        "Chưa có hồ sơ học sinh. Chuyển tới trang hồ sơ con để tạo mới, sau đó mở lại chat từ trường.",
+                        {variant: "info"}
+                    );
+                    navigate("/children-info", {state: {fromCampusChat: true}});
                     return;
                 }
                 const target = {schoolName, schoolEmail, counsellorEmail, campusId: campusIdNum, schoolLogoUrl};
@@ -2232,6 +2315,7 @@ function MainHeader() {
                 if (sessionStorage.length > 0) {
                     sessionStorage.clear();
                 }
+                notifyAuthUserStorageChanged();
                 enqueueSnackbar('Đăng xuất thành công.', {variant: 'success', autoHideDuration: 1000});
                 setTimeout(() => {
                     window.location.href = '/home';
@@ -3295,13 +3379,19 @@ function MainHeader() {
                                                 p: 1.2
                                             }}
                                         >
-                                            <ParentStudentInfoPanel
-                                                studentName={selectedStudentName}
-                                                compactInfo={selectedStudentCompactInfo}
-                                                gradeTable={selectedStudentGradeTable}
-                                                personalityInsights={selectedStudentPersonalityInsights}
-                                                subjectsInSystem={selectedParentStudent?.raw?.subjectsInSystem}
-                                            />
+                                            {studentProfileDetailLoading ? (
+                                                <Box sx={{display: 'flex', justifyContent: 'center', alignItems: 'center', py: 5}}>
+                                                    <CircularProgress size={36} sx={{color: selectedStudentTheme.accent}} />
+                                                </Box>
+                                            ) : (
+                                                <ParentStudentInfoPanel
+                                                    studentName={selectedStudentName}
+                                                    compactInfo={selectedStudentCompactInfo}
+                                                    gradeTable={selectedStudentGradeTable}
+                                                    personalityInsights={selectedStudentPersonalityInsights}
+                                                    subjectsInSystem={selectedParentStudent?.raw?.subjectsInSystem}
+                                                />
+                                            )}
                                         </Box>
                                     </Box>
                                 </Zoom>
