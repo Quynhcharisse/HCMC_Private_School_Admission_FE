@@ -39,6 +39,21 @@ export const markParentMessagesRead = async ({conversationId, username}) => {
     return response || null;
 };
 
+/**
+ * Chi tiết hồ sơ học sinh cho TVV (GET /counsellor/student/{id}) — BE tách khỏi history chat.
+ * Nếu path thực tế khác (vd /counsellor/parent/student/{id}), chỉnh một chỗ tại đây.
+ */
+export const getCounsellorStudentById = async (studentProfileId) => {
+    const id = studentProfileId != null ? String(studentProfileId).trim() : '';
+    if (!id) {
+        throw new Error('studentProfileId is required');
+    }
+    const response = await axiosClient.get(`/counsellor/student/${encodeURIComponent(id)}`, {
+        headers: {'X-Device-Type': 'web'},
+    });
+    return response || null;
+};
+
 export const getCounsellorMessagesHistory = async ({parentEmail, counsellorEmail, studentProfileId, cursorId}) => {
     const encodedParentEmail = encodeURIComponent(parentEmail || "");
     const encodedCounsellorEmail = encodeURIComponent(counsellorEmail || "");

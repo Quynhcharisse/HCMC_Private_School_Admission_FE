@@ -71,7 +71,6 @@ export default function AdminPlatformSettings() {
             { label: "Tuyển sinh (mẫu chung)", key: "admission" },
             { label: "Cài đặt Phương tiện", key: "media" },
             { label: "Cài đặt Hạn mức Tuyển sinh", key: "limits" },
-            { label: "Cài đặt Chính sách Đăng ký", key: "policies" },
         ],
         []
     );
@@ -100,15 +99,6 @@ export default function AdminPlatformSettings() {
         };
     };
 
-    const getSubscriptionInitialForm = (cfg) => {
-        const sub = cfg?.subscription || {};
-        return {
-            trialDays: sub.trialDays ?? "",
-            gracePeriod: sub.gracePeriod ?? "",
-            minSubscriptionMonth: sub.minSubscriptionMonth ?? "",
-        };
-    };
-
     const [businessForm, setBusinessForm] = useState({
         minPay: "",
         maxPay: "",
@@ -119,14 +109,6 @@ export default function AdminPlatformSettings() {
 
     const [businessEditing, setBusinessEditing] = useState(false);
 
-    const [subscriptionForm, setSubscriptionForm] = useState({
-        trialDays: "",
-        gracePeriod: "",
-        minSubscriptionMonth: "",
-    });
-    const [subscriptionErrors, setSubscriptionErrors] = useState({});
-
-    const [subscriptionEditing, setSubscriptionEditing] = useState(false);
     const [mediaEditing, setMediaEditing] = useState(false);
     const [quotaEditing, setQuotaEditing] = useState(false);
 
@@ -321,23 +303,6 @@ export default function AdminPlatformSettings() {
         return errors;
     };
 
-    const validateSubscription = (form) => {
-        const errors = {};
-        const trialDays = parseFinite(form.trialDays);
-        const gracePeriod = parseFinite(form.gracePeriod);
-        const minSubscriptionMonth = parseFinite(form.minSubscriptionMonth);
-
-        if (trialDays === null) errors.trialDays = "Vui lòng nhập Số ngày dùng thử.";
-        if (gracePeriod === null) errors.gracePeriod = "Vui lòng nhập Thời gian gia hạn.";
-        if (minSubscriptionMonth === null) errors.minSubscriptionMonth = "Vui lòng nhập Số tháng đăng ký tối thiểu.";
-
-        if (trialDays !== null && trialDays < 0) errors.trialDays = "Số ngày dùng thử không được âm.";
-        if (gracePeriod !== null && gracePeriod < 0) errors.gracePeriod = "Thời gian gia hạn không được âm.";
-        if (minSubscriptionMonth !== null && minSubscriptionMonth < 1) errors.minSubscriptionMonth = "Số tháng đăng ký tối thiểu phải >= 1.";
-
-        return errors;
-    };
-
     const validateReport = (form) => {
         const errors = {};
         const maxResolutionDay = parseFinite(form.maxResolutionDay);
@@ -400,11 +365,7 @@ export default function AdminPlatformSettings() {
         setBusinessForm(bizInit);
         setBusinessErrors(validateBusiness(bizInit));
 
-        const subInit = getSubscriptionInitialForm(configBody);
-        setSubscriptionForm(subInit);
-        setSubscriptionErrors(validateSubscription(subInit));
-
-        const quotaYears = Object.keys(getAdmissionQuotaMap(configBody));
+        const quotaYears = Object.keys(configBody?.quota || {});
         setSelectedQuotaYear((prev) => prev || quotaYears[0] || "");
 
         const media = configBody?.media || {};
@@ -447,7 +408,6 @@ export default function AdminPlatformSettings() {
         setFormatDialogError("");
 
         setBusinessEditing(false);
-        setSubscriptionEditing(false);
         setMediaEditing(false);
         setReportEditing(false);
         setQuotaEditing(false);
@@ -459,7 +419,6 @@ export default function AdminPlatformSettings() {
 
     useEffect(() => {
         if (activeTabKey !== "business") setBusinessEditing(false);
-        if (activeTabKey !== "policies") setSubscriptionEditing(false);
         if (activeTabKey !== "media") setMediaEditing(false);
         if (activeTabKey !== "limits") setQuotaEditing(false);
         if (activeTabKey !== "admission") setAdmissionTemplateEditing(false);
@@ -485,28 +444,6 @@ export default function AdminPlatformSettings() {
     const saveBusinessEdit = async () => {
         const ok = await saveBusiness();
         if (ok) setBusinessEditing(false);
-    };
-
-    const cancelSubscription = () => {
-        if (!configBody) return;
-        const subInit = getSubscriptionInitialForm(configBody);
-        setSubscriptionForm(subInit);
-        setSubscriptionErrors(validateSubscription(subInit));
-        setStatus({ type: "", message: "" });
-    };
-
-    const startSubscriptionEdit = () => {
-        setSubscriptionEditing(true);
-    };
-
-    const cancelSubscriptionEdit = () => {
-        cancelSubscription();
-        setSubscriptionEditing(false);
-    };
-
-    const saveSubscriptionEdit = async () => {
-        const ok = await saveSubscriptionPolicy();
-        if (ok) setSubscriptionEditing(false);
     };
 
     const cancelMediaFormats = () => {
@@ -926,45 +863,6 @@ export default function AdminPlatformSettings() {
         return ok;
     };
 
-    const saveSubscriptionPolicy = async () => {
-        if (!configBody) return;
-        const errors = validateSubscription(subscriptionForm);
-        setSubscriptionErrors(errors);
-        if (Object.keys(errors).length > 0) return;
-
-        setSaving(true);
-        let ok = false;
-        setStatus({ type: "", message: "" });
-        try {
-            const trialDays = parseFinite(subscriptionForm.trialDays);
-            const gracePeriod = parseFinite(subscriptionForm.gracePeriod);
-            const minSubscriptionMonth = parseFinite(subscriptionForm.minSubscriptionMonth);
-
-            const updatedBody = mergeSystemConfigPayload(configBody, {
-                subscription: {
-                    ...(configBody.subscription || {}),
-                    trialDays,
-                    gracePeriod,
-                    minSubscriptionMonth,
-                },
-            });
-
-            await updateSystemConfig(updatedBody);
-            enqueueSnackbar("Cập nhật Chính sách Đăng ký thành công.", { variant: "success" });
-            setStatus({ type: "success", message: "Cập nhật thành công." });
-            await fetchConfig();
-            ok = true;
-        } catch (e) {
-            console.error("saveSubscriptionPolicy failed", e);
-            const msg = apiErrorMessage(e, "Cập nhật thất bại. Vui lòng thử lại.");
-            enqueueSnackbar(msg, { variant: "error" });
-            setStatus({ type: "error", message: msg });
-        } finally {
-            setSaving(false);
-        }
-        return ok;
-    };
-
     const cancelAdmissionTemplate = () => {
         if (!configBody) return;
         setAdmissionTemplateForm(getAdmissionInitialForm(configBody));
@@ -1085,9 +983,6 @@ export default function AdminPlatformSettings() {
                     >
                         <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#0f172a" }}>
                             Danh sách phương thức
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: "#64748b", display: "block", mt: 0.25 }}>
-                            Mỗi dòng: mã duy nhất (không dấu cách thừa), tên hiển thị và mô tả ngắn. Gõ trực tiếp trong ô — không cần phím Enter; sau khi sửa nhấn <strong>Lưu mẫu</strong> (ngay dưới bảng hoặc cuối tab).
                         </Typography>
                     </Box>
                     <TableContainer sx={{ maxWidth: "100%" }}>
@@ -1465,136 +1360,6 @@ export default function AdminPlatformSettings() {
                                 </Typography>
                             </Box>
                         </Box>
-                    </Box>
-                );
-            })()}
-        </Box>
-    );
-
-    const renderSubscriptionTab = () => (
-        <Box>
-            {(() => {
-                const subscriptionDisabled = !subscriptionEditing || saving;
-                return (
-                    <Box>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#2563eb", mb: 1.5 }}>
-                Cấu hình Chính sách Đăng ký
-            </Typography>
-
-            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1.5, width: "100%", alignItems: "stretch" }}>
-                <Box sx={{ flex: "1 1 220px", minWidth: 240, ...settingsFieldCardSx }}>
-                    <Typography sx={settingsFieldLabelSx}>Số ngày dùng thử</Typography>
-                    <Tooltip title="Số ngày dùng thử trước khi người dùng bắt đầu giai đoạn thanh toán.">
-                        <TextField
-                            size="small"
-                            fullWidth
-                            disabled={subscriptionDisabled}
-                            type="number"
-                            value={subscriptionForm.trialDays}
-                            onChange={(e) => {
-                                const nextVal = e.target.value;
-                                setSubscriptionForm((prev) => {
-                                    const next = { ...prev, trialDays: nextVal };
-                                    setSubscriptionErrors(validateSubscription(next));
-                                    return next;
-                                });
-                            }}
-                            inputProps={{ min: 0 }}
-                            error={Boolean(subscriptionErrors.trialDays)}
-                            helperText={subscriptionErrors.trialDays || ""}
-                            sx={settingsInputSx}
-                        />
-                    </Tooltip>
-                </Box>
-
-                <Box sx={{ flex: "1 1 220px", minWidth: 240, ...settingsFieldCardSx }}>
-                    <Typography sx={settingsFieldLabelSx}>Thời gian gia hạn</Typography>
-                    <Tooltip title="Khoảng thời gian gia hạn sau khi hết hạn thanh toán (đơn vị: ngày).">
-                        <TextField
-                            size="small"
-                            fullWidth
-                            disabled={subscriptionDisabled}
-                            type="number"
-                            value={subscriptionForm.gracePeriod}
-                            onChange={(e) => {
-                                const nextVal = e.target.value;
-                                setSubscriptionForm((prev) => {
-                                    const next = { ...prev, gracePeriod: nextVal };
-                                    setSubscriptionErrors(validateSubscription(next));
-                                    return next;
-                                });
-                            }}
-                            inputProps={{ min: 0 }}
-                            error={Boolean(subscriptionErrors.gracePeriod)}
-                            helperText={subscriptionErrors.gracePeriod || ""}
-                            sx={settingsInputSx}
-                        />
-                    </Tooltip>
-                </Box>
-
-                <Box sx={{ flex: "1 1 220px", minWidth: 240, ...settingsFieldCardSx }}>
-                    <Typography sx={settingsFieldLabelSx}>Số tháng đăng ký tối thiểu</Typography>
-                    <Tooltip title="Số tháng đăng ký tối thiểu bắt buộc (đơn vị: tháng).">
-                        <TextField
-                            size="small"
-                            fullWidth
-                            disabled={subscriptionDisabled}
-                            type="number"
-                            value={subscriptionForm.minSubscriptionMonth}
-                            onChange={(e) => {
-                                const nextVal = e.target.value;
-                                setSubscriptionForm((prev) => {
-                                    const next = { ...prev, minSubscriptionMonth: nextVal };
-                                    setSubscriptionErrors(validateSubscription(next));
-                                    return next;
-                                });
-                            }}
-                            inputProps={{ min: 1 }}
-                            error={Boolean(subscriptionErrors.minSubscriptionMonth)}
-                            helperText={subscriptionErrors.minSubscriptionMonth || ""}
-                            sx={settingsInputSx}
-                        />
-                    </Tooltip>
-                </Box>
-            </Box>
-
-            <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
-                {subscriptionEditing ? (
-                    <>
-                        <Button
-                            variant="outlined"
-                            onClick={cancelSubscriptionEdit}
-                            disabled={saving}
-                            sx={cancelButtonSx}
-                        >
-                            Hủy
-                        </Button>
-                        <Button
-                            variant="contained"
-                            disabled={saving || loadingConfig || Object.keys(subscriptionErrors).length > 0}
-                            onClick={() => void saveSubscriptionEdit()}
-                            sx={saveButtonSx}
-                        >
-                            Lưu
-                        </Button>
-                    </>
-                ) : (
-                    <Button
-                        variant="outlined"
-                        onClick={startSubscriptionEdit}
-                        disabled={saving}
-                        sx={cancelButtonSx}
-                    >
-                        Chỉnh sửa
-                    </Button>
-                )}
-            </Box>
-
-            {status.message ? (
-                <Alert severity={status.type || "success"} sx={{ mt: 2 }}>
-                    {status.message}
-                </Alert>
-            ) : null}
                     </Box>
                 );
             })()}
@@ -2737,7 +2502,6 @@ export default function AdminPlatformSettings() {
                             {activeTabKey === "admission" ? renderAdmissionTab() : null}
                             {activeTabKey === "media" ? renderMediaTab() : null}
                             {activeTabKey === "limits" ? renderLimitsTab() : null}
-                            {activeTabKey === "policies" ? renderSubscriptionTab() : null}
 
                             {activeTabKey === "admission" ? (
                                 <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>

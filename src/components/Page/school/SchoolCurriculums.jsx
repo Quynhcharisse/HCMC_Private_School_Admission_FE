@@ -50,6 +50,7 @@ import VisibilityIconOutlined from "@mui/icons-material/VisibilityOutlined";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import { enqueueSnackbar } from "notistack";
+import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 
 import { useSchool } from "../../../contexts/SchoolContext.jsx";
 import { activateCurriculum, getCurriculumList, upsertCurriculum } from "../../../services/CurriculumService.jsx";
@@ -1992,10 +1993,11 @@ export default function SchoolCurriculums() {
                 <DialogTitle sx={{ fontWeight: 700, pr: 6 }}>Xác nhận công bố</DialogTitle>
                 <DialogContent>
                     <Typography>
-                        Bạn có chắc chắn muốn công bố chương trình này không?
+                        Bạn có chắc chắn muốn <ConfirmHighlight>công bố</ConfirmHighlight> chương trình này không?
                     </Typography>
                     <Typography variant="body2" sx={{ mt: 1, color: "#64748b" }}>
-                        Sau khi công bố, bản nháp sẽ chuyển sang trạng thái hoạt động.
+                        Sau khi công bố, bản nháp sẽ chuyển sang{" "}
+                        <ConfirmHighlight>trạng thái hoạt động</ConfirmHighlight>.
                     </Typography>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, py: 2 }}>

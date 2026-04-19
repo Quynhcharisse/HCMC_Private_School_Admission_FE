@@ -18,6 +18,7 @@ import CampaignIcon from "@mui/icons-material/Campaign";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
+import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 import { useSchool } from "../../../contexts/SchoolContext.jsx";
 import {
     getCampaignTemplatesByYear,
@@ -1067,8 +1068,8 @@ export default function SchoolCampaignDetail() {
                         Công bố chiến dịch?
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        Bạn có chắc chắn muốn công bố chiến dịch này? Sau khi công bố sẽ không thể chỉnh sửa thông tin
-                        cơ bản.
+                        Bạn có chắc chắn muốn <ConfirmHighlight>công bố chiến dịch này</ConfirmHighlight>? Sau khi công bố sẽ{" "}
+                        <ConfirmHighlight>không thể chỉnh sửa thông tin cơ bản</ConfirmHighlight>.
                     </Typography>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -1371,7 +1372,8 @@ export default function SchoolCampaignDetail() {
                         Xác nhận clone chiến dịch?
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25 }}>
-                        Bạn có chắc chắn muốn sao chép chiến dịch này để tạo một bản nháp mới không?
+                        Bạn có chắc chắn muốn <ConfirmHighlight>sao chép chiến dịch này</ConfirmHighlight> để tạo{" "}
+                        <ConfirmHighlight>một bản nháp mới</ConfirmHighlight> không?
                     </Typography>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2.5 }}>

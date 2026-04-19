@@ -11,15 +11,182 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import { GRADE_LEVELS } from "../Page/childrenInfo/childrenInfoHelpers.js";
+import CheckIcon from "@mui/icons-material/Check";
+import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import {
+  GRADE_LEVELS,
+  readSubjectResultIsAvailable,
+} from "../Page/childrenInfo/childrenInfoHelpers.js";
+import { SubjectUnavailableHint } from "../Page/childrenInfo/SubjectUnavailableHint.jsx";
+
+/** Thứ tự hiển thị nhóm: môn chính trước, ngoại ngữ sau (không phụ thuộc thứ tự trong JSON). */
+const SUBJECT_GROUP_TYPE_ORDER = { regular: 0, foreign_language: 1 };
+
+/** Tooltip tiêu đề « Danh sách môn học khả dụng » (panel tư vấn viên). */
+const AVAILABLE_SUBJECTS_HEADING_TOOLTIP =
+  "Danh sách môn học đang được hệ thống áp dụng cho hồ sơ học sinh.";
+
+const AVAILABLE_SUBJECTS_TOOLTIP_Z = 1700;
+
+/** Nhãn cột khối (Khối 6 … Khối 9), thống nhất với `GRADE_LEVELS`. */
+function gradeLevelHeaderLabel(g) {
+  const digits = String(g.key || "").replace(/^g/i, "");
+  const n = parseInt(digits, 10);
+  return Number.isFinite(n) ? `Khối ${n}` : g.label.replace("Lớp ", "");
+}
+
+/**
+ * Chuẩn hóa payload GET history tin nhắn (parent / counsellor): string JSON, lồng `data`, v.v.
+ */
+export const parseMessagesHistoryPayloadRoot = (response) => {
+  let payload = response?.data?.body?.body ?? response?.data?.body ?? response?.data ?? {};
+  if (typeof payload === "string") {
+    try {
+      payload = JSON.parse(payload);
+    } catch {
+      payload = {};
+    }
+  }
+  if (
+    payload &&
+    typeof payload === "object" &&
+    !Array.isArray(payload) &&
+    payload.data &&
+    typeof payload.data === "object" &&
+    !Array.isArray(payload.data) &&
+    (payload.data.messages != null ||
+      payload.data.items != null ||
+      payload.data.subjectsInSystem != null ||
+      payload.data.academicProfileMetadata != null)
+  ) {
+    return { ...payload, ...payload.data };
+  }
+  return payload;
+};
+
+/**
+ * subjectsInSystem có thể nằm root, trong `data`, `studentProfile`, hoặc PascalCase.
+ */
+export const extractSubjectsInSystemFromPayload = (payload) => {
+  if (payload == null || typeof payload !== "object") return [];
+  const roots = [];
+  const push = (o) => {
+    if (o && typeof o === "object" && !Array.isArray(o)) roots.push(o);
+  };
+  push(payload);
+  push(payload.data);
+  push(payload.studentProfile);
+  push(payload.profile);
+  push(payload.student);
+  for (const p of roots) {
+    const v = p.subjectsInSystem ?? p.SubjectsInSystem;
+    if (Array.isArray(v)) return v;
+  }
+  return [];
+};
+
+/**
+ * subjectsInSystem từ API — mỗi phần tử: { label, type, subjects: [{ id, name }] }.
+ * Trả về các nhóm đã sắp xếp; trong nhóm sắp tên theo tiếng Việt.
+ */
+export const groupSubjectsInSystem = (subjectsInSystem) => {
+  if (!Array.isArray(subjectsInSystem)) return [];
+  const groups = subjectsInSystem
+    .map((group, idx) => {
+      const type = String(group?.type ?? "").toLowerCase();
+      const isForeign = type === "foreign_language";
+      const rawLabel = group?.label != null ? String(group.label).trim() : "";
+      const groupLabel =
+        rawLabel || (isForeign ? "Ngoại ngữ" : "Môn học chính");
+      const subs = Array.isArray(group?.subjects) ? group.subjects : [];
+      const subjects = subs
+        .map((s) => {
+          const name = s?.name != null ? String(s.name).trim() : "";
+          if (!name) return null;
+          return {
+            id: s?.id,
+            name,
+            isForeignLanguage: isForeign,
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.name.localeCompare(b.name, "vi"));
+      const sortOrder =
+        SUBJECT_GROUP_TYPE_ORDER[type] ?? 10 + idx;
+      return {
+        groupKey: `${type}-${idx}`,
+        groupLabel,
+        groupType: type,
+        sortOrder,
+        subjects,
+      };
+    })
+    .filter((g) => g.subjects.length > 0)
+    .sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      return a.groupLabel.localeCompare(b.groupLabel, "vi");
+    });
+  return groups;
+};
+
+/** Danh sách phẳng (theo thứ tự nhóm + tên) — dùng khi cần đếm hoặc tương thích. */
+export const flattenSubjectsInSystem = (subjectsInSystem) =>
+  groupSubjectsInSystem(subjectsInSystem).flatMap((g) => g.subjects);
 
 const subjectLabelFromRow = (r) => {
   const n = r?.subjectName ?? r?.name ?? r?.subject;
   if (n == null || String(n).trim() === "") return null;
   return String(n).trim();
+};
+
+const normalizeSubjectLookupKey = (s) =>
+  String(s ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .normalize("NFC")
+    .toLocaleLowerCase("vi-VN");
+
+/** Bỏ tiền tố « Môn » để so khớp tên danh mục với tên từ BE (vd. « Môn Toán » vs « Toán »). */
+const stripMonPrefix = (s) => {
+  const t = String(s ?? "").trim();
+  return /^môn\s+/i.test(t) ? t.replace(/^môn\s+/i, "").trim() : t;
+};
+
+/**
+ * Khớp dòng điểm trong học bạ với môn trong danh sách khả dụng (tên catalog / id).
+ */
+const findMatchingSubjectRow = (rows, catalogName, catalogSubjectId) => {
+  if (!Array.isArray(rows) || rows.length === 0) return null;
+  const want = String(catalogName ?? "").trim();
+  if (!want) return null;
+
+  let found = rows.find((r) => subjectLabelFromRow(r) === want);
+  if (found) return found;
+
+  if (catalogSubjectId != null && String(catalogSubjectId).trim() !== "") {
+    const idStr = String(catalogSubjectId).trim();
+    found = rows.find((r) => {
+      const sid = r?.subjectId ?? r?.subjectID ?? r?.SubjectId;
+      if (sid == null || sid === "") return false;
+      return String(sid) === idStr || Number(sid) === Number(catalogSubjectId);
+    });
+    if (found) return found;
+  }
+
+  const nk = normalizeSubjectLookupKey(want);
+  const nks = normalizeSubjectLookupKey(stripMonPrefix(want));
+  found = rows.find((r) => {
+    const lab = subjectLabelFromRow(r);
+    if (!lab) return false;
+    if (normalizeSubjectLookupKey(lab) === nk) return true;
+    if (normalizeSubjectLookupKey(stripMonPrefix(lab)) === nks) return true;
+    return false;
+  });
+  return found || null;
 };
 
 const formatGender = (value) => {
@@ -40,7 +207,10 @@ export const getStudentCompactInfo = (student) => {
 
   addItem("Họ tên", student?.name);
   addItem("Giới tính", formatGender(raw?.gender));
-  addItem("Nhóm tính cách", raw?.personalityTypeCode ?? raw?.personalityType?.code);
+  addItem(
+    "Nhóm tính cách",
+    raw?.personalityTypeCode ?? raw?.personalityType?.code ?? raw?.personalityCode
+  );
   addItem("Ngành yêu thích", raw?.favouriteJob ?? raw?.favoriteJob);
 
   return items;
@@ -148,6 +318,18 @@ export const buildAcademicScoreTable = (raw) => {
   }
 
   const subjectSet = new Set();
+  /** Môn có ít nhất một dòng subjectResult với isAvailable === false (metadata BE). */
+  const subjectUnavailable = new Set();
+  for (const block of academicInfos) {
+    const rows = block?.subjectResults ?? block?.subjectResultList ?? block?.results ?? [];
+    if (!Array.isArray(rows)) continue;
+    for (const r of rows) {
+      const label = subjectLabelFromRow(r);
+      if (!label) continue;
+      if (!readSubjectResultIsAvailable(r)) subjectUnavailable.add(label);
+    }
+  }
+
   for (const rows of byGrade.values()) {
     for (const r of rows) {
       const label = subjectLabelFromRow(r);
@@ -156,22 +338,35 @@ export const buildAcademicScoreTable = (raw) => {
   }
   const subjects = [...subjectSet].sort((a, b) => a.localeCompare(b, "vi"));
 
-  const getScore = (subject, gradeEnum) => {
+  const getScore = (subject, gradeEnum, catalogSubjectId) => {
     const key = normalizeGradeLevelKey(gradeEnum);
     const rows = byGrade.get(key) || [];
-    const found = rows.find((r) => subjectLabelFromRow(r) === subject);
+    const found = findMatchingSubjectRow(rows, subject, catalogSubjectId);
     if (!found) return "—";
-    const s = found?.score;
+    const s = found?.score ?? found?.subjectScore ?? found?.point ?? found?.grade ?? found?.mark;
     if (s == null || s === "") return "—";
     return String(s);
   };
 
   if (subjects.length === 0) return null;
-  return { subjects, getScore };
+  const isSubjectUnavailable = (subject) => subjectUnavailable.has(subject);
+  return { subjects, getScore, isSubjectUnavailable };
 };
 
-function ParentStudentInfoPanel({ studentName, compactInfo, gradeTable, personalityInsights }) {
-  const hasAnyData = compactInfo.length > 0 || gradeTable;
+function ParentStudentInfoPanel({
+  studentName,
+  compactInfo,
+  gradeTable,
+  personalityInsights,
+  subjectsInSystem,
+}) {
+  const availableSubjectGroups = groupSubjectsInSystem(subjectsInSystem);
+  const availableSubjectsCount = availableSubjectGroups.reduce(
+    (n, g) => n + g.subjects.length,
+    0
+  );
+  const hasAnyData =
+    compactInfo.length > 0 || gradeTable || availableSubjectsCount > 0;
   const [personalityExpanded, setPersonalityExpanded] = useState(false);
 
   return (
@@ -304,7 +499,7 @@ function ParentStudentInfoPanel({ studentName, compactInfo, gradeTable, personal
       )}
       <Divider sx={{ my: 1.05, flexShrink: 0 }} />
       <Typography sx={{ fontSize: 12, fontWeight: 900, color: "#334155", mb: 0.8, flexShrink: 0 }}>
-        Bảng điểm (cả năm)
+        Bảng điểm phụ huynh cung cấp
       </Typography>
       {gradeTable ? (
         <TableContainer
@@ -351,7 +546,7 @@ function ParentStudentInfoPanel({ studentName, compactInfo, gradeTable, personal
                       borderBottom: "1px solid rgba(226,232,240,0.95)",
                     }}
                   >
-                    {g.label.replace("Lớp ", "")}
+                    {gradeLevelHeaderLabel(g)}
                   </TableCell>
                 ))}
               </TableRow>
@@ -361,16 +556,27 @@ function ParentStudentInfoPanel({ studentName, compactInfo, gradeTable, personal
                 <TableRow key={subject} hover>
                   <TableCell
                     sx={{
-                      fontSize: 11.5,
-                      fontWeight: 600,
                       position: "sticky",
                       left: 0,
                       bgcolor: "rgba(255,255,255,0.99)",
                       borderBottom: "1px solid rgba(241,245,249,0.95)",
-                      maxWidth: 140,
+                      maxWidth: 160,
+                      verticalAlign: "top",
                     }}
                   >
-                    {subject}
+                    <Box
+                      sx={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "flex-start",
+                        gap: 0.35,
+                      }}
+                    >
+                      <Typography sx={{ fontSize: 11.5, fontWeight: 600, color: "#0f172a", lineHeight: 1.35 }}>
+                        {subject}
+                      </Typography>
+                      {gradeTable.isSubjectUnavailable?.(subject) ? <SubjectUnavailableHint /> : null}
+                    </Box>
                   </TableCell>
                   {GRADE_LEVELS.map((g) => (
                     <TableCell
@@ -394,6 +600,149 @@ function ParentStudentInfoPanel({ studentName, compactInfo, gradeTable, personal
         <Typography sx={{ fontSize: 12.5, color: "#64748b", lineHeight: 1.55 }}>
           Chưa có dữ liệu học bạ để hiển thị.
         </Typography>
+      )}
+      {availableSubjectsCount > 0 && (
+        <>
+          <Divider sx={{ my: 1.05, flexShrink: 0 }} />
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 0.35,
+              mb: 0.8,
+              flexShrink: 0,
+            }}
+          >
+            <Typography sx={{ fontSize: 12, fontWeight: 900, color: "#334155" }}>
+              Danh sách môn học khả dụng
+            </Typography>
+            <Tooltip
+              title={AVAILABLE_SUBJECTS_HEADING_TOOLTIP}
+              arrow
+              placement="top-start"
+              enterDelay={100}
+              enterTouchDelay={0}
+              PopperProps={{ sx: { zIndex: AVAILABLE_SUBJECTS_TOOLTIP_Z } }}
+            >
+              <IconButton
+                size="small"
+                aria-label="Giải thích danh sách môn học khả dụng"
+                sx={{
+                  p: 0.125,
+                  color: "#64748b",
+                  "&:hover": { bgcolor: "rgba(100, 116, 139, 0.08)" },
+                }}
+              >
+                <InfoOutlined sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+          <TableContainer
+            component={Paper}
+            elevation={0}
+            sx={{
+              flex: "0 0 auto",
+              overflowX: "auto",
+              overflowY: "visible",
+              border: "1px solid rgba(191,219,254,0.95)",
+              borderRadius: 1.45,
+              bgcolor: "rgba(255,255,255,0.99)",
+              boxShadow: "0 10px 24px rgba(15,23,42,0.06)",
+            }}
+          >
+            <Table size="small" sx={{ minWidth: 480 }}>
+              <TableHead>
+                <TableRow>
+                  <TableCell
+                    sx={{
+                      fontWeight: 800,
+                      fontSize: 11,
+                      bgcolor: "rgba(219,234,254,0.7)",
+                      borderBottom: "1px solid rgba(226,232,240,0.95)",
+                    }}
+                  >
+                    Môn học
+                  </TableCell>
+                  <TableCell
+                    align="center"
+                    sx={{
+                      fontWeight: 800,
+                      fontSize: 11,
+                      width: 96,
+                      bgcolor: "rgba(219,234,254,0.7)",
+                      borderBottom: "1px solid rgba(226,232,240,0.95)",
+                    }}
+                  >
+                    Ngoại ngữ
+                  </TableCell>
+                  {GRADE_LEVELS.map((g) => (
+                    <TableCell
+                      key={g.key}
+                      align="center"
+                      sx={{
+                        fontWeight: 800,
+                        fontSize: 10.5,
+                        whiteSpace: "nowrap",
+                        bgcolor: "rgba(219,234,254,0.7)",
+                        px: 0.65,
+                        borderBottom: "1px solid rgba(226,232,240,0.95)",
+                      }}
+                    >
+                      {gradeLevelHeaderLabel(g)}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {availableSubjectGroups.flatMap((grp) =>
+                  grp.subjects.map((row) => (
+                    <TableRow key={`${grp.groupKey}-${row.id ?? "id"}-${row.name}`} hover>
+                      <TableCell
+                        sx={{
+                          fontSize: 11.5,
+                          fontWeight: 600,
+                          color: "#0f172a",
+                          borderBottom: "1px solid rgba(241,245,249,0.95)",
+                        }}
+                      >
+                        {row.name}
+                      </TableCell>
+                      <TableCell
+                        align="center"
+                        sx={{
+                          fontSize: 11.5,
+                          borderBottom: "1px solid rgba(226,232,240,0.95)",
+                          color: "#94a3b8",
+                        }}
+                      >
+                        {row.isForeignLanguage ? (
+                          <CheckIcon sx={{ fontSize: 18, color: "#16a34a" }} aria-label="Có" />
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      {GRADE_LEVELS.map((g) => (
+                        <TableCell
+                          key={`${row.name}-${g.key}`}
+                          align="center"
+                          sx={{
+                            fontSize: 11.5,
+                            borderBottom: "1px solid rgba(226,232,240,0.95)",
+                            px: 0.5,
+                          }}
+                        >
+                          {gradeTable
+                            ? gradeTable.getScore(row.name, g.gradeLevelEnum, row.id)
+                            : "—"}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </>
       )}
       {!hasAnyData && (
         <Typography sx={{ fontSize: 12.5, color: "#64748b", lineHeight: 1.55, mt: 0.5 }}>

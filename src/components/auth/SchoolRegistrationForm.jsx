@@ -388,7 +388,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                 role: 'SCHOOL',
                 schoolRequest: {
                     description: formData.description.trim(),
-                    schoolName: formData.schoolName.trim(),
+                    schoolName: formData.schoolName.trim().replace(/\s+/g, ' '),
                     campusAddress: formData.campusAddress.trim(),
                     campusPhone: formData.campusPhone.trim(),
                     taxCode: taxCodeValue,
@@ -736,11 +736,19 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     onChange={handleInputChange}
                                                     fullWidth
                                                     size="small"
+                                                    multiline
+                                                    minRows={3}
+                                                    maxRows={8}
                                                     error={!!formErrors.schoolName}
                                                     helperText={formErrors.schoolName}
                                                     sx={{
                                                         '& .MuiOutlinedInput-root': {
                                                             borderRadius: 2,
+                                                            alignItems: 'flex-start',
+                                                        },
+                                                        '& textarea': {
+                                                            wordBreak: 'break-word',
+                                                            overflowWrap: 'anywhere',
                                                         },
                                                     }}
                                                 />
@@ -803,7 +811,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 fullWidth
                                                 size="small"
                                                 multiline
-                                                rows={2}
+                                                minRows={5}
+                                                maxRows={16}
                                                 error={!!formErrors.description}
                                                 helperText={formErrors.description}
                                                 FormHelperTextProps={{sx: {minHeight: 20}}}
@@ -811,6 +820,10 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     '& .MuiOutlinedInput-root': {
                                                         borderRadius: 2,
                                                         alignItems: 'flex-start',
+                                                    },
+                                                    '& textarea': {
+                                                        wordBreak: 'break-word',
+                                                        overflowWrap: 'anywhere',
                                                     },
                                                 }}
                                             />

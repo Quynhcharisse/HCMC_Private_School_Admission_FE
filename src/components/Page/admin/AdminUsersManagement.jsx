@@ -46,7 +46,7 @@ import LockIcon from '@mui/icons-material/Lock';
 import {useLocation, useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {exportSchools, exportUsersByRole, getUsersByRole, setAccountRestricted} from "../../../services/AdminService.jsx";
-import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
+import ConfirmDialog, {ConfirmHighlight} from "../../ui/ConfirmDialog.jsx";
 import {APP_PRIMARY_MAIN} from "../../../constants/homeLandingTheme";
 import {
     adminTableBodyRowSx,
@@ -1354,11 +1354,24 @@ export default function AdminUsersManagement() {
                 open={restrictDialog.open}
                 title="Hạn chế tài khoản"
                 description={
-                    restrictDialog.user
-                        ? `Bạn có chắc muốn hạn chế tài khoản "${restrictDialog.user?.name || restrictDialog.user?.schoolName || "Người dùng"}"?`
-                        : ""
+                    restrictDialog.user ? (
+                        <>
+                            Bạn có chắc muốn <ConfirmHighlight>hạn chế tài khoản</ConfirmHighlight>{" "}
+                            <ConfirmHighlight>
+                                {restrictDialog.user?.name || restrictDialog.user?.schoolName || "Người dùng"}
+                            </ConfirmHighlight>
+                            ?
+                        </>
+                    ) : (
+                        ""
+                    )
                 }
-                extraDescription="Có thể ghi lý do bên dưới (tùy chọn). Tài khoản sẽ bị giới hạn theo chính sách hệ thống."
+                extraDescription={
+                    <>
+                        Có thể ghi lý do bên dưới (tùy chọn). Tài khoản sẽ bị{" "}
+                        <ConfirmHighlight>giới hạn theo chính sách hệ thống</ConfirmHighlight>.
+                    </>
+                }
                 cancelText="Hủy"
                 confirmText={restrictConfirmLoading ? "Đang xử lý..." : "Xác nhận hạn chế"}
                 loading={restrictConfirmLoading}
@@ -1403,11 +1416,24 @@ export default function AdminUsersManagement() {
                 open={unrestrictDialog.open}
                 title="Gỡ hạn chế tài khoản"
                 description={
-                    unrestrictDialog.user
-                        ? `Bạn có chắc muốn gỡ hạn chế cho tài khoản "${unrestrictDialog.user?.name || unrestrictDialog.user?.schoolName || "Người dùng"}"?`
-                        : ""
+                    unrestrictDialog.user ? (
+                        <>
+                            Bạn có chắc muốn <ConfirmHighlight>gỡ hạn chế</ConfirmHighlight> cho tài khoản{" "}
+                            <ConfirmHighlight>
+                                {unrestrictDialog.user?.name || unrestrictDialog.user?.schoolName || "Người dùng"}
+                            </ConfirmHighlight>
+                            ?
+                        </>
+                    ) : (
+                        ""
+                    )
                 }
-                extraDescription="Sau khi gỡ, người dùng có thể sử dụng tài khoản theo quyền và chính sách hiện hành của hệ thống."
+                extraDescription={
+                    <>
+                        Sau khi gỡ, người dùng có thể <ConfirmHighlight>sử dụng tài khoản</ConfirmHighlight> theo quyền và
+                        chính sách hiện hành của hệ thống.
+                    </>
+                }
                 cancelText="Hủy"
                 confirmText={unrestrictConfirmLoading ? "Đang xử lý..." : "Xác nhận gỡ hạn chế"}
                 loading={unrestrictConfirmLoading}

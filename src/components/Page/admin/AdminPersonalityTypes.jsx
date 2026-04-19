@@ -59,7 +59,7 @@ import {
     patchAdminPersonalityTypeStatus,
     postAdminPersonalityType,
 } from "../../../services/AdminService.jsx";
-import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
+import ConfirmDialog, { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 import { APP_PRIMARY_MAIN } from "../../../constants/homeLandingTheme";
 import {
     adminDataCardBorderSx,
@@ -553,11 +553,21 @@ export default function AdminPersonalityTypes() {
                 open={Boolean(deleteRow)}
                 title="Xóa loại tính cách?"
                 description={
-                    deleteRow
-                        ? `Bạn có chắc muốn xóa ${deleteRow.code} — ${deleteRow.name}?`
-                        : ""
+                    deleteRow ? (
+                        <>
+                            Bạn có chắc muốn <ConfirmHighlight>xóa</ConfirmHighlight>{" "}
+                            <ConfirmHighlight>{deleteRow.code}</ConfirmHighlight> —{" "}
+                            <ConfirmHighlight>{deleteRow.name}</ConfirmHighlight>?
+                        </>
+                    ) : (
+                        ""
+                    )
                 }
-                extraDescription="API xóa chưa được kết nối; xác nhận sẽ chỉ đóng hộp thoại."
+                extraDescription={
+                    <>
+                        API xóa chưa được kết nối; <ConfirmHighlight>xác nhận sẽ chỉ đóng hộp thoại</ConfirmHighlight>.
+                    </>
+                }
                 onCancel={() => setDeleteRow(null)}
                 onConfirm={() => {
                     setDeleteRow(null);

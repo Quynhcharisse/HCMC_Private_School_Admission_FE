@@ -54,6 +54,7 @@ import MoreVertIcon from "@mui/icons-material/MoreVert";
 import PersonAddAlt1Icon from "@mui/icons-material/PersonAddAlt1";
 import PeopleOutlineIcon from "@mui/icons-material/PeopleOutline";
 import { enqueueSnackbar } from "notistack";
+import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 import {
   buildUpsertCampusScheduleTemplatePayload,
   getCampusScheduleTemplateList,
@@ -2915,12 +2916,14 @@ export default function SchoolCounselorSchedule() {
         maxWidth="sm"
         PaperProps={{ sx: { borderRadius: "16px" } }}
       >
-        <DialogTitle sx={{ fontWeight: 800, pr: 5 }}>Xác nhận hủy gán</DialogTitle>
-        <DialogContent dividers>
-          <Typography variant="body2" sx={{ color: "#334155", lineHeight: 1.6, mb: 2 }}>
-            {unassignDialog.rows.length <= 1
-              ? "Bạn sắp hủy gán một lượt trên lịch. Thao tác dựa trên mã lịch (slotId) đã tải từ máy chủ."
-              : `Bạn sắp hủy gán ${unassignDialog.rows.length} lượt cùng lúc (all-or-nothing trên máy chủ).`}
+        <DialogTitle sx={{ fontWeight: 700 }}>Gỡ tư vấn viên?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" sx={{ color: "#4B5563", mb: 1.5 }}>
+            Bạn có chắc muốn <ConfirmHighlight>gỡ</ConfirmHighlight>{" "}
+            <ConfirmHighlight>
+              {unassignDialog.row ? assignedCounsellorLabel(unassignDialog.row.counsellor) : ""}
+            </ConfirmHighlight>{" "}
+            khỏi khung giờ này trong khoảng:
           </Typography>
           <Stack spacing={1} sx={{ maxHeight: 280, overflow: "auto" }}>
             {unassignDialog.rows.map((row, i) => (

@@ -22,6 +22,7 @@ import {ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Close 
 import {disablePostStatus, getPostList} from "../../services/PostService.jsx";
 import {APP_PRIMARY_MAIN, BRAND_NAVY} from "../../constants/homeLandingTheme";
 import {enqueueSnackbar} from "notistack";
+import {ConfirmHighlight} from "../ui/ConfirmDialog.jsx";
 import {normalizeUserRole} from "../../utils/userRole.js";
 
 const DEFAULT_SCHOOL_IMAGE =
@@ -495,7 +496,7 @@ export default function PostFeedPage() {
                 <DialogTitle sx={{fontWeight: 800}}>Ẩn bài đăng</DialogTitle>
                 <DialogContent dividers>
                     <Typography sx={{color: "#475569", mb: 1}}>
-                        Bài đăng sẽ bị ẩn khỏi người dùng khác.
+                        Bài đăng sẽ <ConfirmHighlight>bị ẩn khỏi người dùng khác</ConfirmHighlight>.
                     </Typography>
                     <TextField
                         label="Ghi chú"

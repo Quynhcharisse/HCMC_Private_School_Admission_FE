@@ -51,7 +51,7 @@ import AddIcon from "@mui/icons-material/Add";
 import FileUploadSharpIcon from "@mui/icons-material/FileUploadSharp";
 import BlockSharpIcon from "@mui/icons-material/BlockSharp";
 import { enqueueSnackbar } from "notistack";
-import ConfirmDialog from "../../ui/ConfirmDialog.jsx";
+import ConfirmDialog, { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 import { APP_PRIMARY_MAIN } from "../../../constants/homeLandingTheme";
 import {
     adminDialogActionsSx,
@@ -977,7 +977,7 @@ export default function AdminPackageFeeManagement() {
                         >
                             <FormControlLabel
                                 control={<Switch checked={Boolean(form.allowChat)} onChange={(e) => setForm((prev) => ({ ...prev, allowChat: e.target.checked }))} />}
-                                label="Cho phép Chatbot AI"
+                                label="Được dùng Chatbot AI"
                             />
                         </Stack>
                         {isEdit && (
@@ -1000,8 +1000,21 @@ export default function AdminPackageFeeManagement() {
             <ConfirmDialog
                 open={publishConfirmOpen}
                 title="Công khai gói dịch vụ"
-                description="Bạn có chắc chắn muốn công khai gói dịch vụ này?"
-                extraDescription="Nó sẽ có thể được nhìn thấy bởi khách hàng."
+                description={
+                    publishTargetRow ? (
+                        <>
+                            Bạn có chắc chắn muốn <ConfirmHighlight>công khai</ConfirmHighlight> gói{" "}
+                            <ConfirmHighlight>{publishTargetRow.name}</ConfirmHighlight>?
+                        </>
+                    ) : (
+                        "Bạn có chắc chắn muốn công khai gói dịch vụ này?"
+                    )
+                }
+                extraDescription={
+                    <>
+                        Gói sẽ <ConfirmHighlight>hiển thị cho khách hàng</ConfirmHighlight> trên hệ thống.
+                    </>
+                }
                 cancelText="Hủy"
                 confirmText={publishLoading ? "Đang xử lý..." : "Công khai"}
                 onCancel={closePublishConfirm}
@@ -1020,8 +1033,23 @@ export default function AdminPackageFeeManagement() {
             <ConfirmDialog
                 open={deactiveConfirmOpen}
                 title="Ngừng mở bán gói"
-                description="Bạn có chắc chắn muốn ngừng mở bán gói dịch vụ này?"
-                extraDescription="Trường đang sử dụng gói vẫn thấy gói ở trạng thái hoạt động. Gói sẽ chuyển sang chờ ngừng bán — không còn hiển thị trên trang chủ để trường mới chọn mua."
+                description={
+                    deactiveTargetRow ? (
+                        <>
+                            Bạn có chắc chắn muốn <ConfirmHighlight>ngừng mở bán</ConfirmHighlight> gói{" "}
+                            <ConfirmHighlight>{deactiveTargetRow.name}</ConfirmHighlight>?
+                        </>
+                    ) : (
+                        "Bạn có chắc chắn muốn ngừng mở bán gói dịch vụ này?"
+                    )
+                }
+                extraDescription={
+                    <>
+                        Trường đang sử dụng gói vẫn thấy gói ở trạng thái hoạt động. Gói sẽ chuyển sang{" "}
+                        <ConfirmHighlight>chờ ngừng bán</ConfirmHighlight> — không còn hiển thị trên trang chủ để trường mới
+                        chọn mua.
+                    </>
+                }
                 cancelText="Hủy"
                 confirmText={deactiveLoading ? "Đang xử lý..." : "Ngừng mở bán"}
                 onCancel={closeDeactiveConfirm}

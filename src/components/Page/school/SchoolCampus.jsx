@@ -3,6 +3,7 @@ import {
     Box,
     Button,
     Card,
+    CircularProgress,
     CardContent,
     Dialog,
     DialogActions,
@@ -42,6 +43,7 @@ import PhoneIcon from "@mui/icons-material/Phone";
 import MailOutlineIcon from "@mui/icons-material/MailOutline";
 import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
 import {enqueueSnackbar} from "notistack";
+import {ConfirmHighlight} from "../../ui/ConfirmDialog.jsx";
 import { CircleMarker, MapContainer, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import {useSchool} from "../../../contexts/SchoolContext.jsx";
@@ -192,6 +194,7 @@ export default function SchoolCampus() {
     const [selectedCreateDistrictCode, setSelectedCreateDistrictCode] = useState("");
     const [selectedCreateWardCode, setSelectedCreateWardCode] = useState("");
     const [geocodingCreate, setGeocodingCreate] = useState(false);
+    const [createCampusSubmitting, setCreateCampusSubmitting] = useState(false);
     const geocodeCreateRequestIdRef = useRef(0);
     const [page, setPage] = useState(0);
     const rowsPerPage = 10;
@@ -407,6 +410,7 @@ export default function SchoolCampus() {
         setSelectedCreateWardCode("");
         setWardOptions([]);
         setGeocodingCreate(false);
+        setCreateCampusSubmitting(false);
         setFormErrors({});
         setCreateModalOpen(false);
     };
@@ -487,6 +491,7 @@ export default function SchoolCampus() {
     const handleCreateSubmit = async () => {
         if (!validateForm()) return;
 
+        setCreateCampusSubmitting(true);
         try {
             const boardingEnum = parseBoardingType(formValues.boardingType);
             const res = await createCampus({
@@ -553,6 +558,8 @@ export default function SchoolCampus() {
                 typeof apiMsg === "string" && apiMsg.trim() ? apiMsg.trim() : "Lỗi khi tạo cơ sở",
                 {variant: "error"}
             );
+        } finally {
+            setCreateCampusSubmitting(false);
         }
     };
 
@@ -1014,6 +1021,7 @@ export default function SchoolCampus() {
                 open={createModalOpen}
                 onClose={(event, reason) => {
                     if (reason === "backdropClick") return;
+                    if (createCampusSubmitting) return;
                     handleCloseCreate();
                 }}
                 fullWidth
@@ -1041,6 +1049,7 @@ export default function SchoolCampus() {
                         <IconButton
                             onClick={handleCloseCreate}
                             size="small"
+                            disabled={createCampusSubmitting}
                             sx={{mt: -0.5, mr: -0.5}}
                             aria-label="Đóng"
                         >
@@ -1205,6 +1214,7 @@ export default function SchoolCampus() {
                         onClick={handleCloseCreate}
                         variant="text"
                         color="inherit"
+                        disabled={createCampusSubmitting}
                         sx={{textTransform: "none", fontWeight: 500}}
                     >
                         Hủy
@@ -1212,6 +1222,12 @@ export default function SchoolCampus() {
                     <Button
                         onClick={handleCreateSubmit}
                         variant="contained"
+                        disabled={createCampusSubmitting}
+                        startIcon={
+                            createCampusSubmitting ? (
+                                <CircularProgress size={18} color="inherit" aria-label="Đang xử lý"/>
+                            ) : undefined
+                        }
                         sx={{
                             textTransform: "none",
                             fontWeight: 600,
@@ -1220,7 +1236,7 @@ export default function SchoolCampus() {
                             background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                         }}
                     >
-                        Tạo cơ sở
+                        {createCampusSubmitting ? "Đang tạo…" : "Tạo cơ sở"}
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -1941,9 +1957,9 @@ export default function SchoolCampus() {
                 </DialogTitle>
                 <DialogContent>
                     <Typography>
-                        Bạn có chắc muốn vô hiệu hóa{" "}
-                        <strong>{selectedCampus?.name}</strong>? Cơ sở này sẽ được
-                        đánh dấu là ngưng hoạt động và có thể bị ẩn khỏi phụ huynh.
+                        Bạn có chắc muốn <ConfirmHighlight>vô hiệu hóa</ConfirmHighlight> cơ sở{" "}
+                        <ConfirmHighlight>{selectedCampus?.name}</ConfirmHighlight>? Cơ sở này sẽ được đánh dấu là{" "}
+                        <ConfirmHighlight>ngưng hoạt động</ConfirmHighlight> và có thể bị ẩn khỏi phụ huynh.
                     </Typography>
                 </DialogContent>
                 <DialogActions sx={{px: 3, pb: 2}}>

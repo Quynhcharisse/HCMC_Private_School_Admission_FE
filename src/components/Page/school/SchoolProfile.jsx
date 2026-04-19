@@ -33,7 +33,9 @@ import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import ZoomInIcon from "@mui/icons-material/ZoomIn";
 import ZoomOutIcon from "@mui/icons-material/ZoomOut";
 import { enqueueSnackbar } from "notistack";
+import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 import { getProfile, updateProfile } from "../../../services/AccountService.jsx";
+import {notifyAuthUserStorageChanged, sanitizeUserForLocalStorage} from "../../../utils/userRole.js";
 import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
 import { CircleMarker, MapContainer, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -159,7 +161,11 @@ function syncSchoolFirstLoginInStorage(nextFirstLogin) {
     try {
         const u = JSON.parse(raw);
         if (u?.role === "SCHOOL" && nextFirstLogin !== undefined) {
-            localStorage.setItem("user", JSON.stringify({ ...u, firstLogin: nextFirstLogin }));
+            localStorage.setItem(
+                "user",
+                JSON.stringify(sanitizeUserForLocalStorage({ ...u, firstLogin: nextFirstLogin })),
+            );
+            notifyAuthUserStorageChanged();
         }
     } catch {
         /* ignore */
@@ -1500,7 +1506,8 @@ export default function SchoolProfile() {
                 <DialogTitle sx={{ fontWeight: 700 }}>Đóng chỉnh sửa?</DialogTitle>
                 <DialogContent>
                     <Typography variant="body2" color="text.secondary">
-                        Bạn có thay đổi chưa lưu. Bạn có chắc muốn đóng?
+                        Bạn có <ConfirmHighlight>thay đổi chưa lưu</ConfirmHighlight>. Bạn có chắc muốn{" "}
+                        <ConfirmHighlight>đóng</ConfirmHighlight>?
                     </Typography>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
