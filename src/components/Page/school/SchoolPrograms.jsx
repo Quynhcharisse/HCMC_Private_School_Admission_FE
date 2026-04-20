@@ -1524,7 +1524,7 @@ export default function SchoolPrograms() {
                             letterSpacing: "-0.02em",
                             textShadow: "0 1px 2px rgba(0,0,0,0.1)"
                         }}>
-                            Quản lý chương trình <Program></Program>
+                            Quản lý chương trình đào tạo
                         </Typography>
                     </Box>
 
