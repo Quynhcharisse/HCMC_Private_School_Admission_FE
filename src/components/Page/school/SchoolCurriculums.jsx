@@ -49,7 +49,10 @@ import ComputerIcon from "@mui/icons-material/Computer";
 import VisibilityIconOutlined from "@mui/icons-material/VisibilityOutlined";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+import PublishIcon from "@mui/icons-material/Publish";
+import ArchiveOutlinedIcon from "@mui/icons-material/ArchiveOutlined";
 import { enqueueSnackbar } from "notistack";
+import { useNavigate } from "react-router-dom";
 import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 
 import { useSchool } from "../../../contexts/SchoolContext.jsx";
@@ -127,6 +130,13 @@ const methodLearningIconMap = {
     VISUAL_PRACTICE: VisibilityIconOutlined,
     STEM_STEAM: MenuBookIcon,
 };
+
+/** FE: disable Archive khi còn program (BE vẫn trả 409 nếu race). */
+const ARCHIVE_DISABLED_TOOLTIP =
+    "Còn chương trình gắn khung — không thể lưu trữ. Gỡ/chuyển program hoặc dùng chỉnh sửa phiên bản (Revise/Publish).";
+
+const PUBLISH_REPLACE_HINT =
+    "Công bố bản nháp sẽ kích hoạt khung này và lưu trữ bản đang chạy trước đó (cùng loại + năm áp dụng).";
 
 const normalizeStatus = (status) => String(status || "").toUpperCase();
 
@@ -231,22 +241,60 @@ function mapCurriculumFromApi(item) {
 }
 
 function extractCurriculumIdFromResponse(res) {
-    // BE có thể trả ID ở nhiều vị trí khác nhau.
+    // BE có thể trả ID ở nhiều vị trí khác nhau (kể cả body là số thuần sau REVISE).
     const location = res?.headers?.location ?? res?.headers?.Location ?? null;
     if (location) {
         const match = String(location).match(/\/(\d+)(?:\/)?$/);
         if (match?.[1]) return Number(match[1]);
     }
 
+    const rawBody = res?.data?.body;
+    if (typeof rawBody === "number" && Number.isFinite(rawBody)) return rawBody;
+    if (typeof rawBody === "string" && /^\d+$/.test(rawBody.trim())) return Number(rawBody.trim());
+
     return (
-        res?.data?.body?.id ??
-        res?.data?.body?.curriculumId ??
-        res?.data?.body?.draftId ??
-        res?.data?.body?.createdId ??
+        rawBody?.id ??
+        rawBody?.curriculumId ??
+        rawBody?.draftId ??
+        rawBody?.createdId ??
         res?.data?.id ??
         res?.data?.curriculumId ??
         null
     );
+}
+
+/** Đọc message lỗi/thành công từ ResponseObject (axios response.data). */
+function getCurriculumApiMessage(responseData) {
+    const d = responseData?.data ?? responseData;
+    if (!d || typeof d !== "object") return "";
+    if (typeof d.message === "string" && d.message.trim()) return d.message.trim();
+    const b = d.body;
+    if (typeof b === "string" && b.trim()) return b.trim();
+    if (b && typeof b === "object" && typeof b.message === "string" && b.message.trim()) return b.message.trim();
+    return "";
+}
+
+function getCurriculumErrorMessage(err) {
+    return getCurriculumApiMessage(err?.response) || String(err?.message || "").trim();
+}
+
+function handleCurriculumActivateHttpError(err, opts) {
+    const status = err?.response?.status;
+    const raw = getCurriculumErrorMessage(err);
+    const msg = toVietnameseValidationMessage(raw) || raw || "Thao tác thất bại.";
+    if (status === 404) {
+        opts?.on404?.(msg);
+        return;
+    }
+    if (status === 403) {
+        enqueueSnackbar(msg || "Không có quyền thực hiện thao tác này (thường gặp ở cơ sở phụ).", { variant: "error" });
+        return;
+    }
+    if (status === 409) {
+        opts?.on409?.(raw || msg, msg);
+        return;
+    }
+    enqueueSnackbar(msg, { variant: "error" });
 }
 
 function mapSubjectOptionsForApi(subjectOptions) {
@@ -366,6 +414,7 @@ function ChipStatus({ status }) {
 }
 
 export default function SchoolCurriculums() {
+    const navigate = useNavigate();
     const { isPrimaryBranch } = useSchool();
     const [loading, setLoading] = useState(true);
     const [curriculums, setCurriculums] = useState([]);
@@ -389,10 +438,16 @@ export default function SchoolCurriculums() {
     const [evolveLoading, setEvolveLoading] = useState(false);
     const [publishLoading, setPublishLoading] = useState(false);
     const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
+    /** Khung đang xác nhận công bố (từ modal xem hoặc từ bảng); null thì fallback viewCurriculum nếu modal xem mở. */
+    const [publishPendingCurriculum, setPublishPendingCurriculum] = useState(null);
     const [curriculumToEditAfterConfirm, setCurriculumToEditAfterConfirm] = useState(null);
     const [activeLockedChoiceOpen, setActiveLockedChoiceOpen] = useState(false);
     const [selectedActiveLockedOption, setSelectedActiveLockedOption] = useState("");
-    const [programLinkedBlockedOpen, setProgramLinkedBlockedOpen] = useState(false);
+    const [archiveLoading, setArchiveLoading] = useState(false);
+    const [confirmArchiveOpen, setConfirmArchiveOpen] = useState(false);
+    const [curriculumToArchive, setCurriculumToArchive] = useState(null);
+    const [activateConflictOpen, setActivateConflictOpen] = useState(false);
+    const [activateConflictText, setActivateConflictText] = useState("");
     const [pendingScrollSubjectIndex, setPendingScrollSubjectIndex] = useState(null);
     const [pendingScrollModal, setPendingScrollModal] = useState(null);
     const createSubjectItemRefs = useRef({});
@@ -609,7 +664,6 @@ export default function SchoolCurriculums() {
 
     const handleOpenCreate = () => {
         if (!isPrimaryBranch) return;
-        setProgramLinkedBlockedOpen(false);
         setActiveLockedChoiceOpen(false);
         setSelectedActiveLockedOption("");
         setCurriculumToEditAfterConfirm(null);
@@ -668,56 +722,76 @@ export default function SchoolCurriculums() {
             return;
         }
         const statusKey = normalizeStatus(curriculum?.curriculumStatus);
-        const linkedProgramCount = Number(curriculum?.programCount || 0);
-
-        if (linkedProgramCount > 0) {
-            setCurriculumToEditAfterConfirm(curriculum);
-            setProgramLinkedBlockedOpen(true);
-            return;
-        }
 
         if (statusKey === "CUR_ACTIVE") {
             setCurriculumToEditAfterConfirm(curriculum);
             setSelectedActiveLockedOption("");
             setActiveLockedChoiceOpen(true);
-        } else {
-            handleOpenEdit(curriculum);
+            return;
+        }
+        handleOpenEdit(curriculum);
+    };
+
+    const runReviseForCurriculum = async (base) => {
+        if (!isPrimaryBranch || !base) return;
+        setEvolveLoading(true);
+        try {
+            const reviseRes = await activateCurriculum(base.id, "REVISE");
+            const newDraftId = extractCurriculumIdFromResponse(reviseRes) ?? reviseRes?.data?.body;
+            if (!newDraftId) {
+                enqueueSnackbar(
+                    toVietnameseValidationMessage(getCurriculumApiMessage(reviseRes)) ||
+                        "Đã tạo bản nháp mới nhưng không lấy được ID để mở chỉnh sửa.",
+                    { variant: "warning" }
+                );
+                await loadData(page, rowsPerPage);
+                return;
+            }
+            const draftCurriculum = { ...base, id: Number(newDraftId), curriculumStatus: "CUR_DRAFT" };
+            setViewModalOpen(false);
+            setViewCurriculum(null);
+            handleOpenEdit(draftCurriculum);
+            enqueueSnackbar(
+                toVietnameseValidationMessage(getCurriculumApiMessage(reviseRes)) ||
+                    "Đã tạo bản nháp mới. Chỉnh sửa rồi công bố — khi đó bản đang chạy cùng loại + năm sẽ được lưu trữ và thay thế.",
+                { variant: "success" }
+            );
+            setCurriculumToEditAfterConfirm(null);
+            await loadData(page, rowsPerPage);
+        } catch (err) {
+            console.error("Evolve curriculum error:", err);
+            handleCurriculumActivateHttpError(err, {
+                on404: async (msg) => {
+                    setCurriculumToEditAfterConfirm(null);
+                    setViewModalOpen(false);
+                    setViewCurriculum(null);
+                    await loadData(page, rowsPerPage);
+                    enqueueSnackbar(msg || "Không tìm thấy khung chương trình.", { variant: "warning" });
+                },
+                on409: (raw) => {
+                    setActivateConflictText(
+                        toVietnameseValidationMessage(raw) ||
+                            raw ||
+                            "Không thể thực hiện do xung đột dữ liệu. Kiểm tra chương trình đào tạo liên kết hoặc thử lại."
+                    );
+                    setActivateConflictOpen(true);
+                },
+            });
+        } finally {
+            setEvolveLoading(false);
         }
     };
 
     const handleConfirmEvolve = async () => {
-        if (!isPrimaryBranch) return;
         if (!curriculumToEditAfterConfirm) return;
-        setEvolveLoading(true);
-        try {
-            const base = curriculumToEditAfterConfirm;
-            const reviseRes = await activateCurriculum(base.id, "REVISE");
-            const newDraftId = reviseRes?.data?.body ?? extractCurriculumIdFromResponse(reviseRes);
-            if (!newDraftId) {
-                enqueueSnackbar(
-                    toVietnameseValidationMessage(reviseRes?.data?.message) ||
-                        "Đã tạo bản nháp mới nhưng không lấy được ID để mở chỉnh sửa.",
-                    { variant: "warning" }
-                );
-                return;
-            }
-            const draftCurriculum = { ...base, id: newDraftId, curriculumStatus: "CUR_DRAFT" };
-            handleOpenEdit(draftCurriculum);
-            enqueueSnackbar(
-                toVietnameseValidationMessage(reviseRes?.data?.message) || "Đã tạo bản nháp mới. Bạn có thể chỉnh sửa ngay bây giờ.",
-                { variant: "success" }
-            );
-            setCurriculumToEditAfterConfirm(null);
-        } catch (err) {
-            console.error("Evolve curriculum error:", err);
-            enqueueSnackbar(
-                toVietnameseValidationMessage(err?.response?.data?.message) || "Lỗi khi tạo bản nháp từ curriculum đang hoạt động.",
-                { variant: "error" }
-            );
-        } finally {
-            setEvolveLoading(false);
-            setActiveLockedChoiceOpen(false);
-        }
+        await runReviseForCurriculum(curriculumToEditAfterConfirm);
+        setActiveLockedChoiceOpen(false);
+    };
+
+    const openReviseFromView = () => {
+        if (!isPrimaryBranch || !viewCurriculum) return;
+        if (normalizeStatus(viewCurriculum.curriculumStatus) !== "CUR_ACTIVE") return;
+        void runReviseForCurriculum(viewCurriculum);
     };
 
     const handleCloseCreate = () => {
@@ -742,27 +816,106 @@ export default function SchoolCurriculums() {
         setViewModalOpen(true);
     };
 
-    const handlePublishFromView = async () => {
-        if (!isPrimaryBranch) return;
-        if (!viewCurriculum) return;
-        if (publishLoading) return;
+    const resolvePublishTarget = () => publishPendingCurriculum ?? viewCurriculum;
 
-        const statusKey = normalizeStatus(viewCurriculum?.curriculumStatus);
-        if (statusKey !== "CUR_DRAFT") return;
+    const executePublish = async () => {
+        if (!isPrimaryBranch || publishLoading) return;
+        const target = resolvePublishTarget();
+        if (!target) return;
+        if (normalizeStatus(target.curriculumStatus) !== "CUR_DRAFT") return;
 
         setPublishLoading(true);
         try {
-            const actRes = await activateCurriculum(viewCurriculum.id, "PUBLISH");
-            enqueueSnackbar(toVietnameseValidationMessage(actRes?.data?.message) || "Công bố chương trình thành công", { variant: "success" });
-            setViewModalOpen(false);
-            setViewCurriculum(null);
+            const actRes = await activateCurriculum(target.id, "PUBLISH");
+            enqueueSnackbar(
+                toVietnameseValidationMessage(getCurriculumApiMessage(actRes)) || "Công bố thành công.",
+                { variant: "success" }
+            );
             setConfirmPublishOpen(false);
+            setPublishPendingCurriculum(null);
+            if (viewModalOpen && viewCurriculum && Number(viewCurriculum.id) === Number(target.id)) {
+                setViewModalOpen(false);
+                setViewCurriculum(null);
+            }
             await loadData(page, rowsPerPage);
         } catch (err) {
             console.error("Publish curriculum error:", err);
-            enqueueSnackbar(toVietnameseValidationMessage(err?.response?.data?.message) || "Lỗi khi công bố curriculum", { variant: "error" });
+            handleCurriculumActivateHttpError(err, {
+                on404: async (msg) => {
+                    setConfirmPublishOpen(false);
+                    setPublishPendingCurriculum(null);
+                    setViewModalOpen(false);
+                    setViewCurriculum(null);
+                    await loadData(page, rowsPerPage);
+                    enqueueSnackbar(msg || "Không tìm thấy khung chương trình.", { variant: "warning" });
+                },
+                on409: (raw) => {
+                    setConfirmPublishOpen(false);
+                    setPublishPendingCurriculum(null);
+                    setActivateConflictText(
+                        toVietnameseValidationMessage(raw) ||
+                            raw ||
+                            "Không thể công bố do xung đột. Kiểm tra phiên bản đang chạy hoặc chương trình liên kết."
+                    );
+                    setActivateConflictOpen(true);
+                },
+            });
         } finally {
             setPublishLoading(false);
+        }
+    };
+
+    const openArchiveConfirm = (curriculum) => {
+        if (!isPrimaryBranch || !curriculum) return;
+        const st = normalizeStatus(curriculum.curriculumStatus);
+        if (st === "CUR_ARCHIVED") return;
+        setCurriculumToArchive(curriculum);
+        setConfirmArchiveOpen(true);
+    };
+
+    const closeArchiveConfirm = () => {
+        if (archiveLoading) return;
+        setConfirmArchiveOpen(false);
+        setCurriculumToArchive(null);
+    };
+
+    const executeArchive = async () => {
+        if (!isPrimaryBranch || archiveLoading || !curriculumToArchive) return;
+        setArchiveLoading(true);
+        const archivedId = curriculumToArchive.id;
+        try {
+            const res = await activateCurriculum(archivedId, "ARCHIVE");
+            enqueueSnackbar(toVietnameseValidationMessage(getCurriculumApiMessage(res)) || "Đã lưu trữ khung chương trình.", { variant: "success" });
+            setConfirmArchiveOpen(false);
+            setCurriculumToArchive(null);
+            if (viewModalOpen && viewCurriculum && Number(viewCurriculum.id) === Number(archivedId)) {
+                setViewModalOpen(false);
+                setViewCurriculum(null);
+            }
+            await loadData(page, rowsPerPage);
+        } catch (err) {
+            console.error("Archive curriculum error:", err);
+            handleCurriculumActivateHttpError(err, {
+                on404: async (msg) => {
+                    closeArchiveConfirm();
+                    setViewModalOpen(false);
+                    setViewCurriculum(null);
+                    await loadData(page, rowsPerPage);
+                    enqueueSnackbar(msg || "Không tìm thấy khung chương trình.", { variant: "warning" });
+                },
+                on409: (raw) => {
+                    setConfirmArchiveOpen(false);
+                    setCurriculumToArchive(null);
+                    setActivateConflictText(
+                        toVietnameseValidationMessage(raw) ||
+                            raw ||
+                            "Không thể lưu trữ: còn chương trình đào tạo gắn khung. Gỡ/chuyển program hoặc dùng Revise/Publish."
+                    );
+                    setActivateConflictOpen(true);
+                },
+            });
+        } finally {
+            setArchiveLoading(false);
         }
     };
 
@@ -1042,12 +1195,7 @@ export default function SchoolCurriculums() {
                                 textShadow: "0 1px 2px rgba(0,0,0,0.1)",
                             }}
                         >
-                            Quản lý chương trình học
-                        </Typography>
-                        <Typography variant="body2" sx={{ mt: 0.5, opacity: 0.95 }}>
-                            {isPrimaryBranch
-                                ? "Tạo mới, cập nhật và quản lý trạng thái công bố của các chương trình học."
-                                : "Xem chương trình học của trường (cơ sở phụ không được tạo/sửa/công bố)."}
+                            Quản lý khung chương trình
                         </Typography>
                     </Box>
 
@@ -1320,7 +1468,14 @@ export default function SchoolCurriculums() {
                                         </TableCell>
                                         {isPrimaryBranch && (
                                             <TableCell align="right">
-                                                <Stack direction="row" spacing={0.5} justifyContent="flex-end" alignItems="center">
+                                                <Stack
+                                                    direction="row"
+                                                    spacing={0.5}
+                                                    justifyContent="flex-end"
+                                                    alignItems="center"
+                                                    flexWrap="wrap"
+                                                    useFlexGap
+                                                >
                                                     <IconButton
                                                         size="small"
                                                         onClick={(e) => {
@@ -1345,10 +1500,60 @@ export default function SchoolCurriculums() {
                                                             color: "#64748b",
                                                             "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" },
                                                         }}
-                                                        title="Sửa"
+                                                        title="Sửa / phiên bản"
                                                     >
                                                         <EditIcon fontSize="small" />
                                                     </IconButton>
+                                                    {normalizeStatus(row.curriculumStatus) === "CUR_DRAFT" && (
+                                                        <Tooltip title={PUBLISH_REPLACE_HINT} arrow>
+                                                            <span>
+                                                                <IconButton
+                                                                    size="small"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setPublishPendingCurriculum(row);
+                                                                        setConfirmPublishOpen(true);
+                                                                    }}
+                                                                    sx={{
+                                                                        color: "#64748b",
+                                                                        "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" },
+                                                                    }}
+                                                                    title="Công bố"
+                                                                >
+                                                                    <PublishIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </span>
+                                                        </Tooltip>
+                                                    )}
+                                                    {(normalizeStatus(row.curriculumStatus) === "CUR_DRAFT" ||
+                                                        normalizeStatus(row.curriculumStatus) === "CUR_ACTIVE") && (
+                                                        <Tooltip
+                                                            title={
+                                                                row.programCount > 0
+                                                                    ? ARCHIVE_DISABLED_TOOLTIP
+                                                                    : "Lưu trữ khung (thủ công)"
+                                                            }
+                                                            arrow
+                                                        >
+                                                            <span>
+                                                                <IconButton
+                                                                    size="small"
+                                                                    disabled={row.programCount > 0}
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        openArchiveConfirm(row);
+                                                                    }}
+                                                                    sx={{
+                                                                        color: "#64748b",
+                                                                        "&:hover": { color: "#c2410c", bgcolor: "rgba(234, 88, 12, 0.1)" },
+                                                                    }}
+                                                                    title="Lưu trữ"
+                                                                >
+                                                                    <ArchiveOutlinedIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </span>
+                                                        </Tooltip>
+                                                    )}
                                                 </Stack>
                                             </TableCell>
                                         )}
@@ -1382,56 +1587,6 @@ export default function SchoolCurriculums() {
                     )}
             </Card>
 
-            {/* Block Update When Program Linked */}
-            <Dialog
-                open={programLinkedBlockedOpen}
-                onClose={(event, reason) => {
-                    if (reason === "backdropClick") return;
-                    if (evolveLoading) return;
-                    setProgramLinkedBlockedOpen(false);
-                    setCurriculumToEditAfterConfirm(null);
-                }}
-                fullWidth
-                maxWidth="sm"
-                PaperProps={{ sx: { borderRadius: "16px", position: "relative" } }}
-            >
-                <DialogContent sx={{ pt: 2.5 }}>
-                    <Stack direction="row" spacing={1.2} alignItems="center">
-                        <WarningAmberRoundedIcon sx={{ color: "red" }} />
-                        <Typography variant="h6" sx={{ fontWeight: 700, color: "red" }}>
-                            Không thể cập nhật Curriculum
-                        </Typography>
-                    </Stack>
-                    <Typography variant="body1" color="#1e293b" sx={{ mt: 1.25, lineHeight: 1.6 }}>
-                        Không thể cập nhật khi Khung chương trình <Box component="span" sx={{ fontWeight: 700 }}>đang trong trạng thái mở</Box> và{" "}
-                        <Box component="span" sx={{ fontWeight: 700 }}>đã có Program</Box>.
-                    </Typography>
-                    <Typography variant="body1" sx={{ mt: 0.35, lineHeight: 1.6, fontWeight: 700, color: "#1e293b" }}>
-                        Vui lòng tạo mới Khung chương trình.
-                    </Typography>
-                </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2.5, gap: 1, flexWrap: "wrap" }}>
-                    <Button
-                        onClick={() => {
-                            setProgramLinkedBlockedOpen(false);
-                            setCurriculumToEditAfterConfirm(null);
-                        }}
-                        disabled={evolveLoading}
-                        sx={{ textTransform: "none", color: "#64748b" }}
-                    >
-                        Đóng
-                    </Button>
-                    <Button
-                        variant="contained"
-                        onClick={handleOpenCreate}
-                        disabled={evolveLoading}
-                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px", bgcolor: HEADER_ACCENT }}
-                    >
-                        Tạo Khung chương trình
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
             {/* Active Curriculum Update Options */}
             <Dialog
                 open={activeLockedChoiceOpen}
@@ -1451,7 +1606,8 @@ export default function SchoolCurriculums() {
                         Không thể cập nhật Curriculum
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25, lineHeight: 1.6 }}>
-                        Không thể cập nhật khi Khung chương trình đang trong trạng thái mở. Vui lòng chọn 2 options dưới đây.
+                        Không thể sửa trực tiếp khung đang hoạt động. Chọn tạo khung mới hoặc tạo bản nháp (Revise) từ bản đang chạy — sau
+                        khi chỉnh sửa, công bố bản nháp sẽ kích hoạt khung đó và lưu trữ bản đang chạy trước đó (cùng loại + năm áp dụng).
                     </Typography>
                     <Stack spacing={1.5} sx={{ mt: 2 }}>
                         <Card
@@ -1544,9 +1700,10 @@ export default function SchoolCurriculums() {
                 open={viewModalOpen}
                 onClose={(event, reason) => {
                     if (reason === "backdropClick") return;
-                    if (publishLoading) return;
+                    if (publishLoading || archiveLoading || evolveLoading) return;
                     setViewModalOpen(false);
                     setConfirmPublishOpen(false);
+                    setPublishPendingCurriculum(null);
                 }}
                 maxWidth="md"
                 fullWidth
@@ -1556,11 +1713,12 @@ export default function SchoolCurriculums() {
                 <IconButton
                     aria-label="Đóng"
                     onClick={() => {
-                        if (publishLoading) return;
+                        if (publishLoading || archiveLoading || evolveLoading) return;
                         setViewModalOpen(false);
                         setConfirmPublishOpen(false);
+                        setPublishPendingCurriculum(null);
                     }}
-                    disabled={publishLoading}
+                    disabled={publishLoading || archiveLoading || evolveLoading}
                     sx={{
                         position: "absolute",
                         right: 8,
@@ -1602,6 +1760,11 @@ export default function SchoolCurriculums() {
                                 {!isPrimaryBranch ? (
                                     <Alert severity="info" sx={{ py: 0.75 }}>
                                         Cơ sở phụ chỉ xem được thông tin. Tạo, chỉnh sửa và công bố chỉ thực hiện tại cơ sở chính.
+                                    </Alert>
+                                ) : null}
+                                {isPrimaryBranch && statusKey === "CUR_DRAFT" ? (
+                                    <Alert severity="info" sx={{ py: 0.75 }}>
+                                        {PUBLISH_REPLACE_HINT}
                                     </Alert>
                                 ) : null}
                                 {/* Hero section */}
@@ -1935,23 +2098,64 @@ export default function SchoolCurriculums() {
                         display: "flex",
                         justifyContent: "flex-end",
                         gap: 1,
+                        flexWrap: "wrap",
                     }}
                 >
                     <Button
                         onClick={() => {
-                            if (publishLoading) return;
+                            if (publishLoading || archiveLoading || evolveLoading) return;
                             setViewModalOpen(false);
                             setConfirmPublishOpen(false);
+                            setPublishPendingCurriculum(null);
                         }}
                         sx={{ textTransform: "none", fontWeight: 700, color: "#475569" }}
                     >
                         Đóng
                     </Button>
+                    {isPrimaryBranch && normalizeStatus(viewCurriculum?.curriculumStatus) === "CUR_ACTIVE" && (
+                        <Button
+                            onClick={openReviseFromView}
+                            variant="outlined"
+                            disabled={evolveLoading || publishLoading}
+                            sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                        >
+                            {evolveLoading ? "Đang tạo nháp…" : "Phiên bản mới (Revise)"}
+                        </Button>
+                    )}
+                    {isPrimaryBranch &&
+                        (normalizeStatus(viewCurriculum?.curriculumStatus) === "CUR_DRAFT" ||
+                            normalizeStatus(viewCurriculum?.curriculumStatus) === "CUR_ACTIVE") && (
+                        <Tooltip
+                            title={
+                                Number(viewCurriculum?.programCount || 0) > 0
+                                    ? ARCHIVE_DISABLED_TOOLTIP
+                                    : "Đưa khung vào trạng thái lưu trữ (do trường quản lý)"
+                            }
+                            arrow
+                        >
+                            <span>
+                                <Button
+                                    onClick={() => openArchiveConfirm(viewCurriculum)}
+                                    variant="outlined"
+                                    color="warning"
+                                    disabled={
+                                        Number(viewCurriculum?.programCount || 0) > 0 || archiveLoading || evolveLoading
+                                    }
+                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                >
+                                    Lưu trữ
+                                </Button>
+                            </span>
+                        </Tooltip>
+                    )}
                     {isPrimaryBranch && normalizeStatus(viewCurriculum?.curriculumStatus) === "CUR_DRAFT" && (
                         <Button
-                            onClick={() => setConfirmPublishOpen(true)}
+                            onClick={() => {
+                                setPublishPendingCurriculum(viewCurriculum);
+                                setConfirmPublishOpen(true);
+                            }}
                             variant="contained"
-                            disabled={publishLoading}
+                            disabled={publishLoading || evolveLoading}
                             sx={{
                                 textTransform: "none",
                                 fontWeight: 900,
@@ -1963,7 +2167,6 @@ export default function SchoolCurriculums() {
                             Công bố
                         </Button>
                     )}
-                    
                 </DialogActions>
             </Dialog>
 
@@ -1974,6 +2177,7 @@ export default function SchoolCurriculums() {
                     if (reason === "backdropClick") return;
                     if (publishLoading) return;
                     setConfirmPublishOpen(false);
+                    setPublishPendingCurriculum(null);
                 }}
                 maxWidth="xs"
                 fullWidth
@@ -1984,6 +2188,7 @@ export default function SchoolCurriculums() {
                     onClick={() => {
                         if (publishLoading) return;
                         setConfirmPublishOpen(false);
+                        setPublishPendingCurriculum(null);
                     }}
                     disabled={publishLoading}
                     sx={{ position: "absolute", right: 8, top: 8, zIndex: 1, color: "#64748b" }}
@@ -1993,16 +2198,18 @@ export default function SchoolCurriculums() {
                 <DialogTitle sx={{ fontWeight: 700, pr: 6 }}>Xác nhận công bố</DialogTitle>
                 <DialogContent>
                     <Typography>
-                        Bạn có chắc chắn muốn <ConfirmHighlight>công bố</ConfirmHighlight> chương trình này không?
+                        Bạn có chắc chắn muốn <ConfirmHighlight>công bố</ConfirmHighlight> khung chương trình này?
                     </Typography>
-                    <Typography variant="body2" sx={{ mt: 1, color: "#64748b" }}>
-                        Sau khi công bố, bản nháp sẽ chuyển sang{" "}
-                        <ConfirmHighlight>trạng thái hoạt động</ConfirmHighlight>.
+                    <Typography variant="body2" sx={{ mt: 1, color: "#64748b", lineHeight: 1.6 }}>
+                        {PUBLISH_REPLACE_HINT}
                     </Typography>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, py: 2 }}>
                     <Button
-                        onClick={() => setConfirmPublishOpen(false)}
+                        onClick={() => {
+                            setConfirmPublishOpen(false);
+                            setPublishPendingCurriculum(null);
+                        }}
                         disabled={publishLoading}
                         sx={{ textTransform: "none" }}
                     >
@@ -2010,7 +2217,7 @@ export default function SchoolCurriculums() {
                     </Button>
                     <Button
                         variant="contained"
-                        onClick={handlePublishFromView}
+                        onClick={executePublish}
                         disabled={publishLoading}
                         sx={{
                             textTransform: "none",
@@ -2020,6 +2227,86 @@ export default function SchoolCurriculums() {
                         }}
                     >
                         {publishLoading ? "Đang công bố..." : "Xác nhận công bố"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* Xác nhận lưu trữ (PATCH ARCHIVE) */}
+            <Dialog
+                open={confirmArchiveOpen}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    closeArchiveConfirm();
+                }}
+                maxWidth="xs"
+                fullWidth
+                PaperProps={{ sx: { borderRadius: 3 } }}
+            >
+                <DialogTitle sx={{ fontWeight: 700 }}>Lưu trữ khung chương trình?</DialogTitle>
+                <DialogContent>
+                    <Typography variant="body2" sx={{ color: "#475569", lineHeight: 1.65 }}>
+                        Khung{" "}
+                        <Box component="span" sx={{ fontWeight: 800 }}>
+                            {curriculumToArchive?.name || curriculumToArchive?.subTypeName || "—"}
+                        </Box>{" "}
+                        sẽ chuyển sang trạng thái lưu trữ. Trường chủ động quản lý vòng đời; hệ thống không tự lưu trữ theo năm dương lịch.
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
+                    <Button onClick={closeArchiveConfirm} disabled={archiveLoading} sx={{ textTransform: "none" }}>
+                        Hủy
+                    </Button>
+                    <Button
+                        variant="contained"
+                        color="warning"
+                        onClick={() => void executeArchive()}
+                        disabled={archiveLoading}
+                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                    >
+                        {archiveLoading ? "Đang lưu trữ…" : "Xác nhận lưu trữ"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* 409 / xung đột từ PATCH activate (đặc biệt archive khi còn program) */}
+            <Dialog
+                open={activateConflictOpen}
+                onClose={() => setActivateConflictOpen(false)}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{ sx: { borderRadius: "16px" } }}
+            >
+                <DialogContent sx={{ pt: 2.5 }}>
+                    <Stack direction="row" spacing={1.2} alignItems="flex-start">
+                        <WarningAmberRoundedIcon sx={{ color: "#c2410c", mt: 0.25 }} />
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography variant="h6" sx={{ fontWeight: 800, color: "#1e293b" }}>
+                                Không thể hoàn tất thao tác
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 1.25, color: "#334155", whiteSpace: "pre-wrap", lineHeight: 1.65 }}>
+                                {activateConflictText ||
+                                    "Có xung đột dữ liệu. Kiểm tra thông báo từ máy chủ hoặc thử lại sau."}
+                            </Typography>
+                            <Typography variant="body2" sx={{ mt: 1.5, color: "#64748b", lineHeight: 1.6 }}>
+                                Nếu còn chương trình đào tạo gắn khung: gỡ hoặc chuyển program sang khung khác. Bạn cũng có thể dùng «Phiên bản mới
+                                (Revise)» trên khung đang hoạt động để chỉnh sửa an toàn, rồi công bố để thay thế bản chạy cùng loại + năm.
+                            </Typography>
+                        </Box>
+                    </Stack>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2.5, gap: 1, flexWrap: "wrap" }}>
+                    <Button onClick={() => setActivateConflictOpen(false)} sx={{ textTransform: "none", color: "#64748b" }}>
+                        Đóng
+                    </Button>
+                    <Button
+                        variant="outlined"
+                        onClick={() => {
+                            setActivateConflictOpen(false);
+                            navigate("/school/programs");
+                        }}
+                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px" }}
+                    >
+                        Đến danh sách chương trình
                     </Button>
                 </DialogActions>
             </Dialog>
