@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
     alpha,
@@ -41,16 +41,21 @@ import { getSystemConfig, updateSystemConfig } from "../../../services/SystemCon
 import { enqueueSnackbar } from "notistack";
 import { sanitizeAdmissionSettingsForApi } from "../../../utils/admissionSettingsShared.js";
 
-/** Hạn mức theo năm học: GET thường trả `admissionQuota`; bản cũ có thể là `quota`. */
+/** Hạn mức theo năm học: đọc đúng key BE trả là `admissionQuota`. */
 function getAdmissionQuotaMap(cfg) {
     if (!cfg || typeof cfg !== "object") return {};
-    const m = cfg.admissionQuota ?? cfg.quota;
+    const m = cfg.admissionQuota;
     return m && typeof m === "object" && !Array.isArray(m) ? m : {};
 }
 
-function mergeSystemConfigPayload(cfg, patch) {
-    if (!cfg || typeof cfg !== "object") return patch;
-    return { ...cfg, ...patch };
+function getBusinessConfig(cfg) {
+    if (!cfg || typeof cfg !== "object") return {};
+    return cfg.businessData ?? cfg.business ?? {};
+}
+
+function getMediaConfig(cfg) {
+    if (!cfg || typeof cfg !== "object") return {};
+    return cfg.mediaData ?? cfg.media ?? {};
 }
 
 function apiErrorMessage(e, fallback) {
@@ -80,7 +85,7 @@ export default function AdminPlatformSettings() {
     const [status, setStatus] = useState({ type: "", message: "" });
 
     const getBusinessInitialForm = (cfg) => {
-        const business = cfg?.business || {};
+        const business = getBusinessConfig(cfg);
         const minPay = business.minPay ?? "";
         const maxPay = business.maxPay ?? "";
         const taxRatePct = Number(business.taxRate ?? 0) * 100;
@@ -107,8 +112,15 @@ export default function AdminPlatformSettings() {
     const [quotaEditing, setQuotaEditing] = useState(false);
 
     const [selectedQuotaYear, setSelectedQuotaYear] = useState("");
-    const [quotaForm, setQuotaForm] = useState({ sourceUrl: "" });
+    const quotaRowIdRef = useRef(0);
+    const createQuotaRow = (key = "", value = "") => ({
+        id: `quota_row_${quotaRowIdRef.current++}`,
+        key: String(key ?? ""),
+        value: value != null ? String(value) : "",
+    });
+    const [quotaForm, setQuotaForm] = useState({ year: "", sourceUrl: "", quotaRows: [] });
     const [quotaErrors, setQuotaErrors] = useState({});
+    const [quotaMode, setQuotaMode] = useState("edit");
 
     const [admissionTemplateForm, setAdmissionTemplateForm] = useState({
         allowedMethods: [],
@@ -119,12 +131,10 @@ export default function AdminPlatformSettings() {
 
     const [mediaFormatsTab, setMediaFormatsTab] = useState(0);
     const [imgFormatsDraft, setImgFormatsDraft] = useState([]);
-    const [videoFormatsDraft, setVideoFormatsDraft] = useState([]);
     const [docFormatsDraft, setDocFormatsDraft] = useState([]);
 
     const [mediaLimitsForm, setMediaLimitsForm] = useState({
         maxImgSize: "",
-        maxVideoSize: "",
         maxDocSize: "",
     });
     const [mediaLimitsErrors, setMediaLimitsErrors] = useState({});
@@ -323,14 +333,12 @@ export default function AdminPlatformSettings() {
         const quotaYears = Object.keys(getAdmissionQuotaMap(configBody));
         setSelectedQuotaYear((prev) => prev || quotaYears[0] || "");
 
-        const media = configBody?.media || {};
+        const media = getMediaConfig(configBody);
         setImgFormatsDraft(getFormatListFromMedia(media, ["imgFormats", "imgFormat"]));
-        setVideoFormatsDraft(getFormatListFromMedia(media, ["videoFormats", "videoFormat"]));
         setDocFormatsDraft(getFormatListFromMedia(media, ["docFormats", "docFormat"]));
 
         setMediaLimitsForm({
             maxImgSize: media.maxImgSize ?? "",
-            maxVideoSize: media.maxVideoSize ?? "",
             maxDocSize: media.maxDocSize ?? "",
         });
         setMediaLimitsErrors({});
@@ -357,6 +365,10 @@ export default function AdminPlatformSettings() {
         if (activeTabKey !== "admission") setAdmissionTemplateEditing(false);
     }, [activeTabKey]);
 
+    useEffect(() => {
+        if (mediaFormatsTab > 1) setMediaFormatsTab(0);
+    }, [mediaFormatsTab]);
+
     const cancelBusiness = () => {
         if (!configBody) return;
         const bizInit = getBusinessInitialForm(configBody);
@@ -381,13 +393,11 @@ export default function AdminPlatformSettings() {
 
     const cancelMediaFormats = () => {
         if (!configBody) return;
-        const media = configBody?.media || {};
+        const media = getMediaConfig(configBody);
         setImgFormatsDraft(getFormatListFromMedia(media, ["imgFormats", "imgFormat"]));
-        setVideoFormatsDraft(getFormatListFromMedia(media, ["videoFormats", "videoFormat"]));
         setDocFormatsDraft(getFormatListFromMedia(media, ["docFormats", "docFormat"]));
         setMediaLimitsForm({
             maxImgSize: media.maxImgSize ?? "",
-            maxVideoSize: media.maxVideoSize ?? "",
             maxDocSize: media.maxDocSize ?? "",
         });
         setMediaLimitsErrors({});
@@ -459,8 +469,6 @@ export default function AdminPlatformSettings() {
 
         if (formatDialogType === "image") {
             updateFormatDraft(setImgFormatsDraft);
-        } else if (formatDialogType === "video") {
-            updateFormatDraft(setVideoFormatsDraft);
         } else {
             updateFormatDraft(setDocFormatsDraft);
         }
@@ -472,7 +480,6 @@ export default function AdminPlatformSettings() {
         const errors = {};
         const fields = [
             "maxImgSize",
-            "maxVideoSize",
             "maxDocSize",
         ];
         fields.forEach((key) => {
@@ -495,28 +502,27 @@ export default function AdminPlatformSettings() {
         let ok = false;
         setStatus({ type: "", message: "" });
         try {
-            const prevMedia = configBody.media || {};
+            const prevMedia = getMediaConfig(configBody);
             const {
                 imgFormats: _imgF,
-                videoFormats: _vidF,
                 docFormats: _docF,
+                videoFormats: _videoF,
                 imgFormat: _imgOld,
-                videoFormat: _vidOld,
                 docFormat: _docOld,
+                videoFormat: _videoOld,
+                maxVideoSize: _maxVideoSizeOld,
                 ...mediaRest
             } = prevMedia;
             const mediaPatch = {
                 mediaData: {
                     ...mediaRest,
                     maxImgSize: parseFinite(mediaLimitsForm.maxImgSize),
-                    maxVideoSize: parseFinite(mediaLimitsForm.maxVideoSize),
                     maxDocSize: parseFinite(mediaLimitsForm.maxDocSize),
-                    imgFormat: imgFormatsDraft.map((f) => ({ format: f })),
-                    videoFormat: videoFormatsDraft.map((f) => ({ format: f })),
-                    docFormat: docFormatsDraft.map((f) => ({ format: f })),
+                    imgFormats: imgFormatsDraft.map((f) => ({ format: normalizeFormatString(f) })),
+                    docFormats: docFormatsDraft.map((f) => ({ format: normalizeFormatString(f) })),
                 },
             };
-            await updateSystemConfig(mergeSystemConfigPayload(configBody, mediaPatch));
+            await updateSystemConfig(mediaPatch);
             enqueueSnackbar("Cập nhật cấu hình phương tiện thành công.", { variant: "success" });
             setStatus({ type: "success", message: "Cập nhật thành công." });
             await fetchConfig();
@@ -535,16 +541,56 @@ export default function AdminPlatformSettings() {
     const getQuotaInitialForm = (year) => {
         const quota = getAdmissionQuotaMap(configBody);
         const item = quota[year] || {};
+        const initialQuotas =
+            item?.quotas && typeof item.quotas === "object" && !Array.isArray(item.quotas)
+                ? item.quotas
+                : {};
         return {
+            year: String(year ?? ""),
             sourceUrl: item.sourceUrl || "",
+            quotaRows: Object.entries(initialQuotas).map(([k, v]) => createQuotaRow(k, v)),
         };
     };
 
-    const validateQuota = (form) => {
+    const validateQuota = (form, { strict = false } = {}) => {
         const errors = {};
+        const year = String(form?.year ?? "").trim();
+        if (!year) errors.year = "Vui lòng nhập năm học.";
+        if (year.length > 50) errors.year = "Năm học quá dài.";
+        if (quotaMode === "add" && year) {
+            const quotaMap = getAdmissionQuotaMap(configBody);
+            if (Object.prototype.hasOwnProperty.call(quotaMap, year)) {
+                errors.year = "Năm học này đã tồn tại.";
+            }
+        }
         if (form.sourceUrl && typeof form.sourceUrl === "string" && form.sourceUrl.length > 2048) {
             errors.sourceUrl = "URL quá dài.";
         }
+        const quotaRows = Array.isArray(form?.quotaRows) ? form.quotaRows : [];
+        const usedKeys = new Set();
+        quotaRows.forEach((row) => {
+            const rowId = row?.id ?? "";
+            const normalizedKey = String(row?.key ?? "").trim();
+            const normalizedValue = String(row?.value ?? "").trim();
+            if (!normalizedKey && !normalizedValue) return;
+            if (!normalizedKey) {
+                errors[`quotaKey:${rowId}`] = "Mã chỉ tiêu không được để trống.";
+                return;
+            }
+            if (usedKeys.has(normalizedKey)) {
+                errors[`quotaKey:${rowId}`] = "Mã chỉ tiêu bị trùng.";
+                return;
+            }
+            usedKeys.add(normalizedKey);
+            const n = Number(normalizedValue);
+            if (strict && normalizedValue === "") {
+                errors[`quotaValue:${rowId}`] = "Chỉ tiêu phải là số nguyên >= 0.";
+                return;
+            }
+            if (normalizedValue !== "" && (!Number.isFinite(n) || !Number.isInteger(n) || n < 0)) {
+                errors[`quotaValue:${rowId}`] = "Chỉ tiêu phải là số nguyên >= 0.";
+            }
+        });
         return errors;
     };
 
@@ -559,8 +605,17 @@ export default function AdminPlatformSettings() {
     const startQuotaEdit = () => {
         if (!configBody || !selectedQuotaYear) return;
         const form = getQuotaInitialForm(selectedQuotaYear);
+        setQuotaMode("edit");
         setQuotaForm(form);
         setQuotaErrors(validateQuota(form));
+        setQuotaEditing(true);
+    };
+
+    const startQuotaAdd = () => {
+        const form = { year: "", sourceUrl: "", quotaRows: [] };
+        setQuotaMode("add");
+        setQuotaForm(form);
+        setQuotaErrors({});
         setQuotaEditing(true);
     };
 
@@ -570,8 +625,8 @@ export default function AdminPlatformSettings() {
     };
 
     const saveQuotaEdit = async () => {
-        if (!configBody || !selectedQuotaYear) return;
-        const errors = validateQuota(quotaForm);
+        if (!configBody) return;
+        const errors = validateQuota(quotaForm, { strict: true });
         setQuotaErrors(errors);
         if (Object.keys(errors).length > 0) return;
 
@@ -579,23 +634,28 @@ export default function AdminPlatformSettings() {
         let ok = false;
         setStatus({ type: "", message: "" });
         try {
-            const currentQuota = getAdmissionQuotaMap(configBody);
-            const existing = currentQuota[selectedQuotaYear] || {};
-            const updatedAdmissionQuota = {
-                ...currentQuota,
-                [selectedQuotaYear]: {
-                    ...existing,
+            const normalizedYear = String(quotaForm.year ?? "").trim();
+            const sanitizedQuotas = (quotaForm.quotaRows || []).reduce((acc, row) => {
+                const key = String(row?.key ?? "").trim();
+                const valueStr = String(row?.value ?? "").trim();
+                if (!key || valueStr === "") return acc;
+                const valueNum = Number(valueStr);
+                if (!Number.isFinite(valueNum) || !Number.isInteger(valueNum) || valueNum < 0) return acc;
+                acc[key] = valueNum;
+                return acc;
+            }, {});
+            const updatedBody = {
+                admissionQuotaData: {
+                    year: normalizedYear,
                     sourceUrl: quotaForm.sourceUrl || "",
+                    quotas: sanitizedQuotas,
                 },
             };
-
-            const updatedBody = mergeSystemConfigPayload(configBody, {
-                admissionQuotaData: updatedAdmissionQuota,
-            });
 
             await updateSystemConfig(updatedBody);
             enqueueSnackbar("Cập nhật Cài đặt Hạn mức Tuyển sinh thành công.", { variant: "success" });
             setStatus({ type: "success", message: "Cập nhật thành công." });
+            setSelectedQuotaYear(normalizedYear);
             await fetchConfig();
             ok = true;
         } catch (e) {
@@ -625,15 +685,14 @@ export default function AdminPlatformSettings() {
             const taxRate = toRateDecimal(businessForm.taxRatePct);
             const serviceRate = toRateDecimal(businessForm.serviceRatePct);
 
-            const updatedBody = mergeSystemConfigPayload(configBody, {
+            const updatedBody = {
                 businessData: {
-                    ...(configBody.businessData || {}),
                     minPay: minPay != null ? Math.trunc(minPay) : minPay,
                     maxPay: maxPay != null ? Math.trunc(maxPay) : maxPay,
                     taxRate,
                     serviceRate,
                 },
-            });
+            };
 
             await updateSystemConfig(updatedBody);
             enqueueSnackbar("Cập nhật Cài đặt Doanh nghiệp thành công.", { variant: "success" });
@@ -668,9 +727,7 @@ export default function AdminPlatformSettings() {
         setStatus({ type: "", message: "" });
         try {
             const sanitized = sanitizeAdmissionSettingsForApi(admissionTemplateForm);
-            await updateSystemConfig(
-                mergeSystemConfigPayload(configBody, { admissionSettingsData: sanitized })
-            );
+            await updateSystemConfig({ admissionSettingsData: sanitized });
             enqueueSnackbar(
                 "Đã cập nhật mẫu phương thức. Các trường đang dùng bản riêng không tự đổi.",
                 { variant: "success" }
@@ -1155,22 +1212,17 @@ export default function AdminPlatformSettings() {
     );
 
     const renderMediaTab = () => {
-        const activeFormatType = mediaFormatsTab === 0 ? "image" : mediaFormatsTab === 1 ? "video" : "doc";
+        const activeFormatType = mediaFormatsTab === 0 ? "image" : "doc";
         const mediaDisabled = !mediaEditing || saving;
         const imgFormats = imgFormatsDraft || [];
-        const videoFormats = videoFormatsDraft || [];
         const docFormats = docFormatsDraft || [];
 
-        const list = activeFormatType === "image" ? imgFormats : activeFormatType === "video" ? videoFormats : docFormats;
-        const dialogTypeLabel = activeFormatType === "image" ? "ảnh" : activeFormatType === "video" ? "video" : "tài liệu";
+        const list = activeFormatType === "image" ? imgFormats : docFormats;
+        const dialogTypeLabel = activeFormatType === "image" ? "ảnh" : "tài liệu";
 
         const deleteFormatFromDraft = (type, index) => {
             if (type === "image") {
                 setImgFormatsDraft((prev) => prev.filter((_, i) => i !== index));
-                return;
-            }
-            if (type === "video") {
-                setVideoFormatsDraft((prev) => prev.filter((_, i) => i !== index));
                 return;
             }
             setDocFormatsDraft((prev) => prev.filter((_, i) => i !== index));
@@ -1192,7 +1244,7 @@ export default function AdminPlatformSettings() {
                             gridTemplateColumns: {
                                 xs: "1fr",
                                 sm: "repeat(2, minmax(0, 1fr))",
-                                md: "repeat(3, minmax(0, 1fr))",
+                                md: "repeat(2, minmax(0, 1fr))",
                             },
                             gap: 1.5,
                             width: "100%",
@@ -1222,37 +1274,6 @@ export default function AdminPlatformSettings() {
                                 }}
                                 error={Boolean(mediaLimitsErrors.maxImgSize)}
                                 helperText={mediaLimitsErrors.maxImgSize || ""}
-                                InputProps={{
-                                    endAdornment: <InputAdornment position="end">MB</InputAdornment>,
-                                }}
-                                sx={settingsInputSx}
-                            />
-                        </Box>
-
-                        <Box
-                            sx={{
-                                ...settingsFieldCardSx,
-                            }}
-                        >
-                            <Typography sx={settingsFieldLabelSx}>
-                                Dung lượng video tối đa
-                            </Typography>
-                            <TextField
-                                size="small"
-                                fullWidth
-                                type="number"
-                                disabled={mediaDisabled}
-                                value={mediaLimitsForm.maxVideoSize}
-                                onChange={(e) => {
-                                    const nextVal = e.target.value;
-                                    setMediaLimitsForm((prev) => {
-                                        const next = { ...prev, maxVideoSize: nextVal };
-                                        setMediaLimitsErrors(validateMediaLimits(next));
-                                        return next;
-                                    });
-                                }}
-                                error={Boolean(mediaLimitsErrors.maxVideoSize)}
-                                helperText={mediaLimitsErrors.maxVideoSize || ""}
                                 InputProps={{
                                     endAdornment: <InputAdornment position="end">MB</InputAdornment>,
                                 }}
@@ -1303,7 +1324,6 @@ export default function AdminPlatformSettings() {
                             sx={{ borderBottom: "1px solid #e2e8f0", "& .MuiTabs-indicator": { height: 3 } }}
                         >
                             <Tab label="Định dạng ảnh" sx={{ fontWeight: 700, textTransform: "none" }} />
-                            <Tab label="Định dạng video" sx={{ fontWeight: 700, textTransform: "none" }} />
                             <Tab label="Định dạng tài liệu" sx={{ fontWeight: 700, textTransform: "none" }} />
                         </Tabs>
 
@@ -1433,7 +1453,7 @@ export default function AdminPlatformSettings() {
                         }}
                     >
                         {formatDialogMode === "add" ? "Thêm" : "Sửa"} định dạng{" "}
-                        {formatDialogType === "image" ? "ảnh" : formatDialogType === "video" ? "video" : "tài liệu"}
+                        {formatDialogType === "image" ? "ảnh" : "tài liệu"}
                     </DialogTitle>
                     <DialogContent sx={{ bgcolor: "#eff6ff" }}>
                         <TextField
@@ -1469,10 +1489,15 @@ export default function AdminPlatformSettings() {
         const isEditing = quotaEditing;
         const rows = quotaYears.map((year) => {
             const item = quota[year] || {};
+            const quotaCount =
+                item?.quotas && typeof item.quotas === "object"
+                    ? Object.keys(item.quotas).length
+                    : 0;
             return {
                 year,
                 sourceUrl: item?.sourceUrl || "",
-                hasQuota: Boolean(item?.quotas && Object.keys(item.quotas).length),
+                hasQuota: quotaCount > 0,
+                quotaCount,
             };
         });
 
@@ -1481,6 +1506,17 @@ export default function AdminPlatformSettings() {
                 <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#2563eb", mb: 1.5 }}>
                     Cài đặt Hạn mức Tuyển sinh
                 </Typography>
+                <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
+                    <Button
+                        variant="outlined"
+                        startIcon={<AddIcon />}
+                        onClick={startQuotaAdd}
+                        disabled={saving}
+                        sx={cancelButtonSx}
+                    >
+                        Thêm năm học
+                    </Button>
+                </Box>
 
                 <Box sx={{ px: { xs: 0.5, md: 1 } }}>
                     {rows.length ? (
@@ -1549,7 +1585,7 @@ export default function AdminPlatformSettings() {
                                         <Box sx={{ minWidth: { xs: "auto", md: 170 } }}>
                                             <Chip
                                                 size="small"
-                                                label={row.hasQuota ? "Đã cấu hình" : "Chưa cấu hình"}
+                                                label={row.hasQuota ? `${row.quotaCount} chỉ tiêu` : "Chưa cấu hình"}
                                                 sx={{
                                                     bgcolor: row.hasQuota ? "#dcfce7" : "#fff7ed",
                                                     color: row.hasQuota ? "#166534" : "#c2410c",
@@ -1566,6 +1602,7 @@ export default function AdminPlatformSettings() {
                                                 onClick={() => {
                                                     setSelectedQuotaYear(row.year);
                                                     const form = getQuotaInitialForm(row.year);
+                                                    setQuotaMode("edit");
                                                     setQuotaForm(form);
                                                     setQuotaErrors(validateQuota(form));
                                                     setQuotaEditing(true);
@@ -1598,12 +1635,29 @@ export default function AdminPlatformSettings() {
                             open={isEditing}
                             onClose={cancelQuotaEdit}
                             fullWidth
-                            maxWidth="sm"
+                            maxWidth="md"
                         >
                             <DialogTitle sx={{ fontWeight: 700 }}>
-                                Cập nhật nguồn dữ liệu – Năm học {selectedYear}
+                                {quotaMode === "add"
+                                    ? "Thêm năm học mới"
+                                    : `Cập nhật nguồn dữ liệu – Năm học ${selectedYear}`}
                             </DialogTitle>
                             <DialogContent sx={{ pt: 1.5 }}>
+                                <TextField
+                                    fullWidth
+                                    size="small"
+                                    label="Năm học"
+                                    margin="dense"
+                                    disabled={saving || quotaMode !== "add"}
+                                    value={quotaForm.year}
+                                    onChange={(e) => {
+                                        const next = { ...quotaForm, year: e.target.value };
+                                        setQuotaForm(next);
+                                        setQuotaErrors(validateQuota(next));
+                                    }}
+                                    error={Boolean(quotaErrors.year)}
+                                    helperText={quotaErrors.year || " "}
+                                />
                                 <TextField
                                     fullWidth
                                     size="small"
@@ -1617,8 +1671,103 @@ export default function AdminPlatformSettings() {
                                         setQuotaErrors(validateQuota(next));
                                     }}
                                     error={Boolean(quotaErrors.sourceUrl)}
-                                    helperText={quotaErrors.sourceUrl || "Có thể để trống nếu không có đường dẫn công khai."}
+                                    helperText={quotaErrors.sourceUrl || " "}
                                 />
+                                <Box sx={{ mt: 1.5 }}>
+                                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0f172a", mb: 1 }}>
+                                        Chỉ tiêu theo mã xét tuyển
+                                    </Typography>
+                                    <Stack spacing={1}>
+                                        {(quotaForm.quotaRows || []).map((row) => (
+                                            <Box
+                                                key={row.id}
+                                                sx={{
+                                                    display: "grid",
+                                                    gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr auto" },
+                                                    gap: 1,
+                                                    alignItems: "center",
+                                                }}
+                                            >
+                                                <TextField
+                                                    size="small"
+                                                    label="Mã (VD: 1, 2, 3)"
+                                                    disabled={saving}
+                                                    value={row.key}
+                                                    onChange={(e) => {
+                                                        const nextKey = e.target.value;
+                                                        setQuotaForm((prev) => {
+                                                            const nextRows = (prev.quotaRows || []).map((r) =>
+                                                                r.id === row.id ? { ...r, key: nextKey } : r
+                                                            );
+                                                            const next = { ...prev, quotaRows: nextRows };
+                                                            setQuotaErrors(validateQuota(next));
+                                                            return next;
+                                                        });
+                                                    }}
+                                                    error={Boolean(quotaErrors[`quotaKey:${row.id}`])}
+                                                    helperText={quotaErrors[`quotaKey:${row.id}`] || ""}
+                                                />
+                                                <TextField
+                                                    size="small"
+                                                    type="number"
+                                                    label="Chỉ tiêu"
+                                                    disabled={saving}
+                                                    value={row.value}
+                                                    onChange={(e) => {
+                                                        const nextValue = e.target.value;
+                                                        setQuotaForm((prev) => {
+                                                            const nextRows = (prev.quotaRows || []).map((r) =>
+                                                                r.id === row.id ? { ...r, value: nextValue } : r
+                                                            );
+                                                            const next = { ...prev, quotaRows: nextRows };
+                                                            setQuotaErrors(validateQuota(next));
+                                                            return next;
+                                                        });
+                                                    }}
+                                                    error={Boolean(quotaErrors[`quotaValue:${row.id}`])}
+                                                    helperText={quotaErrors[`quotaValue:${row.id}`] || ""}
+                                                    inputProps={{ min: 0, step: 1 }}
+                                                />
+                                                <IconButton
+                                                    size="small"
+                                                    color="error"
+                                                    disabled={saving}
+                                                    onClick={() => {
+                                                        setQuotaForm((prev) => {
+                                                            const nextRows = (prev.quotaRows || []).filter(
+                                                                (r) => r.id !== row.id
+                                                            );
+                                                            const next = { ...prev, quotaRows: nextRows };
+                                                            setQuotaErrors(validateQuota(next));
+                                                            return next;
+                                                        });
+                                                    }}
+                                                    aria-label="Xóa chỉ tiêu"
+                                                >
+                                                    <DeleteOutlineIcon fontSize="small" />
+                                                </IconButton>
+                                            </Box>
+                                        ))}
+                                    </Stack>
+                                    <Button
+                                        sx={{ mt: 1, textTransform: "none", fontWeight: 700 }}
+                                        startIcon={<AddIcon />}
+                                        variant="outlined"
+                                        disabled={saving}
+                                        onClick={() => {
+                                            setQuotaForm((prev) => {
+                                                const next = {
+                                                    ...prev,
+                                                    quotaRows: [...(prev.quotaRows || []), createQuotaRow("", "")],
+                                                };
+                                                setQuotaErrors(validateQuota(next));
+                                                return next;
+                                            });
+                                        }}
+                                    >
+                                        Thêm chỉ tiêu
+                                    </Button>
+                                </Box>
                             </DialogContent>
                             <DialogActions sx={{ px: 3, pb: 2 }}>
                                 <Button
