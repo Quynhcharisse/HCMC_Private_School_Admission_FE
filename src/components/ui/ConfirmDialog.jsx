@@ -37,6 +37,7 @@ const ConfirmDialog = ({
     titleSx,
     titleTextSx,
     contentSx,
+    descriptionSx,
     confirmButtonSx,
     warningIconWrapSx,
     warningIconSx,
@@ -127,6 +128,7 @@ const ConfirmDialog = ({
                                 mt: 0,
                                 mb: extraDescription || children != null ? 0.5 : 0,
                                 textAlign: "center",
+                                ...descriptionSx,
                             }}
                         >
                             {description}

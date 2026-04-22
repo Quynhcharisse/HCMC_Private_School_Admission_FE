@@ -876,8 +876,17 @@ export default function AdminSchoolVerification() {
                     border: "1px solid rgba(59,130,246,0.25)",
                 }}
                 titleTextSx={{ fontSize: 26, lineHeight: 1.2 }}
+                descriptionSx={{ fontSize: 13.5, lineHeight: 1.45 }}
                 warningIconWrapSx={{ width: 64, height: 64 }}
                 warningIconSx={{ fontSize: 38 }}
+                confirmButtonSx={{
+                    boxShadow: "0 8px 18px rgba(37,99,235,0.34)",
+                    background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 55%, #1d4ed8 100%)",
+                    "&:hover": {
+                        background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 55%, #1e40af 100%)",
+                        boxShadow: "0 10px 20px rgba(29,78,216,0.42)",
+                    },
+                }}
             />
         </Box>
     );
