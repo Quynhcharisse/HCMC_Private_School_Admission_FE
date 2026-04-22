@@ -1033,189 +1033,38 @@ export default function AdminPlatformSettings() {
             "& .MuiOutlinedInput-root": {
                 borderRadius: 1.75,
                 bgcolor: "#ffffff",
-                "& fieldset": { borderColor: "#d1d5db" },
-                "&:hover fieldset": { borderColor: "#94a3b8" },
-                "&.Mui-focused fieldset": { borderColor: "#64748b" },
+                "& fieldset": { borderColor: "#bfdbfe" },
+                "&:hover fieldset": { borderColor: "#60a5fa" },
+                "&.Mui-focused fieldset": { borderColor: "#2563eb" },
+            },
+            "& .MuiInputBase-input": {
+                color: "#374151",
+            },
+            "& .MuiInputBase-input.Mui-disabled": {
+                WebkitTextFillColor: "#374151",
+                color: "#374151",
             },
         };
 
         return (
             <Stack spacing={2.5} sx={{ width: "100%" }}>
-                <Paper
-                    elevation={0}
-                    sx={{
-                        borderRadius: 2,
-                        border: "1px solid #e2e8f0",
-                        overflow: "hidden",
-                    }}
-                >
+                <Box>
                     <Box
                         sx={{
-                            px: 2,
-                            py: 1.1,
-                            borderBottom: "1px solid",
-                            borderColor: "#e2e8f0",
-                            bgcolor: "#f8fafc",
+                            px: 0.5,
+                            py: 0.5,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 1,
                         }}
                     >
-                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#111827" }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1d4ed8" }}>
                             Danh sách phương thức
                         </Typography>
-                    </Box>
-                    <TableContainer sx={{ maxWidth: "100%" }}>
-                        <Table size="small" sx={{ minWidth: 800, tableLayout: "fixed" }}>
-                            <TableHead>
-                                <TableRow sx={{ bgcolor: "#f8fafc" }}>
-                                    <TableCell sx={{ fontWeight: 700, color: "#374151", width: "28%", minWidth: 220, py: 1.2 }}>
-                                        Mã (code)
-                                    </TableCell>
-                                    <TableCell sx={{ fontWeight: 700, color: "#374151", width: "28%", minWidth: 180, py: 1.2 }}>
-                                        Tên hiển thị
-                                    </TableCell>
-                                    <TableCell sx={{ fontWeight: 700, color: "#374151", py: 1.2 }}>Mô tả</TableCell>
-                                    <TableCell align="center" sx={{ width: 52, py: 1.2 }} />
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {methods.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell colSpan={4} sx={{ py: 4, textAlign: "center", border: 0 }}>
-                                            <Typography variant="body2" color="text.secondary">
-                                                Chưa có phương thức. Nhấn <strong>Thêm phương thức</strong> bên dưới để tạo dòng đầu tiên trong mẫu hệ thống.
-                                            </Typography>
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    methods.map((row, idx) => (
-                                        <TableRow
-                                            key={`adm-${idx}-${row.code ?? "row"}`}
-                                            hover
-                                            sx={{ "&:nth-of-type(even)": { bgcolor: "#fafafa" } }}
-                                        >
-                                            <TableCell sx={{ verticalAlign: "top", pt: 1.5, pb: 1.5, minWidth: 220 }}>
-                                                <TextField
-                                                    size="small"
-                                                    fullWidth
-                                                    placeholder="VD: HOC_BA"
-                                                    value={row.code}
-                                                    disabled={rowDisabled}
-                                                    onChange={(e) => {
-                                                        const v = e.target.value;
-                                                        setAdmissionTemplateForm((p) => {
-                                                            const next = [...(p.allowedMethods || [])];
-                                                            next[idx] = { ...next[idx], code: v };
-                                                            return { ...p, allowedMethods: next };
-                                                        });
-                                                    }}
-                                                    onBlur={() => {
-                                                        setAdmissionTemplateForm((p) => {
-                                                            const next = [...(p.allowedMethods || [])];
-                                                            const cur = next[idx];
-                                                            if (!cur) return p;
-                                                            const trimmed = String(cur.code ?? "").trim();
-                                                            if (trimmed === cur.code) return p;
-                                                            next[idx] = { ...cur, code: trimmed };
-                                                            return { ...p, allowedMethods: next };
-                                                        });
-                                                    }}
-                                                    inputProps={{
-                                                        spellCheck: false,
-                                                        autoComplete: "off",
-                                                        autoCapitalize: "off",
-                                                        "aria-label": "Mã phương thức",
-                                                    }}
-                                                    sx={{
-                                                        minWidth: 0,
-                                                        "& .MuiInputBase-root": { py: 0.25 },
-                                                        "& .MuiInputBase-input": {
-                                                            fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
-                                                            fontSize: "0.9375rem",
-                                                            letterSpacing: "0.02em",
-                                                            py: 1,
-                                                        },
-                                                        ...admissionInputSx,
-                                                    }}
-                                                />
-                                            </TableCell>
-                                            <TableCell sx={{ verticalAlign: "top", pt: 1.5, pb: 1.5 }}>
-                                                <TextField
-                                                    size="small"
-                                                    fullWidth
-                                                    placeholder="Tên trên giao diện"
-                                                    value={row.displayName}
-                                                    disabled={rowDisabled}
-                                                    onChange={(e) => {
-                                                        const v = e.target.value;
-                                                        setAdmissionTemplateForm((p) => {
-                                                            const next = [...(p.allowedMethods || [])];
-                                                            next[idx] = { ...next[idx], displayName: v };
-                                                            return { ...p, allowedMethods: next };
-                                                        });
-                                                    }}
-                                                    sx={admissionInputSx}
-                                                />
-                                            </TableCell>
-                                            <TableCell sx={{ verticalAlign: "top", pt: 1.5, pb: 1.5 }}>
-                                                <TextField
-                                                    size="small"
-                                                    fullWidth
-                                                    multiline
-                                                    minRows={2}
-                                                    placeholder="Mô tả ngắn cho tư vấn / trường"
-                                                    value={row.description}
-                                                    disabled={rowDisabled}
-                                                    onChange={(e) => {
-                                                        const v = e.target.value;
-                                                        setAdmissionTemplateForm((p) => {
-                                                            const next = [...(p.allowedMethods || [])];
-                                                            next[idx] = { ...next[idx], description: v };
-                                                            return { ...p, allowedMethods: next };
-                                                        });
-                                                    }}
-                                                    sx={admissionInputSx}
-                                                />
-                                            </TableCell>
-                                            <TableCell align="center" sx={{ verticalAlign: "top", pt: 1.25 }}>
-                                                <Tooltip title="Xóa dòng" placement="left">
-                                                    <span>
-                                                        <IconButton
-                                                            size="small"
-                                                            color="error"
-                                                            disabled={rowDisabled}
-                                                            aria-label="Xóa dòng"
-                                                            onClick={() =>
-                                                                setAdmissionTemplateForm((p) => {
-                                                                    const next = [...(p.allowedMethods || [])];
-                                                                    next.splice(idx, 1);
-                                                                    return { ...p, allowedMethods: next };
-                                                                })
-                                                            }
-                                                        >
-                                                            <DeleteOutlineIcon fontSize="small" />
-                                                        </IconButton>
-                                                    </span>
-                                                </Tooltip>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-                    <Box
-                        sx={{
-                            px: 2,
-                            py: 1.5,
-                            borderTop: "1px solid",
-                            borderColor: "#e2e8f0",
-                            bgcolor: "#f8fafc",
-                            display: "flex",
-                            justifyContent: "flex-start",
-                        }}
-                    >
                         <Button
                             variant="contained"
-                            size="medium"
+                            size="small"
                             startIcon={<AddIcon />}
                             disabled={rowDisabled}
                             onClick={() =>
@@ -1229,55 +1078,175 @@ export default function AdminPlatformSettings() {
                                 fontWeight: 700,
                                 borderRadius: 2,
                                 boxShadow: "none",
-                                bgcolor: "#1f2937",
-                                "&:hover": { bgcolor: "#111827" },
+                                bgcolor: "#2563eb",
+                                "&:hover": { bgcolor: "#1d4ed8" },
                             }}
                         >
                             Thêm phương thức
                         </Button>
                     </Box>
-                </Paper>
+                    <Box sx={{ p: 1.5 }}>
+                        <Box
+                            sx={{
+                                display: "grid",
+                                gridTemplateColumns: { xs: "1fr", md: "0.9fr 1fr 1.5fr 52px" },
+                                gap: 1.25,
+                                px: 1,
+                                py: 0.75,
+                                borderRadius: 1.5,
+                                bgcolor: "#eaf2ff",
+                                border: "1px solid #cfe1ff",
+                                mb: 1.1,
+                            }}
+                        >
+                            <Typography sx={{ fontWeight: 800, color: "#374151", fontSize: 13 }}>Mã phương thức</Typography>
+                            <Typography sx={{ fontWeight: 800, color: "#374151", fontSize: 13 }}>Tên hiển thị</Typography>
+                            <Typography sx={{ fontWeight: 800, color: "#374151", fontSize: 13 }}>Mô tả</Typography>
+                            <Typography sx={{ fontWeight: 800, color: "#374151", fontSize: 13, textAlign: "center" }}>Xóa</Typography>
+                        </Box>
 
-                {admissionTemplateEditing ? (
-                    <Paper
-                        elevation={0}
-                        variant="outlined"
-                        sx={{
-                            p: 2,
-                            borderRadius: 2,
-                            borderColor: "rgba(37, 99, 235, 0.28)",
-                            bgcolor: "rgba(37, 99, 235, 0.04)",
-                        }}
-                    >
-                        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "center" }} justifyContent="space-between">
-                            <Typography variant="body2" sx={{ color: "#334155", maxWidth: 640 }}>
-                                Thay đổi trong bảng chỉ lưu trên trình duyệt cho đến khi bạn nhấn{" "}
-                                <strong>Lưu mẫu</strong> hoặc <strong>Lưu</strong> — không có nút «nộp» từng ô mã.
-                            </Typography>
-                            <Stack direction="row" spacing={1} flexShrink={0}>
-                                <Button
-                                    variant="outlined"
-                                    disabled={saving}
-                                    onClick={() => {
-                                        cancelAdmissionTemplate();
-                                        setAdmissionTemplateEditing(false);
-                                    }}
-                                    sx={cancelButtonSx}
-                                >
-                                    Hủy
-                                </Button>
-                                <Button
-                                    variant="contained"
-                                    disabled={saving}
-                                    onClick={() => void saveAdmissionTemplate()}
-                                    sx={saveButtonSx}
-                                >
-                                    Lưu mẫu
-                                </Button>
+                        {methods.length === 0 ? (
+                            <Box
+                                sx={{
+                                    py: 4,
+                                    px: 2,
+                                    borderRadius: 2,
+                                    border: "1px dashed #cbd5e1",
+                                    bgcolor: "#ffffff",
+                                    textAlign: "center",
+                                }}
+                            >
+                                <Typography variant="body2" sx={{ color: "#374151" }}>
+                                    Chưa có phương thức. Nhấn <strong>Thêm phương thức</strong> phía trên để tạo dòng đầu tiên trong mẫu hệ thống.
+                                </Typography>
+                            </Box>
+                        ) : (
+                            <Stack spacing={1}>
+                                {methods.map((row, idx) => (
+                                    <Box
+                                        key={`adm-${idx}-${row.code ?? "row"}`}
+                                        sx={{
+                                            display: "grid",
+                                            gridTemplateColumns: { xs: "1fr", md: "0.9fr 1fr 1.5fr 52px" },
+                                            gap: 1.25,
+                                            p: 1.1,
+                                            borderRadius: 2.25,
+                                            border: "1px solid #bfdbfe",
+                                            bgcolor: "#f8fbff",
+                                            boxShadow: "0 4px 10px rgba(37, 99, 235, 0.08)",
+                                            transition: "all 0.2s ease",
+                                            "&:hover": {
+                                                borderColor: "#60a5fa",
+                                                boxShadow: "0 10px 20px rgba(37, 99, 235, 0.16)",
+                                                transform: "translateY(-1px)",
+                                            },
+                                        }}
+                                    >
+                                        <TextField
+                                            size="small"
+                                            fullWidth
+                                            placeholder="VD: HOC_BA"
+                                            value={row.code}
+                                            disabled={rowDisabled}
+                                            onChange={(e) => {
+                                                const v = e.target.value;
+                                                setAdmissionTemplateForm((p) => {
+                                                    const next = [...(p.allowedMethods || [])];
+                                                    next[idx] = { ...next[idx], code: v };
+                                                    return { ...p, allowedMethods: next };
+                                                });
+                                            }}
+                                            onBlur={() => {
+                                                setAdmissionTemplateForm((p) => {
+                                                    const next = [...(p.allowedMethods || [])];
+                                                    const cur = next[idx];
+                                                    if (!cur) return p;
+                                                    const trimmed = String(cur.code ?? "").trim();
+                                                    if (trimmed === cur.code) return p;
+                                                    next[idx] = { ...cur, code: trimmed };
+                                                    return { ...p, allowedMethods: next };
+                                                });
+                                            }}
+                                            inputProps={{
+                                                spellCheck: false,
+                                                autoComplete: "off",
+                                                autoCapitalize: "off",
+                                                "aria-label": "Mã phương thức",
+                                            }}
+                                            sx={{
+                                                minWidth: 0,
+                                                "& .MuiInputBase-root": { py: 0.25 },
+                                                "& .MuiInputBase-input": {
+                                                    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+                                                    fontSize: "0.9375rem",
+                                                    letterSpacing: "0.02em",
+                                                    py: 1,
+                                                },
+                                                ...admissionInputSx,
+                                            }}
+                                        />
+                                        <TextField
+                                            size="small"
+                                            fullWidth
+                                            placeholder="Tên trên giao diện"
+                                            value={row.displayName}
+                                            disabled={rowDisabled}
+                                            onChange={(e) => {
+                                                const v = e.target.value;
+                                                setAdmissionTemplateForm((p) => {
+                                                    const next = [...(p.allowedMethods || [])];
+                                                    next[idx] = { ...next[idx], displayName: v };
+                                                    return { ...p, allowedMethods: next };
+                                                });
+                                            }}
+                                            sx={admissionInputSx}
+                                        />
+                                        <TextField
+                                            size="small"
+                                            fullWidth
+                                            multiline
+                                            minRows={1}
+                                            maxRows={4}
+                                            placeholder="Mô tả ngắn cho tư vấn / trường"
+                                            value={row.description}
+                                            disabled={rowDisabled}
+                                            onChange={(e) => {
+                                                const v = e.target.value;
+                                                setAdmissionTemplateForm((p) => {
+                                                    const next = [...(p.allowedMethods || [])];
+                                                    next[idx] = { ...next[idx], description: v };
+                                                    return { ...p, allowedMethods: next };
+                                                });
+                                            }}
+                                            sx={admissionInputSx}
+                                        />
+                                        <Box sx={{ display: "flex", justifyContent: "center", pt: 0.25 }}>
+                                            <Tooltip title="Xóa dòng" placement="left">
+                                                <span>
+                                                    <IconButton
+                                                        size="small"
+                                                        color="error"
+                                                        disabled={rowDisabled}
+                                                        aria-label="Xóa dòng"
+                                                        onClick={() =>
+                                                            setAdmissionTemplateForm((p) => {
+                                                                const next = [...(p.allowedMethods || [])];
+                                                                next.splice(idx, 1);
+                                                                return { ...p, allowedMethods: next };
+                                                            })
+                                                        }
+                                                    >
+                                                        <DeleteOutlineIcon fontSize="small" />
+                                                    </IconButton>
+                                                </span>
+                                            </Tooltip>
+                                        </Box>
+                                    </Box>
+                                ))}
                             </Stack>
-                        </Stack>
-                    </Paper>
-                ) : null}
+                        )}
+                    </Box>
+                </Box>
 
             </Stack>
         );
