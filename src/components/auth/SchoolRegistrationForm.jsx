@@ -29,7 +29,14 @@ import {enqueueSnackbar} from 'notistack';
 import {showErrorSnackbar, showSuccessSnackbar} from '../ui/AppSnackbar.jsx';
 import CloudinaryUpload from '../ui/CloudinaryUpload.jsx';
 import {APP_PRIMARY_DARK, BRAND_NAVY, BRAND_SKY, BRAND_SKY_LIGHT} from '../../constants/homeLandingTheme';
-import {getSystemConfig} from '../../services/SystemConfigService.jsx';
+import {fetchSystemMediaConfig} from '../../services/SystemConfigService.jsx';
+import {
+    buildMediaImageRulesFromMedia,
+    getFallbackDocFormatExtensions,
+    getFallbackMediaImageRules,
+    parseDocFormatsFromMedia,
+    parseImageFormatsFromMedia,
+} from '../../utils/platformMediaConfig.js';
 
 const HEADER_MUTED = 'rgba(30, 58, 138, 0.82)';
 const PHONE_REGEX = /^\d{10}$/;
@@ -77,34 +84,44 @@ const SchoolRegistrationForm = ({email, onBack}) => {
     });
     const [allowedImgFormats, setAllowedImgFormats] = useState([]);
     const [allowedDocFormats, setAllowedDocFormats] = useState([]);
+    const [logoMediaImageRules, setLogoMediaImageRules] = useState(null);
+    const [logoMediaRulesLoading, setLogoMediaRulesLoading] = useState(true);
 
     useEffect(() => {
         let isMounted = true;
 
-        const normalizeFormat = (value) => {
-            const raw = String(value ?? '').trim().toLowerCase();
-            if (!raw) return '';
-            return raw.startsWith('.') ? raw : `.${raw}`;
-        };
+        const toDotSuffixes = (exts) =>
+            exts.map((e) => {
+                const s = String(e ?? '')
+                    .trim()
+                    .toLowerCase();
+                if (!s) return '';
+                return s.startsWith('.') ? s : `.${s}`;
+            }).filter(Boolean);
 
-        const extractFormats = (media, keys = []) => {
-            const source = keys.find((key) => Array.isArray(media?.[key]));
-            if (!source) return [];
-            return media[source]
-                .map((item) => (typeof item === 'string' ? item : item?.format))
-                .map(normalizeFormat)
-                .filter(Boolean);
+        const applyPublicFallback = () => {
+            const imgRules = getFallbackMediaImageRules();
+            setLogoMediaImageRules(imgRules);
+            setAllowedImgFormats(toDotSuffixes(imgRules.extensions));
+            setAllowedDocFormats(toDotSuffixes(getFallbackDocFormatExtensions()));
         };
 
         const loadMediaFormats = async () => {
+            setLogoMediaRulesLoading(true);
             try {
-                const res = await getSystemConfig();
-                const media = res?.data?.data?.media || res?.data?.media || res?.media;
-                if (!isMounted || !media) return;
-                setAllowedImgFormats(extractFormats(media, ['imgFormats', 'imgFormat']));
-                setAllowedDocFormats(extractFormats(media, ['docFormats', 'docFormat']));
+                const media = await fetchSystemMediaConfig({staleTimeMs: 10 * 60 * 1000});
+                if (!isMounted) return;
+                const imgExt = parseImageFormatsFromMedia(media);
+                const docExt = parseDocFormatsFromMedia(media);
+                const rules = buildMediaImageRulesFromMedia(media) ?? getFallbackMediaImageRules();
+                setLogoMediaImageRules(rules);
+                setAllowedImgFormats(toDotSuffixes(imgExt.length ? imgExt : rules.extensions));
+                setAllowedDocFormats(toDotSuffixes(docExt.length ? docExt : getFallbackDocFormatExtensions()));
             } catch (error) {
-                console.error('Failed to load media format config:', error);
+                if (!isMounted) return;
+                applyPublicFallback();
+            } finally {
+                if (isMounted) setLogoMediaRulesLoading(false);
             }
         };
 
@@ -1052,6 +1069,8 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 inputId="school-registration-logo"
                                                 accept="image/*"
                                                 multiple={false}
+                                                mediaImageRules={logoMediaImageRules}
+                                                mediaImageRulesLoading={logoMediaRulesLoading}
                                                 onSuccess={([f]) => {
                                                     if (f?.url) {
                                                         setFormData((p) => ({...p, logoUrl: f.url}));

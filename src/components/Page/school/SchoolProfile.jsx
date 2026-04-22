@@ -37,6 +37,7 @@ import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 import { getProfile, updateProfile } from "../../../services/AccountService.jsx";
 import {notifyAuthUserStorageChanged, sanitizeUserForLocalStorage} from "../../../utils/userRole.js";
 import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
+import { usePlatformMediaImageRules } from "../../../hooks/usePlatformMediaImageRules.js";
 import { CircleMarker, MapContainer, TileLayer, useMap } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -423,6 +424,7 @@ function LogoLightboxDialog({ open, imageUrl, onClose }) {
 }
 
 export default function SchoolProfile() {
+    const { loading: mediaImageRulesLoading, rules: mediaImageRules } = usePlatformMediaImageRules();
     const [loading, setLoading] = useState(true);
     const [profile, setProfile] = useState(null);
     const [editOpen, setEditOpen] = useState(false);
@@ -1448,7 +1450,15 @@ export default function SchoolProfile() {
                                                             >
                                                                 <DeleteOutlineIcon fontSize="small" />
                                                             </IconButton>
-                                                            <CloudinaryUpload inputId="school-profile-logo" accept="image/*" multiple={false} onSuccess={([f]) => f?.url && setFormValues((p) => ({ ...p, logoUrl: f.url }))} onError={(m) => enqueueSnackbar(m, { variant: "error" })}>
+                                                            <CloudinaryUpload
+                                                                inputId="school-profile-logo"
+                                                                accept="image/*"
+                                                                multiple={false}
+                                                                mediaImageRules={mediaImageRules}
+                                                                mediaImageRulesLoading={mediaImageRulesLoading}
+                                                                onSuccess={([f]) => f?.url && setFormValues((p) => ({ ...p, logoUrl: f.url }))}
+                                                                onError={(m) => enqueueSnackbar(m, { variant: "error" })}
+                                                            >
                                                                 {({ inputId, loading }) => (
                                                                     <IconButton component="label" htmlFor={inputId} disabled={loading} size="small" sx={{ bgcolor: "#f1f5f9", color: "#334155", border: "1px solid #e2e8f0", "&:hover": { bgcolor: "#e2e8f0" } }}>
                                                                         <CloudUploadIcon fontSize="small" />

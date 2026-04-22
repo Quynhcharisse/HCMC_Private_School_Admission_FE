@@ -34,6 +34,8 @@ import {createPost, uploadPostDocumentImport} from "../../services/PostService.j
 import {getApiErrorMessage} from "../../utils/getApiErrorMessage";
 import {isCloudinaryConfigured, uploadFileToCloudinary} from "../../utils/cloudinaryUpload.js";
 import {normalizeUserRole} from "../../utils/userRole.js";
+import {usePlatformMediaImageRules} from "../../hooks/usePlatformMediaImageRules.js";
+import {validateMediaImageFile} from "../../utils/platformMediaConfig.js";
 
 function toDatetimeLocalValue(d = new Date()) {
     const pad = (n) => String(n).padStart(2, "0");
@@ -144,6 +146,7 @@ export default function HomeCreatePostBar({
 
     const role = normalizeUserRole(user?.role ?? "");
     const categoryOptions = role === "ADMIN" ? CATEGORY_POST_ADMIN : CATEGORY_POST_SCHOOL;
+    const {loading: mediaImageRulesLoading, rules: mediaImageRules} = usePlatformMediaImageRules();
 
     React.useEffect(() => {
         if (!visible) return undefined;
@@ -354,6 +357,19 @@ export default function HomeCreatePostBar({
             });
             return;
         }
+        if (mediaImageRulesLoading) {
+            enqueueSnackbar("Đang tải cấu hình giới hạn ảnh…", {variant: "warning"});
+            return;
+        }
+        if (!mediaImageRules) {
+            enqueueSnackbar("Chưa tải được cấu hình ảnh từ hệ thống. Vui lòng thử lại sau.", {variant: "error"});
+            return;
+        }
+        const v = validateMediaImageFile(file, mediaImageRules);
+        if (!v.ok) {
+            enqueueSnackbar(v.message, {variant: "warning"});
+            return;
+        }
         setCloudinaryUploadSlot(mode === "thumbnail" ? "thumbnail" : "banner");
         try {
             const result = await uploadFileToCloudinary(file);
@@ -447,7 +463,12 @@ export default function HomeCreatePostBar({
         "& .MuiMenuItem-root": {fontSize: "0.875rem"}
     };
 
-    const dropzoneInteractive = !uploadingAnyImage && !uploadingDocument && !submitting;
+    const dropzoneInteractive =
+        !uploadingAnyImage &&
+        !uploadingDocument &&
+        !submitting &&
+        !mediaImageRulesLoading &&
+        Boolean(mediaImageRules);
     const UPLOAD_ZONE_MIN_PX = 152;
     const imageDropzoneSx = {
         border: `2px dashed ${LM.border}`,
