@@ -131,6 +131,12 @@ const SchoolRegistrationForm = ({email, onBack}) => {
         };
     }, []);
 
+    const taxCodeValueTrimmed = formData.taxCode.trim();
+    const isTaxCodeVerified =
+        lastTaxCodeCheckResult.taxCode === taxCodeValueTrimmed && lastTaxCodeCheckResult.isValid;
+    const lockFormUntilTaxCodeVerified = !isTaxCodeVerified;
+    const formSectionDisabled = lockFormUntilTaxCodeVerified || isSubmitting;
+
     const formatDisplayDate = (value) => {
         if (!value) return '';
         const [yyyy, mm, dd] = value.split('-');
@@ -668,7 +674,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                             <IconButton
                                                                 size="small"
                                                                 onClick={handleTaxCodeCheck}
-                                                                disabled={isCheckingTaxCode}
+                                                                disabled={isCheckingTaxCode || isSubmitting}
                                                                 sx={{
                                                                     color: '#16a34a',
                                                                     bgcolor: 'transparent',
@@ -709,7 +715,12 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             />
                                         </Grid>
                                     </Grid>
-
+                                    <Box
+                                        sx={{
+                                            opacity: lockFormUntilTaxCodeVerified ? 0.65 : 1,
+                                            transition: 'opacity 0.2s ease',
+                                        }}
+                                    >
                                     <Typography 
                                         variant="subtitle1" 
                                         sx={{
@@ -753,6 +764,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     onChange={handleInputChange}
                                                     fullWidth
                                                     size="small"
+                                                    disabled={formSectionDisabled}
                                                     multiline
                                                     minRows={3}
                                                     maxRows={8}
@@ -776,6 +788,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     onChange={handleInputChange}
                                                     fullWidth
                                                     size="small"
+                                                    disabled={formSectionDisabled}
                                                     placeholder="dd/mm/yyyy"
                                                     error={!!formErrors.foundingDate}
                                                     helperText={formErrors.foundingDate}
@@ -784,7 +797,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     InputProps={{
                                                         endAdornment: (
                                                             <InputAdornment position="end">
-                                                                <IconButton size="small" onClick={openFoundingDatePicker}>
+                                                                <IconButton size="small" onClick={openFoundingDatePicker} disabled={formSectionDisabled}>
                                                                     <CalendarMonth fontSize="small" />
                                                                 </IconButton>
                                                             </InputAdornment>
@@ -800,6 +813,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     ref={foundingDatePickerRef}
                                                     type="date"
                                                     value={normalizeFoundingDate(formData.foundingDate) ?? ''}
+                                                    disabled={formSectionDisabled}
                                                     onChange={(event) => {
                                                         const nextDisplayDate = formatDisplayDate(event.target.value);
                                                         setFormData((prev) => ({
@@ -827,6 +841,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 onChange={handleInputChange}
                                                 fullWidth
                                                 size="small"
+                                                disabled={formSectionDisabled}
                                                 multiline
                                                 minRows={5}
                                                 maxRows={16}
@@ -890,6 +905,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             onChange={handleInputChange}
                                             fullWidth
                                             size="small"
+                                            disabled={formSectionDisabled}
                                             multiline
                                             rows={2}
                                             error={!!formErrors.campusAddress}
@@ -913,6 +929,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     onChange={handleInputChange}
                                                     fullWidth
                                                     size="small"
+                                                    disabled={formSectionDisabled}
                                                     error={!!formErrors.campusPhone}
                                                     helperText={formErrors.campusPhone}
                                                     FormHelperTextProps={{sx: {minHeight: 20}}}
@@ -929,6 +946,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     onChange={handleInputChange}
                                                     fullWidth
                                                     size="small"
+                                                    disabled={formSectionDisabled}
                                                     error={!!formErrors.hotline}
                                                     helperText={formErrors.hotline}
                                                     FormHelperTextProps={{sx: {minHeight: 20}}}
@@ -948,6 +966,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             onChange={handleInputChange}
                                             fullWidth
                                             size="small"
+                                            disabled={formSectionDisabled}
                                             placeholder="https://example.com"
                                             error={!!formErrors.websiteUrl}
                                             helperText={formErrors.websiteUrl}
@@ -1004,6 +1023,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 onChange={handleInputChange}
                                                 fullWidth
                                                 size="small"
+                                                disabled={formSectionDisabled}
                                                 error={!!formErrors.representativeName}
                                                 helperText={formErrors.representativeName}
                                                 sx={{
@@ -1041,11 +1061,12 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                                 type="file"
                                                                 accept="application/pdf,.pdf"
                                                                 hidden
+                                                                disabled={formSectionDisabled}
                                                                 onChange={handleBusinessLicensePdfUpload}
                                                             />
                                                             <IconButton
                                                                 onClick={() => businessLicenseInputRef.current?.click()}
-                                                                disabled={isUploadingBusinessLicense}
+                                                                disabled={isUploadingBusinessLicense || formSectionDisabled}
                                                                 size="small"
                                                                 sx={{
                                                                     borderRadius: 1,
@@ -1069,6 +1090,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 inputId="school-registration-logo"
                                                 accept="image/*"
                                                 multiple={false}
+                                                disabled={formSectionDisabled}
                                                 mediaImageRules={logoMediaImageRules}
                                                 mediaImageRulesLoading={logoMediaRulesLoading}
                                                 onSuccess={([f]) => {
@@ -1143,7 +1165,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                     <Button
                                         type="submit"
                                         variant="contained"
-                                        disabled={isSubmitting}
+                                        disabled={isSubmitting || lockFormUntilTaxCodeVerified}
                                         sx={{
                                             minWidth: 170,
                                             py: 0.82,
@@ -1166,6 +1188,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             'Đăng ký'
                                         )}
                                     </Button>
+                                </Box>
                                 </Box>
                             </Stack>
                         </Box>
