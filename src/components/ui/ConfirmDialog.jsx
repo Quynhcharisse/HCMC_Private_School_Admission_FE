@@ -8,9 +8,10 @@ import {
     DialogContent,
     DialogContentText,
     DialogTitle,
+    IconButton,
 } from "@mui/material";
 import {alpha} from "@mui/material/styles";
-import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
+import CloseIcon from "@mui/icons-material/Close";
 
 export function ConfirmHighlight({children}) {
     return (
@@ -39,10 +40,11 @@ const ConfirmDialog = ({
     contentSx,
     descriptionSx,
     confirmButtonSx,
-    warningIconWrapSx,
-    warningIconSx,
+    variant = "classic",
 }) => {
-    const titleAccent = "#f59e0b";
+    const isModern = variant === "modern";
+    const titleFontSize = isModern ? 34 : 16;
+    const bodyFontSize = isModern ? 16 : 15;
 
     const handleDialogClose = (event, reason) => {
         if (loading) return;
@@ -71,9 +73,9 @@ const ConfirmDialog = ({
                     ...backdropSx,
                 },
                 '& .MuiPaper-root': {
-                    borderRadius: 4,
-                    boxShadow: "0 14px 28px rgba(15,23,42,0.14)",
-                    border: "1px solid rgba(15,23,42,0.08)",
+                    borderRadius: isModern ? 3 : 3,
+                    boxShadow: isModern ? "0 20px 44px rgba(15,23,42,0.22)" : "0 16px 34px rgba(15,23,42,0.16)",
+                    border: "1px solid #dbe5f3",
                     background: "#ffffff",
                     ...paperSx,
                 },
@@ -84,50 +86,68 @@ const ConfirmDialog = ({
                 sx={{
                     cursor: "default",
                     display: "flex",
-                    flexDirection: "column",
-                    justifyContent: "center",
-                    textAlign: "center",
-                    gap: 1.2,
-                    pt: 4.4,
-                    pb: 0.5,
-                    px: 3.5,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: isModern ? "flex-start" : "space-between",
+                    textAlign: "left",
+                    gap: 1,
+                    pt: isModern ? 1.7 : 1.25,
+                    pb: isModern ? 1.55 : 1.15,
+                    px: isModern ? 3.2 : 2.2,
+                    bgcolor: isModern ? "#eef4ff" : "#dbeafe",
+                    borderBottom: "1px solid #93c5fd",
                     ...titleSx,
                 }}
             >
                 <Box
-                    sx={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: "50%",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        bgcolor: "rgba(245,158,11,0.12)",
-                        mx: "auto",
-                        ...warningIconWrapSx,
-                    }}
-                >
-                    <WarningAmberRoundedIcon sx={{fontSize: 31, color: titleAccent, ...warningIconSx}} />
-                </Box>
-                <Box
                     component="span"
-                    sx={{fontSize: 35, lineHeight: 1.1, fontWeight: 700, color: "#1f2937", ...titleTextSx}}
+                    sx={{
+                        fontSize: isModern ? 32 : 22,
+                        lineHeight: 1.25,
+                        fontWeight: 700,
+                        color: "#1f2937",
+                        ...(isModern ? {} : { letterSpacing: 0, fontSize: titleFontSize, lineHeight: 1.3 }),
+                        ...titleTextSx
+                    }}
                 >
                     {title || "Warning"}
                 </Box>
+                {!isModern && (
+                    <IconButton
+                        onClick={onCancel}
+                        disabled={loading}
+                        size="small"
+                        aria-label="Đóng"
+                        sx={{
+                            color: "#9ca3af",
+                            p: 0.25,
+                            "&:hover": { bgcolor: "transparent", color: "#6b7280" },
+                        }}
+                    >
+                        <CloseIcon sx={{ fontSize: 20 }} />
+                    </IconButton>
+                )}
             </DialogTitle>
             {(description || extraDescription || children != null) && (
-                <DialogContent sx={{pt: 0.4, px: 4.5, pb: 1.2, textAlign: "center", ...contentSx}}>
+                <DialogContent
+                    sx={{
+                        pt: isModern ? 1.5 : 3.6,
+                        px: 3.2,
+                        pb: isModern ? 1.5 : 1.9,
+                        textAlign: "left",
+                        ...contentSx
+                    }}
+                >
                     {description && (
                         <DialogContentText
                             component="div"
                             sx={{
-                                fontSize: 16,
+                                fontSize: bodyFontSize,
                                 fontWeight: 500,
                                 color: "#6b7280",
-                                mt: 0,
-                                mb: extraDescription || children != null ? 0.5 : 0,
-                                textAlign: "center",
+                                mt: isModern ? 0 : 0.35,
+                                mb: extraDescription || children != null ? (isModern ? 0.6 : 1.05) : 0,
+                                textAlign: "left",
                                 ...descriptionSx,
                             }}
                         >
@@ -138,10 +158,11 @@ const ConfirmDialog = ({
                         <DialogContentText
                             component="div"
                             sx={{
-                                fontSize: 16,
-                                color: "#64748b",
+                                fontSize: isModern ? 14 : 14,
+                                color: "#6b7280",
                                 mb: children != null ? 1.5 : 0,
-                                textAlign: "center",
+                                textAlign: "left",
+                                lineHeight: 1.55,
                             }}
                         >
                             {extraDescription}
@@ -162,11 +183,11 @@ const ConfirmDialog = ({
             )}
             <DialogActions
                 sx={{
-                    px: 3.6,
+                    px: 3.2,
                     pb: 2.2,
-                    pt: 1.4,
-                    gap: 1.3,
-                    justifyContent: "center",
+                    pt: 0.7,
+                    gap: 1.1,
+                    justifyContent: "flex-end",
                     borderTop: "none",
                     background: "#ffffff",
                 }}
@@ -176,17 +197,17 @@ const ConfirmDialog = ({
                     disabled={loading}
                     sx={{
                         textTransform: "none",
-                        borderRadius: 999,
-                        px: 3.25,
-                        minWidth: 162,
-                        height: 46,
-                        fontSize: 17,
+                        borderRadius: 1.9,
+                        px: isModern ? 3.8 : 3.3,
+                        minWidth: isModern ? 118 : 110,
+                        height: isModern ? 48 : 42,
+                        fontSize: 15,
                         fontWeight: 600,
-                        color: "#1f2937",
+                        color: "#0f172a",
                         border: "1px solid rgba(15,23,42,0.12)",
-                        backgroundColor: "#f3f4f6",
+                        backgroundColor: "#ffffff",
                         "&:hover": {
-                            backgroundColor: "#e5e7eb",
+                            backgroundColor: "#f8fafc",
                             borderColor: "rgba(15,23,42,0.24)",
                         },
                     }}
@@ -200,17 +221,22 @@ const ConfirmDialog = ({
                     color="primary"
                     sx={{
                         textTransform: "none",
-                        px: 3.25,
-                        minWidth: 162,
-                        height: 46,
-                        borderRadius: 999,
-                        fontSize: 17,
+                        px: isModern ? 4.1 : 3.6,
+                        minWidth: isModern ? 142 : 128,
+                        height: isModern ? 48 : 42,
+                        borderRadius: 1.9,
+                        fontSize: 15,
                         fontWeight: 700,
-                        boxShadow: "0 8px 18px rgba(245,158,11,0.36)",
-                        background: "linear-gradient(135deg, #f7b14d 0%, #f59e0b 55%, #ea580c 100%)",
+                        boxShadow: "0 6px 16px rgba(37,99,235,0.42)",
+                        background: "#3b82f6",
                         "&:hover": {
-                            background: "linear-gradient(135deg, #f59e0b 0%, #ea580c 55%, #c2410c 100%)",
-                            boxShadow: "0 10px 20px rgba(234,88,12,0.45)",
+                            background: "#2563eb",
+                            boxShadow: "0 8px 18px rgba(37,99,235,0.48)",
+                        },
+                        "&.Mui-disabled": {
+                            color: "#e2e8f0",
+                            background: "#93c5fd",
+                            boxShadow: "none",
                         },
                         ...confirmButtonSx,
                     }}

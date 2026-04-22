@@ -853,19 +853,24 @@ export default function AdminSchoolVerification() {
 
             <ConfirmDialog
                 open={confirmOpen}
+                variant="modern"
                 title="Xác thực hồ sơ trường học"
                 description={
                     selectedRegistration ? (
                         <>
                             Bạn có chắc muốn <ConfirmHighlight>xác thực hồ sơ</ConfirmHighlight>{" "}
-                            <ConfirmHighlight>Trường THCS & THPT Nam Việt</ConfirmHighlight>? Tài khoản sẽ được kích
-                            hoạt sau khi xác thực.
+                            <ConfirmHighlight>{selectedRegistration.schoolName || "quý nhà trường"}</ConfirmHighlight>?
                         </>
                     ) : (
                         ""
                     )
                 }
-                extraDescription=""
+                extraDescription={
+                    <>
+                        Sau khi được <ConfirmHighlight>xác thực</ConfirmHighlight>, tài khoản của trường sẽ được{" "}
+                        <ConfirmHighlight>kích hoạt</ConfirmHighlight> để sử dụng hệ thống EduBridgeHCM.
+                    </>
+                }
                 cancelText="Hủy"
                 confirmText={verifyingId ? "Đang xác thực..." : "Xác thực"}
                 onCancel={handleConfirmClose}
@@ -875,10 +880,8 @@ export default function AdminSchoolVerification() {
                     background: "linear-gradient(145deg, #eef7ff 0%, #f8fbff 46%, #ffffff 100%)",
                     border: "1px solid rgba(59,130,246,0.25)",
                 }}
-                titleTextSx={{ fontSize: 26, lineHeight: 1.2 }}
-                descriptionSx={{ fontSize: 13.5, lineHeight: 1.45 }}
-                warningIconWrapSx={{ width: 64, height: 64 }}
-                warningIconSx={{ fontSize: 38 }}
+                titleTextSx={{ fontSize: 36, lineHeight: 1.2 }}
+                descriptionSx={{ fontSize: 14, lineHeight: 1.5 }}
                 confirmButtonSx={{
                     boxShadow: "0 8px 18px rgba(37,99,235,0.34)",
                     background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 55%, #1d4ed8 100%)",

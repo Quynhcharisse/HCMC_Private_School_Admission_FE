@@ -1377,14 +1377,6 @@ export default function AdminUsersManagement() {
                 loading={restrictConfirmLoading}
                 onCancel={handleCloseRestrictDialog}
                 onConfirm={() => void submitRestrictConfirm()}
-                paperSx={{
-                    background: "linear-gradient(145deg, #eef7ff 0%, #f8fbff 46%, #ffffff 100%)",
-                    border: "1px solid rgba(59,130,246,0.25)",
-                }}
-                titleSx={{
-                    background: "linear-gradient(90deg, rgba(37,99,235,0.2) 0%, rgba(59,130,246,0.14) 100%)",
-                    borderBottom: "none",
-                }}
                 confirmButtonSx={{
                     background: "#dc2626",
                     boxShadow: "0 6px 14px rgba(220,38,38,0.32)",
@@ -1439,14 +1431,6 @@ export default function AdminUsersManagement() {
                 loading={unrestrictConfirmLoading}
                 onCancel={handleCloseUnrestrictDialog}
                 onConfirm={() => void submitUnrestrictConfirm()}
-                paperSx={{
-                    background: "linear-gradient(145deg, #eef7ff 0%, #f8fbff 46%, #ffffff 100%)",
-                    border: "1px solid rgba(59,130,246,0.25)",
-                }}
-                titleSx={{
-                    background: "linear-gradient(90deg, rgba(37,99,235,0.2) 0%, rgba(59,130,246,0.14) 100%)",
-                    borderBottom: "none",
-                }}
             />
         </Box>
     );
