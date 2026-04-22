@@ -172,3 +172,10 @@ export const deleteAdminTemplateDocument = async (templateId) => {
     const response = await axiosClient.delete(`/admin/${templateId}`);
     return response || null;
 };
+
+export const autoFillAdminSchoolQuotas = async ({ url }) => {
+    const response = await axiosClient.post("/admin/school/quotas/auto/fill", {
+        url: String(url ?? "").trim(),
+    });
+    return response || null;
+};

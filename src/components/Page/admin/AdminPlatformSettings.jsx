@@ -35,17 +35,27 @@ import AddIcon from "@mui/icons-material/Add";
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import LinkOutlinedIcon from "@mui/icons-material/LinkOutlined";
-import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { getSystemConfig, updateSystemConfig } from "../../../services/SystemConfigService.jsx";
+import { autoFillAdminSchoolQuotas } from "../../../services/AdminService.jsx";
+import { getPublicSchoolList } from "../../../services/SchoolPublicService.jsx";
 import { enqueueSnackbar } from "notistack";
 import { sanitizeAdmissionSettingsForApi } from "../../../utils/admissionSettingsShared.js";
 
 /** Hạn mức theo năm học: đọc đúng key BE trả là `admissionQuota`. */
 function getAdmissionQuotaMap(cfg) {
     if (!cfg || typeof cfg !== "object") return {};
-    const m = cfg.admissionQuota;
-    return m && typeof m === "object" && !Array.isArray(m) ? m : {};
+    const raw = cfg.admissionQuota;
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+
+    // Shape mới: admissionQuota = { source: {...}, quotas: [...] }
+    if (raw.source || Array.isArray(raw.quotas)) {
+        const year = String(raw?.source?.year ?? "").trim();
+        const key = year || "current";
+        return { [key]: raw };
+    }
+
+    // Shape cũ: admissionQuota = { "2025": {...}, "2026": {...} }
+    return raw;
 }
 
 function getBusinessConfig(cfg) {
@@ -63,6 +73,18 @@ function apiErrorMessage(e, fallback) {
     const m = d?.message ?? d?.body?.message ?? d?.error ?? e?.message;
     const s = m != null ? String(m).trim() : "";
     return s || fallback;
+}
+
+function assertSystemConfigUpdateSuccess(response, fallbackMessage = "Cập nhật thất bại. Vui lòng thử lại.") {
+    const status = Number(response?.status);
+    if (!Number.isFinite(status) || status < 200 || status >= 300) {
+        throw new Error(fallbackMessage);
+    }
+    const messageRaw = response?.data?.message ?? response?.data?.body?.message ?? "";
+    const message = String(messageRaw ?? "").trim();
+    if (message && !/thành công/i.test(message)) {
+        throw new Error(message);
+    }
 }
 
 export default function AdminPlatformSettings() {
@@ -86,6 +108,10 @@ export default function AdminPlatformSettings() {
 
     const getBusinessInitialForm = (cfg) => {
         const business = getBusinessConfig(cfg);
+        const subscriptionPricing = business.subscriptionPricing ?? {};
+        const basePrices = subscriptionPricing.basePrices ?? {};
+        const featureUnitPrices = subscriptionPricing.featureUnitPrices ?? {};
+        const packageQuotas = subscriptionPricing.packageQuotas ?? {};
         const minPay = business.minPay ?? "";
         const maxPay = business.maxPay ?? "";
         const taxRatePct = Number(business.taxRate ?? 0) * 100;
@@ -95,6 +121,21 @@ export default function AdminPlatformSettings() {
             maxPay: maxPay === "" ? "" : String(maxPay),
             taxRatePct: String(Math.round(taxRatePct * 100) / 100),
             serviceRatePct: String(Math.round(serviceRatePct * 100) / 100),
+            baseTrialPrice: basePrices.trial == null ? "" : String(basePrices.trial),
+            baseStandardPrice: basePrices.standard == null ? "" : String(basePrices.standard),
+            baseEnterprisePrice: basePrices.enterprise == null ? "" : String(basePrices.enterprise),
+            extraCounsellorFeePerSlot: featureUnitPrices.extraCounsellorFeePerSlot == null ? "" : String(featureUnitPrices.extraCounsellorFeePerSlot),
+            extraPostFee: featureUnitPrices.extraPostFee == null ? "" : String(featureUnitPrices.extraPostFee),
+            aiChatbotMonthlyFee: featureUnitPrices.aiChatbotMonthlyFee == null ? "" : String(featureUnitPrices.aiChatbotMonthlyFee),
+            premiumSupportFee: featureUnitPrices.premiumSupportFee == null ? "" : String(featureUnitPrices.premiumSupportFee),
+            topRankingFee: featureUnitPrices.topRankingFee == null ? "" : String(featureUnitPrices.topRankingFee),
+            durationDays: packageQuotas.durationDays == null ? "" : String(packageQuotas.durationDays),
+            trialCounsellor: packageQuotas.trialCounsellor == null ? "" : String(packageQuotas.trialCounsellor),
+            standardCounsellor: packageQuotas.standardCounsellor == null ? "" : String(packageQuotas.standardCounsellor),
+            enterpriseCounsellor: packageQuotas.enterpriseCounsellor == null ? "" : String(packageQuotas.enterpriseCounsellor),
+            trialPostLimit: packageQuotas.trialPostLimit == null ? "" : String(packageQuotas.trialPostLimit),
+            standardPostLimit: packageQuotas.standardPostLimit == null ? "" : String(packageQuotas.standardPostLimit),
+            enterprisePostLimit: packageQuotas.enterprisePostLimit == null ? "" : String(packageQuotas.enterprisePostLimit),
         };
     };
 
@@ -103,8 +144,25 @@ export default function AdminPlatformSettings() {
         maxPay: "",
         taxRatePct: "0",
         serviceRatePct: "0",
+        baseTrialPrice: "",
+        baseStandardPrice: "",
+        baseEnterprisePrice: "",
+        extraCounsellorFeePerSlot: "",
+        extraPostFee: "",
+        aiChatbotMonthlyFee: "",
+        premiumSupportFee: "",
+        topRankingFee: "",
+        durationDays: "",
+        trialCounsellor: "",
+        standardCounsellor: "",
+        enterpriseCounsellor: "",
+        trialPostLimit: "",
+        standardPostLimit: "",
+        enterprisePostLimit: "",
     });
     const [businessErrors, setBusinessErrors] = useState({});
+    const [businessPricingTab, setBusinessPricingTab] = useState(0);
+    const [businessPricingSubTab, setBusinessPricingSubTab] = useState(0);
 
     const [businessEditing, setBusinessEditing] = useState(false);
 
@@ -112,15 +170,29 @@ export default function AdminPlatformSettings() {
     const [quotaEditing, setQuotaEditing] = useState(false);
 
     const [selectedQuotaYear, setSelectedQuotaYear] = useState("");
+    const [schoolOptions, setSchoolOptions] = useState([]);
+    const [loadingSchools, setLoadingSchools] = useState(false);
     const quotaRowIdRef = useRef(0);
-    const createQuotaRow = (key = "", value = "") => ({
-        id: `quota_row_${quotaRowIdRef.current++}`,
-        key: String(key ?? ""),
-        value: value != null ? String(value) : "",
+    const createQuotaEntry = ({ schoolId = "", value = "" } = {}) => {
+        const sid = schoolId === "" ? "" : Number(schoolId);
+        const matched = schoolOptions.find((s) => Number(s.schoolId) === sid);
+        return {
+            id: `quota_row_${quotaRowIdRef.current++}`,
+            schoolId: schoolId === "" ? "" : String(sid),
+            schoolName: matched?.schoolName ?? "",
+            value: value === "" || value == null ? "" : String(value),
+        };
+    };
+    const [quotaForm, setQuotaForm] = useState({
+        year: "",
+        sourceName: "",
+        sourceType: "NEWS_ARTICLE",
+        sourceUrl: "",
+        quotas: [createQuotaEntry()],
     });
-    const [quotaForm, setQuotaForm] = useState({ year: "", sourceUrl: "", quotaRows: [] });
     const [quotaErrors, setQuotaErrors] = useState({});
     const [quotaMode, setQuotaMode] = useState("edit");
+    const [autoFillingQuota, setAutoFillingQuota] = useState(false);
 
     const [admissionTemplateForm, setAdmissionTemplateForm] = useState({
         allowedMethods: [],
@@ -260,6 +332,36 @@ export default function AdminPlatformSettings() {
 
     const validateBusiness = (form) => {
         const errors = {};
+        const getMoney = (field, label) => {
+            const value = parseFinite(form[field]);
+            if (value === null) {
+                errors[field] = `Vui lòng nhập ${label}.`;
+                return null;
+            }
+            if (value < 0) {
+                errors[field] = `${label} không được âm.`;
+                return null;
+            }
+            return value;
+        };
+        const getPositiveInt = (field, label, { allowNegativeOne = false } = {}) => {
+            const raw = String(form[field] ?? "").trim();
+            if (!raw) {
+                errors[field] = `Vui lòng nhập ${label}.`;
+                return null;
+            }
+            const num = Number(raw);
+            if (!Number.isInteger(num)) {
+                errors[field] = `${label} phải là số nguyên.`;
+                return null;
+            }
+            if (allowNegativeOne && num === -1) return num;
+            if (num < 0) {
+                errors[field] = `${label} không được âm.`;
+                return null;
+            }
+            return num;
+        };
 
         const minPay = parseFinite(form.minPay);
         const maxPay = parseFinite(form.maxPay);
@@ -279,6 +381,22 @@ export default function AdminPlatformSettings() {
         if (taxRatePct !== null && (taxRatePct < 0 || taxRatePct > 100)) errors.taxRatePct = "Thuế suất phải trong [0..100].";
         if (serviceRatePct !== null && (serviceRatePct < 0 || serviceRatePct > 100))
             errors.serviceRatePct = "Phí dịch vụ phải trong [0..100].";
+
+        getMoney("baseTrialPrice", "Giá nền gói Trial");
+        getMoney("baseStandardPrice", "Giá nền gói Standard");
+        getMoney("baseEnterprisePrice", "Giá nền gói Enterprise");
+        getMoney("extraCounsellorFeePerSlot", "Đơn giá mua thêm tư vấn viên");
+        getMoney("extraPostFee", "Phí mua thêm bài đăng");
+        getMoney("aiChatbotMonthlyFee", "Phí duy trì Trợ lý AI");
+        getMoney("premiumSupportFee", "Phí hỗ trợ cao cấp");
+        getMoney("topRankingFee", "Phí đẩy Top tìm kiếm");
+        getPositiveInt("durationDays", "Thời hạn gói mặc định");
+        getPositiveInt("trialCounsellor", "Số tư vấn viên gói Trial");
+        getPositiveInt("standardCounsellor", "Số tư vấn viên gói Standard");
+        getPositiveInt("enterpriseCounsellor", "Số tư vấn viên gói Enterprise");
+        getPositiveInt("trialPostLimit", "Giới hạn bài đăng gói Trial");
+        getPositiveInt("standardPostLimit", "Giới hạn bài đăng gói Standard");
+        getPositiveInt("enterprisePostLimit", "Giới hạn bài đăng gói Enterprise", { allowNegativeOne: true });
 
         return errors;
     };
@@ -322,6 +440,43 @@ export default function AdminPlatformSettings() {
 
     useEffect(() => {
         void fetchConfig();
+    }, []);
+
+    useEffect(() => {
+        const fetchSchools = async () => {
+            setLoadingSchools(true);
+            try {
+                const schools = await getPublicSchoolList();
+                const normalized = (Array.isArray(schools) ? schools : [])
+                    .map((item) => ({
+                        // Ưu tiên đúng payload /school/public/list: { id, name }
+                        schoolId: Number(item?.id ?? item?.schoolId),
+                        schoolName: String(item?.name ?? item?.schoolName ?? "").trim(),
+                    }))
+                    .filter((item) => Number.isFinite(item.schoolId) && item.schoolName);
+                setSchoolOptions(normalized);
+                setQuotaForm((prev) => {
+                    const existingBySchoolId = new Map(
+                        (Array.isArray(prev?.quotas) ? prev.quotas : [])
+                            .map((row) => [Number(row?.schoolId), String(row?.value ?? "")])
+                            .filter(([sid]) => Number.isFinite(sid))
+                    );
+                    const nextRows = normalized.map((school) =>
+                        createQuotaEntry({
+                            schoolId: school.schoolId,
+                            value: existingBySchoolId.get(Number(school.schoolId)) ?? "",
+                        })
+                    );
+                    return { ...prev, quotas: nextRows };
+                });
+            } catch (e) {
+                console.error("Failed to fetch schools for quota form", e);
+                setSchoolOptions([]);
+            } finally {
+                setLoadingSchools(false);
+            }
+        };
+        void fetchSchools();
     }, []);
 
     useEffect(() => {
@@ -522,7 +677,8 @@ export default function AdminPlatformSettings() {
                     docFormats: docFormatsDraft.map((f) => ({ format: normalizeFormatString(f) })),
                 },
             };
-            await updateSystemConfig(mediaPatch);
+            const updateRes = await updateSystemConfig(mediaPatch);
+            assertSystemConfigUpdateSuccess(updateRes);
             enqueueSnackbar("Cập nhật cấu hình phương tiện thành công.", { variant: "success" });
             setStatus({ type: "success", message: "Cập nhật thành công." });
             await fetchConfig();
@@ -541,14 +697,31 @@ export default function AdminPlatformSettings() {
     const getQuotaInitialForm = (year) => {
         const quota = getAdmissionQuotaMap(configBody);
         const item = quota[year] || {};
-        const initialQuotas =
-            item?.quotas && typeof item.quotas === "object" && !Array.isArray(item.quotas)
-                ? item.quotas
-                : {};
+        const source = item?.source && typeof item.source === "object" ? item.source : {};
+        const entries = [];
+        if (Array.isArray(item?.quotas)) {
+            item.quotas.forEach((q) => {
+                const sid = Number(q?.schoolId);
+                const value = Number(q?.value);
+                if (Number.isFinite(sid) && Number.isInteger(value) && value >= 0) {
+                    entries.push(createQuotaEntry({ schoolId: sid, value }));
+                }
+            });
+        } else if (item?.quotas && typeof item.quotas === "object") {
+            Object.entries(item.quotas).forEach(([k, v]) => {
+                const sid = Number(k);
+                const value = Number(v);
+                if (Number.isFinite(sid) && Number.isInteger(value) && value >= 0) {
+                    entries.push(createQuotaEntry({ schoolId: sid, value }));
+                }
+            });
+        }
         return {
-            year: String(year ?? ""),
-            sourceUrl: item.sourceUrl || "",
-            quotaRows: Object.entries(initialQuotas).map(([k, v]) => createQuotaRow(k, v)),
+            year: String(source?.year ?? year ?? ""),
+            sourceName: String(source?.sourceName ?? ""),
+            sourceType: "NEWS_ARTICLE",
+            sourceUrl: String(source?.sourceUrl ?? item?.sourceUrl ?? ""),
+            quotas: entries.length ? entries : [createQuotaEntry()],
         };
     };
 
@@ -557,37 +730,47 @@ export default function AdminPlatformSettings() {
         const year = String(form?.year ?? "").trim();
         if (!year) errors.year = "Vui lòng nhập năm học.";
         if (year.length > 50) errors.year = "Năm học quá dài.";
+        const sourceName = String(form?.sourceName ?? "").trim();
+        if (sourceName.length > 255) errors.sourceName = "Tên nguồn quá dài.";
         if (quotaMode === "add" && year) {
             const quotaMap = getAdmissionQuotaMap(configBody);
             if (Object.prototype.hasOwnProperty.call(quotaMap, year)) {
                 errors.year = "Năm học này đã tồn tại.";
             }
         }
-        if (form.sourceUrl && typeof form.sourceUrl === "string" && form.sourceUrl.length > 2048) {
+        const sourceUrl = String(form?.sourceUrl ?? "").trim();
+        if (strict && !sourceUrl) {
+            errors.sourceUrl = "Vui lòng nhập nguồn dữ liệu.";
+        } else if (sourceUrl.length > 2048) {
             errors.sourceUrl = "URL quá dài.";
+        } else if (sourceUrl) {
+            const lower = sourceUrl.toLowerCase();
+            if (!lower.endsWith(".html")) {
+                errors.sourceUrl = "Nguồn dữ liệu chỉ chấp nhận file .html.";
+            }
         }
-        const quotaRows = Array.isArray(form?.quotaRows) ? form.quotaRows : [];
-        const usedKeys = new Set();
+        const quotaRows = Array.isArray(form?.quotas) ? form.quotas : [];
+        const usedSchoolIds = new Set();
         quotaRows.forEach((row) => {
-            const rowId = row?.id ?? "";
-            const normalizedKey = String(row?.key ?? "").trim();
+            const sid = Number(row?.schoolId);
             const normalizedValue = String(row?.value ?? "").trim();
-            if (!normalizedKey && !normalizedValue) return;
-            if (!normalizedKey) {
-                errors[`quotaKey:${rowId}`] = "Mã chỉ tiêu không được để trống.";
+            const rowId = row?.id ?? "";
+            if (!sid && normalizedValue === "") return;
+            if (!Number.isFinite(sid) || sid <= 0) {
+                errors[`quotaSchool:${rowId}`] = "Vui lòng chọn trường.";
                 return;
             }
-            if (usedKeys.has(normalizedKey)) {
-                errors[`quotaKey:${rowId}`] = "Mã chỉ tiêu bị trùng.";
+            if (usedSchoolIds.has(sid)) {
+                errors[`quotaSchool:${rowId}`] = "Trường đã tồn tại trong danh sách.";
                 return;
             }
-            usedKeys.add(normalizedKey);
+            usedSchoolIds.add(sid);
+            if (normalizedValue === "") {
+                if (strict) errors[`quotaValue:${rowId}`] = "Chỉ tiêu phải là số nguyên >= 0.";
+                return;
+            }
             const n = Number(normalizedValue);
-            if (strict && normalizedValue === "") {
-                errors[`quotaValue:${rowId}`] = "Chỉ tiêu phải là số nguyên >= 0.";
-                return;
-            }
-            if (normalizedValue !== "" && (!Number.isFinite(n) || !Number.isInteger(n) || n < 0)) {
+            if (!Number.isFinite(n) || !Number.isInteger(n) || n < 0) {
                 errors[`quotaValue:${rowId}`] = "Chỉ tiêu phải là số nguyên >= 0.";
             }
         });
@@ -602,17 +785,14 @@ export default function AdminPlatformSettings() {
         setStatus({ type: "", message: "" });
     };
 
-    const startQuotaEdit = () => {
-        if (!configBody || !selectedQuotaYear) return;
-        const form = getQuotaInitialForm(selectedQuotaYear);
-        setQuotaMode("edit");
-        setQuotaForm(form);
-        setQuotaErrors(validateQuota(form));
-        setQuotaEditing(true);
-    };
-
     const startQuotaAdd = () => {
-        const form = { year: "", sourceUrl: "", quotaRows: [] };
+        const form = {
+            year: "",
+            sourceName: "",
+            sourceType: "NEWS_ARTICLE",
+            sourceUrl: "",
+            quotas: schoolOptions.map((school) => createQuotaEntry({ schoolId: school.schoolId, value: "" })),
+        };
         setQuotaMode("add");
         setQuotaForm(form);
         setQuotaErrors({});
@@ -635,24 +815,29 @@ export default function AdminPlatformSettings() {
         setStatus({ type: "", message: "" });
         try {
             const normalizedYear = String(quotaForm.year ?? "").trim();
-            const sanitizedQuotas = (quotaForm.quotaRows || []).reduce((acc, row) => {
-                const key = String(row?.key ?? "").trim();
+            const sanitizedQuotas = (quotaForm.quotas || []).reduce((acc, row) => {
+                const schoolId = Number(row?.schoolId);
                 const valueStr = String(row?.value ?? "").trim();
-                if (!key || valueStr === "") return acc;
+                if (!Number.isFinite(schoolId) || valueStr === "") return acc;
                 const valueNum = Number(valueStr);
                 if (!Number.isFinite(valueNum) || !Number.isInteger(valueNum) || valueNum < 0) return acc;
-                acc[key] = valueNum;
+                acc.push({ schoolId: Math.trunc(schoolId), value: valueNum });
                 return acc;
-            }, {});
+            }, []);
             const updatedBody = {
                 admissionQuotaData: {
-                    year: normalizedYear,
-                    sourceUrl: quotaForm.sourceUrl || "",
+                    source: {
+                        sourceName: String(quotaForm.sourceName ?? "").trim(),
+                        sourceUrl: String(quotaForm.sourceUrl ?? "").trim(),
+                        sourceType: String(quotaForm.sourceType ?? "NEWS_ARTICLE"),
+                        year: normalizedYear,
+                    },
                     quotas: sanitizedQuotas,
                 },
             };
 
-            await updateSystemConfig(updatedBody);
+            const updateRes = await updateSystemConfig(updatedBody);
+            assertSystemConfigUpdateSuccess(updateRes);
             enqueueSnackbar("Cập nhật Cài đặt Hạn mức Tuyển sinh thành công.", { variant: "success" });
             setStatus({ type: "success", message: "Cập nhật thành công." });
             setSelectedQuotaYear(normalizedYear);
@@ -670,6 +855,75 @@ export default function AdminPlatformSettings() {
         return ok;
     };
 
+    const autoFillQuotaByAI = async () => {
+        const currentUrl = String(quotaForm.sourceUrl ?? "").trim();
+        if (!currentUrl) {
+            enqueueSnackbar("Vui lòng nhập nguồn dữ liệu (URL) trước khi tự động điền.", { variant: "warning" });
+            return;
+        }
+        if (!currentUrl.toLowerCase().endsWith(".html")) {
+            enqueueSnackbar("Nguồn dữ liệu chỉ chấp nhận file .html.", { variant: "warning" });
+            return;
+        }
+        setAutoFillingQuota(true);
+        try {
+            const res = await autoFillAdminSchoolQuotas({ url: currentUrl });
+            const body = res?.data?.body ?? {};
+            const source = body?.source && typeof body.source === "object" ? body.source : {};
+            const quotas = Array.isArray(body?.quotas) ? body.quotas : [];
+            const quotaBySchoolId = new Map();
+            quotas.forEach((item) => {
+                const sid = Number(item?.schoolId);
+                const value = Number(item?.value);
+                if (Number.isFinite(sid) && Number.isInteger(value) && value >= 0) {
+                    quotaBySchoolId.set(sid, value);
+                }
+            });
+            let missingSchools = [];
+
+            setQuotaForm((prev) => {
+                const nextRows = (prev?.quotas || []).map((row) => {
+                    const sid = Number(row?.schoolId);
+                    if (!Number.isFinite(sid)) return row;
+                    const nextValue = quotaBySchoolId.get(sid);
+                    return {
+                        ...row,
+                        value: nextValue == null ? "" : String(nextValue),
+                    };
+                });
+                const next = {
+                    ...prev,
+                    sourceName: source?.sourceName != null ? String(source.sourceName) : prev.sourceName,
+                    sourceUrl: source?.sourceUrl != null ? String(source.sourceUrl) : prev.sourceUrl,
+                    sourceType: source?.sourceType != null ? String(source.sourceType) : prev.sourceType,
+                    year: source?.year != null ? String(source.year) : prev.year,
+                    quotas: nextRows,
+                };
+                missingSchools = nextRows
+                    .filter((row) => {
+                        const sid = Number(row?.schoolId);
+                        return Number.isFinite(sid) && !quotaBySchoolId.has(sid);
+                    })
+                    .map((row) => row.schoolName)
+                    .filter(Boolean);
+                setQuotaErrors(validateQuota(next));
+                return next;
+            });
+
+            enqueueSnackbar("Đã tự động điền chỉ tiêu bằng AI.", { variant: "success" });
+            if (missingSchools.length > 0) {
+                const preview = missingSchools.slice(0, 3).join(", ");
+                const remain = missingSchools.length > 3 ? ` và ${missingSchools.length - 3} trường khác` : "";
+                enqueueSnackbar(`Chưa có chỉ tiêu cho: ${preview}${remain}. Vui lòng nhập tay.`, { variant: "warning" });
+            }
+        } catch (e) {
+            console.error("autoFillQuotaByAI failed", e);
+            enqueueSnackbar(apiErrorMessage(e, "Không thể tự động điền chỉ tiêu. Vui lòng thử lại."), { variant: "error" });
+        } finally {
+            setAutoFillingQuota(false);
+        }
+    };
+
     const saveBusiness = async () => {
         if (!configBody) return;
         const errors = validateBusiness(businessForm);
@@ -680,6 +934,7 @@ export default function AdminPlatformSettings() {
         let ok = false;
         setStatus({ type: "", message: "" });
         try {
+            const prevBusiness = getBusinessConfig(configBody);
             const minPay = parseFinite(businessForm.minPay);
             const maxPay = parseFinite(businessForm.maxPay);
             const taxRate = toRateDecimal(businessForm.taxRatePct);
@@ -687,14 +942,39 @@ export default function AdminPlatformSettings() {
 
             const updatedBody = {
                 businessData: {
+                    ...prevBusiness,
                     minPay: minPay != null ? Math.trunc(minPay) : minPay,
                     maxPay: maxPay != null ? Math.trunc(maxPay) : maxPay,
                     taxRate,
                     serviceRate,
+                    subscriptionPricing: {
+                        basePrices: {
+                            trial: Math.trunc(parseFinite(businessForm.baseTrialPrice) ?? 0),
+                            standard: Math.trunc(parseFinite(businessForm.baseStandardPrice) ?? 0),
+                            enterprise: Math.trunc(parseFinite(businessForm.baseEnterprisePrice) ?? 0),
+                        },
+                        featureUnitPrices: {
+                            extraCounsellorFeePerSlot: Math.trunc(parseFinite(businessForm.extraCounsellorFeePerSlot) ?? 0),
+                            extraPostFee: Math.trunc(parseFinite(businessForm.extraPostFee) ?? 0),
+                            aiChatbotMonthlyFee: Math.trunc(parseFinite(businessForm.aiChatbotMonthlyFee) ?? 0),
+                            premiumSupportFee: Math.trunc(parseFinite(businessForm.premiumSupportFee) ?? 0),
+                            topRankingFee: Math.trunc(parseFinite(businessForm.topRankingFee) ?? 0),
+                        },
+                        packageQuotas: {
+                            durationDays: Math.trunc(parseFinite(businessForm.durationDays) ?? 0),
+                            trialCounsellor: Math.trunc(parseFinite(businessForm.trialCounsellor) ?? 0),
+                            standardCounsellor: Math.trunc(parseFinite(businessForm.standardCounsellor) ?? 0),
+                            enterpriseCounsellor: Math.trunc(parseFinite(businessForm.enterpriseCounsellor) ?? 0),
+                            trialPostLimit: Math.trunc(parseFinite(businessForm.trialPostLimit) ?? 0),
+                            standardPostLimit: Math.trunc(parseFinite(businessForm.standardPostLimit) ?? 0),
+                            enterprisePostLimit: Math.trunc(parseFinite(businessForm.enterprisePostLimit) ?? -1),
+                        },
+                    },
                 },
             };
 
-            await updateSystemConfig(updatedBody);
+            const updateRes = await updateSystemConfig(updatedBody);
+            assertSystemConfigUpdateSuccess(updateRes);
             enqueueSnackbar("Cập nhật Cài đặt Doanh nghiệp thành công.", { variant: "success" });
             setStatus({ type: "success", message: "Cập nhật thành công." });
             await fetchConfig();
@@ -727,7 +1007,8 @@ export default function AdminPlatformSettings() {
         setStatus({ type: "", message: "" });
         try {
             const sanitized = sanitizeAdmissionSettingsForApi(admissionTemplateForm);
-            await updateSystemConfig({ admissionSettingsData: sanitized });
+            const updateRes = await updateSystemConfig({ admissionSettingsData: sanitized });
+            assertSystemConfigUpdateSuccess(updateRes);
             enqueueSnackbar(
                 "Đã cập nhật mẫu phương thức. Các trường đang dùng bản riêng không tự đổi.",
                 { variant: "success" }
@@ -748,100 +1029,51 @@ export default function AdminPlatformSettings() {
     const renderAdmissionTab = () => {
         const rowDisabled = !admissionTemplateEditing || saving;
         const methods = admissionTemplateForm.allowedMethods || [];
-        const methodCount = methods.filter((m) => String(m?.code ?? "").trim()).length;
+        const admissionInputSx = {
+            "& .MuiOutlinedInput-root": {
+                borderRadius: 1.75,
+                bgcolor: "#ffffff",
+                "& fieldset": { borderColor: "#d1d5db" },
+                "&:hover fieldset": { borderColor: "#94a3b8" },
+                "&.Mui-focused fieldset": { borderColor: "#64748b" },
+            },
+        };
 
         return (
             <Stack spacing={2.5} sx={{ width: "100%" }}>
                 <Paper
                     elevation={0}
                     sx={{
-                        p: { xs: 2, sm: 2.5 },
-                        borderRadius: 2.5,
-                        border: "1px solid",
-                        borderColor: "divider",
-                        background: (theme) =>
-                            `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.06)} 0%, ${alpha(theme.palette.primary.main, 0.02)} 45%, #fff 100%)`,
-                    }}
-                >
-                    <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems={{ sm: "flex-start" }} justifyContent="space-between">
-                        <Stack direction="row" spacing={1.75} alignItems="flex-start">
-                            <Box
-                                sx={{
-                                    width: 44,
-                                    height: 44,
-                                    borderRadius: 2,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    bgcolor: (theme) => alpha(theme.palette.primary.main, 0.12),
-                                    color: "primary.main",
-                                    flexShrink: 0,
-                                }}
-                            >
-                                <AssignmentOutlinedIcon sx={{ fontSize: 26 }} />
-                            </Box>
-                            <Box sx={{ minWidth: 0 }}>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 800, color: "#0f172a", lineHeight: 1.35 }}>
-                                    Mẫu phương thức tuyển sinh
-                                </Typography>
-                                <Typography variant="body2" sx={{ color: "#64748b", mt: 0.75, maxWidth: 720 }}>
-                                    Định nghĩa danh mục mặc định toàn hệ thống. Trường có thể lấy mẫu này khi cấu hình; mỗi trường vẫn có thể lưu bản riêng sau khi chỉnh.
-                                </Typography>
-                            </Box>
-                        </Stack>
-                        <Chip
-                            size="small"
-                            label={`${methodCount} mã hợp lệ`}
-                            color="primary"
-                            variant="outlined"
-                            sx={{ fontWeight: 700, alignSelf: { xs: "flex-start", sm: "center" } }}
-                        />
-                    </Stack>
-                </Paper>
-
-                <Alert severity="info" variant="outlined" icon={false} sx={{ borderRadius: 2, bgcolor: "rgba(37, 99, 235, 0.04)", borderColor: "rgba(37, 99, 235, 0.22)" }}>
-                    <Typography variant="body2" sx={{ color: "#334155", fontWeight: 600 }}>
-                        Gợi ý cho quản trị
-                    </Typography>
-                    <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5 }}>
-                        <strong>Mã (code)</strong> là khóa tham chiếu (hồ sơ, quy trình). Giữ mã ổn định; chỉnh tên/mô tả an toàn hơn là đổi mã khi đã có trường áp dụng.
-                    </Typography>
-                </Alert>
-
-                <Paper
-                    elevation={0}
-                    sx={{
-                        borderRadius: 2.5,
-                        border: "1px solid",
-                        borderColor: "divider",
+                        borderRadius: 2,
+                        border: "1px solid #e2e8f0",
                         overflow: "hidden",
                     }}
                 >
                     <Box
                         sx={{
                             px: 2,
-                            py: 1.25,
+                            py: 1.1,
                             borderBottom: "1px solid",
-                            borderColor: "divider",
-                            bgcolor: "rgba(248, 250, 252, 0.95)",
+                            borderColor: "#e2e8f0",
+                            bgcolor: "#f8fafc",
                         }}
                     >
-                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#0f172a" }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#111827" }}>
                             Danh sách phương thức
                         </Typography>
                     </Box>
                     <TableContainer sx={{ maxWidth: "100%" }}>
                         <Table size="small" sx={{ minWidth: 800, tableLayout: "fixed" }}>
                             <TableHead>
-                                <TableRow sx={{ bgcolor: "rgba(241, 245, 249, 0.85)" }}>
-                                    <TableCell sx={{ fontWeight: 800, color: "#334155", width: "28%", minWidth: 220, py: 1.25 }}>
+                                <TableRow sx={{ bgcolor: "#f8fafc" }}>
+                                    <TableCell sx={{ fontWeight: 700, color: "#374151", width: "28%", minWidth: 220, py: 1.2 }}>
                                         Mã (code)
                                     </TableCell>
-                                    <TableCell sx={{ fontWeight: 800, color: "#334155", width: "28%", minWidth: 180, py: 1.25 }}>
+                                    <TableCell sx={{ fontWeight: 700, color: "#374151", width: "28%", minWidth: 180, py: 1.2 }}>
                                         Tên hiển thị
                                     </TableCell>
-                                    <TableCell sx={{ fontWeight: 800, color: "#334155", py: 1.25 }}>Mô tả</TableCell>
-                                    <TableCell align="center" sx={{ width: 52, py: 1.25 }} />
+                                    <TableCell sx={{ fontWeight: 700, color: "#374151", py: 1.2 }}>Mô tả</TableCell>
+                                    <TableCell align="center" sx={{ width: 52, py: 1.2 }} />
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -858,7 +1090,7 @@ export default function AdminPlatformSettings() {
                                         <TableRow
                                             key={`adm-${idx}-${row.code ?? "row"}`}
                                             hover
-                                            sx={{ "&:nth-of-type(even)": { bgcolor: "rgba(248, 250, 252, 0.5)" } }}
+                                            sx={{ "&:nth-of-type(even)": { bgcolor: "#fafafa" } }}
                                         >
                                             <TableCell sx={{ verticalAlign: "top", pt: 1.5, pb: 1.5, minWidth: 220 }}>
                                                 <TextField
@@ -901,6 +1133,7 @@ export default function AdminPlatformSettings() {
                                                             letterSpacing: "0.02em",
                                                             py: 1,
                                                         },
+                                                        ...admissionInputSx,
                                                     }}
                                                 />
                                             </TableCell>
@@ -919,6 +1152,7 @@ export default function AdminPlatformSettings() {
                                                             return { ...p, allowedMethods: next };
                                                         });
                                                     }}
+                                                    sx={admissionInputSx}
                                                 />
                                             </TableCell>
                                             <TableCell sx={{ verticalAlign: "top", pt: 1.5, pb: 1.5 }}>
@@ -938,6 +1172,7 @@ export default function AdminPlatformSettings() {
                                                             return { ...p, allowedMethods: next };
                                                         });
                                                     }}
+                                                    sx={admissionInputSx}
                                                 />
                                             </TableCell>
                                             <TableCell align="center" sx={{ verticalAlign: "top", pt: 1.25 }}>
@@ -972,8 +1207,8 @@ export default function AdminPlatformSettings() {
                             px: 2,
                             py: 1.5,
                             borderTop: "1px solid",
-                            borderColor: "divider",
-                            bgcolor: "rgba(248, 250, 252, 0.6)",
+                            borderColor: "#e2e8f0",
+                            bgcolor: "#f8fafc",
                             display: "flex",
                             justifyContent: "flex-start",
                         }}
@@ -994,8 +1229,8 @@ export default function AdminPlatformSettings() {
                                 fontWeight: 700,
                                 borderRadius: 2,
                                 boxShadow: "none",
-                                bgcolor: "#2563eb",
-                                "&:hover": { boxShadow: "0 4px 14px rgba(37, 99, 235, 0.28)", bgcolor: "#1d4ed8" },
+                                bgcolor: "#1f2937",
+                                "&:hover": { bgcolor: "#111827" },
                             }}
                         >
                             Thêm phương thức
@@ -1048,168 +1283,255 @@ export default function AdminPlatformSettings() {
         );
     };
 
-    const renderBusinessTab = () => (
-        <Box sx={{ width: "100%" }}>
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#2563eb", mb: 1.5 }}>
-                Cài đặt doanh nghiệp
-            </Typography>
-            {(() => {
-                const businessDisabled = !businessEditing || saving;
-                const serviceRateValue = businessForm.serviceRatePct === "" ? "" : Number(businessForm.serviceRatePct);
+    const renderBusinessTab = () => {
+        const businessDisabled = !businessEditing || saving;
+        const handleBusinessFieldChange = (field, value) => {
+            setBusinessForm((prev) => {
+                const next = { ...prev, [field]: value };
+                setBusinessErrors(validateBusiness(next));
+                return next;
+            });
+        };
+        const moneyField = (label, field) => (
+            <Box sx={{ ...settingsFieldCardSx }}>
+                <Typography sx={settingsFieldLabelSx}>{label}</Typography>
+                <TextField
+                    size="small"
+                    type="text"
+                    fullWidth
+                    disabled={businessDisabled}
+                    value={formatMoneyVN(businessForm[field])}
+                    onChange={(e) => handleBusinessFieldChange(field, sanitizeMoneyInput(e.target.value))}
+                    error={Boolean(businessErrors[field])}
+                    helperText={businessErrors[field] || ""}
+                    inputProps={{ inputMode: "numeric" }}
+                    InputProps={{ endAdornment: <InputAdornment position="end">VNĐ</InputAdornment> }}
+                    sx={settingsInputSx}
+                />
+            </Box>
+        );
+        const integerField = (label, field, unit, allowNegativeOne = false) => (
+            <Box sx={{ ...settingsFieldCardSx }}>
+                <Typography sx={settingsFieldLabelSx}>{label}</Typography>
+                <TextField
+                    size="small"
+                    fullWidth
+                    type="number"
+                    disabled={businessDisabled}
+                    value={businessForm[field]}
+                    onChange={(e) => handleBusinessFieldChange(field, e.target.value)}
+                    error={Boolean(businessErrors[field])}
+                    helperText={businessErrors[field] || ""}
+                    inputProps={{ step: 1, ...(allowNegativeOne ? { min: -1 } : { min: 0 }) }}
+                    InputProps={{ endAdornment: <InputAdornment position="end">{unit}</InputAdornment> }}
+                    sx={settingsInputSx}
+                />
+            </Box>
+        );
 
-                return (
-                    <Box
+        return (
+            <Box sx={{ width: "100%" }}>
+                <Box
+                    sx={{
+                        border: "1px solid #dbeafe",
+                        borderRadius: 2.5,
+                        bgcolor: "#ffffff",
+                        p: { xs: 1, sm: 1.25 },
+                    }}
+                >
+                    <Tabs
+                        value={businessPricingTab}
+                        onChange={(_, v) => setBusinessPricingTab(v)}
+                        variant="scrollable"
+                        scrollButtons="auto"
                         sx={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: 1.5,
-                            width: "100%",
-                            alignItems: "stretch",
+                            position: "relative",
+                            borderBottom: "1px solid rgba(148, 163, 184, 0.35)",
+                            mb: 2,
+                            minHeight: 42,
+                            px: 0.5,
+                            "& .MuiTabs-flexContainer": { gap: 0.6 },
+                            "& .MuiTabs-scroller": {
+                                overflow: "visible !important",
+                            },
+                            "& .MuiTabs-indicator": {
+                                display: "block",
+                                height: "100%",
+                                top: 0,
+                                borderRadius: "14px 14px 0 0",
+                                background: "#f8fbff",
+                                border: "1px solid rgba(59, 130, 246, 0.35)",
+                                borderBottom: "none",
+                                boxShadow:
+                                    "0 -2px 12px rgba(37, 99, 235, 0.16), 0 0 0 1px rgba(191, 219, 254, 0.7) inset",
+                                transition: "all 260ms cubic-bezier(0.4, 0, 0.2, 1)",
+                                zIndex: 0,
+                            },
                         }}
                     >
-                        <Box
+                        <Tab
+                            label="Cấu hình chung"
                             sx={{
-                                flex: "1 1 220px",
-                                minWidth: 240,
-                                ...settingsFieldCardSx,
+                                textTransform: "none",
+                                fontWeight: 600,
+                                color: "#475569",
+                                borderRadius: "14px 14px 0 0",
+                                minHeight: 44,
+                                minWidth: 140,
+                                px: 2,
+                                bgcolor: "transparent",
+                                border: "none",
+                                transition: "all 0.2s ease",
+                                zIndex: 1,
+                                "&:hover": {
+                                    color: "#2563eb",
+                                },
+                                "&.Mui-selected": {
+                                    color: "#1e293b",
+                                    fontWeight: 700,
+                                },
                             }}
-                        >
-                            <Typography sx={settingsFieldLabelSx}>
-                                Thuế suất (%)
-                            </Typography>
-                            <Tooltip title="Nhập tỷ lệ phần trăm thuế suất.">
+                        />
+                        <Tab
+                            label="Định giá dịch vụ"
+                            sx={{
+                                textTransform: "none",
+                                fontWeight: 600,
+                                color: "#475569",
+                                borderRadius: "14px 14px 0 0",
+                                minHeight: 44,
+                                minWidth: 140,
+                                px: 2,
+                                bgcolor: "transparent",
+                                border: "none",
+                                transition: "all 0.2s ease",
+                                zIndex: 1,
+                                "&:hover": {
+                                    color: "#2563eb",
+                                },
+                                "&.Mui-selected": {
+                                    color: "#1e293b",
+                                    fontWeight: 700,
+                                },
+                            }}
+                        />
+                    </Tabs>
+
+                    {businessPricingTab === 0 ? (
+                        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
+                            <Box sx={{ ...settingsFieldCardSx }}>
+                                <Typography sx={settingsFieldLabelSx}>Tỷ lệ thuế (VAT)</Typography>
                                 <TextField
                                     size="small"
                                     fullWidth
                                     disabled={businessDisabled}
                                     value={businessForm.taxRatePct}
-                                    onChange={(e) => {
-                                        const nextVal = e.target.value;
-                                        setBusinessForm((prev) => {
-                                            const next = { ...prev, taxRatePct: nextVal };
-                                            setBusinessErrors(validateBusiness(next));
-                                            return next;
-                                        });
-                                    }}
+                                    onChange={(e) => handleBusinessFieldChange("taxRatePct", e.target.value)}
                                     error={Boolean(businessErrors.taxRatePct)}
                                     helperText={businessErrors.taxRatePct || ""}
                                     type="number"
-                                    inputProps={{ min: 0, max: 100, step: 1 }}
+                                    inputProps={{ min: 0, max: 100, step: 0.01 }}
                                     InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
                                     sx={settingsInputSx}
                                 />
-                            </Tooltip>
-                        </Box>
-
-                        <Box
-                            sx={{
-                                flex: "1 1 220px",
-                                minWidth: 240,
-                                ...settingsFieldCardSx,
-                            }}
-                        >
-                            <Typography sx={settingsFieldLabelSx}>
-                                Tỷ lệ phí dịch vụ (%)
-                            </Typography>
-                            <Tooltip title="Nhập tỷ lệ phần trăm phí dịch vụ.">
+                            </Box>
+                            <Box sx={{ ...settingsFieldCardSx }}>
+                                <Typography sx={settingsFieldLabelSx}>Phí dịch vụ hệ thống</Typography>
                                 <TextField
                                     size="small"
                                     fullWidth
                                     disabled={businessDisabled}
-                                    value={serviceRateValue}
-                                    onChange={(e) => {
-                                        const nextVal = e.target.value;
-                                        setBusinessForm((prev) => {
-                                            const next = { ...prev, serviceRatePct: nextVal };
-                                            setBusinessErrors(validateBusiness(next));
-                                            return next;
-                                        });
-                                    }}
+                                    value={businessForm.serviceRatePct}
+                                    onChange={(e) => handleBusinessFieldChange("serviceRatePct", e.target.value)}
                                     error={Boolean(businessErrors.serviceRatePct)}
                                     helperText={businessErrors.serviceRatePct || ""}
                                     type="number"
-                                    inputProps={{ min: 0, max: 100, step: 1 }}
+                                    inputProps={{ min: 0, max: 100, step: 0.01 }}
+                                    InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
                                     sx={settingsInputSx}
                                 />
-                            </Tooltip>
+                            </Box>
+                            {moneyField("Min thanh toán", "minPay")}
+                            {moneyField("Max thanh toán", "maxPay")}
                         </Box>
-
-                        <Box
-                            sx={{
-                                flex: "1 1 280px",
-                                minWidth: 320,
-                                ...settingsFieldCardSx,
-                            }}
-                        >
-                            <Typography sx={settingsFieldLabelSx}>
-                                Số tiền giao dịch tối thiểu
-                            </Typography>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                <TextField
-                                    size="small"
-                                    type="text"
-                                    fullWidth
-                                    disabled={businessDisabled}
-                                    value={formatMoneyVN(businessForm.minPay)}
-                                    onChange={(e) => {
-                                        const nextVal = sanitizeMoneyInput(e.target.value);
-                                        setBusinessForm((prev) => {
-                                            const next = { ...prev, minPay: nextVal };
-                                            setBusinessErrors(validateBusiness(next));
-                                            return next;
-                                        });
-                                    }}
-                                    error={Boolean(businessErrors.minPay)}
-                                    helperText={businessErrors.minPay || ""}
-                                    inputProps={{ inputMode: "numeric" }}
-                                    sx={settingsInputSx}
-                                />
-                                <Typography sx={{ fontSize: 12, fontWeight: 500, color: "#1d4ed8", minWidth: 56, textAlign: "right" }}>
-                                    VND
+                    ) : (
+                        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "240px minmax(0, 1fr)" }, gap: 2 }}>
+                            <Tabs
+                                orientation="vertical"
+                                value={Math.max(0, Math.min(2, businessPricingSubTab))}
+                                onChange={(_, v) => setBusinessPricingSubTab(v)}
+                                variant="scrollable"
+                                sx={{
+                                    border: "1px solid #d0d7de",
+                                    bgcolor: "#f6f8fa",
+                                    borderRadius: 2,
+                                    p: 0.75,
+                                    minHeight: 240,
+                                    "& .MuiTabs-indicator": {
+                                        left: 0,
+                                        width: 4,
+                                        borderRadius: "0 999px 999px 0",
+                                        bgcolor: "#2563eb",
+                                    },
+                                    "& .MuiTab-root": {
+                                        alignItems: "flex-start",
+                                        textAlign: "left",
+                                        textTransform: "none",
+                                        fontWeight: 700,
+                                        color: "#57606a",
+                                        borderRadius: 1.5,
+                                        minHeight: 44,
+                                        px: 1.25,
+                                        "&.Mui-selected": {
+                                            color: "#24292f",
+                                            bgcolor: "#ffffff",
+                                            boxShadow: "inset 0 0 0 1px #d0d7de",
+                                        },
+                                    },
+                                }}
+                            >
+                                <Tab label="Giá nền gói cước" />
+                                <Tab label="Đơn giá tính năng mua thêm" />
+                                <Tab label="Định mức theo gói" />
+                            </Tabs>
+                            <Box sx={{ border: "1px solid #d0d7de", borderRadius: 2, p: 1.25, bgcolor: "#ffffff" }}>
+                                <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#2563eb", mb: 1.25 }}>
+                                    {businessPricingSubTab === 0 ? "Nhóm A - Giá nền gói cước" : businessPricingSubTab === 1 ? "Nhóm B - Đơn giá tính năng mua thêm" : "Nhóm C - Định mức theo gói"}
                                 </Typography>
+                                {businessPricingSubTab === 0 ? (
+                                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, gap: 1.5 }}>
+                                        {moneyField("Gói dùng thử (Trial)", "baseTrialPrice")}
+                                        {moneyField("Gói tiêu chuẩn (Standard)", "baseStandardPrice")}
+                                        {moneyField("Gói doanh nghiệp (Enterprise)", "baseEnterprisePrice")}
+                                    </Box>
+                                ) : null}
+                                {businessPricingSubTab === 1 ? (
+                                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
+                                        {moneyField("Mua thêm 1 tư vấn viên", "extraCounsellorFeePerSlot")}
+                                        {moneyField("Phí mua thêm bài đăng", "extraPostFee")}
+                                        {moneyField("Phí duy trì Trợ lý AI", "aiChatbotMonthlyFee")}
+                                        {moneyField("Phí hỗ trợ cao cấp (VIP)", "premiumSupportFee")}
+                                        {moneyField("Phí đẩy Top tìm kiếm", "topRankingFee")}
+                                    </Box>
+                                ) : null}
+                                {businessPricingSubTab === 2 ? (
+                                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
+                                        {integerField("Thời hạn gói mặc định", "durationDays", "ngày")}
+                                        {integerField("Số tư vấn viên (Gói Trial)", "trialCounsellor", "người")}
+                                        {integerField("Số tư vấn viên (Gói Standard)", "standardCounsellor", "người")}
+                                        {integerField("Số tư vấn viên (Gói Enterprise)", "enterpriseCounsellor", "người")}
+                                        {integerField("Giới hạn bài đăng gói dùng thử", "trialPostLimit", "bài")}
+                                        {integerField("Giới hạn bài đăng gói tiêu chuẩn", "standardPostLimit", "bài")}
+                                        {integerField("Giới hạn bài đăng gói doanh nghiệp", "enterprisePostLimit", "bài", true)}
+                                    </Box>
+                                ) : null}
                             </Box>
                         </Box>
-
-                        <Box
-                            sx={{
-                                flex: "1 1 280px",
-                                minWidth: 320,
-                                ...settingsFieldCardSx,
-                            }}
-                        >
-                            <Typography sx={settingsFieldLabelSx}>
-                                Số tiền giao dịch tối đa
-                            </Typography>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                                <TextField
-                                    size="small"
-                                    type="text"
-                                    fullWidth
-                                    disabled={businessDisabled}
-                                    value={formatMoneyVN(businessForm.maxPay)}
-                                    onChange={(e) => {
-                                        const nextVal = sanitizeMoneyInput(e.target.value);
-                                        setBusinessForm((prev) => {
-                                            const next = { ...prev, maxPay: nextVal };
-                                            setBusinessErrors(validateBusiness(next));
-                                            return next;
-                                        });
-                                    }}
-                                    error={Boolean(businessErrors.maxPay)}
-                                    helperText={businessErrors.maxPay || ""}
-                                    inputProps={{ inputMode: "numeric" }}
-                                    sx={settingsInputSx}
-                                />
-                                <Typography sx={{ fontSize: 12, fontWeight: 500, color: "#1d4ed8", minWidth: 56, textAlign: "right" }}>
-                                    VND
-                                </Typography>
-                            </Box>
-                        </Box>
-                    </Box>
-                );
-            })()}
-        </Box>
-    );
+                    )}
+                </Box>
+            </Box>
+        );
+    };
 
     const renderMediaTab = () => {
         const activeFormatType = mediaFormatsTab === 0 ? "image" : "doc";
@@ -1230,10 +1552,6 @@ export default function AdminPlatformSettings() {
 
         return (
             <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#2563eb", mb: 1.5 }}>
-                    Cấu hình phương tiện
-                </Typography>
-
                 <Box sx={{ mb: 2.5 }}>
                     <Typography sx={{ fontWeight: 700, fontSize: 13, color: "#0f172a", mb: 1 }}>
                         Giới hạn kích thước tệp
@@ -1321,10 +1639,66 @@ export default function AdminPlatformSettings() {
                             onChange={(_, v) => setMediaFormatsTab(v)}
                             variant="scrollable"
                             scrollButtons="auto"
-                            sx={{ borderBottom: "1px solid #e2e8f0", "& .MuiTabs-indicator": { height: 3 } }}
+                            sx={{
+                                position: "relative",
+                                borderBottom: "1px solid rgba(148, 163, 184, 0.35)",
+                                minHeight: 42,
+                                px: 0.5,
+                                "& .MuiTabs-flexContainer": { gap: 0.6 },
+                                "& .MuiTabs-scroller": {
+                                    overflow: "visible !important",
+                                },
+                                "& .MuiTabs-indicator": {
+                                    display: "block",
+                                    height: "100%",
+                                    top: 0,
+                                    borderRadius: "14px 14px 0 0",
+                                    background: "#f8fbff",
+                                    border: "1px solid rgba(59, 130, 246, 0.35)",
+                                    borderBottom: "none",
+                                    boxShadow:
+                                        "0 -2px 12px rgba(37, 99, 235, 0.16), 0 0 0 1px rgba(191, 219, 254, 0.7) inset",
+                                    transition: "all 260ms cubic-bezier(0.4, 0, 0.2, 1)",
+                                    zIndex: 0,
+                                },
+                            }}
                         >
-                            <Tab label="Định dạng ảnh" sx={{ fontWeight: 700, textTransform: "none" }} />
-                            <Tab label="Định dạng tài liệu" sx={{ fontWeight: 700, textTransform: "none" }} />
+                            <Tab
+                                label="Định dạng ảnh"
+                                sx={{
+                                    textTransform: "none",
+                                    fontWeight: 600,
+                                    color: "#475569",
+                                    borderRadius: "14px 14px 0 0",
+                                    minHeight: 44,
+                                    minWidth: 140,
+                                    px: 2,
+                                    bgcolor: "transparent",
+                                    border: "none",
+                                    transition: "all 0.2s ease",
+                                    zIndex: 1,
+                                    "&:hover": { color: "#2563eb" },
+                                    "&.Mui-selected": { color: "#1e293b", fontWeight: 700 },
+                                }}
+                            />
+                            <Tab
+                                label="Định dạng tài liệu"
+                                sx={{
+                                    textTransform: "none",
+                                    fontWeight: 600,
+                                    color: "#475569",
+                                    borderRadius: "14px 14px 0 0",
+                                    minHeight: 44,
+                                    minWidth: 160,
+                                    px: 2,
+                                    bgcolor: "transparent",
+                                    border: "none",
+                                    transition: "all 0.2s ease",
+                                    zIndex: 1,
+                                    "&:hover": { color: "#2563eb" },
+                                    "&.Mui-selected": { color: "#1e293b", fontWeight: 700 },
+                                }}
+                            />
                         </Tabs>
 
                         <Box sx={{ p: { xs: 1.5, sm: 2 } }}>
@@ -1487,26 +1861,45 @@ export default function AdminPlatformSettings() {
         const quotaYears = Object.keys(quota);
         const selectedYear = selectedQuotaYear || quotaYears[0] || "";
         const isEditing = quotaEditing;
-        const rows = quotaYears.map((year) => {
-            const item = quota[year] || {};
-            const quotaCount =
-                item?.quotas && typeof item.quotas === "object"
-                    ? Object.keys(item.quotas).length
-                    : 0;
-            return {
-                year,
-                sourceUrl: item?.sourceUrl || "",
-                hasQuota: quotaCount > 0,
-                quotaCount,
-            };
-        });
+        const quotaPreviewGroups = quotaYears
+            .map((yearKey) => {
+                const item = quota[yearKey] || {};
+                const source = item?.source && typeof item.source === "object" ? item.source : {};
+                const rows = Array.isArray(item?.quotas)
+                    ? item.quotas
+                        .map((row) => ({
+                            schoolId: Number(row?.schoolId),
+                            schoolName: String(row?.schoolName ?? "").trim(),
+                            value: Number(row?.value),
+                        }))
+                        .filter((row) => Number.isFinite(row.schoolId))
+                    : [];
+                return {
+                    yearKey,
+                    source,
+                    rows,
+                };
+            })
+            .sort((a, b) => String(b.source?.year ?? b.yearKey).localeCompare(String(a.source?.year ?? a.yearKey)));
+        const quotaFieldSx = {
+            "& .MuiInputBase-input": {
+                color: "#0f172a",
+            },
+            "& .MuiInputBase-input.Mui-disabled": {
+                WebkitTextFillColor: "#0f172a",
+                color: "#0f172a",
+            },
+            "& .MuiFormHelperText-root": {
+                color: "#334155",
+            },
+        };
 
         return (
             <Box>
-                <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#2563eb", mb: 1.5 }}>
-                    Cài đặt Hạn mức Tuyển sinh
-                </Typography>
-                <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                    <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#1d4ed8", px: { xs: 0.5, md: 1 } }}>
+                        Dữ liệu hạn mức hiện tại
+                    </Typography>
                     <Button
                         variant="outlined"
                         startIcon={<AddIcon />}
@@ -1519,193 +1912,316 @@ export default function AdminPlatformSettings() {
                 </Box>
 
                 <Box sx={{ px: { xs: 0.5, md: 1 } }}>
-                    {rows.length ? (
-                        <Stack spacing={0.75}>
-                            {rows.map((row) => {
-                                const isSelected = row.year === selectedYear;
-                                return (
-                                    <Box
-                                        key={row.year}
-                                        sx={{
-                                            display: "flex",
-                                            alignItems: { xs: "flex-start", md: "center" },
-                                            flexDirection: { xs: "column", md: "row" },
-                                            gap: 1.25,
-                                            borderRadius: 2,
-                                            px: 1.25,
-                                            py: 1,
-                                            bgcolor: isSelected ? "#f0f9ff" : "#ffffff",
-                                            border: "1px solid",
-                                            borderColor: isSelected ? "#60a5fa" : "#e2e8f0",
-                                            transition: "all 0.15s ease",
-                                            "&:hover": {
-                                                borderColor: "#93c5fd",
-                                                boxShadow: "0 6px 14px rgba(37, 99, 235, 0.10)",
-                                            },
-                                        }}
-                                    >
-                                        {/* Left: title + subtext */}
+                    <Box
+                        sx={{
+                            border: "1px solid #bfdbfe",
+                            borderRadius: 3,
+                            p: { xs: 1.5, sm: 2 },
+                            bgcolor: "#f8fbff",
+                            backgroundImage: "linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)",
+                            boxShadow: "0 10px 24px rgba(37, 99, 235, 0.08)",
+                            mb: 1.75,
+                        }}
+                    >
+                        {quotaPreviewGroups.length ? (
+                            <Stack spacing={1}>
+                                {quotaPreviewGroups.map((group) => {
+                                    const sourceInfo = group.source || {};
+                                    const quotaRows = group.rows || [];
+                                    const yearLabel = sourceInfo?.year || group.yearKey;
+                                    return (
                                         <Box
+                                            key={`preview-group-${yearLabel}`}
                                             sx={{
-                                                minWidth: { xs: "100%", md: 260 },
+                                                p: 1.2,
+                                                bgcolor: "transparent",
                                             }}
                                         >
-                                            <Typography sx={{ fontSize: 15, fontWeight: 600, color: "#0f172a", mb: 0.35 }}>
-                                                Năm học {row.year}
+                                            <Typography sx={{ fontWeight: 800, color: "#1d4ed8", fontSize: 13, mb: 0.8 }}>
+                                                Năm học {yearLabel}
                                             </Typography>
-                                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.6, minWidth: 0 }}>
-                                                <LinkOutlinedIcon sx={{ fontSize: 16, color: "#9ca3af", flexShrink: 0 }} />
-                                                {row.sourceUrl ? (
-                                                    <Link
-                                                        href={row.sourceUrl}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        sx={{
-                                                            fontSize: 12.5,
-                                                            color: "#64748b",
-                                                            textDecorationColor: "#cbd5e1",
-                                                            textUnderlineOffset: "2px",
-                                                            whiteSpace: "nowrap",
-                                                            overflow: "hidden",
-                                                            textOverflow: "ellipsis",
-                                                            display: "block",
-                                                        }}
-                                                    >
-                                                        {row.sourceUrl}
-                                                    </Link>
+                                            <Stack spacing={0.55} sx={{ mb: 0.95 }}>
+                                                <Box sx={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 1.5 }}>
+                                                    <Typography variant="body2" sx={{ color: "#334155", fontWeight: 700 }}>
+                                                        Tên nguồn
+                                                    </Typography>
+                                                    <Typography variant="body2" sx={{ color: "#0f172a" }}>
+                                                        {sourceInfo?.sourceName || "Chưa có"}
+                                                    </Typography>
+                                                </Box>
+                                                <Box sx={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 1.5 }}>
+                                                    <Typography variant="body2" sx={{ color: "#334155", fontWeight: 700 }}>
+                                                        Loại nguồn
+                                                    </Typography>
+                                                    <Typography variant="body2" sx={{ color: "#0f172a" }}>
+                                                        {sourceInfo?.sourceType || "Chưa có"}
+                                                    </Typography>
+                                                </Box>
+                                                <Box sx={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 1.5 }}>
+                                                    <Typography variant="body2" sx={{ color: "#334155", fontWeight: 700 }}>
+                                                        Liên kết
+                                                    </Typography>
+                                                    <Typography variant="body2" sx={{ color: "#0f172a", wordBreak: "break-all" }}>
+                                                        {sourceInfo?.sourceUrl ? (
+                                                            <Link
+                                                                href={sourceInfo.sourceUrl}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                sx={{
+                                                                    color: "#2563eb",
+                                                                    textDecorationColor: "#93c5fd",
+                                                                    textUnderlineOffset: "2px",
+                                                                }}
+                                                            >
+                                                                {sourceInfo.sourceUrl}
+                                                            </Link>
+                                                        ) : (
+                                                            "Chưa có"
+                                                        )}
+                                                    </Typography>
+                                                </Box>
+                                            </Stack>
+
+                                            <Box sx={{ border: "1px solid #dbeafe", borderRadius: 1.5, overflow: "hidden", bgcolor: "#ffffff" }}>
+                                                <Box sx={{ display: "grid", gridTemplateColumns: "1fr 96px", px: 1.1, py: 0.8, bgcolor: "#eff6ff" }}>
+                                                    <Typography variant="caption" sx={{ fontWeight: 700, color: "#475569" }}>
+                                                        Trường
+                                                    </Typography>
+                                                    <Typography variant="caption" sx={{ fontWeight: 700, color: "#475569", textAlign: "right" }}>
+                                                        Chỉ tiêu
+                                                    </Typography>
+                                                </Box>
+                                                {quotaRows.length ? (
+                                                    <Stack spacing={0} divider={<Box sx={{ borderBottom: "1px solid #e2e8f0" }} />}>
+                                                        {quotaRows.map((row) => (
+                                                            <Box
+                                                                key={`quota-preview-${yearLabel}-${row.schoolId}`}
+                                                                sx={{
+                                                                    display: "grid",
+                                                                    gridTemplateColumns: "1fr 96px",
+                                                                    gap: 1,
+                                                                    px: 1.1,
+                                                                    py: 0.85,
+                                                                }}
+                                                            >
+                                                                <Typography variant="body2" sx={{ color: "#0f172a" }}>
+                                                                    {row.schoolName || `Trường #${row.schoolId}`}
+                                                                </Typography>
+                                                                <Typography variant="body2" sx={{ color: "#1d4ed8", fontWeight: 700, textAlign: "right" }}>
+                                                                    {Number.isFinite(row.value) ? row.value : "Chưa có"}
+                                                                </Typography>
+                                                            </Box>
+                                                        ))}
+                                                    </Stack>
                                                 ) : (
-                                                    <Typography variant="body2" sx={{ color: "#9ca3af", fontSize: 12.5 }}>
-                                                        Không có nguồn dữ liệu
+                                                    <Typography variant="body2" sx={{ color: "#64748b", px: 1.1, py: 1 }}>
+                                                        Chưa có chỉ tiêu đã lưu.
                                                     </Typography>
                                                 )}
                                             </Box>
                                         </Box>
-
-                                        {/* Middle: status badge */}
-                                        <Box sx={{ minWidth: { xs: "auto", md: 170 } }}>
-                                            <Chip
-                                                size="small"
-                                                label={row.hasQuota ? `${row.quotaCount} chỉ tiêu` : "Chưa cấu hình"}
-                                                sx={{
-                                                    bgcolor: row.hasQuota ? "#dcfce7" : "#fff7ed",
-                                                    color: row.hasQuota ? "#166534" : "#c2410c",
-                                                    borderRadius: 1.5,
-                                                    fontWeight: 600,
-                                                }}
-                                            />
-                                        </Box>
-
-                                        {/* Right: actions */}
-                                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.35, ml: { xs: 0, md: "auto" } }}>
-                                            <IconButton
-                                                size="small"
-                                                onClick={() => {
-                                                    setSelectedQuotaYear(row.year);
-                                                    const form = getQuotaInitialForm(row.year);
-                                                    setQuotaMode("edit");
-                                                    setQuotaForm(form);
-                                                    setQuotaErrors(validateQuota(form));
-                                                    setQuotaEditing(true);
-                                                }}
-                                                sx={{ color: "#2563eb" }}
-                                                aria-label={`Chỉnh sửa ${row.year}`}
-                                            >
-                                                <EditIcon fontSize="small" />
-                                            </IconButton>
-                                            <IconButton
-                                                size="small"
-                                                sx={{ color: "#94a3b8" }}
-                                                aria-label={`Mở chi tiết ${row.year}`}
-                                                onClick={() => setSelectedQuotaYear(row.year)}
-                                            >
-                                                <ChevronRightIcon fontSize="small" />
-                                            </IconButton>
-                                        </Box>
-                                    </Box>
-                                );
-                            })}
-                        </Stack>
-                    ) : (
-                        <Typography variant="body2" sx={{ color: "#64748b", py: 1, textAlign: "center" }}>
-                            Không có dữ liệu.
-                        </Typography>
-                    )}
+                                    );
+                                })}
+                            </Stack>
+                        ) : (
+                            <Typography variant="body2" sx={{ color: "#64748b" }}>
+                                Chưa có dữ liệu hạn mức tuyển sinh.
+                            </Typography>
+                        )}
+                    </Box>
 
                         <Dialog
                             open={isEditing}
                             onClose={cancelQuotaEdit}
                             fullWidth
                             maxWidth="md"
+                            PaperProps={{
+                                sx: {
+                                    borderRadius: 3,
+                                    border: "1px solid #dbeafe",
+                                    overflow: "hidden",
+                                },
+                            }}
                         >
-                            <DialogTitle sx={{ fontWeight: 700 }}>
+                            <DialogTitle
+                                sx={{
+                                    fontWeight: 800,
+                                    color: "#0f172a",
+                                    borderBottom: "1px solid #dbeafe",
+                                    background: "linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%)",
+                                }}
+                            >
                                 {quotaMode === "add"
                                     ? "Thêm năm học mới"
                                     : `Cập nhật nguồn dữ liệu – Năm học ${selectedYear}`}
                             </DialogTitle>
-                            <DialogContent sx={{ pt: 1.5 }}>
-                                <TextField
-                                    fullWidth
-                                    size="small"
-                                    label="Năm học"
-                                    margin="dense"
-                                    disabled={saving || quotaMode !== "add"}
-                                    value={quotaForm.year}
-                                    onChange={(e) => {
-                                        const next = { ...quotaForm, year: e.target.value };
-                                        setQuotaForm(next);
-                                        setQuotaErrors(validateQuota(next));
+                            <DialogContent sx={{ pt: 2, bgcolor: "#f8fafc" }}>
+                                <Box
+                                    sx={{
+                                        border: "1px solid #dbeafe",
+                                        borderRadius: 2.5,
+                                        bgcolor: "#ffffff",
+                                        p: { xs: 1.5, sm: 2 },
+                                        mb: 2,
                                     }}
-                                    error={Boolean(quotaErrors.year)}
-                                    helperText={quotaErrors.year || " "}
-                                />
-                                <TextField
-                                    fullWidth
-                                    size="small"
-                                    label="Nguồn dữ liệu (URL)"
-                                    margin="dense"
-                                    disabled={saving}
-                                    value={quotaForm.sourceUrl}
-                                    onChange={(e) => {
-                                        const next = { ...quotaForm, sourceUrl: e.target.value };
-                                        setQuotaForm(next);
-                                        setQuotaErrors(validateQuota(next));
-                                    }}
-                                    error={Boolean(quotaErrors.sourceUrl)}
-                                    helperText={quotaErrors.sourceUrl || " "}
-                                />
-                                <Box sx={{ mt: 1.5 }}>
-                                    <Typography sx={{ fontSize: 13, fontWeight: 700, color: "#0f172a", mb: 1 }}>
-                                        Chỉ tiêu theo mã xét tuyển
+                                >
+                                    <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#1d4ed8", mb: 1.25 }}>
+                                        Thông tin nguồn dữ liệu
                                     </Typography>
-                                    <Stack spacing={1}>
-                                        {(quotaForm.quotaRows || []).map((row) => (
+                                    <Box
+                                        sx={{
+                                            display: "grid",
+                                            gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                                            gap: 1.25,
+                                        }}
+                                    >
+                                        <TextField
+                                            fullWidth
+                                            size="small"
+                                            label="Năm học"
+                                            disabled={saving || quotaMode !== "add"}
+                                            value={quotaForm.year}
+                                            onChange={(e) => {
+                                                const next = { ...quotaForm, year: e.target.value };
+                                                setQuotaForm(next);
+                                                setQuotaErrors(validateQuota(next));
+                                            }}
+                                            error={Boolean(quotaErrors.year)}
+                                            helperText={quotaErrors.year || " "}
+                                            sx={quotaFieldSx}
+                                        />
+                                        <TextField
+                                            fullWidth
+                                            size="small"
+                                            label="Loại nguồn"
+                                            disabled
+                                            value="TRANG TIN TỨC"
+                                            helperText="Loại nguồn cố định."
+                                            sx={quotaFieldSx}
+                                        />
+                                        <TextField
+                                            fullWidth
+                                            size="small"
+                                            label="Tên nguồn"
+                                            disabled={saving}
+                                            value={quotaForm.sourceName}
+                                            multiline
+                                            minRows={2}
+                                            onChange={(e) => {
+                                                const next = { ...quotaForm, sourceName: e.target.value };
+                                                setQuotaForm(next);
+                                                setQuotaErrors(validateQuota(next));
+                                            }}
+                                            error={Boolean(quotaErrors.sourceName)}
+                                            helperText={quotaErrors.sourceName || " "}
+                                            sx={[
+                                                quotaFieldSx,
+                                                {
+                                                    "& .MuiInputBase-root": {
+                                                        minHeight: 72,
+                                                        alignItems: "flex-start",
+                                                    },
+                                                },
+                                            ]}
+                                        />
+                                        <TextField
+                                            fullWidth
+                                            size="small"
+                                            label="Liên kết nguồn dữ liệu"
+                                            disabled={saving}
+                                            value={quotaForm.sourceUrl}
+                                            multiline
+                                            minRows={2}
+                                            onChange={(e) => {
+                                                const next = { ...quotaForm, sourceUrl: e.target.value };
+                                                setQuotaForm(next);
+                                                setQuotaErrors(validateQuota(next));
+                                            }}
+                                            error={Boolean(quotaErrors.sourceUrl)}
+                                            helperText={quotaErrors.sourceUrl || "Chỉ nhận liên kết file .html"}
+                                            sx={[
+                                                quotaFieldSx,
+                                                {
+                                                    "& .MuiInputBase-root": {
+                                                        minHeight: 72,
+                                                        alignItems: "flex-start",
+                                                    },
+                                                },
+                                            ]}
+                                        />
+                                    </Box>
+                                </Box>
+
+                                <Box
+                                    sx={{
+                                        border: "1px solid #dbeafe",
+                                        borderRadius: 2.5,
+                                        bgcolor: "#ffffff",
+                                        p: { xs: 1.5, sm: 2 },
+                                    }}
+                                >
+                                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1.25 }}>
+                                        <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#1d4ed8" }}>
+                                            Danh sách chỉ tiêu
+                                        </Typography>
+                                        <Button
+                                            variant="outlined"
+                                            size="small"
+                                            disabled={saving || autoFillingQuota}
+                                            onClick={() => void autoFillQuotaByAI()}
+                                            sx={{
+                                                textTransform: "none",
+                                                fontWeight: 700,
+                                                borderRadius: 2,
+                                                borderColor: "#93c5fd",
+                                                color: "#1d4ed8",
+                                                bgcolor: "#f8fbff",
+                                            }}
+                                        >
+                                            {autoFillingQuota ? "Đang tự động điền..." : "✨ Tự động điền bằng AI"}
+                                        </Button>
+                                    </Stack>
+                                    <Stack spacing={1.1}>
+                                        {loadingSchools ? (
+                                            <Typography variant="body2" sx={{ color: "#64748b" }}>
+                                                Đang tải danh sách trường...
+                                            </Typography>
+                                        ) : (quotaForm.quotas || []).length === 0 ? (
+                                            <Typography variant="body2" sx={{ color: "#64748b" }}>
+                                                Chưa có dòng chỉ tiêu.
+                                            </Typography>
+                                        ) : (quotaForm.quotas || []).map((row) => (
                                             <Box
                                                 key={row.id}
                                                 sx={{
                                                     display: "grid",
-                                                    gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr auto" },
+                                                    gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
                                                     gap: 1,
                                                     alignItems: "center",
+                                                    p: 1.1,
+                                                    borderRadius: 2,
+                                                    border: "1px solid #e2e8f0",
+                                                    bgcolor: "#f8fbff",
                                                 }}
                                             >
                                                 <TextField
                                                     size="small"
-                                                    label="Mã (VD: 1, 2, 3)"
-                                                    disabled={saving}
-                                                    value={row.key}
-                                                    onChange={(e) => {
-                                                        const nextKey = e.target.value;
-                                                        setQuotaForm((prev) => {
-                                                            const nextRows = (prev.quotaRows || []).map((r) =>
-                                                                r.id === row.id ? { ...r, key: nextKey } : r
-                                                            );
-                                                            const next = { ...prev, quotaRows: nextRows };
-                                                            setQuotaErrors(validateQuota(next));
-                                                            return next;
-                                                        });
+                                                    label="Trường"
+                                                    disabled
+                                                    multiline
+                                                    minRows={2}
+                                                    value={row.schoolName || `School #${row.schoolId}`}
+                                                    InputProps={{
+                                                        sx: { alignItems: "flex-start" },
                                                     }}
-                                                    error={Boolean(quotaErrors[`quotaKey:${row.id}`])}
-                                                    helperText={quotaErrors[`quotaKey:${row.id}`] || ""}
+                                                    sx={[
+                                                        quotaFieldSx,
+                                                        {
+                                                            "& .MuiInputBase-root": {
+                                                                minHeight: 72,
+                                                            },
+                                                        },
+                                                    ]}
                                                 />
                                                 <TextField
                                                     size="small"
@@ -1716,10 +2232,10 @@ export default function AdminPlatformSettings() {
                                                     onChange={(e) => {
                                                         const nextValue = e.target.value;
                                                         setQuotaForm((prev) => {
-                                                            const nextRows = (prev.quotaRows || []).map((r) =>
+                                                            const nextRows = (prev.quotas || []).map((r) =>
                                                                 r.id === row.id ? { ...r, value: nextValue } : r
                                                             );
-                                                            const next = { ...prev, quotaRows: nextRows };
+                                                            const next = { ...prev, quotas: nextRows };
                                                             setQuotaErrors(validateQuota(next));
                                                             return next;
                                                         });
@@ -1727,46 +2243,18 @@ export default function AdminPlatformSettings() {
                                                     error={Boolean(quotaErrors[`quotaValue:${row.id}`])}
                                                     helperText={quotaErrors[`quotaValue:${row.id}`] || ""}
                                                     inputProps={{ min: 0, step: 1 }}
+                                                    sx={[
+                                                        quotaFieldSx,
+                                                        {
+                                                            "& .MuiInputBase-root": {
+                                                                minHeight: 72,
+                                                            },
+                                                        },
+                                                    ]}
                                                 />
-                                                <IconButton
-                                                    size="small"
-                                                    color="error"
-                                                    disabled={saving}
-                                                    onClick={() => {
-                                                        setQuotaForm((prev) => {
-                                                            const nextRows = (prev.quotaRows || []).filter(
-                                                                (r) => r.id !== row.id
-                                                            );
-                                                            const next = { ...prev, quotaRows: nextRows };
-                                                            setQuotaErrors(validateQuota(next));
-                                                            return next;
-                                                        });
-                                                    }}
-                                                    aria-label="Xóa chỉ tiêu"
-                                                >
-                                                    <DeleteOutlineIcon fontSize="small" />
-                                                </IconButton>
                                             </Box>
                                         ))}
                                     </Stack>
-                                    <Button
-                                        sx={{ mt: 1, textTransform: "none", fontWeight: 700 }}
-                                        startIcon={<AddIcon />}
-                                        variant="outlined"
-                                        disabled={saving}
-                                        onClick={() => {
-                                            setQuotaForm((prev) => {
-                                                const next = {
-                                                    ...prev,
-                                                    quotaRows: [...(prev.quotaRows || []), createQuotaRow("", "")],
-                                                };
-                                                setQuotaErrors(validateQuota(next));
-                                                return next;
-                                            });
-                                        }}
-                                    >
-                                        Thêm chỉ tiêu
-                                    </Button>
                                 </Box>
                             </DialogContent>
                             <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -1870,8 +2358,27 @@ export default function AdminPlatformSettings() {
                     variant="scrollable"
                     scrollButtons="auto"
                     sx={{
-                        borderBottom: "1px solid #e2e8f0",
-                        "& .MuiTabs-indicator": { height: 3 },
+                        position: "relative",
+                        minHeight: 42,
+                        px: 0.5,
+                        borderBottom: "1px solid rgba(148, 163, 184, 0.35)",
+                        "& .MuiTabs-flexContainer": { gap: 0.6 },
+                        "& .MuiTabs-scroller": {
+                            overflow: "visible !important",
+                        },
+                        "& .MuiTabs-indicator": {
+                            display: "block",
+                            height: "100%",
+                            top: 0,
+                            borderRadius: "14px 14px 0 0",
+                            background: "#f8fbff",
+                            border: "1px solid rgba(59, 130, 246, 0.35)",
+                            borderBottom: "none",
+                            boxShadow:
+                                "0 -2px 12px rgba(37, 99, 235, 0.16), 0 0 0 1px rgba(191, 219, 254, 0.7) inset",
+                            transition: "all 260ms cubic-bezier(0.4, 0, 0.2, 1)",
+                            zIndex: 0,
+                        },
                         mb: 2,
                     }}
                 >
@@ -1882,11 +2389,22 @@ export default function AdminPlatformSettings() {
                             sx={{
                                 textTransform: "none",
                                 fontWeight: 600,
-                                color: "#64748b",
-                                minHeight: 40,
+                                color: "#475569",
+                                borderRadius: "14px 14px 0 0",
+                                minHeight: 44,
+                                minWidth: 140,
+                                px: 2,
+                                bgcolor: "transparent",
+                                border: "none",
+                                transition: "all 0.2s ease",
+                                zIndex: 1,
+                                "&:hover": {
+                                    color: "#2563eb",
+                                },
                                 fontSize: 13,
                                 "&.Mui-selected": {
-                                    color: "#2563eb",
+                                    color: "#1e293b",
+                                    fontWeight: 700,
                                 },
                             }}
                         />
