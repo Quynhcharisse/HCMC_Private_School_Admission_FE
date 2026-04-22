@@ -60,7 +60,40 @@ function getAdmissionQuotaMap(cfg) {
 
 function getBusinessConfig(cfg) {
     if (!cfg || typeof cfg !== "object") return {};
-    return cfg.businessData ?? cfg.business ?? {};
+    const businessData = cfg.businessData && typeof cfg.businessData === "object" ? cfg.businessData : {};
+    const business = cfg.business && typeof cfg.business === "object" ? cfg.business : {};
+
+    const businessPricingFromData =
+        businessData.subscriptionPricing && typeof businessData.subscriptionPricing === "object"
+            ? businessData.subscriptionPricing
+            : {};
+    const businessPricingFromBusiness =
+        business.subscriptionPricing && typeof business.subscriptionPricing === "object"
+            ? business.subscriptionPricing
+            : {};
+
+    const mergedSubscriptionPricing = {
+        ...businessPricingFromBusiness,
+        ...businessPricingFromData,
+        basePrices: {
+            ...(businessPricingFromBusiness.basePrices ?? {}),
+            ...(businessPricingFromData.basePrices ?? {}),
+        },
+        packageQuotas: {
+            ...(businessPricingFromBusiness.packageQuotas ?? {}),
+            ...(businessPricingFromData.packageQuotas ?? {}),
+        },
+        featureUnitPrices: {
+            ...(businessPricingFromBusiness.featureUnitPrices ?? {}),
+            ...(businessPricingFromData.featureUnitPrices ?? {}),
+        },
+    };
+
+    return {
+        ...business,
+        ...businessData,
+        subscriptionPricing: mergedSubscriptionPricing,
+    };
 }
 
 function getMediaConfig(cfg) {
@@ -91,7 +124,7 @@ export default function AdminPlatformSettings() {
     const tabs = useMemo(
         () => [
             { label: "Cài đặt Doanh nghiệp", key: "business" },
-            { label: "Tuyển sinh (mẫu chung)", key: "admission" },
+            { label: "Phương thức tuyển sinh", key: "admission" },
             { label: "Cài đặt Phương tiện", key: "media" },
             { label: "Cài đặt Hạn mức Tuyển sinh", key: "limits" },
         ],
@@ -382,21 +415,21 @@ export default function AdminPlatformSettings() {
         if (serviceRatePct !== null && (serviceRatePct < 0 || serviceRatePct > 100))
             errors.serviceRatePct = "Phí dịch vụ phải trong [0..100].";
 
-        getMoney("baseTrialPrice", "Giá nền gói Trial");
-        getMoney("baseStandardPrice", "Giá nền gói Standard");
-        getMoney("baseEnterprisePrice", "Giá nền gói Enterprise");
+        getMoney("baseTrialPrice", "Giá nền gói Dùng thử");
+        getMoney("baseStandardPrice", "Giá nền gói Tiêu chuẩn");
+        getMoney("baseEnterprisePrice", "Giá nền gói Doanh nghiệp");
         getMoney("extraCounsellorFeePerSlot", "Đơn giá mua thêm tư vấn viên");
         getMoney("extraPostFee", "Phí mua thêm bài đăng");
         getMoney("aiChatbotMonthlyFee", "Phí duy trì Trợ lý AI");
         getMoney("premiumSupportFee", "Phí hỗ trợ cao cấp");
-        getMoney("topRankingFee", "Phí đẩy Top tìm kiếm");
+        getMoney("topRankingFee", "Phí đẩy đầu trang tìm kiếm");
         getPositiveInt("durationDays", "Thời hạn gói mặc định");
-        getPositiveInt("trialCounsellor", "Số tư vấn viên gói Trial");
-        getPositiveInt("standardCounsellor", "Số tư vấn viên gói Standard");
-        getPositiveInt("enterpriseCounsellor", "Số tư vấn viên gói Enterprise");
-        getPositiveInt("trialPostLimit", "Giới hạn bài đăng gói Trial");
-        getPositiveInt("standardPostLimit", "Giới hạn bài đăng gói Standard");
-        getPositiveInt("enterprisePostLimit", "Giới hạn bài đăng gói Enterprise", { allowNegativeOne: true });
+        getPositiveInt("trialCounsellor", "Số tư vấn viên gói Dùng thử");
+        getPositiveInt("standardCounsellor", "Số tư vấn viên gói Tiêu chuẩn");
+        getPositiveInt("enterpriseCounsellor", "Số tư vấn viên gói Doanh nghiệp");
+        getPositiveInt("trialPostLimit", "Giới hạn bài đăng gói Dùng thử");
+        getPositiveInt("standardPostLimit", "Giới hạn bài đăng gói Tiêu chuẩn");
+        getPositiveInt("enterprisePostLimit", "Giới hạn bài đăng gói Doanh nghiệp", { allowNegativeOne: true });
 
         return errors;
     };
@@ -426,7 +459,7 @@ export default function AdminPlatformSettings() {
         setLoadingConfig(true);
         try {
             const res = await getSystemConfig();
-            const body = res?.data?.body ?? res?.data;
+            const body = res?.data?.body ?? res?.data?.data ?? res?.data;
             setConfigBody(body);
             setStatus({ type: "", message: "" });
         } catch (e) {
@@ -934,7 +967,6 @@ export default function AdminPlatformSettings() {
         let ok = false;
         setStatus({ type: "", message: "" });
         try {
-            const prevBusiness = getBusinessConfig(configBody);
             const minPay = parseFinite(businessForm.minPay);
             const maxPay = parseFinite(businessForm.maxPay);
             const taxRate = toRateDecimal(businessForm.taxRatePct);
@@ -942,7 +974,6 @@ export default function AdminPlatformSettings() {
 
             const updatedBody = {
                 businessData: {
-                    ...prevBusiness,
                     minPay: minPay != null ? Math.trunc(minPay) : minPay,
                     maxPay: maxPay != null ? Math.trunc(maxPay) : maxPay,
                     taxRate,
@@ -1279,7 +1310,7 @@ export default function AdminPlatformSettings() {
                 />
             </Box>
         );
-        const integerField = (label, field, unit, allowNegativeOne = false) => (
+        const integerField = (label, field, unit, allowNegativeOne = false, helperHint = "") => (
             <Box sx={{ ...settingsFieldCardSx }}>
                 <Typography sx={settingsFieldLabelSx}>{label}</Typography>
                 <TextField
@@ -1290,8 +1321,9 @@ export default function AdminPlatformSettings() {
                     value={businessForm[field]}
                     onChange={(e) => handleBusinessFieldChange(field, e.target.value)}
                     error={Boolean(businessErrors[field])}
-                    helperText={businessErrors[field] || ""}
+                    helperText={businessErrors[field] || helperHint}
                     inputProps={{ step: 1, ...(allowNegativeOne ? { min: -1 } : { min: 0 }) }}
+                    placeholder={allowNegativeOne ? "-1" : ""}
                     InputProps={{ endAdornment: <InputAdornment position="end">{unit}</InputAdornment> }}
                     sx={settingsInputSx}
                 />
@@ -1362,7 +1394,7 @@ export default function AdminPlatformSettings() {
                             }}
                         />
                         <Tab
-                            label="Định giá dịch vụ"
+                            label="Cài đặt gói"
                             sx={{
                                 textTransform: "none",
                                 fontWeight: 600,
@@ -1420,8 +1452,8 @@ export default function AdminPlatformSettings() {
                                     sx={settingsInputSx}
                                 />
                             </Box>
-                            {moneyField("Min thanh toán", "minPay")}
-                            {moneyField("Max thanh toán", "maxPay")}
+                            {moneyField("Thanh toán tối thiểu", "minPay")}
+                            {moneyField("Thanh toán tối đa", "maxPay")}
                         </Box>
                     ) : (
                         <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "240px minmax(0, 1fr)" }, gap: 2 }}>
@@ -1469,9 +1501,9 @@ export default function AdminPlatformSettings() {
                                 </Typography>
                                 {businessPricingSubTab === 0 ? (
                                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, gap: 1.5 }}>
-                                        {moneyField("Gói dùng thử (Trial)", "baseTrialPrice")}
-                                        {moneyField("Gói tiêu chuẩn (Standard)", "baseStandardPrice")}
-                                        {moneyField("Gói doanh nghiệp (Enterprise)", "baseEnterprisePrice")}
+                                        {moneyField("Gói dùng thử", "baseTrialPrice")}
+                                        {moneyField("Gói tiêu chuẩn", "baseStandardPrice")}
+                                        {moneyField("Gói doanh nghiệp", "baseEnterprisePrice")}
                                     </Box>
                                 ) : null}
                                 {businessPricingSubTab === 1 ? (
@@ -1479,19 +1511,25 @@ export default function AdminPlatformSettings() {
                                         {moneyField("Mua thêm 1 tư vấn viên", "extraCounsellorFeePerSlot")}
                                         {moneyField("Phí mua thêm bài đăng", "extraPostFee")}
                                         {moneyField("Phí duy trì Trợ lý AI", "aiChatbotMonthlyFee")}
-                                        {moneyField("Phí hỗ trợ cao cấp (VIP)", "premiumSupportFee")}
-                                        {moneyField("Phí đẩy Top tìm kiếm", "topRankingFee")}
+                                        {moneyField("Phí hỗ trợ cao cấp", "premiumSupportFee")}
+                                        {moneyField("Phí đẩy đầu trang tìm kiếm", "topRankingFee")}
                                     </Box>
                                 ) : null}
                                 {businessPricingSubTab === 2 ? (
                                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
                                         {integerField("Thời hạn gói mặc định", "durationDays", "ngày")}
-                                        {integerField("Số tư vấn viên (Gói Trial)", "trialCounsellor", "người")}
-                                        {integerField("Số tư vấn viên (Gói Standard)", "standardCounsellor", "người")}
-                                        {integerField("Số tư vấn viên (Gói Enterprise)", "enterpriseCounsellor", "người")}
-                                        {integerField("Giới hạn bài đăng gói dùng thử", "trialPostLimit", "bài")}
-                                        {integerField("Giới hạn bài đăng gói tiêu chuẩn", "standardPostLimit", "bài")}
-                                        {integerField("Giới hạn bài đăng gói doanh nghiệp", "enterprisePostLimit", "bài", true)}
+                                        {integerField("Số tư vấn viên (Gói dùng thử)", "trialCounsellor", "người")}
+                                        {integerField("Số tư vấn viên (Gói tiêu chuẩn)", "standardCounsellor", "người")}
+                                        {integerField("Số tư vấn viên (Gói doanh nghiệp)", "enterpriseCounsellor", "người")}
+                                        {integerField("Giới hạn bài đăng (Gói dùng thử)", "trialPostLimit", "bài")}
+                                        {integerField("Giới hạn bài đăng (Gói tiêu chuẩn)", "standardPostLimit", "bài")}
+                                        {integerField(
+                                            "Giới hạn bài đăng (Gói doanh nghiệp)",
+                                            "enterprisePostLimit",
+                                            "bài",
+                                            true,
+                                            "Nhập -1 để không giới hạn bài đăng."
+                                        )}
                                     </Box>
                                 ) : null}
                             </Box>
@@ -1521,8 +1559,17 @@ export default function AdminPlatformSettings() {
 
         return (
             <Box>
-                <Box sx={{ mb: 2.5 }}>
-                    <Typography sx={{ fontWeight: 700, fontSize: 13, color: "#0f172a", mb: 1 }}>
+                <Box
+                    sx={{
+                        mb: 2.5,
+                        p: { xs: 1.25, sm: 1.5 },
+                        borderRadius: 3,
+                        border: "1px solid #e2e8f0",
+                        bgcolor: "#ffffff",
+                        boxShadow: "0 10px 22px rgba(15,23,42,0.05)",
+                    }}
+                >
+                    <Typography sx={{ fontWeight: 800, fontSize: 13, color: "#0f172a", mb: 1.25 }}>
                         Giới hạn kích thước tệp
                     </Typography>
                     <Box
@@ -1601,7 +1648,16 @@ export default function AdminPlatformSettings() {
                     </Box>
                 </Box>
 
-                <Card elevation={0} sx={{ borderRadius: 3, border: "1px solid #e2e8f0", bgcolor: "#ffffff", mb: 2 }}>
+                <Card
+                    elevation={0}
+                    sx={{
+                        borderRadius: 3,
+                        border: "1px solid #e2e8f0",
+                        bgcolor: "#ffffff",
+                        mb: 2,
+                        boxShadow: "0 10px 24px rgba(15,23,42,0.06)",
+                    }}
+                >
                     <CardContent sx={{ p: 0 }}>
                         <Tabs
                             value={mediaFormatsTab}
@@ -1706,29 +1762,37 @@ export default function AdminPlatformSettings() {
                                                 sx={{
                                                     flex: "1 1 220px",
                                                     minWidth: 200,
-                                                    border: "1px solid #e2e8f0",
-                                                    borderRadius: 2,
+                                                    border: "1px solid #dbeafe",
+                                                    borderRadius: 2.5,
                                                     px: 1.25,
                                                     py: 1,
                                                     display: "flex",
                                                     alignItems: "center",
                                                     justifyContent: "space-between",
-                                                    bgcolor: "#ffffff",
+                                                    bgcolor: "#f8fbff",
                                                     minHeight: 64,
+                                                    transition: "all 0.2s ease",
+                                                    "&:hover": {
+                                                        borderColor: "#93c5fd",
+                                                        bgcolor: "#f0f9ff",
+                                                        boxShadow: "0 8px 20px rgba(37,99,235,0.12)",
+                                                    },
                                                 }}
                                             >
-                                                <Typography
-                                                    sx={{
-                                                        fontSize: 13,
-                                                        fontWeight: 700,
-                                                        color: "#0f172a",
-                                                        overflow: "hidden",
-                                                        textOverflow: "ellipsis",
-                                                        whiteSpace: "nowrap",
-                                                    }}
-                                                >
-                                                    {displayFmt}
-                                                </Typography>
+                                                <Box sx={{ display: "flex", alignItems: "center", gap: 0.9, minWidth: 0 }}>
+                                                    <Typography
+                                                        sx={{
+                                                            fontSize: 13,
+                                                            fontWeight: 700,
+                                                            color: "#0f172a",
+                                                            overflow: "hidden",
+                                                            textOverflow: "ellipsis",
+                                                            whiteSpace: "nowrap",
+                                                        }}
+                                                    >
+                                                        {displayFmt}
+                                                    </Typography>
+                                                </Box>
                                                 <Box sx={{ display: "flex", gap: 0.25 }}>
                                                     <IconButton
                                                         size="small"
@@ -1768,9 +1832,18 @@ export default function AdminPlatformSettings() {
                                         );
                                     })
                                 ) : (
-                                    <Box sx={{ width: "100%" }}>
-                                        <Typography variant="body2" sx={{ color: "#64748b", px: 0.5 }}>
-                                            Không có dữ liệu.
+                                    <Box
+                                        sx={{
+                                            width: "100%",
+                                            borderRadius: 2,
+                                            border: "1px dashed #cbd5e1",
+                                            bgcolor: "#f8fafc",
+                                            py: 2.5,
+                                            px: 1.5,
+                                        }}
+                                    >
+                                        <Typography variant="body2" sx={{ color: "#64748b", fontWeight: 600 }}>
+                                            Chưa có định dạng nào. Hãy thêm định dạng đầu tiên cho {dialogTypeLabel}.
                                         </Typography>
                                     </Box>
                                 )}
