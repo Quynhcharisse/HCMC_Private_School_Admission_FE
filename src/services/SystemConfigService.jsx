@@ -11,6 +11,66 @@ export const getSystemConfigByKey = async (key) => {
     return res || null;
 };
 
+const MEDIA_CONFIG_CACHE = {
+    value: null,
+    fetchedAt: 0,
+    pending: null,
+};
+
+/**
+ * Đọc media config theo key=media.
+ * Cache in-memory để không gọi API mỗi lần chọn file.
+ */
+export const fetchSystemMediaConfig = async ({force = false, staleTimeMs = 10 * 60 * 1000} = {}) => {
+    const now = Date.now();
+    const hasFreshCache =
+        !force &&
+        MEDIA_CONFIG_CACHE.value &&
+        now - MEDIA_CONFIG_CACHE.fetchedAt <= Math.max(0, Number(staleTimeMs) || 0);
+    if (hasFreshCache) {
+        return MEDIA_CONFIG_CACHE.value;
+    }
+    if (MEDIA_CONFIG_CACHE.pending) {
+        return MEDIA_CONFIG_CACHE.pending;
+    }
+
+    MEDIA_CONFIG_CACHE.pending = (async () => {
+        try {
+            const byKeyRes = await getSystemConfigByKey("media");
+            const byKeyBody = byKeyRes?.data?.body ?? byKeyRes?.data?.data ?? byKeyRes?.data;
+            const byKeyMedia = byKeyBody?.media;
+            if (byKeyMedia && typeof byKeyMedia === "object" && !Array.isArray(byKeyMedia)) {
+                MEDIA_CONFIG_CACHE.value = byKeyMedia;
+                MEDIA_CONFIG_CACHE.fetchedAt = Date.now();
+                return byKeyMedia;
+            }
+        } catch {
+            // fallback sang config tổng
+        }
+
+        const fullRes = await getSystemConfig();
+        const fullBody = fullRes?.data?.body ?? fullRes?.data?.data ?? fullRes?.data;
+        const fullMedia = fullBody?.mediaData ?? fullBody?.media;
+        const normalized =
+            fullMedia && typeof fullMedia === "object" && !Array.isArray(fullMedia) ? fullMedia : null;
+        MEDIA_CONFIG_CACHE.value = normalized;
+        MEDIA_CONFIG_CACHE.fetchedAt = Date.now();
+        return normalized;
+    })();
+
+    try {
+        return await MEDIA_CONFIG_CACHE.pending;
+    } finally {
+        MEDIA_CONFIG_CACHE.pending = null;
+    }
+};
+
+export const clearSystemMediaConfigCache = () => {
+    MEDIA_CONFIG_CACHE.value = null;
+    MEDIA_CONFIG_CACHE.fetchedAt = 0;
+    MEDIA_CONFIG_CACHE.pending = null;
+};
+
 export const fetchSystemAdmissionSettingsData = async () => {
     try {
         const res = await getSystemConfigByKey("admissionSettingsData");

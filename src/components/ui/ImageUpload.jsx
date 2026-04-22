@@ -12,6 +12,10 @@ import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import {uploadFileToCloudinary} from "../../utils/cloudinaryUpload.js";
+import {
+    formatMediaImageRulesCaption,
+    validateMediaImageFile,
+} from "../../utils/platformMediaConfig.js";
 
 const ACCEPT_MIME = new Set(["image/jpeg", "image/jpg", "image/png", "image/x-png"]);
 
@@ -35,7 +39,9 @@ function formatBytes(n) {
  * @param {string | null} props.value — URL ảnh hiện tại
  * @param {(url: string | null) => void} props.onChange
  * @param {(message: string) => void} [props.onError]
- * @param {number} [props.maxBytes=5242880]
+ * @param {number} [props.maxBytes=5242880] — chỉ dùng khi không truyền mediaImageRules
+ * @param {{ extensions: string[], maxBytes: number, maxImgSizeMb?: number } | null} [props.mediaImageRules]
+ * @param {boolean} [props.mediaImageRulesLoading]
  * @param {boolean} [props.disabled]
  * @param {string} [props.inputId]
  */
@@ -44,6 +50,8 @@ export default function ImageUpload({
     onChange,
     onError,
     maxBytes = 5 * 1024 * 1024,
+    mediaImageRules,
+    mediaImageRulesLoading = false,
     disabled = false,
     inputId: inputIdProp,
 }) {
@@ -86,17 +94,38 @@ export default function ImageUpload({
         if (!file || disabled || uploading) return;
         setError(null);
 
-        if (!isAllowedImage(file)) {
-            const msg = "Chỉ hỗ trợ định dạng JPG, JPEG, PNG.";
-            setError(msg);
-            onError?.(msg);
-            return;
-        }
-        if (file.size > maxBytes) {
-            const msg = `Ảnh vượt quá ${formatBytes(maxBytes)}. Vui lòng chọn file nhỏ hơn.`;
-            setError(msg);
-            onError?.(msg);
-            return;
+        if (mediaImageRules !== undefined) {
+            if (mediaImageRulesLoading) {
+                const msg = "Đang tải cấu hình giới hạn ảnh…";
+                setError(msg);
+                onError?.(msg);
+                return;
+            }
+            if (!mediaImageRules) {
+                const msg = "Chưa tải được cấu hình ảnh từ hệ thống. Vui lòng thử lại sau.";
+                setError(msg);
+                onError?.(msg);
+                return;
+            }
+            const v = validateMediaImageFile(file, mediaImageRules);
+            if (!v.ok) {
+                setError(v.message);
+                onError?.(v.message);
+                return;
+            }
+        } else {
+            if (!isAllowedImage(file)) {
+                const msg = "Chỉ hỗ trợ định dạng JPG, JPEG, PNG.";
+                setError(msg);
+                onError?.(msg);
+                return;
+            }
+            if (file.size > maxBytes) {
+                const msg = `Ảnh vượt quá ${formatBytes(maxBytes)}. Vui lòng chọn file nhỏ hơn.`;
+                setError(msg);
+                onError?.(msg);
+                return;
+            }
         }
 
         revokeBlob(blobUrl);
@@ -175,7 +204,8 @@ export default function ImageUpload({
 
     const previewSrc = uploading && blobUrl ? blobUrl : value || null;
     const showPreviewCard = Boolean(previewSrc);
-    const zoneDisabled = disabled || uploading;
+    const zoneDisabled = disabled || uploading || (mediaImageRules !== undefined && mediaImageRulesLoading);
+    const fileAccept = "image/*";
 
     const dropzoneSx = {
         borderRadius: 3,
@@ -202,7 +232,7 @@ export default function ImageUpload({
                 id={inputId}
                 type="file"
                 hidden
-                accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+                accept={fileAccept}
                 disabled={zoneDisabled}
                 onChange={handleInputChange}
             />
@@ -415,7 +445,10 @@ export default function ImageUpload({
             )}
 
             <Typography variant="caption" sx={{color: "#94a3b8", textAlign: "center", display: "block"}}>
-                Định dạng: JPG, JPEG, PNG · Tối đa {formatBytes(maxBytes)}
+                {mediaImageRules !== undefined
+                    ? formatMediaImageRulesCaption(mediaImageRules) ||
+                      "Đang áp dụng giới hạn ảnh theo cấu hình hệ thống…"
+                    : `Định dạng: JPG, JPEG, PNG · Tối đa ${formatBytes(maxBytes)}`}
             </Typography>
         </Stack>
     );

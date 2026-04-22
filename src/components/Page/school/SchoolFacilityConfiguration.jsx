@@ -37,6 +37,8 @@ import {useNavigate} from "react-router-dom";
 
 import {enqueueSnackbar} from "notistack";
 import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
+import {usePlatformMediaImageRules} from "../../../hooks/usePlatformMediaImageRules.js";
+import {formatMediaImageRulesCaption} from "../../../utils/platformMediaConfig.js";
 import ConfirmDialog, {ConfirmHighlight} from "../../ui/ConfirmDialog.jsx";
 import CreatePostRichTextEditor from "../../ui/CreatePostRichTextEditor.jsx";
 
@@ -139,6 +141,10 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
   /** Giữ giao diện không xám khi chỉ xem — chặn tương tác bằng pointer-events thay vì disabled. */
   const blockPointerSx = formLocked ? { pointerEvents: "none", cursor: "default" } : undefined;
   const facilityData = useMemo(() => normalizeFacilityData(value), [value]);
+  const { loading: mediaImageRulesLoading, rules: mediaImageRules } = usePlatformMediaImageRules();
+  const mediaImageUploadHint =
+    formatMediaImageRulesCaption(mediaImageRules) ||
+    (mediaImageRulesLoading ? "Đang tải cấu hình định dạng và dung lượng ảnh…" : "Không tải được cấu hình ảnh từ hệ thống. Vui lòng thử lại sau.");
 
   const overviewNoteBody = perCampus
     ? "Tổng quan về cơ sở vật chất là một đoạn văn mô tả chung về cơ sở vật chất của mỗi cơ sở"
@@ -534,6 +540,8 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                   inputId="school-facility-cover-upload"
                   accept="image/*"
                   multiple={false}
+                  mediaImageRules={mediaImageRules}
+                  mediaImageRulesLoading={mediaImageRulesLoading}
                   onSuccess={handleCoverUploaded}
                   onError={(msg) => enqueueSnackbar(msg, {variant: "error"})}
                 >
@@ -561,7 +569,7 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                           Chọn file hoặc kéo thả vào đây
                         </Typography>
                         <Typography variant="body2" sx={{color: "#64748b", fontSize: 13, maxWidth: 400, lineHeight: 1.45}}>
-                          Định dạng JPEG, PNG, WebP — dung lượng tối đa 50MB
+                          {mediaImageUploadHint}
                         </Typography>
                         {uploadLoading ? (
                           <CircularProgress size={32} thickness={4} sx={{color: "#2563eb", mt: 0.5}}/>
@@ -846,6 +854,8 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
                                 inputId={`school-facility-images-${item.id}`}
                                 accept="image/*"
                                 multiple
+                                mediaImageRules={mediaImageRules}
+                                mediaImageRulesLoading={mediaImageRulesLoading}
                                 onSuccess={handleFacilityImagesUploaded(item)}
                                 onError={(msg) => enqueueSnackbar(msg, {variant: "error"})}
                               >

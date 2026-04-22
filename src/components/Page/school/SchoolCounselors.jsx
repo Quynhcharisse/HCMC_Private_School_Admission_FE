@@ -50,6 +50,7 @@ import BranchQuotaRequestToPrimaryCard from "./BranchQuotaRequestToPrimaryCard.j
 import {fetchCounsellors, createCounsellor, exportCounsellors} from "../../../services/CounsellorService.jsx";
 import {sendWelcomeEmail} from "../../../services/emailService.jsx";
 import ImageUpload from "../../ui/ImageUpload.jsx";
+import {usePlatformMediaImageRules} from "../../../hooks/usePlatformMediaImageRules.js";
 
 const InfoItem = ({ label, value }) => (
     <Box>
@@ -252,6 +253,7 @@ export default function SchoolCounselors() {
     const [currentUsage, setCurrentUsage] = useState(0);
     const [maxQuota, setMaxQuota] = useState(0);
     const [accessStatus, setAccessStatus] = useState("");
+    const {loading: mediaImageRulesLoading, rules: mediaImageRules} = usePlatformMediaImageRules();
 
     const loadCounsellors = useCallback(async () => {
         setLoading(true);
@@ -1224,7 +1226,8 @@ export default function SchoolCounselors() {
                                     setFormValues((p) => ({...p, avatar: url ?? ""}))
                                 }
                                 onError={(m) => enqueueSnackbar(m, {variant: "error"})}
-                                maxBytes={5 * 1024 * 1024}
+                                mediaImageRules={mediaImageRules}
+                                mediaImageRulesLoading={mediaImageRulesLoading}
                                 disabled={createSubmitting}
                             />
                         </Box>
