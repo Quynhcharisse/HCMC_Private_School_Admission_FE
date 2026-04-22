@@ -2,6 +2,7 @@ import React from "react";
 import {
     Box,
     Button,
+    CircularProgress,
     Dialog,
     DialogActions,
     DialogContent,
@@ -9,6 +10,7 @@ import {
     DialogTitle,
 } from "@mui/material";
 import {alpha} from "@mui/material/styles";
+import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 
 export function ConfirmHighlight({children}) {
     return (
@@ -33,9 +35,14 @@ const ConfirmDialog = ({
     paperSx,
     backdropSx,
     titleSx,
+    titleTextSx,
     contentSx,
     confirmButtonSx,
+    warningIconWrapSx,
+    warningIconSx,
 }) => {
+    const titleAccent = "#f59e0b";
+
     const handleDialogClose = (event, reason) => {
         if (loading) return;
         if (reason === "backdropClick" || reason === "escapeKeyDown") {
@@ -54,52 +61,72 @@ const ConfirmDialog = ({
             fullWidth
             sx={{
                 ...dialogSx,
+                "& .MuiDialog-container": {
+                    alignItems: "center",
+                    justifyContent: "center",
+                },
                 "& .MuiBackdrop-root": {
-                    backgroundColor: alpha("#1e293b", 0.45),
+                    backgroundColor: alpha("#0f172a", 0.36),
                     ...backdropSx,
                 },
                 '& .MuiPaper-root': {
-                    borderRadius: 3,
-                    boxShadow:
-                        '0 18px 45px rgba(51,65,85,0.28)',
-                    border: '1px solid rgba(148,163,184,0.25)',
-                    background:
-                        'radial-gradient(circle at top left, #eff6ff 0, #ffffff 45%, #f9fafb 100%)',
+                    borderRadius: 4,
+                    boxShadow: "0 14px 28px rgba(15,23,42,0.14)",
+                    border: "1px solid rgba(15,23,42,0.08)",
+                    background: "#ffffff",
                     ...paperSx,
                 },
             }}
         >
-            {title && (
-                <DialogTitle
-                    id="confirm-dialog-title"
+            <DialogTitle
+                id="confirm-dialog-title"
+                sx={{
+                    cursor: "default",
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "center",
+                    textAlign: "center",
+                    gap: 1.2,
+                    pt: 4.4,
+                    pb: 0.5,
+                    px: 3.5,
+                    ...titleSx,
+                }}
+            >
+                <Box
                     sx={{
-                        cursor: "default",
-                        fontWeight: 700,
-                        color: "#1e293b",
-                        fontSize: 18,
-                        display: "flex",
+                        width: 56,
+                        height: 56,
+                        borderRadius: "50%",
+                        display: "inline-flex",
                         alignItems: "center",
-                        gap: 1,
-                        pt: 2,
-                        pb: 2.1,
-                        background: "linear-gradient(135deg, rgba(37,99,235,0.14), rgba(59,130,246,0.1))",
-                        borderBottom: "none",
-                        ...titleSx,
+                        justifyContent: "center",
+                        bgcolor: "rgba(245,158,11,0.12)",
+                        mx: "auto",
+                        ...warningIconWrapSx,
                     }}
                 >
-                    {title}
-                </DialogTitle>
-            )}
+                    <WarningAmberRoundedIcon sx={{fontSize: 31, color: titleAccent, ...warningIconSx}} />
+                </Box>
+                <Box
+                    component="span"
+                    sx={{fontSize: 35, lineHeight: 1.1, fontWeight: 700, color: "#1f2937", ...titleTextSx}}
+                >
+                    {title || "Warning"}
+                </Box>
+            </DialogTitle>
             {(description || extraDescription || children != null) && (
-                <DialogContent sx={{pt: title ? 3.4 : 2, ...contentSx}}>
+                <DialogContent sx={{pt: 0.4, px: 4.5, pb: 1.2, textAlign: "center", ...contentSx}}>
                     {description && (
                         <DialogContentText
                             component="div"
                             sx={{
-                                fontSize: 14,
-                                color: "#1e293b",
-                                mt: title ? 0.6 : 0,
+                                fontSize: 16,
+                                fontWeight: 500,
+                                color: "#6b7280",
+                                mt: 0,
                                 mb: extraDescription || children != null ? 0.5 : 0,
+                                textAlign: "center",
                             }}
                         >
                             {description}
@@ -109,16 +136,23 @@ const ConfirmDialog = ({
                         <DialogContentText
                             component="div"
                             sx={{
-                                fontSize: 13,
+                                fontSize: 16,
                                 color: "#64748b",
                                 mb: children != null ? 1.5 : 0,
+                                textAlign: "center",
                             }}
                         >
                             {extraDescription}
                         </DialogContentText>
                     )}
                     {children != null && (
-                        <Box sx={{mt: !description && !extraDescription ? (title ? 0.5 : 0) : 0}}>
+                        <Box
+                            sx={{
+                                mt: !description && !extraDescription ? (title ? 0.5 : 0) : 0,
+                                display: "flex",
+                                justifyContent: "center",
+                            }}
+                        >
                             {children}
                         </Box>
                     )}
@@ -126,14 +160,13 @@ const ConfirmDialog = ({
             )}
             <DialogActions
                 sx={{
-                    px: 3,
+                    px: 3.6,
                     pb: 2.2,
-                    pt: 1.25,
-                    gap: 1,
-                    justifyContent: "flex-end",
+                    pt: 1.4,
+                    gap: 1.3,
+                    justifyContent: "center",
                     borderTop: "none",
-                    background:
-                        "linear-gradient(to top, rgba(248,250,252,0.9), rgba(248,250,252,0.4))",
+                    background: "#ffffff",
                 }}
             >
                 <Button
@@ -141,17 +174,18 @@ const ConfirmDialog = ({
                     disabled={loading}
                     sx={{
                         textTransform: "none",
-                        borderRadius: 3,
-                        px: 3,
-                        minWidth: 120,
-                        height: 40,
-                        fontWeight: 500,
-                        color: "#111827",
-                        border: "1px solid rgba(17,24,39,0.45)",
-                        backgroundColor: "#f8fafc",
+                        borderRadius: 999,
+                        px: 3.25,
+                        minWidth: 162,
+                        height: 46,
+                        fontSize: 17,
+                        fontWeight: 600,
+                        color: "#1f2937",
+                        border: "1px solid rgba(15,23,42,0.12)",
+                        backgroundColor: "#f3f4f6",
                         "&:hover": {
-                            backgroundColor: "#f1f5f9",
-                            borderColor: "rgba(17,24,39,0.65)",
+                            backgroundColor: "#e5e7eb",
+                            borderColor: "rgba(15,23,42,0.24)",
                         },
                     }}
                 >
@@ -164,19 +198,21 @@ const ConfirmDialog = ({
                     color="primary"
                     sx={{
                         textTransform: "none",
-                        px: 3,
-                        minWidth: 120,
-                        height: 40,
-                        borderRadius: 3,
-                        fontWeight: 600,
-                        boxShadow: "0 6px 14px rgba(37,99,235,0.32)",
-                        background: "#3b82f6",
+                        px: 3.25,
+                        minWidth: 162,
+                        height: 46,
+                        borderRadius: 999,
+                        fontSize: 17,
+                        fontWeight: 700,
+                        boxShadow: "0 8px 18px rgba(245,158,11,0.36)",
+                        background: "linear-gradient(135deg, #f7b14d 0%, #f59e0b 55%, #ea580c 100%)",
                         "&:hover": {
-                            background: "#2563eb",
-                            boxShadow: "0 8px 16px rgba(37,99,235,0.38)",
+                            background: "linear-gradient(135deg, #f59e0b 0%, #ea580c 55%, #c2410c 100%)",
+                            boxShadow: "0 10px 20px rgba(234,88,12,0.45)",
                         },
                         ...confirmButtonSx,
                     }}
+                    startIcon={loading ? <CircularProgress size={16} color="inherit" /> : null}
                 >
                     {confirmText}
                 </Button>
