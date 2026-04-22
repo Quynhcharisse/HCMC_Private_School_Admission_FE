@@ -857,19 +857,15 @@ export default function AdminSchoolVerification() {
                 description={
                     selectedRegistration ? (
                         <>
-                            Bạn có chắc chắn muốn <ConfirmHighlight>xác thực hồ sơ</ConfirmHighlight> cho{" "}
-                            <ConfirmHighlight>{selectedRegistration.schoolName}</ConfirmHighlight>?
+                            Bạn có chắc muốn <ConfirmHighlight>xác thực hồ sơ</ConfirmHighlight>{" "}
+                            <ConfirmHighlight>Trường THCS & THPT Nam Việt</ConfirmHighlight>? Tài khoản sẽ được kích
+                            hoạt sau khi xác thực.
                         </>
                     ) : (
                         ""
                     )
                 }
-                extraDescription={
-                    <>
-                        Sau khi được <ConfirmHighlight>xác thực</ConfirmHighlight>, tài khoản của trường sẽ được{" "}
-                        <ConfirmHighlight>kích hoạt</ConfirmHighlight> để sử dụng hệ thống EduBridgeHCM.
-                    </>
-                }
+                extraDescription=""
                 cancelText="Hủy"
                 confirmText={verifyingId ? "Đang xác thực..." : "Xác thực"}
                 onCancel={handleConfirmClose}
@@ -879,10 +875,9 @@ export default function AdminSchoolVerification() {
                     background: "linear-gradient(145deg, #eef7ff 0%, #f8fbff 46%, #ffffff 100%)",
                     border: "1px solid rgba(59,130,246,0.25)",
                 }}
-                titleSx={{
-                    background: "linear-gradient(90deg, rgba(37,99,235,0.2) 0%, rgba(59,130,246,0.14) 100%)",
-                    borderBottom: "none",
-                }}
+                titleTextSx={{ fontSize: 26, lineHeight: 1.2 }}
+                warningIconWrapSx={{ width: 64, height: 64 }}
+                warningIconSx={{ fontSize: 38 }}
             />
         </Box>
     );
