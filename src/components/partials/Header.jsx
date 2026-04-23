@@ -887,6 +887,13 @@ function MainHeader() {
             : Array.isArray(payload?.items)
               ? payload.items
               : [];
+        const resolvedConversationId =
+            payload?.conversationId ??
+            payload?.id ??
+            payload?.conversation?.id ??
+            items?.[0]?.conversationId ??
+            items?.[0]?.conversation?.id ??
+            null;
         const subjectsInSystem = extractSubjectsInSystemFromPayload(payload);
         const sid =
             conversation?.studentProfileId ??
@@ -916,6 +923,7 @@ function MainHeader() {
         };
         return {
             items,
+            conversationId: resolvedConversationId,
             nextCursorId: payload?.nextCursorId ?? payload?.cursorId ?? null,
             hasMore: !!payload?.hasMore,
             studentProfile
@@ -2232,8 +2240,26 @@ function MainHeader() {
             setParentWsUnreadBump(0);
             hasMarkedReadRef.current = false;
             await loadMessageHistory({conversation: draftConversation});
+            let convAfterHistory = selectedConversationRef.current || draftConversation;
+            let convId = convAfterHistory?.conversationId ?? convAfterHistory?.id ?? null;
+            if (convId == null || String(convId).trim() === '') {
+                await loadConversationsRef.current?.(null, {silent: true});
+                const matched = (conversationItemsRef.current || []).find((item) =>
+                    isSameConversationSession(item, convAfterHistory)
+                );
+                if (matched) {
+                    const merged = {...convAfterHistory, ...matched};
+                    convAfterHistory = merged;
+                    setSelectedConversation(merged);
+                    selectedConversationRef.current = merged;
+                    convId = merged?.conversationId ?? merged?.id ?? null;
+                }
+            }
+            if (convId != null && String(convId).trim() !== '') {
+                await markParentConversationRead(convAfterHistory, {force: true});
+            }
         },
-        [loadMessageHistory, normalizeConversation, userInfo?.email]
+        [loadMessageHistory, markParentConversationRead, normalizeConversation, userInfo?.email]
     );
 
     const openParentChatRef = React.useRef(null);
@@ -2784,11 +2810,18 @@ function MainHeader() {
                                                                 alignItems: 'center',
                                                                 gap: 1.5,
                                                                 cursor: 'pointer',
-                                                                bgcolor: hasUnread ? 'rgba(37,99,235,0.12)' : 'transparent',
-                                                                borderLeft: hasUnread ? '3px solid #2563eb' : '3px solid transparent',
-                                                                transition: 'background-color 0.2s ease, border-color 0.2s ease',
+                                                                bgcolor: hasUnread
+                                                                    ? 'linear-gradient(90deg, rgba(37,99,235,0.18) 0%, rgba(37,99,235,0.08) 60%, rgba(37,99,235,0.04) 100%)'
+                                                                    : 'transparent',
+                                                                borderLeft: hasUnread ? '4px solid #1d4ed8' : '4px solid transparent',
+                                                                boxShadow: hasUnread
+                                                                    ? 'inset 0 0 0 1px rgba(37,99,235,0.12)'
+                                                                    : 'none',
+                                                                transition: 'background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease',
                                                                 '&:hover': {
-                                                                    bgcolor: hasUnread ? 'rgba(37,99,235,0.16)' : 'rgba(59,130,246,0.08)'
+                                                                    bgcolor: hasUnread
+                                                                        ? 'linear-gradient(90deg, rgba(37,99,235,0.24) 0%, rgba(37,99,235,0.11) 60%, rgba(37,99,235,0.06) 100%)'
+                                                                        : 'rgba(59,130,246,0.08)'
                                                                 }
                                                             }}
                                                         >
@@ -2799,7 +2832,7 @@ function MainHeader() {
                                                                 {conversationName.charAt(0).toUpperCase()}
                                                             </Avatar>
                                                             <Box sx={{minWidth: 0, flex: 1}}>
-                                                                <Typography noWrap sx={{fontSize: 14, fontWeight: hasUnread ? 800 : 700, color: '#1e293b'}}>
+                                                                <Typography noWrap sx={{fontSize: 14, fontWeight: hasUnread ? 800 : 700, color: hasUnread ? '#0f172a' : '#1e293b'}}>
                                                                     {conversationName}
                                                                 </Typography>
                                                                 {studentDisplayName ? (
@@ -2816,7 +2849,7 @@ function MainHeader() {
                                                                         Học sinh: {studentDisplayName}
                                                                     </Typography>
                                                                 ) : null}
-                                                                <Typography noWrap sx={{fontSize: 13, color: hasUnread ? '#1e3a8a' : '#475569', fontWeight: hasUnread ? 600 : 500}}>
+                                                                <Typography noWrap sx={{fontSize: 13, color: hasUnread ? '#1e40af' : '#475569', fontWeight: hasUnread ? 700 : 500}}>
                                                                     {latestMessage}
                                                                 </Typography>
                                                             </Box>
