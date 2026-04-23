@@ -6,6 +6,8 @@ import {
     Chip,
     CircularProgress,
     LinearProgress,
+    Skeleton,
+    Tooltip,
     Typography,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
@@ -14,6 +16,14 @@ import LightbulbOutlinedIcon from "@mui/icons-material/LightbulbOutlined";
 import StorefrontOutlinedIcon from "@mui/icons-material/StorefrontOutlined";
 import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
 import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
+import Groups2OutlinedIcon from "@mui/icons-material/Groups2Outlined";
+import ArticleOutlinedIcon from "@mui/icons-material/ArticleOutlined";
+import SmartToyOutlinedIcon from "@mui/icons-material/SmartToyOutlined";
+import WorkspacePremiumOutlinedIcon from "@mui/icons-material/WorkspacePremiumOutlined";
+import VerticalAlignTopOutlinedIcon from "@mui/icons-material/VerticalAlignTopOutlined";
+import CampaignOutlinedIcon from "@mui/icons-material/CampaignOutlined";
+import AutoAwesomeOutlinedIcon from "@mui/icons-material/AutoAwesomeOutlined";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
 import { getCurrentSchoolSubscription } from "../../../services/SchoolSubscriptionService.jsx";
@@ -43,6 +53,70 @@ function mapResourceSummary(raw) {
     };
 }
 
+function toNonNegativeNumber(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
+
+function mapEntitlements(raw) {
+    if (!raw || typeof raw !== "object") return null;
+    return {
+        maxCounsellors: toNonNegativeNumber(raw.maxCounsellors),
+        postLimit: toNonNegativeNumber(raw.postLimit),
+        hasAiAssistant: raw.hasAiAssistant === true,
+        supportLevel: typeof raw.supportLevel === "string" ? raw.supportLevel : "",
+        topRanking: toNonNegativeNumber(raw.topRanking),
+        parentPostPermission: typeof raw.parentPostPermission === "string" ? raw.parentPostPermission : "",
+        isFeatured: raw.isFeatured === true,
+    };
+}
+
+function mapUsageReport(raw, entitlements) {
+    if (!raw || typeof raw !== "object") return null;
+    const counsellorsRaw = raw.counsellors && typeof raw.counsellors === "object" ? raw.counsellors : {};
+    const postsRaw = raw.posts && typeof raw.posts === "object" ? raw.posts : {};
+    const counsellorLimit = toNonNegativeNumber(counsellorsRaw.totalPackage || entitlements?.maxCounsellors);
+    const counsellorUsed = toNonNegativeNumber(counsellorsRaw.myCampusUsage);
+    const counsellorRemaining = Math.max(0, counsellorLimit - counsellorUsed);
+
+    const postLimit = toNonNegativeNumber(postsRaw.limit || entitlements?.postLimit);
+    const postUsed = toNonNegativeNumber(postsRaw.usage);
+    const postRemaining =
+        Number.isFinite(Number(postsRaw.remaining)) && Number(postsRaw.remaining) >= 0
+            ? Number(postsRaw.remaining)
+            : Math.max(0, postLimit - postUsed);
+
+    return {
+        counsellors: {
+            totalPackage: counsellorLimit,
+            myCampusQuota: toNonNegativeNumber(counsellorsRaw.myCampusQuota),
+            myCampusUsage: counsellorUsed,
+            otherCampusesQuota: toNonNegativeNumber(counsellorsRaw.otherCampusesQuota),
+            remaining: counsellorRemaining,
+        },
+        posts: {
+            limit: postLimit,
+            usage: postUsed,
+            remaining: Math.max(0, postRemaining),
+        },
+    };
+}
+
+function toSupportLevelLabel(level) {
+    const v = String(level || "").toUpperCase();
+    if (v === "STANDARD_SUPPORT") return "Hỗ trợ tiêu chuẩn";
+    if (v === "PRIORITY_SUPPORT") return "Hỗ trợ ưu tiên";
+    if (v === "PREMIUM_SUPPORT") return "Hỗ trợ cao cấp";
+    return level || "—";
+}
+
+function toParentPostPermissionLabel(permission) {
+    const v = String(permission || "").toUpperCase();
+    if (v === "CREATE_POST") return "Được tạo bài viết";
+    if (v === "READ_ONLY") return "Chỉ xem";
+    return permission || "—";
+}
+
 /**
  * Campus chính: còn gói có hạn ngạch nhưng trụ sở hoặc chi nhánh đang 0 → chuyển tới
  * Cấu hình chung → tab Phân bổ nguồn lực (`/school/facility-config?tab=resource-distribution`).
@@ -68,6 +142,8 @@ function mapSubscription(body) {
     const id = licenseKey || "current-subscription";
     const isExpired = body.isExpired === true;
     const resourceSummary = mapResourceSummary(body.resourceSummary);
+    const entitlements = mapEntitlements(body.entitlements);
+    const usageReport = mapUsageReport(body.usageReport, entitlements);
 
     return {
         id,
@@ -77,6 +153,8 @@ function mapSubscription(body) {
         endDate,
         dasRemaining,
         isExpired,
+        entitlements,
+        usageReport,
         resourceSummary,
         statusMessage: localizeSubscriptionStatusMessage(
             typeof body.statusMessage === "string" ? body.statusMessage : "",
@@ -223,8 +301,8 @@ function SubscriptionEmptyState({ onBuy, branchReadOnly }) {
     );
 }
 
-function SuggestionPanel({ text }) {
-    if (!text?.trim()) return null;
+function SuggestionPanel({ statusText, text }) {
+    if (!statusText?.trim() && !text?.trim()) return null;
     return (
         <Box
             sx={{
@@ -239,9 +317,187 @@ function SuggestionPanel({ text }) {
             }}
         >
             <LightbulbOutlinedIcon sx={{ color: "#3b82f6", fontSize: 26, flexShrink: 0, mt: 0.25 }} />
-            <Typography sx={{ color: "#1e40af", fontSize: "0.9375rem", lineHeight: 1.65, fontWeight: 500 }}>
-                {text}
+            <Box sx={{ minWidth: 0 }}>
+                {statusText?.trim() ? (
+                    <Typography sx={{ color: "#1e3a8a", fontSize: "0.9375rem", lineHeight: 1.55, fontWeight: 700 }}>
+                        {statusText}
+                    </Typography>
+                ) : null}
+                {text?.trim() ? (
+                    <Typography sx={{ color: "#1e40af", fontSize: "0.9rem", lineHeight: 1.6, fontWeight: 500, mt: statusText?.trim() ? 0.4 : 0 }}>
+                        {text}
+                    </Typography>
+                ) : null}
+            </Box>
+        </Box>
+    );
+}
+
+function EntitlementItem({ icon, label, value, hint }) {
+    return (
+        <Box
+            sx={{
+                p: 1.75,
+                borderRadius: "12px",
+                border: "1px solid rgba(226, 232, 240, 0.95)",
+                bgcolor: "#fff",
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 1.25,
+            }}
+        >
+            <Box sx={{ mt: 0.35, color: "#0D64DE", display: "grid", placeItems: "center" }}>{icon}</Box>
+            <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    {label}
+                </Typography>
+                <Typography sx={{ fontSize: "0.95rem", fontWeight: 700, color: "#0f172a", mt: 0.5 }}>{value}</Typography>
+                {hint ? (
+                    <Typography sx={{ fontSize: "0.78rem", color: "#64748b", mt: 0.35 }}>
+                        {hint}
+                    </Typography>
+                ) : null}
+            </Box>
+        </Box>
+    );
+}
+
+function EntitlementsGrid({ entitlements }) {
+    if (!entitlements) return null;
+    const items = [
+        { key: "maxCounsellors", label: "Tối đa tư vấn viên", value: entitlements.maxCounsellors, icon: <Groups2OutlinedIcon sx={{ fontSize: 20 }} /> },
+        { key: "postLimit", label: "Giới hạn bài viết", value: entitlements.postLimit, icon: <ArticleOutlinedIcon sx={{ fontSize: 20 }} /> },
+        {
+            key: "hasAiAssistant",
+            label: "AI Assistant",
+            value: entitlements.hasAiAssistant ? "Có" : "Không",
+            icon: <SmartToyOutlinedIcon sx={{ fontSize: 20 }} />,
+        },
+        {
+            key: "supportLevel",
+            label: "Mức hỗ trợ",
+            value: toSupportLevelLabel(entitlements.supportLevel),
+            icon: <WorkspacePremiumOutlinedIcon sx={{ fontSize: 20 }} />,
+        },
+        {
+            key: "topRanking",
+            label: "Top Ranking",
+            value: entitlements.topRanking,
+            hint: "Thứ hạng ưu tiên hiển thị",
+            icon: <VerticalAlignTopOutlinedIcon sx={{ fontSize: 20 }} />,
+        },
+        {
+            key: "parentPostPermission",
+            label: "Quyền bài viết",
+            value: toParentPostPermissionLabel(entitlements.parentPostPermission),
+            icon: <CampaignOutlinedIcon sx={{ fontSize: 20 }} />,
+        },
+        {
+            key: "isFeatured",
+            label: "Featured",
+            value: entitlements.isFeatured ? "Có" : "Không",
+            icon: <AutoAwesomeOutlinedIcon sx={{ fontSize: 20 }} />,
+        },
+    ];
+    return (
+        <Box sx={{ mt: 3 }}>
+            <Typography sx={{ fontSize: "0.8125rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", mb: 1.5 }}>
+                Quyền lợi gói dịch vụ
             </Typography>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0,1fr))" }, gap: 1.5 }}>
+                {items.map((item) => (
+                    <EntitlementItem key={item.key} icon={item.icon} label={item.label} value={item.value} hint={item.hint} />
+                ))}
+            </Box>
+        </Box>
+    );
+}
+
+function usageTone(percent) {
+    if (percent > 95) return { bar: "#dc2626", text: "#b91c1c" };
+    if (percent >= 80) return { bar: "#d97706", text: "#b45309" };
+    return { bar: "#059669", text: "#047857" };
+}
+
+function UsageCard({ title, limit, usage, remaining, icon }) {
+    const safeLimit = Math.max(0, Number(limit) || 0);
+    const safeUsage = Math.max(0, Number(usage) || 0);
+    const safeRemaining = Math.max(0, Number(remaining) || 0);
+    const percent = safeLimit > 0 ? Math.min(100, Math.round((safeUsage / safeLimit) * 100)) : 0;
+    const tone = usageTone(percent);
+
+    return (
+        <Box
+            sx={{
+                p: 2,
+                borderRadius: "14px",
+                bgcolor: "#fff",
+                border: "1px solid rgba(226, 232, 240, 0.95)",
+                boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
+            }}
+        >
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, color: "#0D64DE", mb: 1.25 }}>
+                {icon}
+                <Typography sx={{ fontSize: "0.875rem", fontWeight: 700, color: "#0f172a" }}>{title}</Typography>
+                <Tooltip title="Màu tiến độ: xanh < 80%, vàng 80-95%, đỏ > 95%">
+                    <InfoOutlinedIcon sx={{ fontSize: 16, color: "#94a3b8", cursor: "help" }} />
+                </Tooltip>
+            </Box>
+            <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0,1fr))", gap: 1.25 }}>
+                <Box>
+                    <Typography sx={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 600 }}>Giới hạn</Typography>
+                    <Typography sx={{ fontWeight: 700, color: "#0f172a" }}>{safeLimit}</Typography>
+                </Box>
+                <Box>
+                    <Typography sx={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 600 }}>Đã dùng</Typography>
+                    <Typography sx={{ fontWeight: 700, color: tone.text }}>{safeUsage}</Typography>
+                </Box>
+                <Box>
+                    <Typography sx={{ fontSize: "0.75rem", color: "#94a3b8", fontWeight: 600 }}>Còn lại</Typography>
+                    <Typography sx={{ fontWeight: 700, color: "#0f172a" }}>{safeRemaining}</Typography>
+                </Box>
+            </Box>
+            <LinearProgress
+                variant="determinate"
+                value={percent}
+                sx={{
+                    mt: 1.5,
+                    height: 8,
+                    borderRadius: 999,
+                    bgcolor: "rgba(148, 163, 184, 0.2)",
+                    "& .MuiLinearProgress-bar": {
+                        borderRadius: 999,
+                        bgcolor: tone.bar,
+                    },
+                }}
+            />
+        </Box>
+    );
+}
+
+function UsageReportSection({ usageReport }) {
+    if (!usageReport) return null;
+    return (
+        <Box sx={{ mt: 3 }}>
+            <Typography sx={{ fontSize: "0.8125rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", mb: 1.5 }}>
+                Báo cáo sử dụng
+            </Typography>
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0,1fr))" }, gap: 2 }}>
+                <UsageCard
+                    title="Tư vấn viên"
+                    limit={usageReport.counsellors.totalPackage}
+                    usage={usageReport.counsellors.myCampusUsage}
+                    remaining={usageReport.counsellors.remaining}
+                    icon={<Groups2OutlinedIcon sx={{ fontSize: 20 }} />}
+                />
+                <UsageCard
+                    title="Bài viết"
+                    limit={usageReport.posts.limit}
+                    usage={usageReport.posts.usage}
+                    remaining={usageReport.posts.remaining}
+                    icon={<ArticleOutlinedIcon sx={{ fontSize: 20 }} />}
+                />
+            </Box>
         </Box>
     );
 }
@@ -369,6 +625,20 @@ function PaymentSuccessSummaryCard({ resourceSummary, packageName, onManageBranc
     );
 }
 
+function SubscriptionDashboardSkeleton() {
+    return (
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            <Skeleton variant="rounded" height={220} sx={{ borderRadius: "16px" }} />
+            <Skeleton variant="rounded" height={190} sx={{ borderRadius: "16px" }} />
+            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 2 }}>
+                <Skeleton variant="rounded" height={170} sx={{ borderRadius: "16px" }} />
+                <Skeleton variant="rounded" height={170} sx={{ borderRadius: "16px" }} />
+            </Box>
+            <Skeleton variant="rounded" height={120} sx={{ borderRadius: "16px" }} />
+        </Box>
+    );
+}
+
 function SubscriptionMainCard({ sub, onViewDetails, onRenewOrUpgrade, hideCommerceActions }) {
     const expiringSoon = !sub.isExpired && sub.dasRemaining < 5;
     const elapsedPct = useMemo(
@@ -409,7 +679,6 @@ function SubscriptionMainCard({ sub, onViewDetails, onRenewOrUpgrade, hideCommer
                     alignItems: { lg: "stretch" },
                 }}
             >
-                {/* (1) Package info ~30% */}
                 <Box sx={{ minWidth: 0, order: { xs: 1, lg: 1 } }}>
                     <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 1, mb: 1.5 }}>
                         <Typography
@@ -453,7 +722,6 @@ function SubscriptionMainCard({ sub, onViewDetails, onRenewOrUpgrade, hideCommer
                     </Typography>
                 </Box>
 
-                {/* (2) Timeline ~25% */}
                 <Box
                     sx={{
                         minWidth: 0,
@@ -501,7 +769,6 @@ function SubscriptionMainCard({ sub, onViewDetails, onRenewOrUpgrade, hideCommer
                     </Box>
                 </Box>
 
-                {/* (3) Remaining ~25% */}
                 <Box
                     sx={{
                         minWidth: 0,
@@ -552,7 +819,6 @@ function SubscriptionMainCard({ sub, onViewDetails, onRenewOrUpgrade, hideCommer
                     />
                 </Box>
 
-                {/* (4) Actions ~20% */}
                 <Box
                     sx={{
                         minWidth: 0,
@@ -722,20 +988,22 @@ function SubscriptionDetailPage({ sub, onBack, onRenewOrUpgrade, hideCommerceAct
                         </Button>
                     </Box>
                 ) : null}
-                {sub.resourceSummary ? (
-                    <Box sx={{ mt: 3 }}>
-                        <Typography sx={{ fontSize: "0.8125rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", mb: 1.5 }}>
-                            Phân bổ hạn ngạch nhanh
-                        </Typography>
-                        <ResourceSummaryMetrics rs={sub.resourceSummary} />
-                    </Box>
-                ) : null}
-                {sub.suggestion ? (
-                    <Box sx={{ mt: 3 }}>
-                        <SuggestionPanel text={sub.suggestion} />
-                    </Box>
-                ) : null}
             </Box>
+            <EntitlementsGrid entitlements={sub.entitlements} />
+            <UsageReportSection usageReport={sub.usageReport} />
+            {sub.resourceSummary ? (
+                <Box sx={{ mt: 3 }}>
+                    <Typography sx={{ fontSize: "0.8125rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", mb: 1.5 }}>
+                        Báo cáo tài nguyên tổng thể
+                    </Typography>
+                    <ResourceSummaryMetrics rs={sub.resourceSummary} />
+                </Box>
+            ) : null}
+            {sub.suggestion || sub.statusMessage ? (
+                <Box sx={{ mt: 3 }}>
+                    <SuggestionPanel statusText={sub.statusMessage} text={sub.suggestion} />
+                </Box>
+            ) : null}
             {hideCommerceActions ? (
                 <Box sx={{ mt: 3 }}>
                     <BranchQuotaRequestToPrimaryCard disabled={false} />
@@ -860,13 +1128,11 @@ function CurrentSubscriptionPage({
                 {branchReadOnly ? <BranchQuotaRequestToPrimaryCard disabled={loading} /> : null}
 
                 {loading ? (
-                    <Box sx={{ display: "flex", justifyContent: "center", py: 10 }}>
-                        <CircularProgress size={40} sx={{ color: "#64748b" }} />
-                    </Box>
+                    <SubscriptionDashboardSkeleton />
                 ) : !error && !subscription ? (
                     <SubscriptionEmptyState
                         branchReadOnly={branchReadOnly}
-                        onBuy={branchReadOnly ? () => navigate("/school/dashboard") : goPackageFees}
+                        onBuy={branchReadOnly ? () => navigate("/school/dashboard") : () => goPackageFees("")}
                     />
                 ) : subscription ? (
                     <>
@@ -886,15 +1152,7 @@ function CurrentSubscriptionPage({
                             onRenewOrUpgrade={goPackageFees}
                             hideCommerceActions={branchReadOnly}
                         />
-                        {isPrimaryBranch && subscription.resourceSummary ? (
-                            <Box sx={{ mt: 3 }}>
-                                <Typography sx={{ fontSize: "0.8125rem", fontWeight: 700, color: "#64748b", textTransform: "uppercase", letterSpacing: "0.06em", mb: 1.5 }}>
-                                    Báo cáo tài nguyên tổng thể
-                                </Typography>
-                                <ResourceSummaryMetrics rs={subscription.resourceSummary} />
-                            </Box>
-                        ) : null}
-                        <SuggestionPanel text={subscription.suggestion} />
+                        <SuggestionPanel statusText={subscription.statusMessage} text={subscription.suggestion} />
                     </>
                 ) : null}
             </Box>
@@ -972,8 +1230,8 @@ export default function SchoolPurchasedPackages() {
             rs.myCampusQuota === 0 && rs.otherCampusesQuota === 0
                 ? `Trường có ${n} tài nguyên trong gói nhưng trụ sở và chi nhánh chưa được phân bổ. Vui lòng Phân bổ nguồn lực…`
                 : rs.myCampusQuota === 0
-                  ? `Hạn ngạch tại trụ sở đang bằng 0 (gói ${n} tài nguyên). Vui lòng Phân bổ nguồn lực…`
-                  : `Tổng hạn ngạch chi nhánh đang bằng 0 (gói ${n} tài nguyên). Vui lòng Phân bổ nguồn lực…`;
+                  ? `Hạn ngạch tại trụ sở đang bằng 0. Vui lòng Phân bổ nguồn lực`
+                  : `Tổng hạn ngạch chi nhánh đang bằng 0. Vui lòng Phân bổ nguồn lực`;
         enqueueSnackbar(msg, { variant: "warning", autoHideDuration: 4800 });
         navigate("/school/facility-config?tab=resource-distribution", { replace: true });
     }, [subscriptionId, schoolCtxLoading, loading, paymentSuccessParam, isPrimaryBranch, subscription, navigate]);

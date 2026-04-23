@@ -29,3 +29,14 @@ export const forwardSchoolVnpayCallback = async (queryString) => {
     const response = await axiosClient.get(`/school/vnpay-callback${qs}`);
     return response;
 };
+
+/**
+ * POST /api/v1/school/subscription/preview — xem trước chênh lệch khi nâng cấp/gia hạn gói.
+ */
+export const previewSchoolSubscriptionChange = async ({ actionType, targetPackageId }) => {
+    const response = await axiosClient.post("/school/subscription/preview", {
+        actionType: String(actionType || "").toUpperCase(),
+        targetPackageId: Number(targetPackageId),
+    });
+    return response;
+};
