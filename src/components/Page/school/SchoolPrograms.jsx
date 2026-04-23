@@ -215,15 +215,14 @@ function mapCurriculumForProgramSelect(item) {
             : item.methodLearning
                 ? [item.methodLearning]
                 : [];
-    const enrollmentYear = item.enrollmentYear ?? item.year ?? item.enrollment_year ?? "";
+    const applicationYear = item.applicationYear ?? item.enrollmentYear ?? item.year ?? item.enrollment_year ?? "";
     return {
         id: item.id ?? item.curriculumId ?? item.curriculumID ?? item.curriculum_id ?? null,
         subTypeName: mapSubTypeNameForProgramSelect(item),
         name: item.name ?? "",
         description: item.description || "",
         curriculumType: item.curriculumType ?? item.type ?? "",
-        enrollmentYear,
-        applicationYear: item.applicationYear ?? enrollmentYear ?? "",
+        applicationYear,
         curriculumStatus: item.curriculumStatus ?? item.status ?? item.curriculum_status,
         isLatest: !!item.isLatest,
         versionDisplay: item.versionDisplay,
@@ -277,7 +276,7 @@ function mapProgramFromApi(item) {
         name: item.name != null ? String(item.name) : "",
         curriculumId: item.curriculumId ?? item.curriculumID ?? item.curriculum_id ?? curriculum?.id ?? curriculum?.Id ?? null,
         curriculumName: item.curriculumName ?? curriculum?.name ?? curriculum?.subTypeName ?? "",
-        enrollmentYear: item.enrollmentYear ?? curriculum?.enrollmentYear ?? "",
+        applicationYear: item.applicationYear ?? item.enrollmentYear ?? curriculum?.applicationYear ?? curriculum?.enrollmentYear ?? "",
         curriculumType: item.curriculumType ?? curriculum?.type ?? "",
         curriculumStatus: item.curriculumStatus ?? curriculum?.status ?? "",
 
@@ -846,7 +845,7 @@ export default function SchoolPrograms() {
     const rowsPerPage = 10;
 
     const [search, setSearch] = useState("");
-    const [enrollmentYearFilter, setEnrollmentYearFilter] = useState("all");
+    const [applicationYearFilter, setApplicationYearFilter] = useState("all");
     const [curriculumTypeFilter, setCurriculumTypeFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
 
@@ -899,8 +898,8 @@ export default function SchoolPrograms() {
         extraSubjectList: [],
     });
 
-    const enrollmentYearOptions = useMemo(() => {
-        const set = new Set(programs.map((p) => p.enrollmentYear).filter((y) => y !== null && y !== undefined && y !== ""));
+    const applicationYearOptions = useMemo(() => {
+        const set = new Set(programs.map((p) => p.applicationYear).filter((y) => y !== null && y !== undefined && y !== ""));
         return Array.from(set)
             .map((y) => Number(y))
             .filter((y) => Number.isFinite(y))
@@ -922,9 +921,9 @@ export default function SchoolPrograms() {
                 return inCurriculum || inName;
             });
         }
-        if (enrollmentYearFilter !== "all") {
-            const y = Number(enrollmentYearFilter);
-            list = list.filter((p) => Number(p.enrollmentYear) === y);
+        if (applicationYearFilter !== "all") {
+            const y = Number(applicationYearFilter);
+            list = list.filter((p) => Number(p.applicationYear) === y);
         }
         if (curriculumTypeFilter !== "all") {
             list = list.filter((p) => p.curriculumType === curriculumTypeFilter);
@@ -933,7 +932,7 @@ export default function SchoolPrograms() {
             list = list.filter((p) => p.status === statusFilter);
         }
         return list;
-    }, [programs, search, enrollmentYearFilter, curriculumTypeFilter, statusFilter]);
+    }, [programs, search, applicationYearFilter, curriculumTypeFilter, statusFilter]);
 
     const programDetailLinkedCurriculum = useMemo(() => {
         if (modalMode !== "view" || !selectedProgram?.curriculumId) return null;
@@ -1023,10 +1022,10 @@ export default function SchoolPrograms() {
         }
         // Fallback by name + year
         const name = safeString(program.curriculumName).trim().toLowerCase();
-        const year = Number(program.enrollmentYear);
+        const year = Number(program.applicationYear);
         if (!name && !Number.isFinite(year)) return null;
         return (
-            curriculumOptions.find((c) => safeString(c.subTypeName).trim().toLowerCase() === name && Number(c.enrollmentYear) === year) ||
+            curriculumOptions.find((c) => safeString(c.subTypeName).trim().toLowerCase() === name && Number(c.applicationYear) === year) ||
             curriculumOptions.find((c) => safeString(c.subTypeName).trim().toLowerCase() === name)
         );
     };
@@ -1545,7 +1544,7 @@ export default function SchoolPrograms() {
                                 "&:hover": {bgcolor: "white", boxShadow: "0 6px 20px rgba(0,0,0,0.2)"},
                             }}
                         >
-                            Tạo Program
+                            Tạo chương trình đào tạo
                         </Button>
                     )}
                 </Box>
@@ -1588,14 +1587,14 @@ export default function SchoolPrograms() {
 
                         <Box sx={{minWidth: 180}}>
                             <SelectLike
-                                label="Năm tuyển sinh"
-                                value={enrollmentYearFilter}
+                                label="Năm áp dụng"
+                                value={applicationYearFilter}
                                 options={[
                                     {value: "all", label: "Tất cả"},
-                                    ...enrollmentYearOptions.map((y) => ({value: String(y), label: String(y)})),
+                                    ...applicationYearOptions.map((y) => ({value: String(y), label: String(y)})),
                                 ]}
                                 onChange={(v) => {
-                                    setEnrollmentYearFilter(v);
+                                    setApplicationYearFilter(v);
                                     setPage(0);
                                 }}
                             />
@@ -1696,13 +1695,13 @@ export default function SchoolPrograms() {
                                         }}>
                                             <SchoolIcon sx={{fontSize: 56, color: "#cbd5e1"}}/>
                                             <Typography variant="h6" sx={{color: "#64748b", fontWeight: 800}}>
-                                                Chưa có program
+                                                Chưa có chương trình đào tạo
                                             </Typography>
                                             <Typography variant="body2" sx={{color: "#94a3b8", maxWidth: 420}}>
                                                 {programs.length === 0
                                                     ? isPrimaryBranch
-                                                        ? "Hãy tạo program đầu tiên để bắt đầu."
-                                                        : "Chưa có program nào."
+                                                        ? "Hãy tạo chương trình đào tạo đầu tiên để bắt đầu."
+                                                        : "Chưa có chương trình đào tạo nào."
                                                     : "Không có kết quả phù hợp với tìm kiếm hoặc bộ lọc."}
                                             </Typography>
                                             {programs.length === 0 && isPrimaryBranch && (
@@ -1718,7 +1717,7 @@ export default function SchoolPrograms() {
                                                         background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                                                     }}
                                                 >
-                                                    Tạo Program
+                                                    Tạo chương trình đào tạo
                                                 </Button>
                                             )}
                                         </Box>
@@ -1880,12 +1879,12 @@ export default function SchoolPrograms() {
                             minWidth: 0
                         }}>
                             {modalMode === "create"
-                                ? "Tạo Program"
+                                ? "Tạo chương trình đào tạo"
                                 : modalMode === "edit"
                                     ? isClonedDraftEdit
                                         ? "Chỉnh sửa Chương trình (Bản sao)"
-                                        : "Chỉnh sửa Program"
-                                    : "Chi tiết Program"}
+                                        : "Chỉnh sửa chương trình đào tạo"
+                                    : "Chi tiết chương trình đào tạo"}
                         </Box>
                         <Box sx={{display: "flex", alignItems: "center", gap: 1, flexShrink: 0}}>
                             {modalMode === "edit" && isClonedDraftEdit ? (
@@ -2081,7 +2080,7 @@ export default function SchoolPrograms() {
                                                         {selectedProgram.curriculumName}
                                                     </Typography>
                                                     <Typography variant="body2" sx={{color: "#64748b"}}>
-                                                        {selectedProgram.enrollmentYear || "—"} {toCurriculumTypeLabel(selectedProgram.curriculumType)}
+                                                        {selectedProgram.applicationYear || "—"} {toCurriculumTypeLabel(selectedProgram.curriculumType)}
                                                     </Typography>
                                                 </Box>
                                                 {isPrimaryBranch ? (
@@ -2296,7 +2295,7 @@ export default function SchoolPrograms() {
                                             options={curriculumOptions}
                                             loading={curriculumOptionsLoading}
                                             getOptionLabel={(opt) =>
-                                                opt ? `${opt.subTypeName} - ${opt.enrollmentYear}` : ""
+                                                opt ? `${opt.subTypeName} - ${opt.applicationYear}` : ""
                                             }
                                             isOptionEqualToValue={(a, b) => (a && b ? a.id === b.id : a === b)}
                                             disabled={disableCurriculumSelection || curriculumOptionsLoading}
@@ -2318,7 +2317,7 @@ export default function SchoolPrograms() {
                                                                 {option.subTypeName}
                                                             </Typography>
                                                             <Typography variant="caption" sx={{color: "#64748b"}}>
-                                                                {option.enrollmentYear} • {toCurriculumTypeLabel(option.curriculumType)}
+                                                                {option.applicationYear} • {toCurriculumTypeLabel(option.curriculumType)}
                                                             </Typography>
                                                         </Box>
                                                         {option.isLatest && (
@@ -2357,7 +2356,7 @@ export default function SchoolPrograms() {
                                                                     {curriculumPreview.subTypeName}
                                                                 </Typography>
                                                                 <Typography variant="body2" sx={{color: "#64748b"}}>
-                                                                    {curriculumPreview.enrollmentYear} • {toCurriculumTypeLabel(curriculumPreview.curriculumType)}
+                                                                    {curriculumPreview.applicationYear} • {toCurriculumTypeLabel(curriculumPreview.curriculumType)}
                                                                 </Typography>
                                                             </Box>
                                                             <Box>
@@ -2807,7 +2806,7 @@ export default function SchoolPrograms() {
                                                                 {curriculumPreview?.subTypeName || selectedCurriculum?.subTypeName || "—"}
                                                             </Typography>
                                                             <Typography variant="body2" sx={{color: "#64748b"}}>
-                                                                {curriculumPreview?.enrollmentYear || selectedCurriculum?.enrollmentYear || "—"}{" "}
+                                                                {curriculumPreview?.applicationYear || selectedCurriculum?.applicationYear || "—"}{" "}
                                                                 {toCurriculumTypeLabel(curriculumPreview?.curriculumType || selectedCurriculum?.curriculumType)}
                                                             </Typography>
                                                         </Box>
@@ -3031,8 +3030,8 @@ export default function SchoolPrograms() {
                                     {submitLoading
                                         ? "Đang gửi..."
                                         : modalMode === "create"
-                                            ? "Tạo Program"
-                                            : "Cập nhật Program"}
+                                            ? "Tạo chương trình đào tạo"
+                                            : "Cập nhật chương trình đào tạo"}
                                 </Button>
                             )}
                         </>

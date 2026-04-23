@@ -24,7 +24,6 @@ export const getCurriculumList = async (page = 0, pageSize = 10) => {
  * @param {string} payload.description
  * @param {string} payload.curriculumType
  * @param {string[]} payload.methodLearningList
- * @param {number} payload.applicationYear
  * @param {Array<{name:string, description:string, isMandatory:boolean}>} payload.subjectOptions
  */
 export const upsertCurriculum = async ({
@@ -33,7 +32,6 @@ export const upsertCurriculum = async ({
     description,
     curriculumType,
     methodLearningList,
-    applicationYear,
     subjectOptions,
 }) => {
     const body = {
@@ -41,7 +39,6 @@ export const upsertCurriculum = async ({
         description,
         curriculumType,
         methodLearningList: Array.isArray(methodLearningList) ? methodLearningList : [],
-        applicationYear,
         subjectOptions: subjectOptions || [],
     };
     // BE: curriculumId = 0 (hoặc không truyền) => tạo mới DRAFT

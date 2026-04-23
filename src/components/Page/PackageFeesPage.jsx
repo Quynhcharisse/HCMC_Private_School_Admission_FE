@@ -349,6 +349,14 @@ export default function PackageFeesPage() {
     const [previewError, setPreviewError] = React.useState("");
     const [previewActionType, setPreviewActionType] = React.useState("RENEW");
     const [selectedPackage, setSelectedPackage] = React.useState(null);
+    const hasCurrentSubscription = React.useMemo(() => {
+        return !!(
+            currentSubscription?.licenseKey ||
+            currentSubscription?.packageName ||
+            currentSubscription?.startDate ||
+            currentSubscription?.endDate
+        );
+    }, [currentSubscription]);
 
     React.useEffect(() => {
         const sync = () => setIsSchoolRole(readSchoolRoleFromStorage());
@@ -442,7 +450,8 @@ export default function PackageFeesPage() {
             enqueueSnackbar("Không xác định được gói dịch vụ.", { variant: "error" });
             return;
         }
-        const actionLabel = actionType === "UPGRADE" ? "nâng cấp" : "gia hạn";
+        const actionLabel =
+            actionType === "UPGRADE" ? "nâng cấp" : actionType === "RENEW" ? "gia hạn" : "mua mới";
         const description = pkg?.name?.trim()
             ? `Thanh toán ${actionLabel} gói ${pkg.name.trim()}`
             : `Thanh toán ${actionLabel} gói dịch vụ`;
@@ -483,6 +492,10 @@ export default function PackageFeesPage() {
             enqueueSnackbar("Không xác định được gói dịch vụ.", { variant: "error" });
             return;
         }
+        if (!hasCurrentSubscription) {
+            await createPaymentAndRedirect(pkg, "NEW_PURCHASE");
+            return;
+        }
         const actionType = resolveActionType(pkg);
         setSelectedPackage(pkg);
         setPreviewActionType(actionType);
@@ -500,7 +513,7 @@ export default function PackageFeesPage() {
         } finally {
             setPreviewLoadingPackageId(null);
         }
-    }, [resolveActionType]);
+    }, [createPaymentAndRedirect, hasCurrentSubscription, resolveActionType]);
 
     const handleConfirmPayment = React.useCallback(async () => {
         if (!selectedPackage) return;
