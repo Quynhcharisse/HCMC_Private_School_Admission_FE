@@ -764,6 +764,19 @@ function MainHeader() {
                 .trim(),
         [selectedConversation]
     );
+    const selectedConversationCampusName = useMemo(
+        () =>
+            (
+                selectedConversation?.campusName ||
+                selectedConversation?.campus?.name ||
+                selectedConversation?.campusTitle ||
+                selectedConversation?.campusLabel ||
+                ""
+            )
+                .toString()
+                .trim(),
+        [selectedConversation]
+    );
     const peerChatInitial = useMemo(() => {
         const ch = (selectedConversationTitle || '').trim().charAt(0);
         return ch ? ch.toUpperCase() : 'T';
@@ -831,6 +844,12 @@ function MainHeader() {
                 '',
             schoolEmail: conversation?.schoolEmail ?? conversation?.otherUser ?? conversation?.participantEmail ?? '',
             schoolName: conversation?.schoolName ?? conversation?.school ?? '',
+            campusName:
+                conversation?.campusName ??
+                conversation?.campus?.name ??
+                conversation?.campusTitle ??
+                conversation?.campusLabel ??
+                '',
             schoolLogoUrl: pickConversationSchoolLogoUrl(conversation),
             name:
                 conversation?.name ??
@@ -2931,6 +2950,21 @@ function MainHeader() {
                                                             noWrap
                                                         >
                                                             Tư vấn viên: {selectedCounsellorEmail}
+                                                        </Typography>
+                                                    )}
+                                                    {!!selectedConversationCampusName && (
+                                                        <Typography
+                                                            sx={{
+                                                                fontSize: 10.5,
+                                                                color: 'rgba(255,255,255,0.85)',
+                                                                maxWidth: 220,
+                                                                lineHeight: 1.2,
+                                                                m: 0,
+                                                                display: 'block'
+                                                            }}
+                                                            noWrap
+                                                        >
+                                                             {selectedConversationCampusName}
                                                         </Typography>
                                                     )}
                                                     <Box
