@@ -217,8 +217,8 @@ const menuGroupsBase = [
     {
         title: "CHƯƠNG TRÌNH",
         items: [
-            { text: "Chương trình học", icon: <MenuBookIcon />, path: "/school/curriculums" },
-            { text: "Quản lý Program", icon: <ViewAgendaIcon />, path: "/school/programs" },
+            { text: "Khung chương trình", icon: <MenuBookIcon />, path: "/school/curriculums" },
+            { text: "Chương trình đào tạo", icon: <ViewAgendaIcon />, path: "/school/programs" },
         ],
     },
     {

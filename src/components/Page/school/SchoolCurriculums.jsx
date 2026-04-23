@@ -155,9 +155,6 @@ const getCurriculumStatusMeta = (status) => {
 };
 
 const isActiveStatus = (status) => normalizeStatus(status) === "CUR_ACTIVE";
-const currentYear = new Date().getFullYear();
-const minApplicationYear = currentYear - 2;
-const maxApplicationYear = currentYear + 5;
 
 const toCurriculumTypeLabel = (value) => curriculumTypeI18N[value] ?? value ?? "—";
 
@@ -180,7 +177,6 @@ const emptyForm = () => ({
     description: "",
     curriculumType: "",
     methodLearningList: [],
-    applicationYear: "",
     subjectOptions: [subjectEmpty()],
 });
 
@@ -573,7 +569,6 @@ export default function SchoolCurriculums() {
         const normalizedSubType = String(formValues.subTypeName || "").trim();
         const normalizedCurriculumType = String(formValues.curriculumType || "").trim().toUpperCase();
         const methodLearningList = Array.isArray(formValues.methodLearningList) ? formValues.methodLearningList : [];
-        const yearNumber = Number(formValues.applicationYear);
 
         const isEdit = editModalOpen && selectedCurriculum != null;
         if (isEdit && normalizeStatus(selectedCurriculum.curriculumStatus) === "CUR_ARCHIVED") {
@@ -591,18 +586,8 @@ export default function SchoolCurriculums() {
         else if (methodLearningList.some((m) => !isValidLearningMethodCode(m)))
             errors.methodLearningList = "Loại chương trình hoặc Phương thức học tập không hợp lệ.";
 
-        if (formValues.applicationYear === "" || Number.isNaN(yearNumber)) {
-            errors.applicationYear = "Năm áp dụng là bắt buộc";
-        } else if (yearNumber < minApplicationYear || yearNumber > maxApplicationYear) {
-            errors.applicationYear = `Năm áp dụng phải nằm trong khoảng từ ${minApplicationYear} đến ${maxApplicationYear}`;
-        }
-
         const linked = isEdit ? Number(selectedCurriculum.programCount || 0) : 0;
         if (linked > 0) {
-            const origYear = Number(selectedCurriculum.applicationYear);
-            if (Number.isFinite(yearNumber) && Number.isFinite(origYear) && yearNumber !== origYear) {
-                errors.applicationYear = `Không thể thay đổi năm áp dụng vì có ${linked} chương trình đang sử dụng khung chương trình này.`;
-            }
             const origType = String(selectedCurriculum.curriculumType || "").trim().toUpperCase();
             if (origType && normalizedCurriculumType && origType !== normalizedCurriculumType) {
                 errors.curriculumType = "Không thể thay đổi loại chương trình khi đã có chương trình đào tạo liên kết.";
@@ -653,7 +638,6 @@ export default function SchoolCurriculums() {
         description: String(formValues.description || "").trim(),
         curriculumType: String(formValues.curriculumType || "").trim().toUpperCase(),
         methodLearningList: (formValues.methodLearningList || []).map((m) => String(m).trim().toUpperCase()).filter(Boolean),
-        applicationYear: Number(formValues.applicationYear),
         subjectOptions: mapSubjectOptionsForApi(formValues.subjectOptions),
     });
 
@@ -676,7 +660,6 @@ export default function SchoolCurriculums() {
             ...emptyForm(),
             curriculumType: "",
             methodLearningList: [],
-            applicationYear: new Date().getFullYear(),
             subjectOptions: [subjectEmpty()],
         });
         setCreateModalOpen(true);
@@ -692,7 +675,6 @@ export default function SchoolCurriculums() {
             description: curriculum?.description || "",
             curriculumType: curriculum?.curriculumType || "",
             methodLearningList: Array.isArray(curriculum?.methodLearningList) ? curriculum.methodLearningList : [],
-            applicationYear: curriculum?.applicationYear ?? "",
             subjectOptions:
                 Array.isArray(curriculum?.subjects) && curriculum.subjects.length > 0
                     ? curriculum.subjects.map((s) => ({
@@ -965,12 +947,7 @@ export default function SchoolCurriculums() {
 
     const handleBasicChange = (e) => {
         const { name, value } = e.target;
-        setFormValues((prev) => {
-            if (name === "applicationYear") {
-                return { ...prev, applicationYear: value === "" ? "" : parseInt(value, 10) };
-            }
-            return { ...prev, [name]: value };
-        });
+        setFormValues((prev) => ({ ...prev, [name]: value }));
     };
 
     const handleToggleMethodLearning = (method) => {
@@ -2407,19 +2384,6 @@ export default function SchoolCurriculums() {
 
                         {renderMethodLearningCardSelector(false)}
 
-                        <TextField
-                            label="Năm áp dụng"
-                            name="applicationYear"
-                            type="number"
-                            fullWidth
-                            value={formValues.applicationYear}
-                            onChange={handleBasicChange}
-                            error={!!formErrors.applicationYear}
-                            helperText={formErrors.applicationYear}
-                            required
-                            inputProps={{ min: minApplicationYear, max: maxApplicationYear, step: 1 }}
-                        />
-
                         {/* Subjects */}
                         <Box sx={{ mt: 0.6 }}>
                             <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
@@ -2641,20 +2605,6 @@ export default function SchoolCurriculums() {
                         </FormControl>
 
                         {renderMethodLearningCardSelector(false)}
-
-                        <TextField
-                            label="Năm áp dụng"
-                            name="applicationYear"
-                            type="number"
-                            fullWidth
-                            value={formValues.applicationYear}
-                            onChange={handleBasicChange}
-                            error={!!formErrors.applicationYear}
-                            helperText={formErrors.applicationYear}
-                            required
-                            disabled={isEditFieldsLocked}
-                            inputProps={{ min: minApplicationYear, max: maxApplicationYear, step: 1 }}
-                        />
 
                         <Box sx={{ mt: 0.6 }}>
                             <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
