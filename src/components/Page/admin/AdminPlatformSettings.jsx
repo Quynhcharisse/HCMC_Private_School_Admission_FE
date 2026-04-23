@@ -157,7 +157,6 @@ export default function AdminPlatformSettings() {
             baseTrialPrice: basePrices.trial == null ? "" : String(basePrices.trial),
             baseStandardPrice: basePrices.standard == null ? "" : String(basePrices.standard),
             baseEnterprisePrice: basePrices.enterprise == null ? "" : String(basePrices.enterprise),
-            extraCounsellorFeePerSlot: featureUnitPrices.extraCounsellorFeePerSlot == null ? "" : String(featureUnitPrices.extraCounsellorFeePerSlot),
             extraPostFee: featureUnitPrices.extraPostFee == null ? "" : String(featureUnitPrices.extraPostFee),
             aiChatbotMonthlyFee: featureUnitPrices.aiChatbotMonthlyFee == null ? "" : String(featureUnitPrices.aiChatbotMonthlyFee),
             premiumSupportFee: featureUnitPrices.premiumSupportFee == null ? "" : String(featureUnitPrices.premiumSupportFee),
@@ -180,7 +179,6 @@ export default function AdminPlatformSettings() {
         baseTrialPrice: "",
         baseStandardPrice: "",
         baseEnterprisePrice: "",
-        extraCounsellorFeePerSlot: "",
         extraPostFee: "",
         aiChatbotMonthlyFee: "",
         premiumSupportFee: "",
@@ -418,7 +416,6 @@ export default function AdminPlatformSettings() {
         getMoney("baseTrialPrice", "Giá nền gói Dùng thử");
         getMoney("baseStandardPrice", "Giá nền gói Tiêu chuẩn");
         getMoney("baseEnterprisePrice", "Giá nền gói Doanh nghiệp");
-        getMoney("extraCounsellorFeePerSlot", "Đơn giá mua thêm tư vấn viên");
         getMoney("extraPostFee", "Phí mua thêm bài đăng");
         getMoney("aiChatbotMonthlyFee", "Phí duy trì Trợ lý AI");
         getMoney("premiumSupportFee", "Phí hỗ trợ cao cấp");
@@ -985,7 +982,6 @@ export default function AdminPlatformSettings() {
                             enterprise: Math.trunc(parseFinite(businessForm.baseEnterprisePrice) ?? 0),
                         },
                         featureUnitPrices: {
-                            extraCounsellorFeePerSlot: Math.trunc(parseFinite(businessForm.extraCounsellorFeePerSlot) ?? 0),
                             extraPostFee: Math.trunc(parseFinite(businessForm.extraPostFee) ?? 0),
                             aiChatbotMonthlyFee: Math.trunc(parseFinite(businessForm.aiChatbotMonthlyFee) ?? 0),
                             premiumSupportFee: Math.trunc(parseFinite(businessForm.premiumSupportFee) ?? 0),
@@ -1508,7 +1504,6 @@ export default function AdminPlatformSettings() {
                                 ) : null}
                                 {businessPricingSubTab === 1 ? (
                                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
-                                        {moneyField("Mua thêm 1 tư vấn viên", "extraCounsellorFeePerSlot")}
                                         {moneyField("Phí mua thêm bài đăng", "extraPostFee")}
                                         {moneyField("Phí duy trì Trợ lý AI", "aiChatbotMonthlyFee")}
                                         {moneyField("Phí hỗ trợ cao cấp", "premiumSupportFee")}
