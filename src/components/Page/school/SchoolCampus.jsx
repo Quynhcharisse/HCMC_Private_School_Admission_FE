@@ -334,7 +334,7 @@ export default function SchoolCampus() {
 
         if (parseBoardingType(formValues.boardingType) == null) {
             errors.boardingType =
-                "Loại hình nội trú không hợp lệ. Các giá trị chấp nhận: NONE, FULL_BOARDING, SEMI_BOARDING, BOTH";
+                "Loại hình nội trú không hợp lệ. Các giá trị chấp nhận: FULL_BOARDING, SEMI_BOARDING, BOTH";
         }
 
         setFormErrors(errors);
