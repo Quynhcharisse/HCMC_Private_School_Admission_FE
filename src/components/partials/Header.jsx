@@ -605,6 +605,7 @@ function MainHeader() {
     const [messageNextCursorId, setMessageNextCursorId] = useState(null);
     const [messageHasMore, setMessageHasMore] = useState(false);
     const [chatInput, setChatInput] = useState('');
+    const [sendingParentMessage, setSendingParentMessage] = useState(false);
     const [chatWindowOpen, setChatWindowOpen] = useState(false);
     const [chatWindowMinimized, setChatWindowMinimized] = useState(false);
     const [selectedConversationStudent, setSelectedConversationStudent] = useState(null);
@@ -637,6 +638,7 @@ function MainHeader() {
     const loadConversationsRef = React.useRef(null);
     const forbiddenHistoryConversationIdsRef = React.useRef(new Set());
     const parentStickToBottomRef = React.useRef(true);
+    const sendingParentMessageRef = React.useRef(false);
     const messageHasMoreRef = React.useRef(false);
     const messageNextCursorIdRef = React.useRef(null);
     /** Chỉ true sau khi phụ huynh tương tác ô nhập (pointer/key) — tránh mở chat là coi như đã đọc, WS không tăng unread. */
@@ -1535,118 +1537,126 @@ function MainHeader() {
     };
 
     const handleSendMessage = async () => {
+        if (sendingParentMessageRef.current) return;
         const trimmed = chatInput.trim();
         const convFromRef = selectedConversationRef.current;
         const convEffective = convFromRef || selectedConversation;
         if (!trimmed || !convEffective) return;
+        sendingParentMessageRef.current = true;
+        setSendingParentMessage(true);
 
-        let workingConversation = convEffective;
-        const {parentEmail} = resolveConversationEmails(workingConversation);
-        const senderName = (parentEmail || userInfo?.email || '').trim();
-        const receiverName = resolveWebSocketReceiverName(workingConversation);
-        let conversationId = workingConversation?.conversationId ?? workingConversation?.id ?? null;
+        try {
+            let workingConversation = convEffective;
+            const {parentEmail} = resolveConversationEmails(workingConversation);
+            const senderName = (parentEmail || userInfo?.email || '').trim();
+            const receiverName = resolveWebSocketReceiverName(workingConversation);
+            let conversationId = workingConversation?.conversationId ?? workingConversation?.id ?? null;
 
-        if (conversationId == null || String(conversationId).trim() === '') {
-            await loadMessageHistory({conversation: workingConversation, cursorId: null, silent: true});
-            workingConversation = selectedConversationRef.current || workingConversation;
-            conversationId =
-                workingConversation?.conversationId ??
-                workingConversation?.id ??
-                selectedConversationStudent?.conversationId ??
-                null;
             if (conversationId == null || String(conversationId).trim() === '') {
-                const pe = (parentEmail || userInfo?.email || '').trim();
-                const cid = resolveHistoryCampusId(workingConversation);
-                const spid =
-                    workingConversation?.studentProfileId ??
-                    workingConversation?.studentId ??
-                    workingConversation?.student?.id ??
+                await loadMessageHistory({conversation: workingConversation, cursorId: null, silent: true});
+                workingConversation = selectedConversationRef.current || workingConversation;
+                conversationId =
+                    workingConversation?.conversationId ??
+                    workingConversation?.id ??
+                    selectedConversationStudent?.conversationId ??
                     null;
-                const createRes = await createParentConversation({
-                    parentEmail: pe,
-                    campusId: cid,
-                    studentProfileId: spid
-                });
-                const root = createRes?.data;
-                const inner = root?.body;
-                const newIdRaw =
-                    inner != null && typeof inner === 'object'
-                        ? (inner.body ?? inner.conversationId ?? inner.id)
-                        : inner;
-                const newIdNum = newIdRaw != null ? Number(newIdRaw) : NaN;
-                const createOk =
-                    createRes?.status != null && createRes.status >= 200 && createRes.status < 300;
-                if (createOk && Number.isFinite(newIdNum)) {
-                    conversationId = newIdNum;
-                    const merged = {...workingConversation, conversationId: newIdNum, id: newIdNum};
-                    workingConversation = merged;
-                    selectedConversationRef.current = merged;
-                    setSelectedConversation(merged);
-                    setConversationItems((prev) =>
-                        prev.map((item) => {
-                            const existingId = item?.conversationId ?? item?.id;
-                            if (existingId != null && String(existingId).trim() !== '') return item;
-                            const sameSp =
-                                String(item?.studentProfileId ?? item?.studentId ?? '') ===
-                                String(merged.studentProfileId ?? merged.studentId ?? '');
-                            const sameCampus =
-                                resolveHistoryCampusId(item) === resolveHistoryCampusId(merged);
-                            return sameSp && sameCampus
-                                ? {...item, conversationId: newIdNum, id: newIdNum}
-                                : item;
-                        })
-                    );
-                } else {
-                    enqueueSnackbar('Thiếu conversationId để gửi tin nhắn. Vui lòng mở lại cuộc trò chuyện.', {variant: 'warning'});
-                    return;
+                if (conversationId == null || String(conversationId).trim() === '') {
+                    const pe = (parentEmail || userInfo?.email || '').trim();
+                    const cid = resolveHistoryCampusId(workingConversation);
+                    const spid =
+                        workingConversation?.studentProfileId ??
+                        workingConversation?.studentId ??
+                        workingConversation?.student?.id ??
+                        null;
+                    const createRes = await createParentConversation({
+                        parentEmail: pe,
+                        campusId: cid,
+                        studentProfileId: spid
+                    });
+                    const root = createRes?.data;
+                    const inner = root?.body;
+                    const newIdRaw =
+                        inner != null && typeof inner === 'object'
+                            ? (inner.body ?? inner.conversationId ?? inner.id)
+                            : inner;
+                    const newIdNum = newIdRaw != null ? Number(newIdRaw) : NaN;
+                    const createOk =
+                        createRes?.status != null && createRes.status >= 200 && createRes.status < 300;
+                    if (createOk && Number.isFinite(newIdNum)) {
+                        conversationId = newIdNum;
+                        const merged = {...workingConversation, conversationId: newIdNum, id: newIdNum};
+                        workingConversation = merged;
+                        selectedConversationRef.current = merged;
+                        setSelectedConversation(merged);
+                        setConversationItems((prev) =>
+                            prev.map((item) => {
+                                const existingId = item?.conversationId ?? item?.id;
+                                if (existingId != null && String(existingId).trim() !== '') return item;
+                                const sameSp =
+                                    String(item?.studentProfileId ?? item?.studentId ?? '') ===
+                                    String(merged.studentProfileId ?? merged.studentId ?? '');
+                                const sameCampus =
+                                    resolveHistoryCampusId(item) === resolveHistoryCampusId(merged);
+                                return sameSp && sameCampus
+                                    ? {...item, conversationId: newIdNum, id: newIdNum}
+                                    : item;
+                            })
+                        );
+                    } else {
+                        enqueueSnackbar('Thiếu conversationId để gửi tin nhắn. Vui lòng mở lại cuộc trò chuyện.', {variant: 'warning'});
+                        return;
+                    }
                 }
             }
-        }
-       
-        const payload = buildPrivateChatPayload({
-            conversationId,
-            message: trimmed,
-            senderName,
-            receiverName,
-            campusId: resolveHistoryCampusId(workingConversation),
-            studentProfileId:
-                workingConversation?.studentProfileId ??
-                workingConversation?.studentId ??
-                selectedConversationStudent?.studentProfileId ??
-                undefined,
-        });
-        const sent = sendMessage(payload);
-        if (!sent) {
-            enqueueSnackbar('WebSocket chưa sẵn sàng, vui lòng thử lại.', {variant: 'warning'});
-            return;
-        }
-        setChatInput('');
 
-        const optimisticId = `optimistic-${Date.now()}`;
-        const optimisticRaw = {
-            id: optimisticId,
-            messageId: optimisticId,
-            message: trimmed,
-            content: trimmed,
-            senderEmail: senderName,
-            senderName,
-            conversationId,
-            timestamp: payload.timestamp,
-            sentAt: new Date().toISOString(),
-        };
-        setMessageItems((prev) => mergeUniqueMessages([...prev, normalizeMessage(optimisticRaw)]));
-        setConversationItems((prev) =>
-            prev.map((item) => {
-                const id = item?.conversationId || item?.id;
-                if (!isSameConversationId(id, conversationId)) return item;
-                return {
-                    ...item,
-                    lastMessage: trimmed,
-                    time: optimisticRaw.sentAt,
-                    updatedAt: optimisticRaw.sentAt,
-                };
-            })
-        );
+            const payload = buildPrivateChatPayload({
+                conversationId,
+                message: trimmed,
+                senderName,
+                receiverName,
+                campusId: resolveHistoryCampusId(workingConversation),
+                studentProfileId:
+                    workingConversation?.studentProfileId ??
+                    workingConversation?.studentId ??
+                    selectedConversationStudent?.studentProfileId ??
+                    undefined,
+            });
+            const sent = sendMessage(payload);
+            if (!sent) {
+                enqueueSnackbar('WebSocket chưa sẵn sàng, vui lòng thử lại.', {variant: 'warning'});
+                return;
+            }
+            setChatInput('');
+
+            const optimisticId = `optimistic-${Date.now()}`;
+            const optimisticRaw = {
+                id: optimisticId,
+                messageId: optimisticId,
+                message: trimmed,
+                content: trimmed,
+                senderEmail: senderName,
+                senderName,
+                conversationId,
+                timestamp: payload.timestamp,
+                sentAt: new Date().toISOString(),
+            };
+            setMessageItems((prev) => mergeUniqueMessages([...prev, normalizeMessage(optimisticRaw)]));
+            setConversationItems((prev) =>
+                prev.map((item) => {
+                    const id = item?.conversationId || item?.id;
+                    if (!isSameConversationId(id, conversationId)) return item;
+                    return {
+                        ...item,
+                        lastMessage: trimmed,
+                        time: optimisticRaw.sentAt,
+                        updatedAt: optimisticRaw.sentAt,
+                    };
+                })
+            );
+        } finally {
+            sendingParentMessageRef.current = false;
+            setSendingParentMessage(false);
+        }
     };
 
     useEffect(() => {
@@ -3223,6 +3233,7 @@ function MainHeader() {
                                                             parentComposerEngagedRef.current = true;
                                                             if (e.key === 'Enter' && !e.shiftKey) {
                                                                 e.preventDefault();
+                                                                if (sendingParentMessage) return;
                                                                 handleSendMessage();
                                                             }
                                                         }}
@@ -3244,11 +3255,15 @@ function MainHeader() {
                                                     <IconButton
                                                         size="small"
                                                         onClick={handleSendMessage}
-                                                        disabled={!chatInput.trim()}
+                                                        disabled={!chatInput.trim() || sendingParentMessage}
                                                         sx={{
-                                                            color: chatInput.trim() ? selectedStudentTheme.accent : 'rgba(59,130,246,0.35)',
-                                                            bgcolor: chatInput.trim() ? selectedStudentTheme.accentSoft : 'transparent',
-                                                            '&:hover': {bgcolor: chatInput.trim() ? selectedStudentTheme.accentSoft : 'transparent'}
+                                                            color: chatInput.trim() && !sendingParentMessage ? selectedStudentTheme.accent : 'rgba(59,130,246,0.35)',
+                                                            bgcolor: chatInput.trim() && !sendingParentMessage ? selectedStudentTheme.accentSoft : 'transparent',
+                                                            '&:hover': {
+                                                                bgcolor: chatInput.trim() && !sendingParentMessage
+                                                                    ? selectedStudentTheme.accentSoft
+                                                                    : 'transparent'
+                                                            }
                                                         }}
                                                     >
                                                         <SendRoundedIcon fontSize="small"/>
