@@ -39,6 +39,7 @@ import PendingRoundedIcon from "@mui/icons-material/PendingRounded";
 import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
 import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import {useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {showSuccessSnackbar} from "../../ui/AppSnackbar.jsx";
@@ -854,22 +855,37 @@ export default function AdminSchoolVerification() {
             <ConfirmDialog
                 open={confirmOpen}
                 variant="modern"
-                title="Xác thực hồ sơ trường học"
+                title={
+                    <Stack spacing={1.1} alignItems="center" sx={{ width: "100%" }}>
+                        <Box
+                            sx={{
+                                width: 76,
+                                height: 76,
+                                borderRadius: "50%",
+                                bgcolor: "#fff7e8",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                boxShadow: "0 0 0 8px rgba(245,158,11,0.12), 0 12px 28px rgba(245,158,11,0.3)",
+                                animation: "warningPulse 1.8s ease-in-out infinite",
+                            }}
+                        >
+                            <WarningAmberRoundedIcon sx={{ fontSize: 42, color: "#f59e0b" }} />
+                        </Box>
+                        <Box component="span">Xác thực hồ sơ trường học</Box>
+                    </Stack>
+                }
                 description={
                     selectedRegistration ? (
                         <>
                             Bạn có chắc muốn <ConfirmHighlight>xác thực hồ sơ</ConfirmHighlight>{" "}
-                            <ConfirmHighlight>{selectedRegistration.schoolName || "quý nhà trường"}</ConfirmHighlight>?
+                            <ConfirmHighlight>{selectedRegistration.schoolName || "trường học"}</ConfirmHighlight>?{" "}
+                            <ConfirmHighlight>Tài khoản</ConfirmHighlight> sẽ được <ConfirmHighlight>kích hoạt</ConfirmHighlight>{" "}
+                            sau khi <ConfirmHighlight>xác thực</ConfirmHighlight>.
                         </>
                     ) : (
                         ""
                     )
-                }
-                extraDescription={
-                    <>
-                        Sau khi được <ConfirmHighlight>xác thực</ConfirmHighlight>, tài khoản của trường sẽ được{" "}
-                        <ConfirmHighlight>kích hoạt</ConfirmHighlight> để sử dụng hệ thống EduBridgeHCM.
-                    </>
                 }
                 cancelText="Hủy"
                 confirmText={verifyingId ? "Đang xác thực..." : "Xác thực"}
@@ -877,19 +893,59 @@ export default function AdminSchoolVerification() {
                 onConfirm={handleVerify}
                 loading={!!verifyingId}
                 paperSx={{
-                    background: "linear-gradient(145deg, #eef7ff 0%, #f8fbff 46%, #ffffff 100%)",
-                    border: "1px solid rgba(59,130,246,0.25)",
+                    background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+                    border: "2px solid rgba(59,130,246,0.35)",
+                    borderRadius: 4,
+                    boxShadow: "0 30px 80px rgba(15,23,42,0.35), 0 0 0 1px rgba(59,130,246,0.2) inset",
+                    animation: "modalPopIn 220ms ease-out",
                 }}
-                titleTextSx={{ fontSize: 36, lineHeight: 1.2 }}
-                descriptionSx={{ fontSize: 14, lineHeight: 1.5 }}
-                confirmButtonSx={{
-                    boxShadow: "0 8px 18px rgba(37,99,235,0.34)",
-                    background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 55%, #1d4ed8 100%)",
-                    "&:hover": {
-                        background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 55%, #1e40af 100%)",
-                        boxShadow: "0 10px 20px rgba(29,78,216,0.42)",
+                titleSx={{
+                    justifyContent: "center",
+                    textAlign: "center",
+                    bgcolor: "transparent",
+                    borderBottom: "none",
+                    pt: 1,
+                    pb: 0.3,
+                }}
+                titleTextSx={{ fontSize: 30, lineHeight: 1.15, fontWeight: 800, width: "100%", textAlign: "center", color: "#0f172a" }}
+                contentSx={{ textAlign: "center", px: 4.2, pt: 0.35, pb: 1.1 }}
+                descriptionSx={{ fontSize: 14, lineHeight: 1.6, textAlign: "center", color: "#475569", m: 0 }}
+                dialogSx={{
+                    "@keyframes warningPulse": {
+                        "0%": { transform: "scale(1)", boxShadow: "0 0 0 8px rgba(245,158,11,0.12), 0 12px 28px rgba(245,158,11,0.3)" },
+                        "50%": { transform: "scale(1.06)", boxShadow: "0 0 0 12px rgba(245,158,11,0.18), 0 14px 34px rgba(245,158,11,0.38)" },
+                        "100%": { transform: "scale(1)", boxShadow: "0 0 0 8px rgba(245,158,11,0.12), 0 12px 28px rgba(245,158,11,0.3)" },
+                    },
+                    "@keyframes modalPopIn": {
+                        "0%": { transform: "scale(0.96) translateY(8px)", opacity: 0.75 },
+                        "100%": { transform: "scale(1) translateY(0)", opacity: 1 },
+                    },
+                    "& .MuiDialogActions-root": {
+                        justifyContent: "center",
+                        gap: 1.6,
+                        pb: 2.8,
+                        pt: 0.8,
+                    },
+                    "& .MuiDialogActions-root .MuiButton-root:first-of-type": {
+                        minWidth: 150,
+                        height: 42,
+                        borderRadius: 999,
+                        borderColor: "rgba(15,23,42,0.12)",
+                        backgroundColor: "#f8fafc",
                     },
                 }}
+                confirmButtonSx={{
+                    minWidth: 160,
+                    height: 42,
+                    borderRadius: 999,
+                    boxShadow: "0 12px 26px rgba(37,99,235,0.5)",
+                    background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 58%, #1d4ed8 100%)",
+                    "&:hover": {
+                        background: "linear-gradient(135deg, #2563eb 0%, #1d4ed8 58%, #1e40af 100%)",
+                        boxShadow: "0 12px 26px rgba(29,78,216,0.5)",
+                    },
+                }}
+                backdropSx={{ backgroundColor: alpha("#020617", 0.62), backdropFilter: "blur(2px)" }}
             />
         </Box>
     );
