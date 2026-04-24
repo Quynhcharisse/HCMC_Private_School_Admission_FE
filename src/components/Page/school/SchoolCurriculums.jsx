@@ -1109,14 +1109,27 @@ export default function SchoolCurriculums() {
         }
 
         setFormValues((prev) => ({ ...prev, curriculumType: value }));
+        setFormErrors((prev) => ({ ...prev, subjectOptions: undefined }));
 
-        if (value !== "NATIONAL") {
+        const isFormModalOpen = createModalOpen || editModalOpen;
+        const resetLanguageState = () => {
             setNationalLanguageOptions([]);
             setNationalMandatorySubjects([]);
             setNationalLanguageSelections([]);
-        }
+        };
+        const resetSubjectState = () => {
+            setFormValues((prev) => ({
+                ...prev,
+                curriculumType: value,
+                subjectOptions: [subjectEmpty()],
+            }));
+        };
 
-        if (!createModalOpen) return;
+        if (!isFormModalOpen) return;
+
+        // Đổi loại chương trình thì luôn làm mới dữ liệu môn/ngôn ngữ theo loại mới.
+        resetLanguageState();
+        resetSubjectState();
 
         if (value === "NATIONAL") {
             setNationalTemplateLoading(true);
@@ -1152,10 +1165,7 @@ export default function SchoolCurriculums() {
             setFormValues((prev) => ({
                 ...prev,
                 curriculumType: value,
-                subjectOptions:
-                    (prev.subjectOptions || []).length > 0
-                        ? prev.subjectOptions.map((subject) => ({ ...subject, sourceType: subject.sourceType || "manual" }))
-                        : [subjectEmpty()],
+                subjectOptions: [subjectEmpty()],
             }));
             return;
         }
@@ -2683,108 +2693,110 @@ export default function SchoolCurriculums() {
 
                         {renderMethodLearningCardSelector(false)}
 
-                        {/* Subjects */}
-                        <Box sx={{ mt: 0.6 }}>
-                            <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
-                                <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
-                                    Môn học
-                                </Typography>
-                                {formValues.curriculumType !== "NATIONAL" && formValues.curriculumType !== "INTERNATIONAL" ? (
-                                    <Button
-                                        size="small"
-                                        variant="outlined"
-                                        startIcon={<AddIcon />}
-                                        onClick={handleAddSubject}
-                                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
-                                    >
-                                        Thêm môn
-                                    </Button>
-                                ) : null}
-                            </Stack>
-
-                            {formErrors.subjectOptions && typeof formErrors.subjectOptions === "string" ? (
-                                <Typography variant="caption" sx={{ color: "#d32f2f", display: "block", mt: 1.2 }}>
-                                    {formErrors.subjectOptions}
-                                </Typography>
-                            ) : null}
-
-                            {formValues.curriculumType === "NATIONAL" && nationalTemplateLoading ? (
-                                <Typography variant="caption" sx={{ color: "#64748b", display: "block", mt: 1 }}>
-                                    Đang tải danh sách môn học chương trình quốc gia...
-                                </Typography>
-                            ) : null}
-
-                            <Stack spacing={1.2} sx={{ mt: 1.2 }}>
-                                {formValues.subjectOptions.map((subject, idx) => {
-                                    const subjectErr =
-                                        Array.isArray(formErrors.subjectOptions) && formErrors.subjectOptions[idx]
-                                            ? formErrors.subjectOptions[idx]
-                                            : null;
-                                    return (
-                                        <Grow in={true} style={{ transformOrigin: "0 0 0" }} key={`create-subject-${idx}`}>
-                                            <Box
-                                                ref={(el) => {
-                                                    createSubjectItemRefs.current[idx] = el;
-                                                }}
-                                                sx={{
-                                                    border: "1px solid #e2e8f0",
-                                                    borderRadius: 2,
-                                                    bgcolor: "#f8fafc",
-                                                    px: 2,
-                                                    py: 1.6,
-                                                }}
+                        {formValues.curriculumType ? (
+                            <>
+                                {/* Subjects */}
+                                <Box sx={{ mt: 0.6 }}>
+                                    <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
+                                        <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
+                                            Môn học
+                                        </Typography>
+                                        {formValues.curriculumType !== "NATIONAL" && formValues.curriculumType !== "INTERNATIONAL" ? (
+                                            <Button
+                                                size="small"
+                                                variant="outlined"
+                                                startIcon={<AddIcon />}
+                                                onClick={handleAddSubject}
+                                                sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
                                             >
-                                                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
-                                                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800 }}>
-                                                        Môn {idx + 1}
-                                                    </Typography>
-                                                </Stack>
+                                                Thêm môn
+                                            </Button>
+                                        ) : null}
+                                    </Stack>
 
-                                                <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 1 }}>
-                                                    <TextField
-                                                        label="Tên môn"
-                                                        fullWidth
-                                                        value={subject.name}
-                                                        onChange={handleSubjectChange(idx, "name")}
-                                                        error={!!subjectErr?.name}
-                                                        helperText={subjectErr?.name}
-                                                        required
-                                                        disabled={formValues.curriculumType === "NATIONAL"}
-                                                    />
-                                                    <TextField
-                                                        label="Mô tả môn"
-                                                        fullWidth
-                                                        value={subject.description}
-                                                        onChange={handleSubjectChange(idx, "description")}
-                                                        error={!!subjectErr?.description}
-                                                        helperText={subjectErr?.description}
-                                                        disabled={formValues.curriculumType === "NATIONAL"}
-                                                    />
-                                                </Stack>
+                                    {formErrors.subjectOptions && typeof formErrors.subjectOptions === "string" ? (
+                                        <Typography variant="caption" sx={{ color: "#d32f2f", display: "block", mt: 1.2 }}>
+                                            {formErrors.subjectOptions}
+                                        </Typography>
+                                    ) : null}
 
-                                                <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1.2, flexWrap: "wrap" }}>
-                                                    <Chip
-                                                        size="small"
-                                                        label="Bắt buộc"
-                                                        sx={{
-                                                            fontWeight: 800,
-                                                            bgcolor: "rgba(34, 197, 94, 0.14)",
-                                                            color: "#15803d",
-                                                            border: "1px solid rgba(34, 197, 94, 0.35)",
+                                    {formValues.curriculumType === "NATIONAL" && nationalTemplateLoading ? (
+                                        <Typography variant="caption" sx={{ color: "#64748b", display: "block", mt: 1 }}>
+                                            Đang tải danh sách môn học chương trình quốc gia...
+                                        </Typography>
+                                    ) : null}
+
+                                    <Stack spacing={1.2} sx={{ mt: 1.2 }}>
+                                        {formValues.subjectOptions.map((subject, idx) => {
+                                            const subjectErr =
+                                                Array.isArray(formErrors.subjectOptions) && formErrors.subjectOptions[idx]
+                                                    ? formErrors.subjectOptions[idx]
+                                                    : null;
+                                            return (
+                                                <Grow in={true} style={{ transformOrigin: "0 0 0" }} key={`create-subject-${idx}`}>
+                                                    <Box
+                                                        ref={(el) => {
+                                                            createSubjectItemRefs.current[idx] = el;
                                                         }}
-                                                    />
-                                                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
-                                                        Môn trong khung chương trình luôn là môn bắt buộc.
-                                                    </Typography>
-                                                </Stack>
-                                            </Box>
-                                        </Grow>
-                                    );
-                                })}
-                            </Stack>
-                        </Box>
+                                                        sx={{
+                                                            border: "1px solid #e2e8f0",
+                                                            borderRadius: 2,
+                                                            bgcolor: "#f8fafc",
+                                                            px: 2,
+                                                            py: 1.6,
+                                                        }}
+                                                    >
+                                                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+                                                            <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800 }}>
+                                                                Môn {idx + 1}
+                                                            </Typography>
+                                                        </Stack>
 
-                        {formValues.curriculumType === "NATIONAL" ? (
+                                                        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 1 }}>
+                                                            <TextField
+                                                                label="Tên môn"
+                                                                fullWidth
+                                                                value={subject.name}
+                                                                onChange={handleSubjectChange(idx, "name")}
+                                                                error={!!subjectErr?.name}
+                                                                helperText={subjectErr?.name}
+                                                                required
+                                                                disabled={formValues.curriculumType === "NATIONAL"}
+                                                            />
+                                                            <TextField
+                                                                label="Mô tả môn"
+                                                                fullWidth
+                                                                value={subject.description}
+                                                                onChange={handleSubjectChange(idx, "description")}
+                                                                error={!!subjectErr?.description}
+                                                                helperText={subjectErr?.description}
+                                                                disabled={formValues.curriculumType === "NATIONAL"}
+                                                            />
+                                                        </Stack>
+
+                                                        <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 1.2, flexWrap: "wrap" }}>
+                                                            <Chip
+                                                                size="small"
+                                                                label="Bắt buộc"
+                                                                sx={{
+                                                                    fontWeight: 800,
+                                                                    bgcolor: "rgba(34, 197, 94, 0.14)",
+                                                                    color: "#15803d",
+                                                                    border: "1px solid rgba(34, 197, 94, 0.35)",
+                                                                }}
+                                                            />
+                                                            <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
+                                                                Môn trong khung chương trình luôn là môn bắt buộc.
+                                                            </Typography>
+                                                        </Stack>
+                                                    </Box>
+                                                </Grow>
+                                            );
+                                        })}
+                                    </Stack>
+                                </Box>
+
+                                {formValues.curriculumType === "NATIONAL" ? (
                             <Box sx={{ mt: 0.6 }}>
                                 <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
                                     <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
@@ -2873,6 +2885,8 @@ export default function SchoolCurriculums() {
                                     )}
                                 </Stack>
                             </Box>
+                                ) : null}
+                            </>
                         ) : null}
                     </Stack>
                 </DialogContent>
