@@ -856,11 +856,11 @@ export default function AdminSchoolVerification() {
                 open={confirmOpen}
                 variant="modern"
                 title={
-                    <Stack spacing={1.1} alignItems="center" sx={{ width: "100%" }}>
+                    <Stack spacing={1.5} alignItems="center" sx={{ width: "100%" }}>
                         <Box
                             sx={{
-                                width: 76,
-                                height: 76,
+                                width: 82,
+                                height: 82,
                                 borderRadius: "50%",
                                 bgcolor: "#fff7e8",
                                 display: "flex",
@@ -870,7 +870,7 @@ export default function AdminSchoolVerification() {
                                 animation: "warningPulse 1.8s ease-in-out infinite",
                             }}
                         >
-                            <WarningAmberRoundedIcon sx={{ fontSize: 42, color: "#f59e0b" }} />
+                            <WarningAmberRoundedIcon sx={{ fontSize: 44, color: "#f59e0b" }} />
                         </Box>
                         <Box component="span">Xác thực hồ sơ trường học</Box>
                     </Stack>
@@ -878,10 +878,9 @@ export default function AdminSchoolVerification() {
                 description={
                     selectedRegistration ? (
                         <>
-                            Bạn có chắc muốn <ConfirmHighlight>xác thực hồ sơ</ConfirmHighlight>{" "}
+                            Bạn có chắc muốn xác thực hồ sơ của{" "}
                             <ConfirmHighlight>{selectedRegistration.schoolName || "trường học"}</ConfirmHighlight>?{" "}
-                            <ConfirmHighlight>Tài khoản</ConfirmHighlight> sẽ được <ConfirmHighlight>kích hoạt</ConfirmHighlight>{" "}
-                            sau khi <ConfirmHighlight>xác thực</ConfirmHighlight>.
+                            Tài khoản sẽ được kích hoạt sau khi xác thực.
                         </>
                     ) : (
                         ""
@@ -896,6 +895,7 @@ export default function AdminSchoolVerification() {
                     background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
                     border: "2px solid rgba(59,130,246,0.35)",
                     borderRadius: 4,
+                    width: "min(92vw, 700px)",
                     boxShadow: "0 30px 80px rgba(15,23,42,0.35), 0 0 0 1px rgba(59,130,246,0.2) inset",
                     animation: "modalPopIn 220ms ease-out",
                 }}
@@ -904,12 +904,12 @@ export default function AdminSchoolVerification() {
                     textAlign: "center",
                     bgcolor: "transparent",
                     borderBottom: "none",
-                    pt: 1,
-                    pb: 0.3,
+                    pt: 1.8,
+                    pb: 0.6,
                 }}
-                titleTextSx={{ fontSize: 30, lineHeight: 1.15, fontWeight: 800, width: "100%", textAlign: "center", color: "#0f172a" }}
-                contentSx={{ textAlign: "center", px: 4.2, pt: 0.35, pb: 1.1 }}
-                descriptionSx={{ fontSize: 14, lineHeight: 1.6, textAlign: "center", color: "#475569", m: 0 }}
+                titleTextSx={{ fontSize: 24, lineHeight: 1.25, fontWeight: 800, width: "100%", textAlign: "center", color: "#0f172a" }}
+                contentSx={{ textAlign: "center", px: { xs: 3, sm: 5.2 }, pt: 0.7, pb: 1.8 }}
+                descriptionSx={{ fontSize: 18, lineHeight: 1.72, textAlign: "center", color: "#475569", m: 0 }}
                 dialogSx={{
                     "@keyframes warningPulse": {
                         "0%": { transform: "scale(1)", boxShadow: "0 0 0 8px rgba(245,158,11,0.12), 0 12px 28px rgba(245,158,11,0.3)" },
@@ -922,21 +922,21 @@ export default function AdminSchoolVerification() {
                     },
                     "& .MuiDialogActions-root": {
                         justifyContent: "center",
-                        gap: 1.6,
-                        pb: 2.8,
-                        pt: 0.8,
+                        gap: 2,
+                        pb: 3.1,
+                        pt: 1.2,
                     },
                     "& .MuiDialogActions-root .MuiButton-root:first-of-type": {
-                        minWidth: 150,
-                        height: 42,
+                        minWidth: 168,
+                        height: 46,
                         borderRadius: 999,
                         borderColor: "rgba(15,23,42,0.12)",
                         backgroundColor: "#f8fafc",
                     },
                 }}
                 confirmButtonSx={{
-                    minWidth: 160,
-                    height: 42,
+                    minWidth: 188,
+                    height: 46,
                     borderRadius: 999,
                     boxShadow: "0 12px 26px rgba(37,99,235,0.5)",
                     background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 58%, #1d4ed8 100%)",
