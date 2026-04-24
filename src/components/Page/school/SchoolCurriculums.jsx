@@ -49,7 +49,7 @@ import ComputerIcon from "@mui/icons-material/Computer";
 import VisibilityIconOutlined from "@mui/icons-material/VisibilityOutlined";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
-import PublishIcon from "@mui/icons-material/Publish";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import ArchiveOutlinedIcon from "@mui/icons-material/ArchiveOutlined";
 import { enqueueSnackbar } from "notistack";
 import { useNavigate } from "react-router-dom";
@@ -1784,7 +1784,7 @@ export default function SchoolCurriculums() {
                                                                     }}
                                                                     title="Công bố"
                                                                 >
-                                                                    <PublishIcon fontSize="small" />
+                                                                    <FileUploadOutlinedIcon fontSize="small" />
                                                                 </IconButton>
                                                             </span>
                                                         </Tooltip>
@@ -2669,28 +2669,6 @@ export default function SchoolCurriculums() {
                             ) : null}
                         </FormControl>
 
-                        {formValues.curriculumType === "INTERNATIONAL" ? (
-                            <Box sx={{ mt: -0.4 }}>
-                                <Button
-                                    size="small"
-                                    variant="outlined"
-                                    startIcon={<PublishIcon />}
-                                    onClick={openInternationalImportFileDialog}
-                                    disabled={internationalImportLoading}
-                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
-                                >
-                                    {internationalImportLoading ? "Đang import..." : "Import file Excel"}
-                                </Button>
-                                <input
-                                    ref={internationalFileInputRef}
-                                    type="file"
-                                    hidden
-                                    accept=".xlsx,.xls"
-                                    onChange={handleImportInternationalExcel}
-                                />
-                            </Box>
-                        ) : null}
-
                         {renderMethodLearningCardSelector(false)}
 
                         {formValues.curriculumType ? (
@@ -2701,17 +2679,31 @@ export default function SchoolCurriculums() {
                                         <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
                                             Môn học
                                         </Typography>
-                                        {formValues.curriculumType !== "NATIONAL" ? (
-                                            <Button
-                                                size="small"
-                                                variant="outlined"
-                                                startIcon={<AddIcon />}
-                                                onClick={handleAddSubject}
-                                                sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
-                                            >
-                                                Thêm môn
-                                            </Button>
-                                        ) : null}
+                                        <Stack direction="row" alignItems="center" spacing={1}>
+                                            {formValues.curriculumType === "INTERNATIONAL" ? (
+                                                <Button
+                                                    size="small"
+                                                    variant="outlined"
+                                                    startIcon={<FileUploadOutlinedIcon />}
+                                                    onClick={openInternationalImportFileDialog}
+                                                    disabled={internationalImportLoading}
+                                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                                >
+                                                    {internationalImportLoading ? "Đang import..." : "Import file Excel"}
+                                                </Button>
+                                            ) : null}
+                                            {formValues.curriculumType !== "NATIONAL" ? (
+                                                <Button
+                                                    size="small"
+                                                    variant="outlined"
+                                                    startIcon={<AddIcon />}
+                                                    onClick={handleAddSubject}
+                                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                                >
+                                                    Thêm môn
+                                                </Button>
+                                            ) : null}
+                                        </Stack>
                                     </Stack>
 
                                     {formErrors.subjectOptions && typeof formErrors.subjectOptions === "string" ? (
@@ -2888,6 +2880,13 @@ export default function SchoolCurriculums() {
                                 ) : null}
                             </>
                         ) : null}
+                        <input
+                            ref={internationalFileInputRef}
+                            type="file"
+                            hidden
+                            accept=".xlsx,.xls"
+                            onChange={handleImportInternationalExcel}
+                        />
                     </Stack>
                 </DialogContent>
 
@@ -3006,28 +3005,6 @@ export default function SchoolCurriculums() {
                             ) : null}
                         </FormControl>
 
-                        {formValues.curriculumType === "INTERNATIONAL" ? (
-                            <Box sx={{ mt: -0.4 }}>
-                                <Button
-                                    size="small"
-                                    variant="outlined"
-                                    startIcon={<PublishIcon />}
-                                    onClick={openInternationalImportFileDialog}
-                                    disabled={internationalImportLoading}
-                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
-                                >
-                                    {internationalImportLoading ? "Đang import..." : "Import file Excel"}
-                                </Button>
-                                <input
-                                    ref={internationalFileInputRef}
-                                    type="file"
-                                    hidden
-                                    accept=".xlsx,.xls"
-                                    onChange={handleImportInternationalExcel}
-                                />
-                            </Box>
-                        ) : null}
-
                         {renderMethodLearningCardSelector(false)}
 
                         <Box sx={{ mt: 0.6 }}>
@@ -3035,17 +3012,31 @@ export default function SchoolCurriculums() {
                                 <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
                                     Môn học
                                 </Typography>
-                                {formValues.curriculumType !== "NATIONAL" ? (
-                                    <Button
-                                        size="small"
-                                        variant="outlined"
-                                        startIcon={<AddIcon />}
-                                        onClick={handleAddSubject}
-                                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
-                                    >
-                                        Thêm môn
-                                    </Button>
-                                ) : null}
+                                <Stack direction="row" alignItems="center" spacing={1}>
+                                    {formValues.curriculumType === "INTERNATIONAL" ? (
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            startIcon={<FileUploadOutlinedIcon />}
+                                            onClick={openInternationalImportFileDialog}
+                                            disabled={internationalImportLoading}
+                                            sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                        >
+                                            {internationalImportLoading ? "Đang import..." : "Import file Excel"}
+                                        </Button>
+                                    ) : null}
+                                    {formValues.curriculumType !== "NATIONAL" ? (
+                                        <Button
+                                            size="small"
+                                            variant="outlined"
+                                            startIcon={<AddIcon />}
+                                            onClick={handleAddSubject}
+                                            sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                        >
+                                            Thêm môn
+                                        </Button>
+                                    ) : null}
+                                </Stack>
                             </Stack>
 
                             {formErrors.subjectOptions && typeof formErrors.subjectOptions === "string" ? (
@@ -3214,6 +3205,13 @@ export default function SchoolCurriculums() {
                                 </Stack>
                             </Box>
                         ) : null}
+                        <input
+                            ref={internationalFileInputRef}
+                            type="file"
+                            hidden
+                            accept=".xlsx,.xls"
+                            onChange={handleImportInternationalExcel}
+                        />
                     </Stack>
                 </DialogContent>
 

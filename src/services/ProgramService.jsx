@@ -83,3 +83,18 @@ export const cloneProgram = async (id) => {
     return response || null;
 };
 
+/**
+ * POST /api/v1/school/extract/excel/program-subjects
+ * Request body: multipart/form-data { file }
+ */
+export const importProgramSubjectsFromExcel = async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await axiosClient.post("/school/extract/excel/program-subjects", formData, {
+        headers: {
+            "Content-Type": "multipart/form-data",
+        },
+    });
+    return response || null;
+};
+
