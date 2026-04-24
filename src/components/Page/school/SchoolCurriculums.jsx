@@ -56,7 +56,13 @@ import { useNavigate } from "react-router-dom";
 import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 
 import { useSchool } from "../../../contexts/SchoolContext.jsx";
-import { activateCurriculum, getCurriculumList, upsertCurriculum } from "../../../services/CurriculumService.jsx";
+import {
+    activateCurriculum,
+    extractInternationalCurriculumFromExcel,
+    getCurriculumList,
+    getNationalCurriculumTemplate,
+    upsertCurriculum,
+} from "../../../services/CurriculumService.jsx";
 
 const modalPaperSx = {
     borderRadius: "16px",
@@ -170,6 +176,7 @@ const subjectEmpty = () => ({
     description: "",
     /** Môn trong curriculum luôn bắt buộc — không cho phép tắt (đồng bộ BE). */
     isMandatory: true,
+    sourceType: "manual",
 });
 
 const emptyForm = () => ({
@@ -299,6 +306,27 @@ function mapSubjectOptionsForApi(subjectOptions) {
         description: String(s.description || "").trim(),
         isMandatory: true,
     }));
+}
+
+function mapTemplateSubjectForForm(subject, sourceType = "mandatory") {
+    return {
+        name: String(subject?.name || "").trim(),
+        description: String(subject?.description || "").trim(),
+        isMandatory: true,
+        sourceType,
+    };
+}
+
+function mapNationalLanguagesToSubjectOptions(languageSelections, languageOptions) {
+    const selectedIds = (languageSelections || []).map((item) => String(item?.languageId || "")).filter(Boolean);
+    return selectedIds
+        .map((id) => languageOptions.find((opt) => String(opt?.id) === id))
+        .filter(Boolean)
+        .map((language) => ({
+            name: String(language?.name || "").trim(),
+            description: String(language?.description || "").trim(),
+            isMandatory: true,
+        }));
 }
 
 function toVietnameseValidationMessage(rawMessage) {
@@ -445,12 +473,22 @@ export default function SchoolCurriculums() {
     const [activateConflictOpen, setActivateConflictOpen] = useState(false);
     const [activateConflictText, setActivateConflictText] = useState("");
     const [pendingScrollSubjectIndex, setPendingScrollSubjectIndex] = useState(null);
+    const [pendingScrollLanguageIndex, setPendingScrollLanguageIndex] = useState(null);
+    const [pendingScrollLanguageModal, setPendingScrollLanguageModal] = useState(null);
     const [pendingScrollModal, setPendingScrollModal] = useState(null);
     const createSubjectItemRefs = useRef({});
     const editSubjectItemRefs = useRef({});
+    const createLanguageItemRefs = useRef({});
+    const editLanguageItemRefs = useRef({});
 
     const [formValues, setFormValues] = useState(emptyForm());
     const [formErrors, setFormErrors] = useState({});
+    const [nationalLanguageOptions, setNationalLanguageOptions] = useState([]);
+    const [nationalMandatorySubjects, setNationalMandatorySubjects] = useState([]);
+    const [nationalLanguageSelections, setNationalLanguageSelections] = useState([]);
+    const [nationalTemplateLoading, setNationalTemplateLoading] = useState(false);
+    const [internationalImportLoading, setInternationalImportLoading] = useState(false);
+    const internationalFileInputRef = useRef(null);
 
     const applicationYearOptions = useMemo(() => {
         const set = new Set(curriculums.map((c) => c.applicationYear).filter((y) => y !== null && y !== undefined));
@@ -510,6 +548,53 @@ export default function SchoolCurriculums() {
         }
     }, [createModalOpen, editModalOpen, pendingScrollSubjectIndex, pendingScrollModal, formValues.subjectOptions.length]);
 
+    useEffect(() => {
+        if (pendingScrollLanguageIndex === null) return;
+        if (formValues.curriculumType !== "NATIONAL") return;
+        if (pendingScrollLanguageModal === "create" && !createModalOpen) return;
+        if (pendingScrollLanguageModal === "edit" && !editModalOpen) return;
+        const refMap = pendingScrollLanguageModal === "edit" ? editLanguageItemRefs.current : createLanguageItemRefs.current;
+        const target = refMap[pendingScrollLanguageIndex];
+        if (target) {
+            target.scrollIntoView({ behavior: "smooth", block: "start" });
+            setPendingScrollLanguageIndex(null);
+            setPendingScrollLanguageModal(null);
+        }
+    }, [
+        createModalOpen,
+        editModalOpen,
+        formValues.curriculumType,
+        pendingScrollLanguageIndex,
+        pendingScrollLanguageModal,
+        nationalLanguageSelections.length,
+    ]);
+
+    useEffect(() => {
+        if (!createModalOpen || formValues.curriculumType !== "NATIONAL") return;
+        const nextSubjectOptions = [
+            ...nationalMandatorySubjects.map((subject) => mapTemplateSubjectForForm(subject, "mandatory")),
+        ];
+        setFormValues((prev) => {
+            const prevSubjects = Array.isArray(prev.subjectOptions) ? prev.subjectOptions : [];
+            const isSame =
+                prevSubjects.length === nextSubjectOptions.length &&
+                prevSubjects.every((subject, idx) => {
+                    const next = nextSubjectOptions[idx];
+                    return (
+                        String(subject?.name || "") === String(next?.name || "") &&
+                        String(subject?.description || "") === String(next?.description || "") &&
+                        String(subject?.sourceType || "") === String(next?.sourceType || "")
+                    );
+                });
+            if (isSame) return prev;
+            return { ...prev, subjectOptions: nextSubjectOptions.length > 0 ? nextSubjectOptions : [subjectEmpty()] };
+        });
+    }, [
+        createModalOpen,
+        formValues.curriculumType,
+        nationalMandatorySubjects,
+    ]);
+
     const filteredCurriculums = useMemo(() => {
         let list = curriculums;
         const q = search.trim().toLowerCase();
@@ -568,6 +653,7 @@ export default function SchoolCurriculums() {
         const subjectErrors = (formValues.subjectOptions || []).map(() => ({}));
         const normalizedSubType = String(formValues.subTypeName || "").trim();
         const normalizedCurriculumType = String(formValues.curriculumType || "").trim().toUpperCase();
+        const isInternationalCurriculum = normalizedCurriculumType === "INTERNATIONAL";
         const methodLearningList = Array.isArray(formValues.methodLearningList) ? formValues.methodLearningList : [];
 
         const isEdit = editModalOpen && selectedCurriculum != null;
@@ -619,9 +705,11 @@ export default function SchoolCurriculums() {
                         if (subjectNames.has(lower)) subjectErrors[idx].name = `Phát hiện tên môn học bị trùng lặp: ${sName}`;
                         else subjectNames.add(lower);
                     }
-                    if (!sDesc) subjectErrors[idx].description = `Mô tả cho môn học '${sName}' không được để trống.`;
-                    else if (sDesc.length > 1000)
+                    if (!isInternationalCurriculum && !sDesc) {
+                        subjectErrors[idx].description = `Mô tả cho môn học '${sName}' không được để trống.`;
+                    } else if (sDesc.length > 1000) {
                         subjectErrors[idx].description = `Mô tả cho môn học '${sName}' quá dài (tối đa 1000 ký tự).`;
+                    }
                 }
             });
 
@@ -633,13 +721,21 @@ export default function SchoolCurriculums() {
         return Object.keys(errors).length === 0;
     };
 
-    const getCreatePayload = () => ({
-        subTypeName: String(formValues.subTypeName || "").trim(),
-        description: String(formValues.description || "").trim(),
-        curriculumType: String(formValues.curriculumType || "").trim().toUpperCase(),
-        methodLearningList: (formValues.methodLearningList || []).map((m) => String(m).trim().toUpperCase()).filter(Boolean),
-        subjectOptions: mapSubjectOptionsForApi(formValues.subjectOptions),
-    });
+    const getCreatePayload = () => {
+        const curriculumType = String(formValues.curriculumType || "").trim().toUpperCase();
+        const baseSubjectOptions = mapSubjectOptionsForApi(formValues.subjectOptions);
+        const languageSubjectOptions =
+            curriculumType === "NATIONAL"
+                ? mapNationalLanguagesToSubjectOptions(nationalLanguageSelections, nationalLanguageOptions)
+                : [];
+        return {
+            subTypeName: String(formValues.subTypeName || "").trim(),
+            description: String(formValues.description || "").trim(),
+            curriculumType,
+            methodLearningList: (formValues.methodLearningList || []).map((m) => String(m).trim().toUpperCase()).filter(Boolean),
+            subjectOptions: [...baseSubjectOptions, ...languageSubjectOptions],
+        };
+    };
 
     const getUpdatePayload = () => ({
         curriculumId: selectedCurriculum?.id,
@@ -655,6 +751,8 @@ export default function SchoolCurriculums() {
         setViewCurriculum(null);
         setFormErrors({});
         setPendingScrollSubjectIndex(null);
+        setPendingScrollLanguageIndex(null);
+        setPendingScrollLanguageModal(null);
         setPendingScrollModal(null);
         setFormValues({
             ...emptyForm(),
@@ -662,33 +760,81 @@ export default function SchoolCurriculums() {
             methodLearningList: [],
             subjectOptions: [subjectEmpty()],
         });
+        setNationalLanguageOptions([]);
+        setNationalMandatorySubjects([]);
+        setNationalLanguageSelections([]);
         setCreateModalOpen(true);
     };
 
-    const handleOpenEdit = (curriculum) => {
+    const handleOpenEdit = async (curriculum) => {
         if (!isPrimaryBranch) return;
         setSelectedCurriculum(curriculum);
         setViewCurriculum(null);
+
+        const initialSubjects =
+            Array.isArray(curriculum?.subjects) && curriculum.subjects.length > 0
+                ? curriculum.subjects.map((s) => ({
+                    name: s.name || "",
+                    description: s.description || "",
+                    isMandatory: true,
+                    sourceType: "manual",
+                }))
+                : [subjectEmpty()];
 
         setFormValues({
             subTypeName: curriculum?.subTypeName || "",
             description: curriculum?.description || "",
             curriculumType: curriculum?.curriculumType || "",
             methodLearningList: Array.isArray(curriculum?.methodLearningList) ? curriculum.methodLearningList : [],
-            subjectOptions:
-                Array.isArray(curriculum?.subjects) && curriculum.subjects.length > 0
-                    ? curriculum.subjects.map((s) => ({
-                        name: s.name || "",
-                        description: s.description || "",
-                        isMandatory: true,
-                    }))
-                    : [subjectEmpty()],
+            subjectOptions: initialSubjects,
         });
 
         setFormErrors({});
+        setNationalLanguageOptions([]);
+        setNationalMandatorySubjects([]);
+        setNationalLanguageSelections([]);
         setPendingScrollSubjectIndex(null);
+        setPendingScrollLanguageIndex(null);
+        setPendingScrollLanguageModal(null);
         setPendingScrollModal(null);
         setEditModalOpen(true);
+
+        const normalizedType = String(curriculum?.curriculumType || "").trim().toUpperCase();
+        if (normalizedType === "NATIONAL") {
+            setNationalTemplateLoading(true);
+            try {
+                const templateRes = await getNationalCurriculumTemplate();
+                const body = templateRes?.data?.body || {};
+                const mandatorySubjects = Array.isArray(body?.mandatorySubjects) ? body.mandatorySubjects : [];
+                const languageOptions = Array.isArray(body?.languageOptions) ? body.languageOptions : [];
+                const existingSubjects = Array.isArray(curriculum?.subjects) ? curriculum.subjects : [];
+                const languageNameMap = new Map(languageOptions.map((lang) => [String(lang?.name || "").trim().toLowerCase(), String(lang?.id)]));
+                const selectedLanguageIds = existingSubjects
+                    .map((subject) => String(subject?.name || "").trim().toLowerCase())
+                    .map((name) => languageNameMap.get(name))
+                    .filter(Boolean);
+                const uniqueIds = Array.from(new Set(selectedLanguageIds));
+
+                setNationalLanguageOptions(languageOptions);
+                setNationalMandatorySubjects(mandatorySubjects);
+                setNationalLanguageSelections(uniqueIds.map((languageId, idx) => ({ id: `edit-${Date.now()}-${idx}`, languageId })));
+                setFormValues((prev) => ({
+                    ...prev,
+                    subjectOptions:
+                        mandatorySubjects.length > 0
+                            ? mandatorySubjects.map((subject) => mapTemplateSubjectForForm(subject, "mandatory"))
+                            : [subjectEmpty()],
+                }));
+            } catch (err) {
+                console.error("Load national template for edit error:", err);
+                enqueueSnackbar(
+                    toVietnameseValidationMessage(getCurriculumErrorMessage(err)) || "Không thể tải danh sách môn học quốc gia.",
+                    { variant: "error" }
+                );
+            } finally {
+                setNationalTemplateLoading(false);
+            }
+        }
     };
 
     const handleEditClick = (curriculum) => {
@@ -780,7 +926,12 @@ export default function SchoolCurriculums() {
         if (submitLoading) return;
         setCreateModalOpen(false);
         setFormErrors({});
+        setNationalLanguageOptions([]);
+        setNationalMandatorySubjects([]);
+        setNationalLanguageSelections([]);
         setPendingScrollSubjectIndex(null);
+        setPendingScrollLanguageIndex(null);
+        setPendingScrollLanguageModal(null);
         setPendingScrollModal(null);
     };
 
@@ -789,7 +940,12 @@ export default function SchoolCurriculums() {
         setEditModalOpen(false);
         setFormErrors({});
         setSelectedCurriculum(null);
+        setNationalLanguageOptions([]);
+        setNationalMandatorySubjects([]);
+        setNationalLanguageSelections([]);
         setPendingScrollSubjectIndex(null);
+        setPendingScrollLanguageIndex(null);
+        setPendingScrollLanguageModal(null);
         setPendingScrollModal(null);
     };
 
@@ -945,9 +1101,69 @@ export default function SchoolCurriculums() {
         }
     };
 
-    const handleBasicChange = (e) => {
+    const handleBasicChange = async (e) => {
         const { name, value } = e.target;
-        setFormValues((prev) => ({ ...prev, [name]: value }));
+        if (name !== "curriculumType") {
+            setFormValues((prev) => ({ ...prev, [name]: value }));
+            return;
+        }
+
+        setFormValues((prev) => ({ ...prev, curriculumType: value }));
+
+        if (value !== "NATIONAL") {
+            setNationalLanguageOptions([]);
+            setNationalMandatorySubjects([]);
+            setNationalLanguageSelections([]);
+        }
+
+        if (!createModalOpen) return;
+
+        if (value === "NATIONAL") {
+            setNationalTemplateLoading(true);
+            try {
+                const templateRes = await getNationalCurriculumTemplate();
+                const body = templateRes?.data?.body || {};
+                const mandatorySubjects = Array.isArray(body?.mandatorySubjects) ? body.mandatorySubjects : [];
+                const languageOptions = Array.isArray(body?.languageOptions) ? body.languageOptions : [];
+                setNationalLanguageOptions(languageOptions);
+                setNationalMandatorySubjects(mandatorySubjects);
+                setNationalLanguageSelections([]);
+                setFormValues((prev) => ({
+                    ...prev,
+                    curriculumType: value,
+                    subjectOptions:
+                        mandatorySubjects.length > 0
+                            ? mandatorySubjects.map((subject) => mapTemplateSubjectForForm(subject, "mandatory"))
+                            : [subjectEmpty()],
+                }));
+            } catch (err) {
+                console.error("Load national template error:", err);
+                enqueueSnackbar(
+                    toVietnameseValidationMessage(getCurriculumErrorMessage(err)) || "Không thể tải danh sách môn học quốc gia.",
+                    { variant: "error" }
+                );
+            } finally {
+                setNationalTemplateLoading(false);
+            }
+            return;
+        }
+
+        if (value === "INTERNATIONAL") {
+            setFormValues((prev) => ({
+                ...prev,
+                curriculumType: value,
+                subjectOptions:
+                    (prev.subjectOptions || []).length > 0
+                        ? prev.subjectOptions.map((subject) => ({ ...subject, sourceType: subject.sourceType || "manual" }))
+                        : [subjectEmpty()],
+            }));
+            return;
+        }
+
+        setFormValues((prev) => ({
+            ...prev,
+            curriculumType: value,
+        }));
     };
 
     const handleToggleMethodLearning = (method) => {
@@ -1136,6 +1352,67 @@ export default function SchoolCurriculums() {
             subjectOptions: prev.subjectOptions.filter((_, i) => i !== idx),
         }));
         setFormErrors({});
+    };
+
+    const handleAddNationalLanguage = () => {
+        setPendingScrollLanguageModal(editModalOpen ? "edit" : "create");
+        setPendingScrollLanguageIndex(nationalLanguageSelections.length);
+        setNationalLanguageSelections((prev) => [...prev, { id: `${Date.now()}-${prev.length}`, languageId: "" }]);
+    };
+
+    const handleNationalLanguageChange = (rowId, languageId) => {
+        setNationalLanguageSelections((prev) => prev.map((row) => (row.id === rowId ? { ...row, languageId } : row)));
+        setFormErrors((prev) => ({ ...prev, subjectOptions: undefined }));
+    };
+
+    const handleDeleteNationalLanguage = (rowId) => {
+        setNationalLanguageSelections((prev) => prev.filter((row) => row.id !== rowId));
+        setFormErrors((prev) => ({ ...prev, subjectOptions: undefined }));
+    };
+
+    const getAvailableNationalLanguages = (currentLanguageId = "") => {
+        const selectedIds = new Set(
+            nationalLanguageSelections
+                .map((row) => String(row.languageId || ""))
+                .filter((id) => id && id !== String(currentLanguageId || ""))
+        );
+        return nationalLanguageOptions.filter((language) => !selectedIds.has(String(language.id)));
+    };
+
+    const openInternationalImportFileDialog = () => {
+        internationalFileInputRef.current?.click();
+    };
+
+    const handleImportInternationalExcel = async (e) => {
+        const file = e?.target?.files?.[0];
+        e.target.value = "";
+        if (!file) return;
+        if (!createModalOpen && !editModalOpen) return;
+
+        setInternationalImportLoading(true);
+        try {
+            const importRes = await extractInternationalCurriculumFromExcel(file);
+            const importedSubjects = Array.isArray(importRes?.data?.body) ? importRes.data.body : [];
+            if (importedSubjects.length === 0) {
+                enqueueSnackbar("File không có dữ liệu môn học hợp lệ.", { variant: "warning" });
+                return;
+            }
+            setFormValues((prev) => ({
+                ...prev,
+                subjectOptions: importedSubjects.map((subject) => mapTemplateSubjectForForm(subject, "imported")),
+            }));
+            enqueueSnackbar(toVietnameseValidationMessage(importRes?.data?.message) || "Import môn học thành công.", {
+                variant: "success",
+            });
+        } catch (err) {
+            console.error("Import international curriculum excel error:", err);
+            enqueueSnackbar(
+                toVietnameseValidationMessage(getCurriculumErrorMessage(err)) || "Không thể import file Excel chương trình quốc tế.",
+                { variant: "error" }
+            );
+        } finally {
+            setInternationalImportLoading(false);
+        }
     };
 
     const isEditFieldsLocked = selectedCurriculum?.canEditIdentity === false || (selectedCurriculum?.programCount ?? 0) > 0;
@@ -2382,6 +2659,28 @@ export default function SchoolCurriculums() {
                             ) : null}
                         </FormControl>
 
+                        {formValues.curriculumType === "INTERNATIONAL" ? (
+                            <Box sx={{ mt: -0.4 }}>
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<PublishIcon />}
+                                    onClick={openInternationalImportFileDialog}
+                                    disabled={internationalImportLoading}
+                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                >
+                                    {internationalImportLoading ? "Đang import..." : "Import file Excel"}
+                                </Button>
+                                <input
+                                    ref={internationalFileInputRef}
+                                    type="file"
+                                    hidden
+                                    accept=".xlsx,.xls"
+                                    onChange={handleImportInternationalExcel}
+                                />
+                            </Box>
+                        ) : null}
+
                         {renderMethodLearningCardSelector(false)}
 
                         {/* Subjects */}
@@ -2390,20 +2689,28 @@ export default function SchoolCurriculums() {
                                 <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
                                     Môn học
                                 </Typography>
-                                <Button
-                                    size="small"
-                                    variant="outlined"
-                                    startIcon={<AddIcon />}
-                                    onClick={handleAddSubject}
-                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
-                                >
-                                    Thêm môn
-                                </Button>
+                                {formValues.curriculumType !== "NATIONAL" && formValues.curriculumType !== "INTERNATIONAL" ? (
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={<AddIcon />}
+                                        onClick={handleAddSubject}
+                                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                    >
+                                        Thêm môn
+                                    </Button>
+                                ) : null}
                             </Stack>
 
                             {formErrors.subjectOptions && typeof formErrors.subjectOptions === "string" ? (
                                 <Typography variant="caption" sx={{ color: "#d32f2f", display: "block", mt: 1.2 }}>
                                     {formErrors.subjectOptions}
+                                </Typography>
+                            ) : null}
+
+                            {formValues.curriculumType === "NATIONAL" && nationalTemplateLoading ? (
+                                <Typography variant="caption" sx={{ color: "#64748b", display: "block", mt: 1 }}>
+                                    Đang tải danh sách môn học chương trình quốc gia...
                                 </Typography>
                             ) : null}
 
@@ -2431,18 +2738,6 @@ export default function SchoolCurriculums() {
                                                     <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800 }}>
                                                         Môn {idx + 1}
                                                     </Typography>
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={() => handleDeleteSubject(idx)}
-                                                        sx={{
-                                                            color: "#64748b",
-                                                            "&:hover": { color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)" },
-                                                        }}
-                                                        disabled={formValues.subjectOptions.length === 1}
-                                                        title="Xóa"
-                                                    >
-                                                        <DeleteOutlineIcon fontSize="small" />
-                                                    </IconButton>
                                                 </Stack>
 
                                                 <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 1 }}>
@@ -2454,6 +2749,7 @@ export default function SchoolCurriculums() {
                                                         error={!!subjectErr?.name}
                                                         helperText={subjectErr?.name}
                                                         required
+                                                        disabled={formValues.curriculumType === "NATIONAL"}
                                                     />
                                                     <TextField
                                                         label="Mô tả môn"
@@ -2462,6 +2758,7 @@ export default function SchoolCurriculums() {
                                                         onChange={handleSubjectChange(idx, "description")}
                                                         error={!!subjectErr?.description}
                                                         helperText={subjectErr?.description}
+                                                        disabled={formValues.curriculumType === "NATIONAL"}
                                                     />
                                                 </Stack>
 
@@ -2486,6 +2783,97 @@ export default function SchoolCurriculums() {
                                 })}
                             </Stack>
                         </Box>
+
+                        {formValues.curriculumType === "NATIONAL" ? (
+                            <Box sx={{ mt: 0.6 }}>
+                                <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
+                                        Ngôn ngữ
+                                    </Typography>
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={<AddIcon />}
+                                        onClick={handleAddNationalLanguage}
+                                        disabled={nationalTemplateLoading || nationalLanguageOptions.length === 0}
+                                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                    >
+                                        Thêm ngôn ngữ
+                                    </Button>
+                                </Stack>
+
+                                <Stack spacing={1.2} sx={{ mt: 1.2 }}>
+                                    {nationalLanguageSelections.length > 0 ? (
+                                        nationalLanguageSelections.map((row, idx) => {
+                                            const availableLanguages = getAvailableNationalLanguages(row.languageId);
+                                            const selectedLanguage = nationalLanguageOptions.find(
+                                                (language) => String(language.id) === String(row.languageId || "")
+                                            );
+                                            return (
+                                                <Grow in={true} style={{ transformOrigin: "0 0 0" }} key={`create-language-${row.id}`}>
+                                                    <Box
+                                                        ref={(el) => {
+                                                            createLanguageItemRefs.current[idx] = el;
+                                                        }}
+                                                        sx={{
+                                                            border: "1px solid #e2e8f0",
+                                                            borderRadius: 2,
+                                                            bgcolor: "#f8fafc",
+                                                            px: 2,
+                                                            py: 1.6,
+                                                        }}
+                                                    >
+                                                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+                                                            <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800 }}>
+                                                                Ngôn ngữ {idx + 1}
+                                                            </Typography>
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => handleDeleteNationalLanguage(row.id)}
+                                                                sx={{
+                                                                    color: "#64748b",
+                                                                    "&:hover": { color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)" },
+                                                                }}
+                                                                title="Xóa"
+                                                            >
+                                                                <DeleteOutlineIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Stack>
+
+                                                        <FormControl fullWidth size="small" sx={{ mt: 1 }}>
+                                                            <InputLabel>Tên ngôn ngữ</InputLabel>
+                                                            <Select
+                                                                value={row.languageId}
+                                                                label="Tên ngôn ngữ"
+                                                                onChange={(e) => handleNationalLanguageChange(row.id, e.target.value)}
+                                                            >
+                                                                {availableLanguages.map((language) => (
+                                                                    <MenuItem key={language.id} value={String(language.id)}>
+                                                                        {language.name}
+                                                                    </MenuItem>
+                                                                ))}
+                                                            </Select>
+                                                        </FormControl>
+
+                                                        <TextField
+                                                            label="Mô tả ngôn ngữ"
+                                                            fullWidth
+                                                            value={String(selectedLanguage?.description || "")}
+                                                            sx={{ mt: 1 }}
+                                                            disabled
+                                                        />
+                                                    </Box>
+                                                </Grow>
+                                            );
+                                        })
+                                    ) : (
+                                        <Typography variant="caption" sx={{ color: "#94a3b8", mt: 0.2 }}>
+                                            Chưa thêm ngôn ngữ tự chọn nào.
+                                        </Typography>
+                                    )}
+                                </Stack>
+                            </Box>
+                        ) : null}
                     </Stack>
                 </DialogContent>
 
@@ -2604,6 +2992,28 @@ export default function SchoolCurriculums() {
                             ) : null}
                         </FormControl>
 
+                        {formValues.curriculumType === "INTERNATIONAL" ? (
+                            <Box sx={{ mt: -0.4 }}>
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<PublishIcon />}
+                                    onClick={openInternationalImportFileDialog}
+                                    disabled={internationalImportLoading}
+                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                >
+                                    {internationalImportLoading ? "Đang import..." : "Import file Excel"}
+                                </Button>
+                                <input
+                                    ref={internationalFileInputRef}
+                                    type="file"
+                                    hidden
+                                    accept=".xlsx,.xls"
+                                    onChange={handleImportInternationalExcel}
+                                />
+                            </Box>
+                        ) : null}
+
                         {renderMethodLearningCardSelector(false)}
 
                         <Box sx={{ mt: 0.6 }}>
@@ -2611,15 +3021,17 @@ export default function SchoolCurriculums() {
                                 <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
                                     Môn học
                                 </Typography>
-                                <Button
-                                    size="small"
-                                    variant="outlined"
-                                    startIcon={<AddIcon />}
-                                    onClick={handleAddSubject}
-                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
-                                >
-                                    Thêm môn
-                                </Button>
+                                {formValues.curriculumType !== "INTERNATIONAL" && formValues.curriculumType !== "NATIONAL" ? (
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={<AddIcon />}
+                                        onClick={handleAddSubject}
+                                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                    >
+                                        Thêm môn
+                                    </Button>
+                                ) : null}
                             </Stack>
 
                             {formErrors.subjectOptions && typeof formErrors.subjectOptions === "string" ? (
@@ -2652,18 +3064,6 @@ export default function SchoolCurriculums() {
                                                     <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800 }}>
                                                         Môn {idx + 1}
                                                     </Typography>
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={() => handleDeleteSubject(idx)}
-                                                        sx={{
-                                                            color: "#64748b",
-                                                            "&:hover": { color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)" },
-                                                        }}
-                                                        disabled={formValues.subjectOptions.length === 1}
-                                                        title="Xóa"
-                                                    >
-                                                        <DeleteOutlineIcon fontSize="small" />
-                                                    </IconButton>
                                                 </Stack>
 
                                                 <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 1 }}>
@@ -2675,6 +3075,7 @@ export default function SchoolCurriculums() {
                                                         error={!!subjectErr?.name}
                                                         helperText={subjectErr?.name}
                                                         required
+                                                        disabled={formValues.curriculumType === "NATIONAL"}
                                                     />
                                                     <TextField
                                                         label="Mô tả môn"
@@ -2683,6 +3084,7 @@ export default function SchoolCurriculums() {
                                                         onChange={handleSubjectChange(idx, "description")}
                                                         error={!!subjectErr?.description}
                                                         helperText={subjectErr?.description}
+                                                        disabled={formValues.curriculumType === "NATIONAL"}
                                                     />
                                                 </Stack>
 
@@ -2707,6 +3109,97 @@ export default function SchoolCurriculums() {
                                 })}
                             </Stack>
                         </Box>
+
+                        {formValues.curriculumType === "NATIONAL" ? (
+                            <Box sx={{ mt: 0.6 }}>
+                                <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
+                                    <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
+                                        Ngôn ngữ
+                                    </Typography>
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        startIcon={<AddIcon />}
+                                        onClick={handleAddNationalLanguage}
+                                        disabled={nationalTemplateLoading || nationalLanguageOptions.length === 0}
+                                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                    >
+                                        Thêm ngôn ngữ
+                                    </Button>
+                                </Stack>
+
+                                <Stack spacing={1.2} sx={{ mt: 1.2 }}>
+                                    {nationalLanguageSelections.length > 0 ? (
+                                        nationalLanguageSelections.map((row, idx) => {
+                                            const availableLanguages = getAvailableNationalLanguages(row.languageId);
+                                            const selectedLanguage = nationalLanguageOptions.find(
+                                                (language) => String(language.id) === String(row.languageId || "")
+                                            );
+                                            return (
+                                                <Grow in={true} style={{ transformOrigin: "0 0 0" }} key={`edit-language-${row.id}`}>
+                                                    <Box
+                                                        ref={(el) => {
+                                                            editLanguageItemRefs.current[idx] = el;
+                                                        }}
+                                                        sx={{
+                                                            border: "1px solid #e2e8f0",
+                                                            borderRadius: 2,
+                                                            bgcolor: "#f8fafc",
+                                                            px: 2,
+                                                            py: 1.6,
+                                                        }}
+                                                    >
+                                                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+                                                            <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800 }}>
+                                                                Ngôn ngữ {idx + 1}
+                                                            </Typography>
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => handleDeleteNationalLanguage(row.id)}
+                                                                sx={{
+                                                                    color: "#64748b",
+                                                                    "&:hover": { color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)" },
+                                                                }}
+                                                                title="Xóa"
+                                                            >
+                                                                <DeleteOutlineIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </Stack>
+
+                                                        <FormControl fullWidth size="small" sx={{ mt: 1 }}>
+                                                            <InputLabel>Tên ngôn ngữ</InputLabel>
+                                                            <Select
+                                                                value={row.languageId}
+                                                                label="Tên ngôn ngữ"
+                                                                onChange={(e) => handleNationalLanguageChange(row.id, e.target.value)}
+                                                            >
+                                                                {availableLanguages.map((language) => (
+                                                                    <MenuItem key={language.id} value={String(language.id)}>
+                                                                        {language.name}
+                                                                    </MenuItem>
+                                                                ))}
+                                                            </Select>
+                                                        </FormControl>
+
+                                                        <TextField
+                                                            label="Mô tả ngôn ngữ"
+                                                            fullWidth
+                                                            value={String(selectedLanguage?.description || "")}
+                                                            sx={{ mt: 1 }}
+                                                            disabled
+                                                        />
+                                                    </Box>
+                                                </Grow>
+                                            );
+                                        })
+                                    ) : (
+                                        <Typography variant="caption" sx={{ color: "#94a3b8", mt: 0.2 }}>
+                                            Chưa thêm ngôn ngữ tự chọn nào.
+                                        </Typography>
+                                    )}
+                                </Stack>
+                            </Box>
+                        ) : null}
                     </Stack>
                 </DialogContent>
 
