@@ -36,18 +36,30 @@ export function sanitizeAdmissionSettingsForApi(adm) {
         })
         .filter((row) => row.methodCode !== "" || row.steps.length > 0)
     : [];
+  const methodDocumentRequirements = Array.isArray(adm.methodDocumentRequirements)
+    ? adm.methodDocumentRequirements
+        .map((group) => {
+          const methodCode = String(group?.methodCode ?? "").trim();
+          const documents = Array.isArray(group?.documents)
+            ? group.documents
+                .map((doc) => ({
+                  code: String(doc?.code ?? "").trim(),
+                  name: doc?.name != null ? String(doc.name) : "",
+                  required: doc?.required === true,
+                }))
+                .filter((doc) => doc.code || doc.name)
+            : [];
+          return {methodCode, documents};
+        })
+        .filter((group) => group.methodCode || group.documents.length > 0)
+    : [];
   return {
     allowedMethods: methods,
     methodAdmissionProcess,
-    autoCloseOnFull: typeof adm.autoCloseOnFull === "boolean" ? adm.autoCloseOnFull : true,
-    quotaAlertThresholdPercent:
-      adm.quotaAlertThresholdPercent != null && !Number.isNaN(Number(adm.quotaAlertThresholdPercent))
-        ? Number(adm.quotaAlertThresholdPercent)
-        : 90,
+    methodDocumentRequirements,
   };
 }
 
-/** So sánh hai bản admission (sau sanitize) — dùng badge «giống mẫu» / «đã tùy chỉnh». */
 export function admissionSettingsComparableJson(adm) {
   try {
     return JSON.stringify(sanitizeAdmissionSettingsForApi(adm));
