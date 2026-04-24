@@ -17,6 +17,14 @@ export default function SchoolServicePackagesGrid({
     cardsVisible = true,
     showBuyButton = true,
 }) {
+    const getPackageTier = (supportLevel) => {
+        const key = String(supportLevel || "").trim().toUpperCase();
+        if (key === "BASIC" || key === "BASIC_SUPPORT") return "basic";
+        if (key === "STANDARD" || key === "STANDARD_SUPPORT") return "standard";
+        if (key === "ENTERPRISE" || key === "PREMIUM" || key === "PREMIUM_SUPPORT") return "enterprise";
+        return "default";
+    };
+
     if (loading) {
         return (
             <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>
@@ -66,34 +74,34 @@ export default function SchoolServicePackagesGrid({
             }}
         >
             {orderedPackages.map((pkg, idx) => {
-                const supportLevel = String(pkg?.features?.supportLevel || "").toUpperCase();
-                const isEnterprise = supportLevel === "ENTERPRISE";
-                const isStandard = supportLevel === "STANDARD";
-                const isBasic = supportLevel === "BASIC";
+                const tier = getPackageTier(pkg?.features?.supportLevel);
+                const isEnterprise = tier === "enterprise";
+                const isStandard = tier === "standard";
+                const isBasic = tier === "basic";
                 const isHighlighted = isEnterprise || idx === 1;
                 const tone = isEnterprise
                     ? {
-                          border: "1px solid rgba(236,72,153,0.38)",
-                          shadow: "0 24px 58px rgba(236,72,153,0.2)",
-                          background: "linear-gradient(160deg, #fce7f3 0%, #f5d0fe 50%, #e0e7ff 100%)",
+                          border: "1px solid rgba(168,85,247,0.45)",
+                          shadow: "0 24px 58px rgba(147,51,234,0.2)",
+                          background: "linear-gradient(160deg, #f3e8ff 0%, #e9d5ff 55%, #ddd6fe 100%)",
                           color: "#7e22ce",
                           checkColor: "#db2777",
                       }
                     : isStandard
                       ? {
-                            border: "1px solid rgba(56,189,248,0.34)",
-                            shadow: "0 18px 42px rgba(14,165,233,0.14)",
-                            background: "linear-gradient(165deg, #ecfeff 0%, #e0f2fe 52%, #dbeafe 100%)",
+                            border: "1px solid rgba(59,130,246,0.4)",
+                            shadow: "0 18px 42px rgba(37,99,235,0.14)",
+                            background: "linear-gradient(165deg, #eff6ff 0%, #dbeafe 52%, #bfdbfe 100%)",
                             color: "#1d4ed8",
                             checkColor: "#0284c7",
                         }
                       : isBasic
                         ? {
-                              border: "1px solid rgba(20,184,166,0.28)",
-                              shadow: "0 16px 36px rgba(20,184,166,0.12)",
-                              background: "linear-gradient(165deg, #f0fdf4 0%, #ecfdf5 50%, #f8fafc 100%)",
-                              color: "#0f766e",
-                              checkColor: "#0f766e",
+                              border: "1px solid rgba(22,163,74,0.36)",
+                              shadow: "0 16px 36px rgba(22,163,74,0.12)",
+                              background: "linear-gradient(165deg, #f0fdf4 0%, #dcfce7 50%, #bbf7d0 100%)",
+                              color: "#166534",
+                              checkColor: "#15803d",
                           }
                         : {
                               border: "1px solid rgba(148,163,184,0.26)",
