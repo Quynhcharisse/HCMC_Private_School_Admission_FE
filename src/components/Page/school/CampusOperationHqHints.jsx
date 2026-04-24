@@ -15,7 +15,7 @@ export function HqScalarDiffChip({fieldKey, effectiveOp, hqOp, hqMissing}) {
     <Chip
       size="small"
       label={differs ? "Khác với trụ sở chính" : "Giống trụ sở chính"}
-      color={differs ? "warning" : "default"}
+      color={differs ? "primary" : "default"}
       variant={differs ? "filled" : "outlined"}
       sx={{height: 22, fontSize: "0.7rem", flexShrink: 0}}
     />

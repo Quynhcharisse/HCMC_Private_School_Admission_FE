@@ -53,10 +53,29 @@ export function sanitizeAdmissionSettingsForApi(adm) {
         })
         .filter((group) => group.methodCode || group.documents.length > 0)
     : [];
+  const autoCloseOnFull = typeof adm.autoCloseOnFull === "boolean" ? adm.autoCloseOnFull : true;
+  const quotaAlertThresholdPercentRaw = Number(adm.quotaAlertThresholdPercent);
+  const quotaAlertThresholdPercent = Number.isNaN(quotaAlertThresholdPercentRaw)
+    ? 90
+    : Math.min(100, Math.max(0, quotaAlertThresholdPercentRaw));
+  const allowedMethodCodeSet = new Set(methods.map((m) => String(m.code || "").trim()).filter(Boolean));
+  const filteredAdmissionProcesses = methodAdmissionProcess.filter((row) => {
+    const code = String(row?.methodCode || "").trim();
+    return code && allowedMethodCodeSet.has(code);
+  });
+  const filteredMethodDocumentRequirements = methodDocumentRequirements.filter((group) => {
+    const code = String(group?.methodCode || "").trim();
+    return code && allowedMethodCodeSet.has(code);
+  });
   return {
     allowedMethods: methods,
-    methodAdmissionProcess,
-    methodDocumentRequirements,
+    // BE PUT contract uses `admissionProcesses`.
+    admissionProcesses: filteredAdmissionProcesses,
+    // Keep this key for backward-compatible BE readers if any.
+    methodAdmissionProcess: filteredAdmissionProcesses,
+    methodDocumentRequirements: filteredMethodDocumentRequirements,
+    autoCloseOnFull,
+    quotaAlertThresholdPercent,
   };
 }
 
