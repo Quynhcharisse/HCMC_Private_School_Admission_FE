@@ -47,7 +47,7 @@ import PowerSettingsNewRoundedIcon from "@mui/icons-material/PowerSettingsNewRou
 import SchoolIcon from "@mui/icons-material/School";
 import SearchIcon from "@mui/icons-material/Search";
 import VerifiedIcon from "@mui/icons-material/Verified";
-import DescriptionIcon from "@mui/icons-material/Description";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import ScienceIcon from "@mui/icons-material/Science";
@@ -63,7 +63,13 @@ import {ConfirmHighlight} from "../../ui/ConfirmDialog.jsx";
 
 import {useSchool} from "../../../contexts/SchoolContext.jsx";
 import {getCurriculumList} from "../../../services/CurriculumService.jsx";
-import {cloneProgram, getProgramList, handleProgramAction, saveProgram} from "../../../services/ProgramService.jsx";
+import {
+    cloneProgram,
+    getProgramList,
+    handleProgramAction,
+    importProgramSubjectsFromExcel,
+    saveProgram
+} from "../../../services/ProgramService.jsx";
 import CreatePostRichTextEditor from "../../ui/CreatePostRichTextEditor.jsx";
 
 const modalPaperSx = {
@@ -749,7 +755,7 @@ function ProgramCurriculumDetailPanel({curriculum, isPrimaryBranch}) {
                                 justifyContent: "center",
                             }}
                         >
-                            <DescriptionIcon sx={{fontSize: 18}}/>
+                            <FileUploadOutlinedIcon sx={{fontSize: 18}}/>
                         </Box>
                         <Typography sx={{fontWeight: 900, color: "#1e293b"}}>Mô tả</Typography>
                     </Box>
@@ -855,6 +861,7 @@ export default function SchoolPrograms() {
     const [activeStep, setActiveStep] = useState(0);
 
     const [submitLoading, setSubmitLoading] = useState(false);
+    const [importExtraSubjectLoading, setImportExtraSubjectLoading] = useState(false);
 
     const [selectedProgram, setSelectedProgram] = useState(null);
     const [originalCurriculumId, setOriginalCurriculumId] = useState(null);
@@ -1089,6 +1096,7 @@ export default function SchoolPrograms() {
         setCurriculumSelectionWarning("");
         setSelectedCurriculum(null);
         setFormErrors({});
+        setImportExtraSubjectLoading(false);
         setFormValues({
             name: "",
             languageOfInstructionList: [],
@@ -1125,6 +1133,7 @@ export default function SchoolPrograms() {
         );
         setSelectedCurriculum(null);
         setFormErrors({});
+        setImportExtraSubjectLoading(false);
         setFormValues({
             name: program.name ?? "",
             languageOfInstructionList: Array.isArray(program.languageOfInstructionList)
@@ -1160,6 +1169,7 @@ export default function SchoolPrograms() {
         setCurriculumSelectionWarning("");
         setSelectedCurriculum(null);
         setFormErrors({});
+        setImportExtraSubjectLoading(false);
         setFormValues({
             name: program.name ?? "",
             languageOfInstructionList: Array.isArray(program.languageOfInstructionList)
@@ -1194,6 +1204,7 @@ export default function SchoolPrograms() {
         setCurriculumSelectionWarning("");
         setSelectedCurriculum(null);
         setFormErrors({});
+        setImportExtraSubjectLoading(false);
         setFormValues({
             name: "",
             languageOfInstructionList: [],
@@ -1345,6 +1356,32 @@ export default function SchoolPrograms() {
     };
 
     const handleBack = () => setActiveStep((s) => Math.max(0, s - 1));
+
+    const handleImportExtraSubjects = async (file) => {
+        if (!file) return;
+        if (submitLoading || importExtraSubjectLoading) return;
+        setImportExtraSubjectLoading(true);
+        try {
+            const res = await importProgramSubjectsFromExcel(file);
+            const imported = Array.isArray(res?.data?.body)
+                ? res.data.body.map((item) => ({
+                    name: item?.name != null ? String(item.name) : "",
+                    description: item?.description != null ? String(item.description) : "",
+                    isMandatory: !!item?.isMandatory,
+                }))
+                : [];
+            setFormValues((prev) => ({...prev, extraSubjectList: imported}));
+            setFormErrors((prev) => ({...prev, extraSubjectList: undefined}));
+            enqueueSnackbar(res?.data?.message || "Import môn bổ sung thành công", {variant: "success"});
+        } catch (err) {
+            enqueueSnackbar(
+                err?.response?.data?.message || err?.message || "Không thể import file môn bổ sung",
+                {variant: "error"}
+            );
+        } finally {
+            setImportExtraSubjectLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (!programModalOpen) return;
@@ -2628,7 +2665,9 @@ export default function SchoolPrograms() {
                                                 setFormErrors((prev) => ({...prev, extraSubjectList: undefined}));
                                             }}
                                             error={formErrors.extraSubjectList}
-                                            disabled={false}
+                                            disabled={submitLoading}
+                                            importLoading={importExtraSubjectLoading}
+                                            onImportFile={handleImportExtraSubjects}
                                         />
 
                                         {coreLockedByActive ? (
@@ -3389,9 +3428,10 @@ function LanguageInstructionSelector({value, options, onChange, error}) {
     );
 }
 
-function ExtraSubjectEditor({value, onChange, error, disabled = false}) {
+function ExtraSubjectEditor({value, onChange, error, disabled = false, importLoading = false, onImportFile}) {
     const subjects = Array.isArray(value) ? value : [];
     const extraSubjectItemRefs = useRef([]);
+    const importInputRef = useRef(null);
     const [pendingScrollIndex, setPendingScrollIndex] = useState(null);
 
     useEffect(() => {
@@ -3421,6 +3461,16 @@ function ExtraSubjectEditor({value, onChange, error, disabled = false}) {
             )
         );
     };
+    const triggerImportInput = () => {
+        if (disabled || importLoading) return;
+        importInputRef.current?.click();
+    };
+    const handleImportFileChange = async (e) => {
+        const file = e?.target?.files?.[0];
+        e.target.value = "";
+        if (!file || typeof onImportFile !== "function") return;
+        await onImportFile(file);
+    };
 
     return (
         <Box sx={{mt: 0.6}}>
@@ -3428,16 +3478,36 @@ function ExtraSubjectEditor({value, onChange, error, disabled = false}) {
                 <Typography variant="subtitle1" sx={{fontWeight: 900, color: "#1e293b"}}>
                     Môn bổ sung
                 </Typography>
-                <Button
-                    size="small"
-                    variant="outlined"
-                    startIcon={<AddIcon/>}
-                    onClick={addItem}
-                    disabled={disabled}
-                    sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
-                >
-                    Thêm môn
-                </Button>
+                <Stack direction="row" spacing={1}>
+                    <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<AddIcon/>}
+                        onClick={addItem}
+                        disabled={disabled || importLoading}
+                        sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
+                    >
+                        Thêm môn
+                    </Button>
+                    <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={importLoading ? <CircularProgress size={16}/> : <FileUploadOutlinedIcon/>}
+                        onClick={triggerImportInput}
+                        disabled={disabled || importLoading}
+                        sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
+                    >
+                        Import file
+                    </Button>
+                </Stack>
+                <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    style={{display: "none"}}
+                    onChange={handleImportFileChange}
+                    disabled={disabled || importLoading}
+                />
             </Stack>
 
             {error && typeof error === "string" ? (
