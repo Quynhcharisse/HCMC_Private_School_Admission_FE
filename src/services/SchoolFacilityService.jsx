@@ -116,6 +116,21 @@ export const getSchoolCampusConfigList = async () => {
   return response;
 };
 
+/**
+ * POST /api/v1/school/config/import/mandatory/docs
+ * Request body: multipart/form-data { file }
+ */
+export const importMandatoryDocsConfig = async (file) => {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await axiosClient.post("/school/config/import/mandatory/docs", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return response;
+};
+
 function parseFacilityConfigBlock(raw) {
   if (raw == null) return null;
   if (typeof raw === "string") {
