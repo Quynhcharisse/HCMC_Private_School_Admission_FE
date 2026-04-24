@@ -119,6 +119,17 @@ export const getAdminPackageFees = async () => {
     return response || null;
 };
 
+export const getAdminRevenueSummary = async ({ year, month, packageType }) => {
+    const response = await axiosClient.get("/admin/revenues/summary", {
+        params: {
+            year,
+            ...(month ? { month } : {}),
+            ...(packageType ? { packageType } : {}),
+        },
+    });
+    return response || null;
+};
+
 export const upsertAdminPackageFee = async (payload) => {
     const response = await axiosClient.post("/admin/service/package/fee", payload);
     return response || null;

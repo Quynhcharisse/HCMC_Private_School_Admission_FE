@@ -907,9 +907,9 @@ export default function AdminSchoolVerification() {
                     pt: 1.8,
                     pb: 0.6,
                 }}
-                titleTextSx={{ fontSize: 24, lineHeight: 1.25, fontWeight: 800, width: "100%", textAlign: "center", color: "#0f172a" }}
-                contentSx={{ textAlign: "center", px: { xs: 3, sm: 5.2 }, pt: 0.7, pb: 1.8 }}
-                descriptionSx={{ fontSize: 18, lineHeight: 1.72, textAlign: "center", color: "#475569", m: 0 }}
+                titleTextSx={{ fontSize: { xs: 20, sm: 21 }, lineHeight: 1.25, fontWeight: 800, width: "100%", textAlign: "center", color: "#0f172a" }}
+                contentSx={{ textAlign: "center", px: { xs: 3, sm: 4.4 }, pt: 0.35, pb: 1.2 }}
+                descriptionSx={{ fontSize: { xs: 15, sm: 16 }, lineHeight: 1.62, textAlign: "center", color: "#475569", m: 0 }}
                 dialogSx={{
                     "@keyframes warningPulse": {
                         "0%": { transform: "scale(1)", boxShadow: "0 0 0 8px rgba(245,158,11,0.12), 0 12px 28px rgba(245,158,11,0.3)" },
@@ -927,16 +927,16 @@ export default function AdminSchoolVerification() {
                         pt: 1.2,
                     },
                     "& .MuiDialogActions-root .MuiButton-root:first-of-type": {
-                        minWidth: 168,
-                        height: 46,
+                        minWidth: 142,
+                        height: 40,
                         borderRadius: 999,
                         borderColor: "rgba(15,23,42,0.12)",
                         backgroundColor: "#f8fafc",
                     },
                 }}
                 confirmButtonSx={{
-                    minWidth: 188,
-                    height: 46,
+                    minWidth: 158,
+                    height: 40,
                     borderRadius: 999,
                     boxShadow: "0 12px 26px rgba(37,99,235,0.5)",
                     background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 58%, #1d4ed8 100%)",
