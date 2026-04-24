@@ -1148,6 +1148,27 @@ function buildPartialPayload(current, initial) {
   return out;
 }
 
+function getSectionKeysByTabSlug(tabSlug) {
+  switch (String(tabSlug || "").trim()) {
+    case "admission":
+      return ["admissionSettingsData"];
+    case "documents":
+      return ["documentRequirementsData"];
+    case "operation":
+      return ["operationSettingsData"];
+    case "finance":
+      return ["financePolicyData"];
+    case "facility":
+      return ["facilityData"];
+    case "quota":
+      return ["quotaConfigData"];
+    case "resource-distribution":
+      return ["resourceDistributionData"];
+    default:
+      return [];
+  }
+}
+
 function campusKey(c) {
   return c?.id ?? c?.campusId ?? c?.campusID;
 }
@@ -1670,9 +1691,10 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   const [admissionMethodExpanded, setAdmissionMethodExpanded] = useState({});
   /** Chuỗi JSON so sánh với mẫu GET system (badge). */
   const [systemAdmissionComparable, setSystemAdmissionComparable] = useState("");
-  const [admissionViewMode, setAdmissionViewMode] = useState("edit");
+  const [admissionViewMode] = useState("edit");
   const [admissionFirstRunOpen, setAdmissionFirstRunOpen] = useState(false);
   const [admissionRestoreConfirmOpen, setAdmissionRestoreConfirmOpen] = useState(false);
+  const [restoreTemplateTarget, setRestoreTemplateTarget] = useState("admission");
   const [admissionToggleOffConfirm, setAdmissionToggleOffConfirm] = useState({open: false, code: ""});
   const [admissionRemoveRowConfirm, setAdmissionRemoveRowConfirm] = useState({open: false, idx: -1});
   const [loadingSystemAdmission, setLoadingSystemAdmission] = useState(false);
@@ -2046,7 +2068,11 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     }
 
     /** Cơ sở chính: PUT /api/v1/school/config/{schoolId} (gồm operationSettingsData + facilityData nếu đổi). */
-    const schoolPayload = buildPartialPayload(config, initial);
+    const schoolPayloadRaw = buildPartialPayload(config, initial);
+    const allowedSectionKeys = new Set(getSectionKeysByTabSlug(tabSlug));
+    const schoolPayload = Object.fromEntries(
+      Object.entries(schoolPayloadRaw).filter(([key]) => allowedSectionKeys.has(key))
+    );
 
     if (Object.keys(schoolPayload).length === 0) {
       enqueueSnackbar("Không có thay đổi để lưu", {variant: "info"});
@@ -2178,6 +2204,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     schoolId,
     useCampusConfigFlow,
     effectiveCampusId,
+    tabSlug,
     branchPolicyDetail,
     setTabIndex,
     setSearchParams,
@@ -2202,6 +2229,12 @@ export default function SchoolConfig({variant = "platform"} = {}) {
         return;
       }
       const am = Array.isArray(tmpl.allowedMethods) ? tmpl.allowedMethods : [];
+      const processesRaw = Array.isArray(tmpl.methodAdmissionProcess)
+        ? tmpl.methodAdmissionProcess
+        : Array.isArray(tmpl.admissionProcesses)
+          ? tmpl.admissionProcesses
+          : [];
+      const processGroups = processesRaw.map(normalizeMethodAdmissionProcessGroup);
       const mapped = am.map((m) => ({
         code: m?.code != null ? String(m.code) : "",
         displayName: m?.displayName != null ? String(m.displayName) : "",
@@ -2213,6 +2246,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
           ...c.admissionSettingsData,
           availableMethods: mapped.map((x) => ({...x})),
           allowedMethods: mapped.map((x) => ({...x})),
+          methodAdmissionProcess: processGroups,
           autoCloseOnFull: typeof tmpl.autoCloseOnFull === "boolean" ? tmpl.autoCloseOnFull : true,
           quotaAlertThresholdPercent:
             tmpl.quotaAlertThresholdPercent != null && !Number.isNaN(Number(tmpl.quotaAlertThresholdPercent))
@@ -2226,13 +2260,55 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     }
   }, []);
 
-  const handleRestoreTemplateClick = useCallback(() => {
+  const applySystemDocumentTemplateToForm = useCallback(async () => {
+    setLoadingSystemAdmission(true);
+    try {
+      const tmpl = await fetchSystemAdmissionSettingsData();
+      if (!tmpl || typeof tmpl !== "object") {
+        enqueueSnackbar("Không có mẫu hồ sơ trên hệ thống.", {variant: "info"});
+        return;
+      }
+      const docRoot = tmpl.documentRequirementsData && typeof tmpl.documentRequirementsData === "object" ? tmpl.documentRequirementsData : {};
+      const byMethodRaw = Array.isArray(docRoot.byMethod)
+        ? docRoot.byMethod
+        : Array.isArray(tmpl.methodDocumentRequirements)
+          ? tmpl.methodDocumentRequirements
+          : Array.isArray(tmpl.byMethod)
+            ? tmpl.byMethod
+            : [];
+      const mandatoryRaw = Array.isArray(docRoot.mandatoryAll) ? docRoot.mandatoryAll : [];
+      const byMethod = byMethodRaw.map(normalizeByMethodGroup).map((g) => ({
+        ...g,
+        documents: (g.documents || []).map((d) => ({...normalizeDocItem(d), required: true})),
+      }));
+      const mandatoryAll = mandatoryRaw.map((d) => ({...normalizeDocItem(d), required: true}));
+
+      setConfig((c) => ({
+        ...c,
+        documentRequirementsData: {
+          ...c.documentRequirementsData,
+          mandatoryAll,
+          byMethod,
+        },
+      }));
+      enqueueSnackbar("Đã áp dụng mẫu hệ thống cho Cài đặt hồ sơ (chưa lưu DB).", {variant: "success"});
+    } finally {
+      setLoadingSystemAdmission(false);
+    }
+  }, []);
+
+  const handleRestoreTemplateClick = useCallback((target = "admission") => {
     if (isDirty) {
+      setRestoreTemplateTarget(target);
       setAdmissionRestoreConfirmOpen(true);
       return;
     }
+    if (target === "documents") {
+      void applySystemDocumentTemplateToForm();
+      return;
+    }
     void applySystemTemplateToForm();
-  }, [isDirty, applySystemTemplateToForm]);
+  }, [isDirty, applySystemTemplateToForm, applySystemDocumentTemplateToForm]);
 
   const applyToggleAdmissionMethod = useCallback(
     (code, checked) => {
@@ -2759,40 +2835,16 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                 <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1.5} sx={{mb: 2}}>
                   <Box sx={{minWidth: 0}}>
                     <Typography sx={{fontWeight: 800, fontSize: 18}}>Phương thức tuyển sinh</Typography>
-                    <Stack direction="row" alignItems="center" flexWrap="wrap" gap={1} sx={{mt: 1}}>
-                      <Chip size="small" label={admissionTemplateBadge.label} color={admissionTemplateBadge.color} variant="outlined"/>
-                    </Stack>
                   </Box>
                   <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center" justifyContent="flex-end">
-                    <ToggleButtonGroup
-                      size="small"
-                      value={admissionViewMode}
-                      exclusive
-                      disabled={saving}
-                      onChange={(_, v) => v != null && setAdmissionViewMode(v)}
-                      sx={{"& .MuiToggleButton-root": {textTransform: "none", fontWeight: 700, px: 1.5}}}
-                    >
-                      <ToggleButton value="edit">Soạn thảo</ToggleButton>
-                      <ToggleButton value="preview">Xem trước</ToggleButton>
-                    </ToggleButtonGroup>
                     <Button
                       variant="outlined"
                       size="small"
-                      disabled={loadingSystemAdmission || saving}
+                      disabled={loadingSystemAdmission || saving || !editing}
                       onClick={() => void applySystemTemplateToForm()}
                       sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
                     >
                       Lấy mẫu từ hệ thống
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      color="warning"
-                      disabled={loadingSystemAdmission || saving}
-                      onClick={handleRestoreTemplateClick}
-                      sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
-                    >
-                      Khôi phục theo mẫu hệ thống
                     </Button>
                     {admissionViewMode === "edit" ? (
                       <Button
@@ -3639,7 +3691,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                         const codeTrim = String(row.feeCode ?? "").trim();
                         return (
                           <Accordion
-                            key={`fee-${idx}-${codeTrim || "new"}`}
+                            key={`fee-${idx}`}
                             defaultExpanded
                             elevation={0}
                             disableGutters
@@ -3822,7 +3874,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                       <Stack direction={{xs: "column", sm: "row"}} spacing={1.5}>
                                         <TextField
                                           size="small"
-                                          label="Số lượng"
+                                          label="Số tiền"
                                           type="number"
                                           value={row.amount === "" || row.amount == null ? "" : row.amount}
                                           onChange={(e) => {
@@ -3893,7 +3945,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                         />
                                         <TextField
                                           size="small"
-                                          label="Số tiền"
+                                          label="Số tiền hiển thị đầy đủ"
                                           value={row.display ?? ""}
                                           onChange={(e) => {
                                             const v = e.target.value;
@@ -4230,16 +4282,27 @@ export default function SchoolConfig({variant = "platform"} = {}) {
 
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{mb: 2}}>
                   <Typography sx={{fontWeight: 800}}>Theo phương thức tuyển sinh</Typography>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<AddIcon/>}
-                    disabled={fieldDisabled}
-                    onClick={addByMethodGroup}
-                    sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
-                  >
-                    Thêm nhóm phương thức
-                  </Button>
+                  <Stack direction="row" spacing={1}>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      disabled={loadingSystemAdmission || saving || !editing}
+                      onClick={() => void applySystemDocumentTemplateToForm()}
+                      sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
+                    >
+                      Lấy mẫu từ hệ thống
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<AddIcon/>}
+                      disabled={fieldDisabled}
+                      onClick={addByMethodGroup}
+                      sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
+                    >
+                      Thêm nhóm phương thức
+                    </Button>
+                  </Stack>
                 </Stack>
                 <Alert severity="info" sx={{borderRadius: 2, maxWidth: 1200, mb: 2.5}}>
                   <Typography variant="body2" component="div" sx={{fontWeight: 700, mb: 0.75}}>
@@ -4578,7 +4641,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                           }
                           size="small"
                           helperText="Dành cho phụ huynh khi đặt lịch: tối đa bao nhiêu lượt đặt hoặc chờ trong một khung giờ. Không phải số tư vấn viên — xem hai ô bên cạnh."
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
                         />
@@ -4604,10 +4667,9 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                           }
                           size="small"
                           helperText="Khi gán lịch cho tư vấn viên: mỗi khung giờ và khoảng ngày phải có ít nhất số người này. Không liên quan tới lượt đặt của phụ huynh (ô bên trái)."
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
-                          sx={{color: "red !important"}}
                         />
                       </Box>
                       <Box sx={{minWidth: 0}}>
@@ -4642,7 +4704,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                           }
                           size="small"
                           helperText="Giới hạn nhân sự: tối đa bao nhiêu tư vấn viên được gán chung một khung giờ và cùng khoảng ngày. 0 = không giới hạn. Khác với lượt đặt của phụ huynh."
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
                         />
@@ -4681,7 +4743,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                           }
                           size="small"
                           helperText="*Thời lượng của một cuộc hẹn tư vấn (ví dụ: 30, 45 phút)."
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
                         />
@@ -4720,7 +4782,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                           }
                           size="small"
                           helperText="(*) Thời gian nghỉ giữa hai slot tư vấn liên tiếp (0 = không nghỉ). Bước giữa hai bắt đầu tiết = độ dài tiết + nghỉ"
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
                         />
@@ -4756,7 +4818,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                           }
                           size="small"
                           helperText="(*) Thời gian tối thiểu phải đặt trước khi cuộc hẹn diễn ra"
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
                         />
@@ -5776,6 +5838,10 @@ export default function SchoolConfig({variant = "platform"} = {}) {
               color="warning"
               onClick={() => {
                 setAdmissionRestoreConfirmOpen(false);
+                if (restoreTemplateTarget === "documents") {
+                  void applySystemDocumentTemplateToForm();
+                  return;
+                }
                 void applySystemTemplateToForm();
               }}
               sx={{textTransform: "none", fontWeight: 700}}
