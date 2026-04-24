@@ -2701,7 +2701,7 @@ export default function SchoolCurriculums() {
                                         <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
                                             Môn học
                                         </Typography>
-                                        {formValues.curriculumType !== "NATIONAL" && formValues.curriculumType !== "INTERNATIONAL" ? (
+                                        {formValues.curriculumType !== "NATIONAL" ? (
                                             <Button
                                                 size="small"
                                                 variant="outlined"
@@ -3035,7 +3035,7 @@ export default function SchoolCurriculums() {
                                 <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
                                     Môn học
                                 </Typography>
-                                {formValues.curriculumType !== "INTERNATIONAL" && formValues.curriculumType !== "NATIONAL" ? (
+                                {formValues.curriculumType !== "NATIONAL" ? (
                                     <Button
                                         size="small"
                                         variant="outlined"

@@ -51,6 +51,7 @@ import {useSchool} from "../../../contexts/SchoolContext.jsx";
 import {
   getCampusConfig,
   getSchoolConfig,
+  importMandatoryDocsConfig,
   parseSchoolConfigResponseBody,
   updateCampusConfig,
   updateSchoolConfig,
@@ -1679,6 +1680,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   const initialRef = useRef(null);
   const facilityFormRef = useRef(null);
   const methodAdmissionProcessGroupRefs = useRef({});
+  const mandatoryDocsImportInputRef = useRef(null);
   const [pendingScrollToProcessIdx, setPendingScrollToProcessIdx] = useState(null);
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
   const [admissionMethodExpanded, setAdmissionMethodExpanded] = useState({});
@@ -2522,7 +2524,13 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     });
   }, []);
 
+  const onImportMandatoryDocsClick = useCallback(() => {
+    if (fieldDisabled) return;
+    mandatoryDocsImportInputRef.current?.click();
+  }, [fieldDisabled]);
+
   const addMandatoryDocument = useCallback(() => {
+    if (fieldDisabled) return;
     setConfig((c) => ({
       ...c,
       documentRequirementsData: {
@@ -2530,7 +2538,33 @@ export default function SchoolConfig({variant = "platform"} = {}) {
         mandatoryAll: [...(c.documentRequirementsData.mandatoryAll || []), {code: "", name: "", required: true}],
       },
     }));
-  }, []);
+  }, [fieldDisabled]);
+
+  const onMandatoryDocsFileChange = useCallback(
+    async (e) => {
+      const file = e?.target?.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      if (fieldDisabled) return;
+      try {
+        const res = await importMandatoryDocsConfig(file);
+        const imported = Array.isArray(res?.data?.body) ? res.data.body.map((item) => ({...normalizeDocItem(item), required: true})) : [];
+        setConfig((c) => ({
+          ...c,
+          documentRequirementsData: {
+            ...c.documentRequirementsData,
+            mandatoryAll: imported,
+          },
+        }));
+        enqueueSnackbar(res?.data?.message || "Import hồ sơ thành công", {variant: "success"});
+      } catch (err) {
+        enqueueSnackbar(err?.response?.data?.message || err?.message || "Không thể import file hồ sơ bắt buộc chung", {
+          variant: "error",
+        });
+      }
+    },
+    [fieldDisabled]
+  );
 
   const removeMandatoryDocumentAt = useCallback((idx) => {
     setConfig((c) => {
@@ -2781,6 +2815,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                         variant="outlined"
                         size="small"
                         startIcon={<AddIcon/>}
+                        disabled={fieldDisabled}
                         onClick={addAdmissionMethod}
                         sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...admissionBlockPointerSx}}
                       >
@@ -3346,6 +3381,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                         variant="outlined"
                         size="small"
                         startIcon={<AddIcon/>}
+                        disabled={fieldDisabled}
                         onClick={() =>
                           setConfig((c) => {
                             const fin = c.financePolicyData;
@@ -3854,15 +3890,36 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                 <Stack spacing={1.25} sx={{mb: 2}}>
                   <Stack direction="row" justifyContent="space-between" alignItems="center">
                     <Typography sx={{fontWeight: 800}}>Hồ sơ bắt buộc chung</Typography>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<AddIcon/>}
-                      onClick={addMandatoryDocument}
-                      sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
-                    >
-                      Thêm
-                    </Button>
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<AddIcon/>}
+                        onClick={addMandatoryDocument}
+                        disabled={fieldDisabled}
+                        sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
+                      >
+                        Thêm
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<AddIcon/>}
+                        onClick={onImportMandatoryDocsClick}
+                        disabled={fieldDisabled}
+                        sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
+                      >
+                        Import file
+                      </Button>
+                    </Stack>
+                    <input
+                      ref={mandatoryDocsImportInputRef}
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      style={{display: "none"}}
+                      onChange={onMandatoryDocsFileChange}
+                      disabled={fieldDisabled}
+                    />
                   </Stack>
                   <Alert severity="info" sx={{borderRadius: 2, maxWidth: 1200}}>
                     <Typography variant="body2" component="div" sx={{fontWeight: 700, mb: 0.75}}>
@@ -3950,6 +4007,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     variant="outlined"
                     size="small"
                     startIcon={<AddIcon/>}
+                    disabled={fieldDisabled}
                     onClick={addByMethodGroup}
                     sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
                   >
@@ -4045,6 +4103,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                             variant="outlined"
                             size="small"
                             startIcon={<AddIcon/>}
+                            disabled={fieldDisabled}
                             onClick={() => addDocumentToMethod(gIdx)}
                             sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
                           >
@@ -4743,6 +4802,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     })}
                     <Button
                       startIcon={<AddIcon/>}
+                      disabled={fieldDisabled}
                       onClick={() =>
                         setConfig((c) => {
                           const ws = [
@@ -4968,7 +5028,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                         gửi cùng dữ liệu cấu hình vận hành của trường.
                       </Typography>
                     </Box>
-                    <Button startIcon={<AddIcon/>} onClick={addAdmissionSeason} sx={{textTransform: "none", flexShrink: 0, ...blockPointerSx}}>
+                    <Button startIcon={<AddIcon/>} disabled={fieldDisabled} onClick={addAdmissionSeason} sx={{textTransform: "none", flexShrink: 0, ...blockPointerSx}}>
                       Thêm chiến dịch
                     </Button>
                   </Stack>
@@ -5238,6 +5298,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                 variant="outlined"
                                 color="warning"
                                 startIcon={<AddIcon/>}
+                                disabled={fieldDisabled}
                                 onClick={() => addExtraShiftToAdmissionSeason(si)}
                                 sx={{textTransform: "none", alignSelf: "flex-start", mt: 1.5, ...blockPointerSx}}
                               >
@@ -5258,7 +5319,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     <Box sx={{flex: 1, minWidth: 220}}>
                       <Typography sx={{fontWeight: 800}}>Quy trình tuyển sinh theo phương thức</Typography>
                     </Box>
-                    <Button startIcon={<AddIcon/>} onClick={addMethodAdmissionProcess} sx={{textTransform: "none", flexShrink: 0, ...blockPointerSx}}>
+                    <Button startIcon={<AddIcon/>} disabled={fieldDisabled} onClick={addMethodAdmissionProcess} sx={{textTransform: "none", flexShrink: 0, ...blockPointerSx}}>
                       Thêm phương thức
                     </Button>
                   </Stack>
@@ -5418,6 +5479,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                               <Button
                                 size="small"
                                 startIcon={<AddIcon/>}
+                                disabled={fieldDisabled}
                                 onClick={() => addAdmissionStepToMethod(gi)}
                                 sx={{textTransform: "none", ...blockPointerSx}}
                               >
@@ -5544,6 +5606,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     variant="outlined"
                     size="small"
                     startIcon={<AddIcon/>}
+                    disabled={fieldDisabled}
                     onClick={addResourceAllocation}
                     sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
                   >

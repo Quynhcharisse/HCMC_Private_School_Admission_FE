@@ -181,7 +181,7 @@ function buildConfigMenuItems(isPrimaryBranch, schoolCtxLoading) {
             path: "/school/campus-config",
         },
         {
-            text: "Chỉnh cơ sở của bạn",
+            text: "Cấu hình cơ sở của bạn",
             icon: <ApartmentIcon />,
             path: "/school/campus-facility-config",
         },
