@@ -21,8 +21,24 @@ export function sanitizeAdmissionSettingsForApi(adm) {
     seen.add(withCode[i].code);
     methods.unshift(withCode[i]);
   }
+  const methodAdmissionProcess = Array.isArray(adm.methodAdmissionProcess)
+    ? adm.methodAdmissionProcess
+        .map((g) => {
+          const methodCode = String(g?.methodCode ?? "").trim();
+          const steps = Array.isArray(g?.steps)
+            ? g.steps.map((s, idx) => ({
+                stepName: s?.stepName != null ? String(s.stepName) : "",
+                stepOrder: s?.stepOrder != null && !Number.isNaN(Number(s.stepOrder)) ? Number(s.stepOrder) : idx + 1,
+                description: s?.description != null ? String(s.description) : "",
+              }))
+            : [];
+          return {methodCode, steps};
+        })
+        .filter((row) => row.methodCode !== "" || row.steps.length > 0)
+    : [];
   return {
     allowedMethods: methods,
+    methodAdmissionProcess,
     autoCloseOnFull: typeof adm.autoCloseOnFull === "boolean" ? adm.autoCloseOnFull : true,
     quotaAlertThresholdPercent:
       adm.quotaAlertThresholdPercent != null && !Number.isNaN(Number(adm.quotaAlertThresholdPercent))
