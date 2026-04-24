@@ -7,14 +7,21 @@ import {
     Dialog,
     DialogActions,
     DialogContent,
+    FormControl,
+    IconButton,
+    InputLabel,
     LinearProgress,
+    MenuItem,
+    Select,
     Stack,
     TextField,
     Tooltip,
     Typography,
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import AddIcon from "@mui/icons-material/Add";
 import CampaignIcon from "@mui/icons-material/Campaign";
+import CloseIcon from "@mui/icons-material/Close";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
@@ -27,6 +34,11 @@ import {
     updateCampaignTemplate,
     updateCampaignTemplateStatus,
 } from "../../../services/CampaignService.jsx";
+import {
+    getSchoolConfigByKey,
+    parseSchoolConfigResponseBody,
+    SCHOOL_CONFIG_KEY,
+} from "../../../services/SchoolFacilityService.jsx";
 import CampaignOfferingsSection from "./CampaignOfferingsSection.jsx";
 import CreatePostRichTextEditor from "../../ui/CreatePostRichTextEditor.jsx";
 
@@ -115,12 +127,33 @@ function mapTemplate(row) {
     if (!row) return null;
     const id = row.admissionCampaignTemplateId ?? row.id;
     const status = normalizeCampaignStatus(row.status);
+    const timelines = Array.isArray(row.admissionMethodTimelines)
+        ? row.admissionMethodTimelines.map((t) => ({
+              methodCode: String(t?.methodCode ?? "").trim(),
+              startDate: normalizeDateLikeToIso(t?.startDate),
+              endDate: normalizeDateLikeToIso(t?.endDate),
+          }))
+        : [];
     return {
         ...row,
         id,
         admissionCampaignTemplateId: row.admissionCampaignTemplateId ?? row.id,
         status,
+        admissionMethodTimelines: timelines,
     };
+}
+
+function normalizeDateLikeToIso(v) {
+    if (Array.isArray(v) && v.length >= 3) {
+        const y = Number(v[0]);
+        const m = Number(v[1]);
+        const d = Number(v[2]);
+        if (Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)) {
+            return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+        }
+    }
+    const s = String(v ?? "").trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : "";
 }
 
 function formatDate(dateStr) {
@@ -275,6 +308,7 @@ export default function SchoolCampaignDetail() {
         description: "",
         startDate: "",
         endDate: "",
+        admissionMethodTimelines: [{ methodCode: "", startDate: "", endDate: "" }],
     });
     const [formErrors, setFormErrors] = useState({});
     /** Chiến dịch khác cùng năm đang OPEN (để đồng bộ validationUpdateAdmissionCampaignTemplate). */
@@ -294,6 +328,7 @@ export default function SchoolCampaignDetail() {
     /** Tăng sau khi lưu template để remount phần chỉ tiêu và gọi lại API */
     const [offeringsRemountKey, setOfferingsRemountKey] = useState(0);
     const [descriptionFieldKey, setDescriptionFieldKey] = useState(0);
+    const [admissionMethodOptions, setAdmissionMethodOptions] = useState([]);
 
     const idNum = campaignId ? parseInt(campaignId, 10) : NaN;
 
@@ -326,6 +361,14 @@ export default function SchoolCampaignDetail() {
                 description: campaignDescriptionToInitialHtml(m.description),
                 startDate: m.startDate?.slice(0, 10) || "",
                 endDate: m.endDate?.slice(0, 10) || "",
+                admissionMethodTimelines:
+                    Array.isArray(m.admissionMethodTimelines) && m.admissionMethodTimelines.length > 0
+                        ? m.admissionMethodTimelines.map((t) => ({
+                              methodCode: String(t?.methodCode ?? "").trim(),
+                              startDate: String(t?.startDate ?? "").slice(0, 10),
+                              endDate: String(t?.endDate ?? "").slice(0, 10),
+                          }))
+                        : [{ methodCode: "", startDate: "", endDate: "" }],
             });
             setLoadingCampaign(false);
             return;
@@ -341,6 +384,14 @@ export default function SchoolCampaignDetail() {
                     description: campaignDescriptionToInitialHtml(c.description),
                     startDate: c.startDate?.slice(0, 10) || "",
                     endDate: c.endDate?.slice(0, 10) || "",
+                    admissionMethodTimelines:
+                        Array.isArray(c.admissionMethodTimelines) && c.admissionMethodTimelines.length > 0
+                            ? c.admissionMethodTimelines.map((t) => ({
+                                  methodCode: String(t?.methodCode ?? "").trim(),
+                                  startDate: String(t?.startDate ?? "").slice(0, 10),
+                                  endDate: String(t?.endDate ?? "").slice(0, 10),
+                              }))
+                            : [{ methodCode: "", startDate: "", endDate: "" }],
                 });
             } else setCampaign(null);
             setLoadingCampaign(false);
@@ -380,9 +431,25 @@ export default function SchoolCampaignDetail() {
             String(formValues.name ?? "").trim() !== originalName ||
             campaignDescriptionPlainText(formValues.description ?? "") !== originalDescriptionPlain ||
             String(formValues.startDate ?? "").trim() !== originalStartDate ||
-            String(formValues.endDate ?? "").trim() !== originalEndDate
+            String(formValues.endDate ?? "").trim() !== originalEndDate ||
+            JSON.stringify(
+                (Array.isArray(formValues.admissionMethodTimelines) ? formValues.admissionMethodTimelines : []).map(
+                    (t) => ({
+                        methodCode: String(t?.methodCode ?? "").trim(),
+                        startDate: String(t?.startDate ?? "").trim(),
+                        endDate: String(t?.endDate ?? "").trim(),
+                    })
+                )
+            ) !==
+                JSON.stringify(
+                    (Array.isArray(campaign?.admissionMethodTimelines) ? campaign.admissionMethodTimelines : []).map((t) => ({
+                        methodCode: String(t?.methodCode ?? "").trim(),
+                        startDate: String(t?.startDate ?? "").slice(0, 10),
+                        endDate: String(t?.endDate ?? "").slice(0, 10),
+                    }))
+                )
         );
-    }, [campaign?.name, campaign?.description, campaign?.startDate, campaign?.endDate, formValues]);
+    }, [campaign?.name, campaign?.description, campaign?.startDate, campaign?.endDate, campaign?.admissionMethodTimelines, formValues]);
 
     const progress = useMemo(
         () => getTimelineProgress(campaign?.startDate, campaign?.endDate),
@@ -393,6 +460,38 @@ export default function SchoolCampaignDetail() {
         const { name, value } = e.target;
         setFormValues((prev) => ({ ...prev, [name]: value }));
         setFormErrors((prev) => ({ ...prev, [name]: undefined }));
+    };
+
+    const handleTimelineChange = (index, field, value) => {
+        setFormValues((prev) => {
+            const next = Array.isArray(prev.admissionMethodTimelines) ? [...prev.admissionMethodTimelines] : [];
+            const row = next[index] || { methodCode: "", startDate: "", endDate: "" };
+            next[index] = { ...row, [field]: value };
+            return { ...prev, admissionMethodTimelines: next };
+        });
+        setFormErrors((prev) => ({ ...prev, admissionMethodTimelines: undefined }));
+    };
+
+    const addTimelineRow = () => {
+        setFormValues((prev) => ({
+            ...prev,
+            admissionMethodTimelines: [
+                ...(Array.isArray(prev.admissionMethodTimelines) ? prev.admissionMethodTimelines : []),
+                { methodCode: "", startDate: "", endDate: "" },
+            ],
+        }));
+    };
+
+    const removeTimelineRow = (index) => {
+        setFormValues((prev) => {
+            const current = Array.isArray(prev.admissionMethodTimelines) ? prev.admissionMethodTimelines : [];
+            const next = current.filter((_, i) => i !== index);
+            return {
+                ...prev,
+                admissionMethodTimelines: next.length > 0 ? next : [{ methodCode: "", startDate: "", endDate: "" }],
+            };
+        });
+        setFormErrors((prev) => ({ ...prev, admissionMethodTimelines: undefined }));
     };
 
     useEffect(() => {
@@ -423,6 +522,36 @@ export default function SchoolCampaignDetail() {
             cancelled = true;
         };
     }, [campaign?.year, campaign?.admissionCampaignTemplateId, campaign?.id]);
+
+    useEffect(() => {
+        let cancelled = false;
+        getSchoolConfigByKey(SCHOOL_CONFIG_KEY.ADMISSION_SETTINGS_DATA)
+            .then((res) => {
+                if (cancelled) return;
+                const body = parseSchoolConfigResponseBody(res);
+                const adm =
+                    body?.admissionSettingsData && typeof body.admissionSettingsData === "object"
+                        ? body.admissionSettingsData
+                        : body;
+                const methods = Array.isArray(adm?.allowedMethods) ? adm.allowedMethods : [];
+                const options = methods
+                    .map((m) => {
+                        const value = String(m?.code ?? "").trim();
+                        if (!value) return null;
+                        const display = String(m?.displayName ?? "").trim() || value;
+                        return { value, label: `${display} (${value})` };
+                    })
+                    .filter(Boolean);
+                setAdmissionMethodOptions(options);
+            })
+            .catch(() => {
+                if (cancelled) return;
+                setAdmissionMethodOptions([]);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     const validateForm = () => {
         const errors = {};
@@ -485,6 +614,49 @@ export default function SchoolCampaignDetail() {
             errors.year = `Năm học ${yearNum} đã có một chiến dịch đang MỞ (ID: ${oid}). Không thể có nhiều chiến dịch hoạt động cùng lúc.`;
         }
 
+        const timelines = Array.isArray(formValues.admissionMethodTimelines)
+            ? formValues.admissionMethodTimelines
+            : [];
+        if (timelines.length === 0) {
+            errors.admissionMethodTimelines = "Cần ít nhất 1 mốc phương thức tuyển sinh";
+        } else {
+            const rowErrors = [];
+            const usedCodes = new Set();
+            timelines.forEach((row, idx) => {
+                const rowErr = {};
+                const methodCode = String(row?.methodCode ?? "").trim();
+                const rowStartIso = String(row?.startDate ?? "").trim();
+                const rowEndIso = String(row?.endDate ?? "").trim();
+                if (!methodCode) rowErr.methodCode = "Chọn phương thức tuyển sinh";
+                if (!rowStartIso) rowErr.startDate = "Chọn ngày bắt đầu";
+                if (!rowEndIso) rowErr.endDate = "Chọn ngày kết thúc";
+                const rowStart = parseLocalDate(rowStartIso);
+                const rowEnd = parseLocalDate(rowEndIso);
+                if (rowStartIso && !rowStart) rowErr.startDate = "Ngày bắt đầu không hợp lệ";
+                if (rowEndIso && !rowEnd) rowErr.endDate = "Ngày kết thúc không hợp lệ";
+                if (rowStart && rowEnd && rowEnd.getTime() < rowStart.getTime()) {
+                    rowErr.endDate = "Ngày kết thúc phải sau hoặc bằng ngày bắt đầu";
+                }
+                if (start && rowStart && rowStart.getTime() < start.getTime()) {
+                    rowErr.startDate = "Ngày bắt đầu phải nằm trong chiến dịch";
+                }
+                if (end && rowEnd && rowEnd.getTime() > end.getTime()) {
+                    rowErr.endDate = "Ngày kết thúc phải nằm trong chiến dịch";
+                }
+                if (methodCode) {
+                    if (usedCodes.has(methodCode)) {
+                        rowErr.methodCode = "Phương thức đã được chọn";
+                    } else {
+                        usedCodes.add(methodCode);
+                    }
+                }
+                rowErrors[idx] = rowErr;
+            });
+            if (rowErrors.some((e) => Object.keys(e).length > 0)) {
+                errors.admissionMethodTimelines = rowErrors;
+            }
+        }
+
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -498,6 +670,14 @@ export default function SchoolCampaignDetail() {
                 description: campaignDescriptionToInitialHtml(c.description),
                 startDate: c.startDate?.slice(0, 10) || "",
                 endDate: c.endDate?.slice(0, 10) || "",
+                admissionMethodTimelines:
+                    Array.isArray(c.admissionMethodTimelines) && c.admissionMethodTimelines.length > 0
+                        ? c.admissionMethodTimelines.map((t) => ({
+                              methodCode: String(t?.methodCode ?? "").trim(),
+                              startDate: String(t?.startDate ?? "").slice(0, 10),
+                              endDate: String(t?.endDate ?? "").slice(0, 10),
+                          }))
+                        : [{ methodCode: "", startDate: "", endDate: "" }],
             });
             return c;
         }
@@ -659,6 +839,14 @@ export default function SchoolCampaignDetail() {
                 year: Number(campaign?.year),
                 startDate: formValues.startDate?.trim() || "",
                 endDate: formValues.endDate?.trim() || "",
+                admissionMethodTimelines: (Array.isArray(formValues.admissionMethodTimelines)
+                    ? formValues.admissionMethodTimelines
+                    : []
+                ).map((t) => ({
+                    methodCode: String(t?.methodCode ?? "").trim(),
+                    startDate: String(t?.startDate ?? "").trim(),
+                    endDate: String(t?.endDate ?? "").trim(),
+                })),
             });
             if (res?.status === 200 || res?.data) {
                 enqueueSnackbar("Đã lưu thay đổi chiến dịch.", { variant: "success" });
@@ -929,6 +1117,121 @@ export default function SchoolCampaignDetail() {
                             sx={{ "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                         />
                     </Stack>
+                    <Box sx={{ mt: 2 }}>
+                        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
+                            <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
+                                Mốc theo phương thức tuyển sinh
+                            </Typography>
+                            {isCampaignInfoEditable && (
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<AddIcon />}
+                                    onClick={addTimelineRow}
+                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                >
+                                    + Thêm phương thức
+                                </Button>
+                            )}
+                        </Stack>
+                        {formErrors.admissionMethodTimelines &&
+                        typeof formErrors.admissionMethodTimelines === "string" ? (
+                            <Typography variant="caption" sx={{ color: "#d32f2f", display: "block", mt: 1.2 }}>
+                                {formErrors.admissionMethodTimelines}
+                            </Typography>
+                        ) : null}
+                        <Stack spacing={1.2} sx={{ mt: 1.2 }}>
+                            {(formValues.admissionMethodTimelines || []).map((row, idx) => {
+                                const rowErr = Array.isArray(formErrors.admissionMethodTimelines)
+                                    ? formErrors.admissionMethodTimelines[idx] || {}
+                                    : {};
+                                const selectedCodes = (formValues.admissionMethodTimelines || [])
+                                    .map((r, rIdx) => (rIdx === idx ? "" : String(r?.methodCode ?? "").trim()))
+                                    .filter(Boolean);
+                                return (
+                                    <Box
+                                        key={`detail-timeline-${idx}`}
+                                        sx={{
+                                            border: "1px solid #e2e8f0",
+                                            borderRadius: 2,
+                                            bgcolor: "#f8fafc",
+                                            px: 2,
+                                            py: 1.6,
+                                        }}
+                                    >
+                                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
+                                            <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800 }}>
+                                                Mốc {idx + 1}
+                                            </Typography>
+                                            {isCampaignInfoEditable && (
+                                                <IconButton
+                                                    size="small"
+                                                    onClick={() => removeTimelineRow(idx)}
+                                                    aria-label="Xóa phương thức"
+                                                    title="Xóa"
+                                                    sx={{
+                                                        color: "#64748b",
+                                                        "&:hover": { color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)" },
+                                                    }}
+                                                >
+                                                    <CloseIcon fontSize="small" />
+                                                </IconButton>
+                                            )}
+                                        </Stack>
+                                        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 1 }}>
+                                            <FormControl fullWidth error={!!rowErr.methodCode}>
+                                                <InputLabel>Phương thức</InputLabel>
+                                                <Select
+                                                    value={row.methodCode || ""}
+                                                    label="Phương thức"
+                                                    onChange={(e) => handleTimelineChange(idx, "methodCode", e.target.value)}
+                                                    disabled={!isCampaignInfoEditable}
+                                                >
+                                                    {admissionMethodOptions
+                                                        .filter((opt) => !selectedCodes.includes(opt.value))
+                                                        .map((opt) => (
+                                                            <MenuItem key={opt.value} value={opt.value}>
+                                                                {opt.label}
+                                                            </MenuItem>
+                                                        ))}
+                                                </Select>
+                                                {!!rowErr.methodCode && (
+                                                    <Typography
+                                                        variant="caption"
+                                                        sx={{ color: "#d32f2f", ml: 1.2, mt: 0.5, display: "block" }}
+                                                    >
+                                                        {rowErr.methodCode}
+                                                    </Typography>
+                                                )}
+                                            </FormControl>
+                                            <TextField
+                                                label="Bắt đầu"
+                                                type="date"
+                                                value={row.startDate || ""}
+                                                onChange={(e) => handleTimelineChange(idx, "startDate", e.target.value)}
+                                                InputLabelProps={{ shrink: true }}
+                                                error={!!rowErr.startDate}
+                                                helperText={rowErr.startDate}
+                                                fullWidth
+                                                InputProps={{ readOnly: !isCampaignInfoEditable }}
+                                            />
+                                            <TextField
+                                                label="Kết thúc"
+                                                type="date"
+                                                value={row.endDate || ""}
+                                                onChange={(e) => handleTimelineChange(idx, "endDate", e.target.value)}
+                                                InputLabelProps={{ shrink: true }}
+                                                error={!!rowErr.endDate}
+                                                helperText={rowErr.endDate}
+                                                fullWidth
+                                                InputProps={{ readOnly: !isCampaignInfoEditable }}
+                                            />
+                                        </Stack>
+                                    </Box>
+                                );
+                            })}
+                        </Stack>
+                    </Box>
                     <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
                         <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
                             {isPrimaryBranch && isDraft && !isPastYearCampaign && (

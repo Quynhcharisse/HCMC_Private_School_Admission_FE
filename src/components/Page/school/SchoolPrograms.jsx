@@ -47,7 +47,7 @@ import PowerSettingsNewRoundedIcon from "@mui/icons-material/PowerSettingsNewRou
 import SchoolIcon from "@mui/icons-material/School";
 import SearchIcon from "@mui/icons-material/Search";
 import VerifiedIcon from "@mui/icons-material/Verified";
-import DescriptionIcon from "@mui/icons-material/Description";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import DoneAllIcon from "@mui/icons-material/DoneAll";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import ScienceIcon from "@mui/icons-material/Science";
@@ -63,7 +63,13 @@ import {ConfirmHighlight} from "../../ui/ConfirmDialog.jsx";
 
 import {useSchool} from "../../../contexts/SchoolContext.jsx";
 import {getCurriculumList} from "../../../services/CurriculumService.jsx";
-import {cloneProgram, getProgramList, handleProgramAction, saveProgram} from "../../../services/ProgramService.jsx";
+import {
+    cloneProgram,
+    getProgramList,
+    handleProgramAction,
+    importProgramSubjectsFromExcel,
+    saveProgram
+} from "../../../services/ProgramService.jsx";
 import CreatePostRichTextEditor from "../../ui/CreatePostRichTextEditor.jsx";
 
 const modalPaperSx = {
@@ -215,15 +221,14 @@ function mapCurriculumForProgramSelect(item) {
             : item.methodLearning
                 ? [item.methodLearning]
                 : [];
-    const enrollmentYear = item.enrollmentYear ?? item.year ?? item.enrollment_year ?? "";
+    const applicationYear = item.applicationYear ?? item.enrollmentYear ?? item.year ?? item.enrollment_year ?? "";
     return {
         id: item.id ?? item.curriculumId ?? item.curriculumID ?? item.curriculum_id ?? null,
         subTypeName: mapSubTypeNameForProgramSelect(item),
         name: item.name ?? "",
         description: item.description || "",
         curriculumType: item.curriculumType ?? item.type ?? "",
-        enrollmentYear,
-        applicationYear: item.applicationYear ?? enrollmentYear ?? "",
+        applicationYear,
         curriculumStatus: item.curriculumStatus ?? item.status ?? item.curriculum_status,
         isLatest: !!item.isLatest,
         versionDisplay: item.versionDisplay,
@@ -277,7 +282,7 @@ function mapProgramFromApi(item) {
         name: item.name != null ? String(item.name) : "",
         curriculumId: item.curriculumId ?? item.curriculumID ?? item.curriculum_id ?? curriculum?.id ?? curriculum?.Id ?? null,
         curriculumName: item.curriculumName ?? curriculum?.name ?? curriculum?.subTypeName ?? "",
-        enrollmentYear: item.enrollmentYear ?? curriculum?.enrollmentYear ?? "",
+        applicationYear: item.applicationYear ?? item.enrollmentYear ?? curriculum?.applicationYear ?? curriculum?.enrollmentYear ?? "",
         curriculumType: item.curriculumType ?? curriculum?.type ?? "",
         curriculumStatus: item.curriculumStatus ?? curriculum?.status ?? "",
 
@@ -750,7 +755,7 @@ function ProgramCurriculumDetailPanel({curriculum, isPrimaryBranch}) {
                                 justifyContent: "center",
                             }}
                         >
-                            <DescriptionIcon sx={{fontSize: 18}}/>
+                            <FileUploadOutlinedIcon sx={{fontSize: 18}}/>
                         </Box>
                         <Typography sx={{fontWeight: 900, color: "#1e293b"}}>Mô tả</Typography>
                     </Box>
@@ -846,7 +851,7 @@ export default function SchoolPrograms() {
     const rowsPerPage = 10;
 
     const [search, setSearch] = useState("");
-    const [enrollmentYearFilter, setEnrollmentYearFilter] = useState("all");
+    const [applicationYearFilter, setApplicationYearFilter] = useState("all");
     const [curriculumTypeFilter, setCurriculumTypeFilter] = useState("all");
     const [statusFilter, setStatusFilter] = useState("all");
 
@@ -856,6 +861,7 @@ export default function SchoolPrograms() {
     const [activeStep, setActiveStep] = useState(0);
 
     const [submitLoading, setSubmitLoading] = useState(false);
+    const [importExtraSubjectLoading, setImportExtraSubjectLoading] = useState(false);
 
     const [selectedProgram, setSelectedProgram] = useState(null);
     const [originalCurriculumId, setOriginalCurriculumId] = useState(null);
@@ -899,8 +905,8 @@ export default function SchoolPrograms() {
         extraSubjectList: [],
     });
 
-    const enrollmentYearOptions = useMemo(() => {
-        const set = new Set(programs.map((p) => p.enrollmentYear).filter((y) => y !== null && y !== undefined && y !== ""));
+    const applicationYearOptions = useMemo(() => {
+        const set = new Set(programs.map((p) => p.applicationYear).filter((y) => y !== null && y !== undefined && y !== ""));
         return Array.from(set)
             .map((y) => Number(y))
             .filter((y) => Number.isFinite(y))
@@ -922,9 +928,9 @@ export default function SchoolPrograms() {
                 return inCurriculum || inName;
             });
         }
-        if (enrollmentYearFilter !== "all") {
-            const y = Number(enrollmentYearFilter);
-            list = list.filter((p) => Number(p.enrollmentYear) === y);
+        if (applicationYearFilter !== "all") {
+            const y = Number(applicationYearFilter);
+            list = list.filter((p) => Number(p.applicationYear) === y);
         }
         if (curriculumTypeFilter !== "all") {
             list = list.filter((p) => p.curriculumType === curriculumTypeFilter);
@@ -933,7 +939,7 @@ export default function SchoolPrograms() {
             list = list.filter((p) => p.status === statusFilter);
         }
         return list;
-    }, [programs, search, enrollmentYearFilter, curriculumTypeFilter, statusFilter]);
+    }, [programs, search, applicationYearFilter, curriculumTypeFilter, statusFilter]);
 
     const programDetailLinkedCurriculum = useMemo(() => {
         if (modalMode !== "view" || !selectedProgram?.curriculumId) return null;
@@ -1023,10 +1029,10 @@ export default function SchoolPrograms() {
         }
         // Fallback by name + year
         const name = safeString(program.curriculumName).trim().toLowerCase();
-        const year = Number(program.enrollmentYear);
+        const year = Number(program.applicationYear);
         if (!name && !Number.isFinite(year)) return null;
         return (
-            curriculumOptions.find((c) => safeString(c.subTypeName).trim().toLowerCase() === name && Number(c.enrollmentYear) === year) ||
+            curriculumOptions.find((c) => safeString(c.subTypeName).trim().toLowerCase() === name && Number(c.applicationYear) === year) ||
             curriculumOptions.find((c) => safeString(c.subTypeName).trim().toLowerCase() === name)
         );
     };
@@ -1090,6 +1096,7 @@ export default function SchoolPrograms() {
         setCurriculumSelectionWarning("");
         setSelectedCurriculum(null);
         setFormErrors({});
+        setImportExtraSubjectLoading(false);
         setFormValues({
             name: "",
             languageOfInstructionList: [],
@@ -1126,6 +1133,7 @@ export default function SchoolPrograms() {
         );
         setSelectedCurriculum(null);
         setFormErrors({});
+        setImportExtraSubjectLoading(false);
         setFormValues({
             name: program.name ?? "",
             languageOfInstructionList: Array.isArray(program.languageOfInstructionList)
@@ -1161,6 +1169,7 @@ export default function SchoolPrograms() {
         setCurriculumSelectionWarning("");
         setSelectedCurriculum(null);
         setFormErrors({});
+        setImportExtraSubjectLoading(false);
         setFormValues({
             name: program.name ?? "",
             languageOfInstructionList: Array.isArray(program.languageOfInstructionList)
@@ -1195,6 +1204,7 @@ export default function SchoolPrograms() {
         setCurriculumSelectionWarning("");
         setSelectedCurriculum(null);
         setFormErrors({});
+        setImportExtraSubjectLoading(false);
         setFormValues({
             name: "",
             languageOfInstructionList: [],
@@ -1346,6 +1356,32 @@ export default function SchoolPrograms() {
     };
 
     const handleBack = () => setActiveStep((s) => Math.max(0, s - 1));
+
+    const handleImportExtraSubjects = async (file) => {
+        if (!file) return;
+        if (submitLoading || importExtraSubjectLoading) return;
+        setImportExtraSubjectLoading(true);
+        try {
+            const res = await importProgramSubjectsFromExcel(file);
+            const imported = Array.isArray(res?.data?.body)
+                ? res.data.body.map((item) => ({
+                    name: item?.name != null ? String(item.name) : "",
+                    description: item?.description != null ? String(item.description) : "",
+                    isMandatory: !!item?.isMandatory,
+                }))
+                : [];
+            setFormValues((prev) => ({...prev, extraSubjectList: imported}));
+            setFormErrors((prev) => ({...prev, extraSubjectList: undefined}));
+            enqueueSnackbar(res?.data?.message || "Import môn bổ sung thành công", {variant: "success"});
+        } catch (err) {
+            enqueueSnackbar(
+                err?.response?.data?.message || err?.message || "Không thể import file môn bổ sung",
+                {variant: "error"}
+            );
+        } finally {
+            setImportExtraSubjectLoading(false);
+        }
+    };
 
     useEffect(() => {
         if (!programModalOpen) return;
@@ -1545,7 +1581,7 @@ export default function SchoolPrograms() {
                                 "&:hover": {bgcolor: "white", boxShadow: "0 6px 20px rgba(0,0,0,0.2)"},
                             }}
                         >
-                            Tạo Program
+                            Tạo chương trình đào tạo
                         </Button>
                     )}
                 </Box>
@@ -1588,14 +1624,14 @@ export default function SchoolPrograms() {
 
                         <Box sx={{minWidth: 180}}>
                             <SelectLike
-                                label="Năm tuyển sinh"
-                                value={enrollmentYearFilter}
+                                label="Năm áp dụng"
+                                value={applicationYearFilter}
                                 options={[
                                     {value: "all", label: "Tất cả"},
-                                    ...enrollmentYearOptions.map((y) => ({value: String(y), label: String(y)})),
+                                    ...applicationYearOptions.map((y) => ({value: String(y), label: String(y)})),
                                 ]}
                                 onChange={(v) => {
-                                    setEnrollmentYearFilter(v);
+                                    setApplicationYearFilter(v);
                                     setPage(0);
                                 }}
                             />
@@ -1696,13 +1732,13 @@ export default function SchoolPrograms() {
                                         }}>
                                             <SchoolIcon sx={{fontSize: 56, color: "#cbd5e1"}}/>
                                             <Typography variant="h6" sx={{color: "#64748b", fontWeight: 800}}>
-                                                Chưa có program
+                                                Chưa có chương trình đào tạo
                                             </Typography>
                                             <Typography variant="body2" sx={{color: "#94a3b8", maxWidth: 420}}>
                                                 {programs.length === 0
                                                     ? isPrimaryBranch
-                                                        ? "Hãy tạo program đầu tiên để bắt đầu."
-                                                        : "Chưa có program nào."
+                                                        ? "Hãy tạo chương trình đào tạo đầu tiên để bắt đầu."
+                                                        : "Chưa có chương trình đào tạo nào."
                                                     : "Không có kết quả phù hợp với tìm kiếm hoặc bộ lọc."}
                                             </Typography>
                                             {programs.length === 0 && isPrimaryBranch && (
@@ -1718,7 +1754,7 @@ export default function SchoolPrograms() {
                                                         background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                                                     }}
                                                 >
-                                                    Tạo Program
+                                                    Tạo chương trình đào tạo
                                                 </Button>
                                             )}
                                         </Box>
@@ -1880,12 +1916,12 @@ export default function SchoolPrograms() {
                             minWidth: 0
                         }}>
                             {modalMode === "create"
-                                ? "Tạo Program"
+                                ? "Tạo chương trình đào tạo"
                                 : modalMode === "edit"
                                     ? isClonedDraftEdit
                                         ? "Chỉnh sửa Chương trình (Bản sao)"
-                                        : "Chỉnh sửa Program"
-                                    : "Chi tiết Program"}
+                                        : "Chỉnh sửa chương trình đào tạo"
+                                    : "Chi tiết chương trình đào tạo"}
                         </Box>
                         <Box sx={{display: "flex", alignItems: "center", gap: 1, flexShrink: 0}}>
                             {modalMode === "edit" && isClonedDraftEdit ? (
@@ -2081,7 +2117,7 @@ export default function SchoolPrograms() {
                                                         {selectedProgram.curriculumName}
                                                     </Typography>
                                                     <Typography variant="body2" sx={{color: "#64748b"}}>
-                                                        {selectedProgram.enrollmentYear || "—"} {toCurriculumTypeLabel(selectedProgram.curriculumType)}
+                                                        {selectedProgram.applicationYear || "—"} {toCurriculumTypeLabel(selectedProgram.curriculumType)}
                                                     </Typography>
                                                 </Box>
                                                 {isPrimaryBranch ? (
@@ -2296,7 +2332,7 @@ export default function SchoolPrograms() {
                                             options={curriculumOptions}
                                             loading={curriculumOptionsLoading}
                                             getOptionLabel={(opt) =>
-                                                opt ? `${opt.subTypeName} - ${opt.enrollmentYear}` : ""
+                                                opt ? `${opt.subTypeName} - ${opt.applicationYear}` : ""
                                             }
                                             isOptionEqualToValue={(a, b) => (a && b ? a.id === b.id : a === b)}
                                             disabled={disableCurriculumSelection || curriculumOptionsLoading}
@@ -2318,7 +2354,7 @@ export default function SchoolPrograms() {
                                                                 {option.subTypeName}
                                                             </Typography>
                                                             <Typography variant="caption" sx={{color: "#64748b"}}>
-                                                                {option.enrollmentYear} • {toCurriculumTypeLabel(option.curriculumType)}
+                                                                {option.applicationYear} • {toCurriculumTypeLabel(option.curriculumType)}
                                                             </Typography>
                                                         </Box>
                                                         {option.isLatest && (
@@ -2357,7 +2393,7 @@ export default function SchoolPrograms() {
                                                                     {curriculumPreview.subTypeName}
                                                                 </Typography>
                                                                 <Typography variant="body2" sx={{color: "#64748b"}}>
-                                                                    {curriculumPreview.enrollmentYear} • {toCurriculumTypeLabel(curriculumPreview.curriculumType)}
+                                                                    {curriculumPreview.applicationYear} • {toCurriculumTypeLabel(curriculumPreview.curriculumType)}
                                                                 </Typography>
                                                             </Box>
                                                             <Box>
@@ -2629,7 +2665,9 @@ export default function SchoolPrograms() {
                                                 setFormErrors((prev) => ({...prev, extraSubjectList: undefined}));
                                             }}
                                             error={formErrors.extraSubjectList}
-                                            disabled={false}
+                                            disabled={submitLoading}
+                                            importLoading={importExtraSubjectLoading}
+                                            onImportFile={handleImportExtraSubjects}
                                         />
 
                                         {coreLockedByActive ? (
@@ -2807,7 +2845,7 @@ export default function SchoolPrograms() {
                                                                 {curriculumPreview?.subTypeName || selectedCurriculum?.subTypeName || "—"}
                                                             </Typography>
                                                             <Typography variant="body2" sx={{color: "#64748b"}}>
-                                                                {curriculumPreview?.enrollmentYear || selectedCurriculum?.enrollmentYear || "—"}{" "}
+                                                                {curriculumPreview?.applicationYear || selectedCurriculum?.applicationYear || "—"}{" "}
                                                                 {toCurriculumTypeLabel(curriculumPreview?.curriculumType || selectedCurriculum?.curriculumType)}
                                                             </Typography>
                                                         </Box>
@@ -3031,8 +3069,8 @@ export default function SchoolPrograms() {
                                     {submitLoading
                                         ? "Đang gửi..."
                                         : modalMode === "create"
-                                            ? "Tạo Program"
-                                            : "Cập nhật Program"}
+                                            ? "Tạo chương trình đào tạo"
+                                            : "Cập nhật chương trình đào tạo"}
                                 </Button>
                             )}
                         </>
@@ -3390,9 +3428,10 @@ function LanguageInstructionSelector({value, options, onChange, error}) {
     );
 }
 
-function ExtraSubjectEditor({value, onChange, error, disabled = false}) {
+function ExtraSubjectEditor({value, onChange, error, disabled = false, importLoading = false, onImportFile}) {
     const subjects = Array.isArray(value) ? value : [];
     const extraSubjectItemRefs = useRef([]);
+    const importInputRef = useRef(null);
     const [pendingScrollIndex, setPendingScrollIndex] = useState(null);
 
     useEffect(() => {
@@ -3422,6 +3461,16 @@ function ExtraSubjectEditor({value, onChange, error, disabled = false}) {
             )
         );
     };
+    const triggerImportInput = () => {
+        if (disabled || importLoading) return;
+        importInputRef.current?.click();
+    };
+    const handleImportFileChange = async (e) => {
+        const file = e?.target?.files?.[0];
+        e.target.value = "";
+        if (!file || typeof onImportFile !== "function") return;
+        await onImportFile(file);
+    };
 
     return (
         <Box sx={{mt: 0.6}}>
@@ -3429,16 +3478,36 @@ function ExtraSubjectEditor({value, onChange, error, disabled = false}) {
                 <Typography variant="subtitle1" sx={{fontWeight: 900, color: "#1e293b"}}>
                     Môn bổ sung
                 </Typography>
-                <Button
-                    size="small"
-                    variant="outlined"
-                    startIcon={<AddIcon/>}
-                    onClick={addItem}
-                    disabled={disabled}
-                    sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
-                >
-                    Thêm môn
-                </Button>
+                <Stack direction="row" spacing={1}>
+                    <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<AddIcon/>}
+                        onClick={addItem}
+                        disabled={disabled || importLoading}
+                        sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
+                    >
+                        Thêm môn
+                    </Button>
+                    <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={importLoading ? <CircularProgress size={16}/> : <FileUploadOutlinedIcon/>}
+                        onClick={triggerImportInput}
+                        disabled={disabled || importLoading}
+                        sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
+                    >
+                        Import file
+                    </Button>
+                </Stack>
+                <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    style={{display: "none"}}
+                    onChange={handleImportFileChange}
+                    disabled={disabled || importLoading}
+                />
             </Stack>
 
             {error && typeof error === "string" ? (

@@ -3840,7 +3840,7 @@ export default function CampusConfig() {
                     >
                       <Box sx={{minWidth: 0}}>
                         {useCampusConfigFlow ? (
-                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 1, minHeight: 24}}>
                             <HqScalarDiffChip
                               fieldKey="maxBookingPerSlot"
                               effectiveOp={config.operationSettingsData}
@@ -3869,14 +3869,14 @@ export default function CampusConfig() {
                           }
                           size="small"
                           helperText="Dành cho phụ huynh khi đặt lịch: tối đa bao nhiêu lượt đặt hoặc chờ trong một khung giờ. Không phải số tư vấn viên — xem hai ô bên phải."
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "#DC2626"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
                         />
                       </Box>
                       <Box sx={{minWidth: 0}}>
                         {useCampusConfigFlow ? (
-                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 1, minHeight: 24}}>
                             <HqScalarDiffChip
                               fieldKey="minCounsellorPerSlot"
                               effectiveOp={config.operationSettingsData}
@@ -3905,14 +3905,14 @@ export default function CampusConfig() {
                           }
                           size="small"
                           helperText="Khi gán lịch cho tư vấn viên: mỗi khung giờ và khoảng ngày phải có ít nhất số người này. Không liên quan tới lượt đặt của phụ huynh."
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "#DC2626"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
                         />
                       </Box>
                       <Box sx={{minWidth: 0}}>
                         {useCampusConfigFlow ? (
-                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 1, minHeight: 24}}>
                             <HqScalarDiffChip
                               fieldKey="maxCounsellorsPerSlot"
                               effectiveOp={config.operationSettingsData}
@@ -3942,14 +3942,14 @@ export default function CampusConfig() {
                           }
                           size="small"
                           helperText="Giới hạn nhân sự: tối đa bao nhiêu tư vấn viên được gán chung một khung giờ và cùng khoảng ngày. 0 = không giới hạn. Khác với lượt đặt của phụ huynh."
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "#DC2626"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
                         />
                       </Box>
                       <Box sx={{minWidth: 0}}>
                         {useCampusConfigFlow ? (
-                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 1, minHeight: 24}}>
                             <HqScalarDiffChip
                               fieldKey="slotDurationInMinutes"
                               effectiveOp={config.operationSettingsData}
@@ -3981,14 +3981,14 @@ export default function CampusConfig() {
                           }
                           size="small"
                           helperText="*Thời lượng của một cuộc hẹn tư vấn (ví dụ: 30, 45 phút)."
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "#DC2626"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
                         />
                       </Box>
                       <Box sx={{minWidth: 0}}>
                         {useCampusConfigFlow ? (
-                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 1, minHeight: 24}}>
                             <HqScalarDiffChip
                               fieldKey="bufferBetweenSlotsMinutes"
                               effectiveOp={config.operationSettingsData}
@@ -4020,14 +4020,14 @@ export default function CampusConfig() {
                           }
                           size="small"
                           helperText="*Nghỉ giữa hai slot tư vấn (0 = không nghỉ). Bước giữa hai bắt đầu tiết = độ dài tiết + nghỉ."
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "#DC2626"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
                         />
                       </Box>
                       <Box sx={{minWidth: 0}}>
                         {useCampusConfigFlow ? (
-                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 0.5, minHeight: 24}}>
+                          <Stack direction="row" alignItems="center" spacing={1} sx={{mb: 1, minHeight: 24}}>
                             <HqScalarDiffChip
                               fieldKey="allowBookingBeforeHours"
                               effectiveOp={config.operationSettingsData}
@@ -4056,7 +4056,7 @@ export default function CampusConfig() {
                           }
                           size="small"
                           helperText="*Thời gian tối thiểu phải đặt trước khi cuộc hẹn diễn ra."
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "#DC2626"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
                         />

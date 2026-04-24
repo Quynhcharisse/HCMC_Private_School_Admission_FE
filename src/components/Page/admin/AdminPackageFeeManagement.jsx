@@ -42,11 +42,14 @@ import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import ExtensionOutlinedIcon from "@mui/icons-material/ExtensionOutlined";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import StarOutlineIcon from "@mui/icons-material/StarOutline";
+import StarRoundedIcon from "@mui/icons-material/StarRounded";
 import EmojiEventsOutlinedIcon from "@mui/icons-material/EmojiEventsOutlined";
 import PolicyOutlinedIcon from "@mui/icons-material/PolicyOutlined";
 import SupportAgentOutlinedIcon from "@mui/icons-material/SupportAgentOutlined";
 import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
 import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
+import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
+import HighlightOffRoundedIcon from "@mui/icons-material/HighlightOffRounded";
 import AddIcon from "@mui/icons-material/Add";
 import FileUploadSharpIcon from "@mui/icons-material/FileUploadSharp";
 import BlockSharpIcon from "@mui/icons-material/BlockSharp";
@@ -71,18 +74,20 @@ import { deactiveAdminPackageFee, getAdminPackageFees, publishAdminPackageFee, u
 const defaultForm = {
     packageId: null,
     name: "",
+    packageType: "STANDARD",
     description: "",
-    price: "",
     durationDays: "",
     maxCounsellors: "",
-    allowChat: false,
+    postLimit: "",
+    hasAiAssistant: false,
     parentPostPermission: "CREATE_POST",
     isFeatured: false,
     topRanking: "",
-    supportLevel: "STANDARD",
+    supportLevel: "STANDARD_SUPPORT",
 };
 
-const SUPPORT_LEVELS = ["BASIC", "STANDARD", "ENTERPRISE"];
+const PACKAGE_TYPES = ["TRIAL", "STANDARD", "ENTERPRISE"];
+const SUPPORT_LEVELS = ["BASIC_SUPPORT", "STANDARD_SUPPORT", "PREMIUM_SUPPORT"];
 const PARENT_POST_PERMISSIONS = ["VIEW_ONLY", "CREATE_POST"];
 
 function displayEnum(value) {
@@ -134,19 +139,34 @@ function mapPackageFromApi(item) {
     return {
         id: item?.id ?? null,
         name: item?.name || "",
+        packageType: item?.packageType || "STANDARD",
         description: item?.description || "",
         price: item?.price != null ? Number(item.price) : null,
+        serviceFee: item?.serviceFee != null ? Number(item.serviceFee) : null,
+        taxFee: item?.taxFee != null ? Number(item.taxFee) : null,
+        finalPrice: item?.finalPrice != null ? Number(item.finalPrice) : null,
         durationDays: item?.durationDays != null ? Number(item.durationDays) : null,
         status: item?.status || "",
         features: {
             maxCounsellors: Number(features?.maxCounsellors ?? 0),
-            allowChat: Boolean(features?.allowChat),
+            postLimit: Number(features?.postLimit ?? 0),
+            hasAiAssistant: Boolean(features?.hasAiAssistant ?? features?.allowChat),
             parentPostPermission: String(features?.parentPostPermission || "CREATE_POST"),
             isFeatured: Boolean(features?.isFeatured),
             topRanking: Number(features?.topRanking ?? 0),
-            supportLevel: String(features?.supportLevel || "STANDARD"),
+            supportLevel: String(features?.supportLevel || "STANDARD_SUPPORT"),
         },
     };
+}
+
+function normalizePackageStatus(status) {
+    const raw = String(status || "").toUpperCase();
+    if (raw === "PACKAGE_DRAFT" || raw === "DRAFT") return "DRAFT";
+    if (raw === "PACKAGE_ACTIVE" || raw === "ACTIVE") return "ACTIVE";
+    if (raw === "PACKAGE_PUBLISHED" || raw === "PUBLISHED") return "PUBLISHED";
+    if (raw === "PACKAGE_PENDING_DEACTIVE" || raw === "PENDING_DEACTIVE") return "PENDING_DEACTIVE";
+    if (raw === "PACKAGE_DEACTIVATED" || raw === "DEACTIVATED") return "DEACTIVATED";
+    return raw || "UNKNOWN";
 }
 
 const packageDetailSectionSx = {
@@ -167,10 +187,10 @@ const packageDetailFieldBoxSx = {
 };
 
 const detailInfoLabelSx = { fontSize: 12, color: "#94a3b8", fontWeight: 600, display: "block", mb: 0.35 };
-const detailInfoValueSx = { fontSize: 15, color: "#1e293b", fontWeight: 600, wordBreak: "break-word" };
+const detailInfoValueSx = { fontSize: 15, color: "#1e293b", fontWeight: 500, wordBreak: "break-word" };
 
 const detailFeatureGridLabelSx = { fontSize: 12, color: "#94a3b8", fontWeight: 600, lineHeight: 1.3 };
-const detailFeatureGridValueSx = { fontSize: 15, color: "#1e293b", fontWeight: 700, lineHeight: 1.35 };
+const detailFeatureGridValueSx = { fontSize: 15, color: "#1e293b", fontWeight: 500, lineHeight: 1.35 };
 const featureIconWrapSx = {
     width: 44,
     height: 44,
@@ -182,46 +202,126 @@ const featureIconWrapSx = {
     flexShrink: 0,
 };
 
-function PackageDetailPriceDurationSection({ price, durationDays }) {
+function PackageDetailPriceDurationSection({ price, serviceFee, taxFee, finalPrice, durationDays, packageType }) {
     const hasPrice = price != null && !Number.isNaN(Number(price));
+    const hasServiceFee = serviceFee != null && !Number.isNaN(Number(serviceFee));
+    const hasTaxFee = taxFee != null && !Number.isNaN(Number(taxFee));
+    const hasFinalPrice = finalPrice != null && !Number.isNaN(Number(finalPrice));
     const hasDuration = durationDays != null && !Number.isNaN(Number(durationDays));
     return (
         <Box sx={packageDetailSectionSx}>
             <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: 1.5 }}>
                 <PaymentsOutlinedIcon sx={{ fontSize: 17, color: "#2563eb" }} />
-                <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#2563eb" }}>Giá & thời hạn</Typography>
+                <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#2563eb" }}>Giá, loại gói & thời hạn</Typography>
             </Stack>
             <Box
                 sx={{
                     display: "grid",
-                    gridTemplateColumns: { xs: "1fr", md: "1fr 1px 1fr" },
-                    alignItems: "center",
-                    gap: 0,
+                    gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0,1fr))" },
+                    gap: 1.4,
                     width: "100%",
                 }}
             >
-                <Stack direction="row" alignItems="center" spacing={1.25} justifyContent="center" sx={{ minWidth: 0, py: 0.5, px: 1 }}>
-                    <MonetizationOnOutlinedIcon sx={{ fontSize: 24, color: "#64748b" }} aria-hidden />
-                    <Typography sx={{ fontSize: 16, color: "#1e293b", fontWeight: 600 }}>{hasPrice ? formatVnd(price) : "—"}</Typography>
-                </Stack>
                 <Box
                     sx={{
-                        display: { xs: "none", md: "block" },
-                        width: "1px",
-                        alignSelf: "stretch",
-                        minHeight: 44,
-                        bgcolor: "#cbd5e1",
-                        justifySelf: "center",
+                        border: "1px solid #bfdbfe",
+                        borderRadius: 2.2,
+                        bgcolor: "#ffffff",
+                        px: 1.6,
+                        py: 1.25,
                     }}
-                />
-                <Stack direction="row" alignItems="center" spacing={1.25} justifyContent="center" sx={{ minWidth: 0, py: 0.5, px: 1 }}>
-                    <CalendarMonthOutlinedIcon sx={{ fontSize: 24, color: "#64748b" }} aria-hidden />
-                    <Typography sx={{ fontSize: 16, color: "#1e293b", fontWeight: 600 }}>
-                        {hasDuration ? `${Number(durationDays)} ngày` : "—"}
+                >
+                    <Typography sx={{ fontSize: 12, color: "#64748b", fontWeight: 700, mb: 0.7 }}>Giá gói</Typography>
+                    <Stack direction="row" alignItems="center" spacing={1.1} sx={{ minWidth: 0 }}>
+                        <MonetizationOnOutlinedIcon sx={{ fontSize: 22, color: "#2563eb" }} aria-hidden />
+                        <Typography sx={{ fontSize: 13, color: "#0f172a", fontWeight: 600, lineHeight: 1.25 }}>
+                            {hasPrice ? `${formatVnd(price)} VNĐ` : "—"}
+                        </Typography>
+                    </Stack>
+                </Box>
+                <Box
+                    sx={{
+                        border: "1px solid #bfdbfe",
+                        borderRadius: 2.2,
+                        bgcolor: "#ffffff",
+                        px: 1.6,
+                        py: 1.25,
+                    }}
+                >
+                    <Typography sx={{ fontSize: 12, color: "#64748b", fontWeight: 700, mb: 0.7 }}>Phí dịch vụ</Typography>
+                    <Stack direction="row" alignItems="center" spacing={1.1} sx={{ minWidth: 0 }}>
+                        <MonetizationOnOutlinedIcon sx={{ fontSize: 22, color: "#475569" }} aria-hidden />
+                        <Typography sx={{ fontSize: 13, color: "#0f172a", fontWeight: 600, lineHeight: 1.25 }}>
+                            {hasServiceFee ? `${formatVnd(serviceFee)} VNĐ` : "—"}
+                        </Typography>
+                    </Stack>
+                </Box>
+                <Box
+                    sx={{
+                        border: "1px solid #bfdbfe",
+                        borderRadius: 2.2,
+                        bgcolor: "#ffffff",
+                        px: 1.6,
+                        py: 1.25,
+                    }}
+                >
+                    <Typography sx={{ fontSize: 12, color: "#64748b", fontWeight: 700, mb: 0.7 }}>Thuế</Typography>
+                    <Stack direction="row" alignItems="center" spacing={1.1} sx={{ minWidth: 0 }}>
+                        <MonetizationOnOutlinedIcon sx={{ fontSize: 22, color: "#475569" }} aria-hidden />
+                        <Typography sx={{ fontSize: 13, color: "#0f172a", fontWeight: 600, lineHeight: 1.25 }}>
+                            {hasTaxFee ? `${formatVnd(taxFee)} VNĐ` : "—"}
+                        </Typography>
+                    </Stack>
+                </Box>
+                <Box
+                    sx={{
+                        border: "1px solid #93c5fd",
+                        borderRadius: 2.2,
+                        bgcolor: "#eff6ff",
+                        px: 1.6,
+                        py: 1.25,
+                    }}
+                >
+                    <Typography sx={{ fontSize: 12, color: "#1d4ed8", fontWeight: 800, mb: 0.7 }}>Tổng thanh toán</Typography>
+                    <Stack direction="row" alignItems="center" spacing={1.1} sx={{ minWidth: 0 }}>
+                        <MonetizationOnOutlinedIcon sx={{ fontSize: 22, color: "#1d4ed8" }} aria-hidden />
+                        <Typography sx={{ fontSize: 13, color: "#0f172a", fontWeight: 700, lineHeight: 1.25 }}>
+                            {hasFinalPrice ? `${formatVnd(finalPrice)} VNĐ` : "—"}
+                        </Typography>
+                    </Stack>
+                </Box>
+                <Box
+                    sx={{
+                        border: "1px solid #bfdbfe",
+                        borderRadius: 2.2,
+                        bgcolor: "#ffffff",
+                        px: 1.6,
+                        py: 1.25,
+                    }}
+                >
+                    <Typography sx={{ fontSize: 12, color: "#64748b", fontWeight: 700, mb: 0.7 }}>Loại gói</Typography>
+                    <Typography sx={{ fontSize: 13, color: "#0f172a", fontWeight: 600, lineHeight: 1.25 }}>
+                        {displayEnum(packageType)}
                     </Typography>
-                </Stack>
+                </Box>
+                <Box
+                    sx={{
+                        border: "1px solid #bfdbfe",
+                        borderRadius: 2.2,
+                        bgcolor: "#ffffff",
+                        px: 1.6,
+                        py: 1.25,
+                    }}
+                >
+                    <Typography sx={{ fontSize: 12, color: "#64748b", fontWeight: 700, mb: 0.7 }}>Thời hạn</Typography>
+                    <Stack direction="row" alignItems="center" spacing={1.1} sx={{ minWidth: 0 }}>
+                        <CalendarMonthOutlinedIcon sx={{ fontSize: 22, color: "#2563eb" }} aria-hidden />
+                        <Typography sx={{ fontSize: 13, color: "#0f172a", fontWeight: 600, lineHeight: 1.25 }}>
+                            {hasDuration ? `${Number(durationDays)} ngày` : "—"}
+                        </Typography>
+                    </Stack>
+                </Box>
             </Box>
-            <Divider sx={{ display: { xs: "block", md: "none" }, mt: 1.5, borderColor: "#e2e8f0" }} />
         </Box>
     );
 }
@@ -235,45 +335,40 @@ function PackageDetailInfoSection({ row }) {
             </Stack>
             <Stack spacing={1.25}>
                 <Box sx={packageDetailFieldBoxSx}>
-                    <Typography sx={detailInfoLabelSx}>ID</Typography>
-                    <Typography sx={detailInfoValueSx}>{row.id != null ? String(row.id) : "—"}</Typography>
-                </Box>
-                <Box sx={packageDetailFieldBoxSx}>
                     <Typography sx={detailInfoLabelSx}>Tên gói</Typography>
                     <Typography sx={detailInfoValueSx}>{row.name || "—"}</Typography>
                 </Box>
                 <Box sx={packageDetailFieldBoxSx}>
-                    <Typography sx={detailInfoLabelSx}>Mô tả / Trạng thái</Typography>
+                    <Typography sx={detailInfoLabelSx}>Mô tả</Typography>
                     <Typography
                         sx={{
                             ...detailInfoValueSx,
                             fontWeight: 500,
                             lineHeight: 1.55,
                             whiteSpace: "pre-wrap",
-                            mb: 1.5,
                         }}
                     >
                         {row.description || "—"}
                     </Typography>
-                    <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap">
-                        <Typography sx={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>Trạng thái:</Typography>
-                        <Chip size="small" label={packageStatusLabel(row.status)} {...packageStatusChipProps(row.status)} />
-                    </Stack>
                 </Box>
             </Stack>
         </Box>
     );
 }
 
-function PackageFeatureGridCell({ Icon, label, value }) {
+function PackageFeatureGridCell({ Icon, label, value, iconColor = "#64748b", iconBg = "#f1f5f9" }) {
     return (
         <Stack direction="row" spacing={1.5} alignItems="flex-start">
-            <Box sx={featureIconWrapSx} aria-hidden>
-                <Icon sx={{ fontSize: 22, color: "#64748b" }} />
+            <Box sx={{ ...featureIconWrapSx, bgcolor: iconBg }} aria-hidden>
+                <Icon sx={{ fontSize: 22, color: iconColor }} />
             </Box>
             <Box sx={{ minWidth: 0, pt: 0.15 }}>
                 <Typography sx={detailFeatureGridLabelSx}>{label}</Typography>
-                <Typography sx={detailFeatureGridValueSx}>{value}</Typography>
+                {typeof value === "string" || typeof value === "number" ? (
+                    <Typography sx={detailFeatureGridValueSx}>{value}</Typography>
+                ) : (
+                    value
+                )}
             </Box>
         </Stack>
     );
@@ -281,28 +376,81 @@ function PackageFeatureGridCell({ Icon, label, value }) {
 
 function PackageFeaturesDetailGrid({ features }) {
     const f = features || {};
+    const aiAssistantChip = f.hasAiAssistant ? (
+        <Chip
+            size="small"
+            icon={<CheckCircleRoundedIcon sx={{ color: "#16a34a !important" }} />}
+            label="AI Assistant"
+            variant="outlined"
+            sx={{ borderColor: "#86efac", bgcolor: "#f0fdf4", color: "#166534", fontWeight: 700 }}
+        />
+    ) : (
+        <Chip
+            size="small"
+            icon={<HighlightOffRoundedIcon sx={{ color: "#dc2626 !important" }} />}
+            label="AI Assistant"
+            variant="outlined"
+            sx={{ borderColor: "#fecaca", bgcolor: "#fef2f2", color: "#991b1b", fontWeight: 700 }}
+        />
+    );
+    const featuredChip = f.isFeatured ? (
+        <Chip
+            size="small"
+            icon={<StarRoundedIcon sx={{ color: "#f59e0b !important" }} />}
+            label="Nổi bật"
+            variant="outlined"
+            sx={{ borderColor: "#fcd34d", bgcolor: "#fffbeb", color: "#92400e", fontWeight: 700 }}
+        />
+    ) : (
+        <Chip
+            size="small"
+            label="Nổi bật"
+            variant="outlined"
+            sx={{ borderColor: "#cbd5e1", bgcolor: "#f8fafc", color: "#475569", fontWeight: 700 }}
+        />
+    );
     const cells = [
-        { Icon: SupportAgentOutlinedIcon, label: "Tư vấn viên", value: String(f.maxCounsellors ?? 0) },
-        { Icon: PolicyOutlinedIcon, label: "Quyền nhà trường", value: displayEnum(f.parentPostPermission) },
-        { Icon: ChatBubbleOutlineIcon, label: "Chatbot AI", value: f.allowChat ? "Đã bật" : "Đã tắt" },
-        { Icon: StarOutlineIcon, label: "Nổi bật", value: f.isFeatured ? "Có" : "Không" },
-        { Icon: EmojiEventsOutlinedIcon, label: "Xếp hạng", value: `Số ${f.topRanking ?? 0}` },
+        { Icon: SupportAgentOutlinedIcon, label: "Tư vấn viên", value: String(f.maxCounsellors ?? 0), iconColor: "#2563eb", iconBg: "#dbeafe" },
+        { Icon: ExtensionOutlinedIcon, label: "Số bài đăng", value: String(f.postLimit ?? 0), iconColor: "#7c3aed", iconBg: "#ede9fe" },
+        { Icon: PolicyOutlinedIcon, label: "Quyền nhà trường", value: displayEnum(f.parentPostPermission), iconColor: "#0f766e", iconBg: "#ccfbf1" },
+        { Icon: EmojiEventsOutlinedIcon, label: "Xếp hạng", value: `Số ${f.topRanking ?? 0}`, iconColor: "#dc2626", iconBg: "#fee2e2" },
+        { Icon: SupportAgentOutlinedIcon, label: "Mức hỗ trợ", value: displayEnum(f.supportLevel), iconColor: "#4f46e5", iconBg: "#e0e7ff" },
     ];
     return (
-        <Box
-            sx={{
-                display: "grid",
-                gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)" },
-                gap: { xs: 2, md: 2.5 },
-                columnGap: { md: 3 },
-                rowGap: { xs: 2, md: 2.75 },
-                width: "100%",
-            }}
-        >
-            {cells.map((c) => (
-                <PackageFeatureGridCell key={c.label} Icon={c.Icon} label={c.label} value={c.value} />
-            ))}
-        </Box>
+        <Stack spacing={2.6}>
+            <Stack
+                direction="row"
+                spacing={1.4}
+                alignItems="center"
+                flexWrap="wrap"
+                useFlexGap
+                sx={{ pt: 0.35, pb: 0.35 }}
+            >
+                {aiAssistantChip}
+                {featuredChip}
+            </Stack>
+            <Box
+                sx={{
+                    display: "grid",
+                    gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", md: "repeat(3, 1fr)" },
+                    gap: { xs: 2, md: 2.5 },
+                    columnGap: { md: 3 },
+                    rowGap: { xs: 2, md: 2.75 },
+                    width: "100%",
+                }}
+            >
+                {cells.map((c) => (
+                    <PackageFeatureGridCell
+                        key={c.label}
+                        Icon={c.Icon}
+                        label={c.label}
+                        value={c.value}
+                        iconColor={c.iconColor}
+                        iconBg={c.iconBg}
+                    />
+                ))}
+            </Box>
+        </Stack>
     );
 }
 
@@ -310,18 +458,23 @@ function buildPayload(form, isEdit) {
     const normalizedParentPostPermission = PARENT_POST_PERMISSIONS.includes(form.parentPostPermission)
         ? form.parentPostPermission
         : "CREATE_POST";
+    const normalizedPackageType = PACKAGE_TYPES.includes(form.packageType) ? form.packageType : "STANDARD";
+    const isTrial = normalizedPackageType === "TRIAL";
+    const normalizedSupportLevel = SUPPORT_LEVELS.includes(form.supportLevel) ? form.supportLevel : "STANDARD_SUPPORT";
+    const supportLevel = isTrial && normalizedSupportLevel === "PREMIUM_SUPPORT" ? "STANDARD_SUPPORT" : normalizedSupportLevel;
     const body = {
         name: String(form.name).trim(),
+        packageType: normalizedPackageType,
         description: String(form.description).trim(),
-        price: Number(form.price),
         durationDays: Number(form.durationDays),
         featureData: {
             maxCounsellors: Number(form.maxCounsellors),
-            allowChat: Boolean(form.allowChat),
+            postLimit: Number(form.postLimit),
+            hasAiAssistant: isTrial ? false : Boolean(form.hasAiAssistant),
             parentPostPermission: normalizedParentPostPermission,
             isFeatured: Boolean(form.isFeatured),
-            topRanking: Number(form.topRanking),
-            supportLevel: String(form.supportLevel || "STANDARD"),
+            topRanking: isTrial ? 0 : Number(form.topRanking),
+            supportLevel,
         },
     };
     if (isEdit) {
@@ -346,20 +499,33 @@ export default function AdminPackageFeeManagement() {
     const [deactiveTargetRow, setDeactiveTargetRow] = useState(null);
     const [deactiveLoading, setDeactiveLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
+    const [submitAttempted, setSubmitAttempted] = useState(false);
     const [form, setForm] = useState(defaultForm);
+    const [pricePreview, setPricePreview] = useState({
+        packageId: null,
+        status: "DRAFT",
+        price: null,
+        serviceFee: null,
+        taxFee: null,
+        finalPrice: null,
+    });
 
     const isEdit = form.packageId != null;
+    const isTrialPackage = form.packageType === "TRIAL";
 
     const load = useCallback(async () => {
         setLoading(true);
         try {
             const res = await getAdminPackageFees();
             const list = Array.isArray(res?.data?.body) ? res.data.body : [];
-            setItems(list.map(mapPackageFromApi));
+            const mapped = list.map(mapPackageFromApi);
+            setItems(mapped);
+            return mapped;
         } catch (e) {
             console.error(e);
             enqueueSnackbar("Không thể tải danh sách phí gói dịch vụ.", { variant: "error" });
             setItems([]);
+            return [];
         } finally {
             setLoading(false);
         }
@@ -381,6 +547,15 @@ export default function AdminPackageFeeManagement() {
 
     const openCreateDialog = () => {
         setForm(defaultForm);
+        setSubmitAttempted(false);
+        setPricePreview({
+            packageId: null,
+            status: "DRAFT",
+            price: null,
+            serviceFee: null,
+            taxFee: null,
+            finalPrice: null,
+        });
         setDialogOpen(true);
     };
 
@@ -392,17 +567,27 @@ export default function AdminPackageFeeManagement() {
         setForm({
             packageId: row.id,
             name: row.name,
+            packageType: PACKAGE_TYPES.includes(row.packageType) ? row.packageType : "STANDARD",
             description: row.description,
-            price: row.price != null && !Number.isNaN(Number(row.price)) ? Number(row.price) : "",
             durationDays: row.durationDays != null && !Number.isNaN(Number(row.durationDays)) ? Number(row.durationDays) : "",
             maxCounsellors: row.features.maxCounsellors,
-            allowChat: row.features.allowChat,
+            postLimit: row.features.postLimit,
+            hasAiAssistant: row.features.hasAiAssistant,
             parentPostPermission: PARENT_POST_PERMISSIONS.includes(row.features.parentPostPermission)
                 ? row.features.parentPostPermission
                 : "CREATE_POST",
             isFeatured: row.features.isFeatured,
             topRanking: row.features.topRanking,
-            supportLevel: row.features.supportLevel,
+            supportLevel: SUPPORT_LEVELS.includes(row.features.supportLevel) ? row.features.supportLevel : "STANDARD_SUPPORT",
+        });
+        setSubmitAttempted(false);
+        setPricePreview({
+            packageId: row.id ?? null,
+            status: normalizePackageStatus(row.status),
+            price: row.price ?? null,
+            serviceFee: row.serviceFee ?? null,
+            taxFee: row.taxFee ?? null,
+            finalPrice: row.finalPrice ?? null,
         });
         setDialogOpen(true);
     };
@@ -411,6 +596,15 @@ export default function AdminPackageFeeManagement() {
         if (submitting) return;
         setDialogOpen(false);
         setForm(defaultForm);
+        setSubmitAttempted(false);
+        setPricePreview({
+            packageId: null,
+            status: "DRAFT",
+            price: null,
+            serviceFee: null,
+            taxFee: null,
+            finalPrice: null,
+        });
     };
 
     const openDetailDialog = (row) => {
@@ -421,6 +615,34 @@ export default function AdminPackageFeeManagement() {
     const closeDetailDialog = () => {
         setDetailOpen(false);
         setDetailRow(null);
+    };
+
+    const openPublishConfirmFromDetail = () => {
+        if (!detailRow) return;
+        openPublishConfirm(detailRow);
+    };
+    const openPublishConfirmFromForm = () => {
+        const id = Number(form.packageId);
+        if (!Number.isFinite(id) || id < 1) {
+            enqueueSnackbar("Vui lòng tạo gói trước khi công bố.", { variant: "warning" });
+            return;
+        }
+        if (pricePreview.status !== "DRAFT") {
+            enqueueSnackbar("Chỉ có thể công bố gói ở trạng thái DRAFT.", { variant: "warning" });
+            return;
+        }
+        openPublishConfirm({
+            id,
+            name: String(form.name || "").trim() || `#${id}`,
+            status: "PACKAGE_DRAFT",
+        });
+    };
+
+    const openEditFromDetail = () => {
+        if (!detailRow) return;
+        const row = detailRow;
+        closeDetailDialog();
+        openEditDialog(row);
     };
 
     const openPublishConfirm = (row) => {
@@ -446,6 +668,8 @@ export default function AdminPackageFeeManagement() {
             await publishAdminPackageFee(publishTargetRow.id);
             enqueueSnackbar("Đã công khai gói dịch vụ.", { variant: "success" });
             closePublishConfirm();
+            closeDialog();
+            closeDetailDialog();
             await load();
         } catch (e) {
             console.error(e);
@@ -489,30 +713,50 @@ export default function AdminPackageFeeManagement() {
 
     const handleChange = (key) => (e) => {
         const value = e?.target?.type === "checkbox" ? e.target.checked : e.target.value;
-        setForm((prev) => ({ ...prev, [key]: value }));
-    };
-
-    const handlePriceVndChange = (e) => {
-        const digits = String(e.target.value).replace(/\D/g, "");
-        if (digits === "") {
-            setForm((prev) => ({ ...prev, price: "" }));
-            return;
-        }
-        const n = parseInt(digits, 10);
-        if (Number.isNaN(n)) return;
-        setForm((prev) => ({ ...prev, price: n }));
+        setForm((prev) => {
+            const next = { ...prev, [key]: value };
+            if (key === "packageType" && value === "TRIAL") {
+                next.hasAiAssistant = false;
+                next.topRanking = 0;
+                if (next.supportLevel === "PREMIUM_SUPPORT") {
+                    next.supportLevel = "STANDARD_SUPPORT";
+                }
+            }
+            return next;
+        });
     };
 
     const validateForm = () => {
-        if (!String(form.name).trim()) return "Vui lòng nhập tên gói.";
+        const name = String(form.name).trim();
+        if (!name) return "Vui lòng nhập tên gói.";
+        if (name.length > 100) return "Tên gói không được vượt quá 100 ký tự.";
+        if (!PACKAGE_TYPES.includes(form.packageType)) return "Loại gói không hợp lệ.";
         if (!String(form.description).trim()) return "Vui lòng nhập mô tả gói.";
-        if (form.price === "" || Number.isNaN(Number(form.price)) || Number(form.price) < 0) return "Giá gói (VNĐ) không hợp lệ.";
         const dur = Number(form.durationDays);
         if (form.durationDays === "" || Number.isNaN(dur) || dur < 1 || !Number.isInteger(dur)) {
             return "Thời hạn gói (ngày) phải là số nguyên dương.";
         }
         if (form.maxCounsellors === "" || Number(form.maxCounsellors) < 0) return "Số tư vấn viên tối đa không hợp lệ.";
-        if (form.topRanking === "" || Number(form.topRanking) < 0) return "Thứ hạng ưu tiên không hợp lệ.";
+        const maxCounsellors = Number(form.maxCounsellors);
+        if (!Number.isInteger(maxCounsellors) || maxCounsellors < 0) return "Số tư vấn viên tối đa phải là số nguyên >= 0.";
+        const postLimit = Number(form.postLimit);
+        if (
+            form.postLimit === "" ||
+            Number.isNaN(postLimit) ||
+            !Number.isInteger(postLimit) ||
+            (postLimit < 0 && postLimit !== -1)
+        ) {
+            return "Giới hạn bài đăng phải là số nguyên >= 0 hoặc -1 (không giới hạn).";
+        }
+        const topRanking = Number(form.topRanking);
+        if (form.topRanking === "" || Number.isNaN(topRanking) || !Number.isInteger(topRanking) || topRanking < 0) {
+            return "Thứ hạng ưu tiên phải là số nguyên >= 0.";
+        }
+        if (!PARENT_POST_PERMISSIONS.includes(form.parentPostPermission)) return "Quyền đăng bài của school không hợp lệ.";
+        if (!SUPPORT_LEVELS.includes(form.supportLevel)) return "Mức hỗ trợ không hợp lệ.";
+        if (form.packageType === "TRIAL" && form.supportLevel === "PREMIUM_SUPPORT") {
+            return "Gói TRIAL không được chọn PREMIUM_SUPPORT.";
+        }
         if (form.packageId != null) {
             const pid = Number(form.packageId);
             if (!Number.isFinite(pid) || pid < 1) {
@@ -521,8 +765,10 @@ export default function AdminPackageFeeManagement() {
         }
         return null;
     };
+    const formValidationError = validateForm();
 
     const submit = async () => {
+        setSubmitAttempted(true);
         const validationError = validateForm();
         if (validationError) {
             enqueueSnackbar(validationError, { variant: "warning" });
@@ -536,12 +782,30 @@ export default function AdminPackageFeeManagement() {
                 return;
             }
             const payload = buildPayload(form, isEdit);
-            await upsertAdminPackageFee(payload);
-            enqueueSnackbar(isEdit ? "Cập nhật gói dịch vụ thành công." : "Tạo gói dịch vụ thành công.", {
+            const upsertRes = await upsertAdminPackageFee(payload);
+            const refreshedItems = await load();
+            const upsertPackageId =
+                Number(upsertRes?.data?.body?.packageId ?? upsertRes?.data?.body?.id ?? upsertRes?.data?.packageId ?? upsertRes?.data?.id) ||
+                null;
+            const fallbackMatchedItem =
+                refreshedItems
+                    .filter((it) => it.name === String(form.name).trim() && it.packageType === form.packageType)
+                    .sort((a, b) => Number(b.id || 0) - Number(a.id || 0))[0] || null;
+            const matchedItem = refreshedItems.find((it) => it.id === upsertPackageId) || fallbackMatchedItem;
+            if (matchedItem) {
+                setForm((prev) => ({ ...prev, packageId: matchedItem.id ?? prev.packageId }));
+                setPricePreview({
+                    packageId: matchedItem.id ?? null,
+                    status: normalizePackageStatus(matchedItem.status),
+                    price: matchedItem.price ?? null,
+                    serviceFee: matchedItem.serviceFee ?? null,
+                    taxFee: matchedItem.taxFee ?? null,
+                    finalPrice: matchedItem.finalPrice ?? null,
+                });
+            }
+            enqueueSnackbar(isEdit ? "Lưu nháp cập nhật thành công." : "Lưu nháp gói mới thành công.", {
                 variant: "success",
             });
-            closeDialog();
-            await load();
         } catch (e) {
             console.error(e);
             enqueueSnackbar(pickHttpErrorMessage(e, "Không thể lưu gói dịch vụ. Vui lòng thử lại."), {
@@ -560,21 +824,29 @@ export default function AdminPackageFeeManagement() {
                     borderRadius: 3.5,
                     mb: 2.5,
                     color: "white",
-                    background: "linear-gradient(95deg, #2563eb 0%, #3158ef 40%, #6d3df2 72%, #8b3dff 100%)",
-                    boxShadow: "0 18px 34px rgba(67, 56, 202, 0.28)",
+                    background: "linear-gradient(95deg, #60a5fa 0%, #818cf8 46%, #a78bfa 100%)",
+                    boxShadow: "0 12px 24px rgba(99, 102, 241, 0.2)",
                 }}
             >
-                <CardContent sx={{ p: { xs: 2.2, md: 2.8 }, "&:last-child": { pb: { xs: 2.2, md: 2.8 } } }}>
+                <CardContent sx={{ p: { xs: 1.5, md: 1.9 }, "&:last-child": { pb: { xs: 1.5, md: 1.9 } } }}>
                     <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexWrap: "wrap" }}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-                            <Avatar sx={{ bgcolor: alpha("#ffffff", 0.2), color: "white", width: 42, height: 42 }}>
+                            <Avatar
+                                sx={{
+                                    bgcolor: alpha("#ffffff", 0.28),
+                                    color: "white",
+                                    width: 34,
+                                    height: 34,
+                                    border: "1px solid rgba(255,255,255,0.45)",
+                                }}
+                            >
                                 <MonetizationOnOutlinedIcon />
                             </Avatar>
                             <Box>
-                                <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+                                <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.2, textShadow: "0 1px 2px rgba(15,23,42,0.24)" }}>
                                     Quản lý phí gói dịch vụ
                                 </Typography>
-                                <Typography variant="body2" sx={{ opacity: 0.92, mt: 0.45 }}>
+                                <Typography variant="body2" sx={{ opacity: 1, mt: 0.3, fontSize: 13, fontWeight: 500, textShadow: "0 1px 2px rgba(15,23,42,0.2)" }}>
                                     Tạo mới hoặc cập nhật gói ở trạng thái Bản nháp
                                 </Typography>
                             </Box>
@@ -627,7 +899,7 @@ export default function AdminPackageFeeManagement() {
                                         Mô tả
                                     </TableCell>
                                     <TableCell align="center" sx={{ ...adminTableHeadCellSx, whiteSpace: "normal", lineHeight: 1.2 }}>
-                                        Giá (VNĐ)
+                                        Tổng thanh toán (VNĐ)
                                     </TableCell>
                                     <TableCell align="center" sx={{ ...adminTableHeadCellSx, whiteSpace: "normal", lineHeight: 1.2 }}>
                                         Thời hạn (ngày)
@@ -692,8 +964,10 @@ export default function AdminPackageFeeManagement() {
                                                         {row.description || "—"}
                                                     </Typography>
                                                 </TableCell>
-                                                <TableCell align="center" sx={{ whiteSpace: "nowrap", verticalAlign: "middle" }}>
-                                                    {row.price != null && !Number.isNaN(Number(row.price)) ? formatVnd(row.price) : "—"}
+                                                <TableCell align="center" sx={{ whiteSpace: "nowrap", verticalAlign: "middle", fontWeight: 700 }}>
+                                                    {row.finalPrice != null && !Number.isNaN(Number(row.finalPrice))
+                                                        ? formatVnd(row.finalPrice)
+                                                        : "—"}
                                                 </TableCell>
                                                 <TableCell align="center" sx={{ whiteSpace: "nowrap", verticalAlign: "middle" }}>
                                                     {row.durationDays != null && !Number.isNaN(Number(row.durationDays))
@@ -748,30 +1022,6 @@ export default function AdminPackageFeeManagement() {
                                                                     }}
                                                                 >
                                                                     <EditOutlinedIcon fontSize="small" />
-                                                                </IconButton>
-                                                            </span>
-                                                        </Tooltip>
-                                                        <Tooltip
-                                                            title={
-                                                                isDraft
-                                                                    ? "Công khai gói (khách hàng có thể xem)"
-                                                                    : "Gói đã công khai hoặc không thể công khai từ trạng thái này"
-                                                            }
-                                                        >
-                                                            <span>
-                                                                <IconButton
-                                                                    size="small"
-                                                                    disabled={!isDraft}
-                                                                    onClick={() => openPublishConfirm(row)}
-                                                                    sx={{
-                                                                        color: isDraft ? "#0369a1" : "#94a3b8",
-                                                                        border: "1px solid",
-                                                                        borderColor: isDraft ? "#7dd3fc" : "#e2e8f0",
-                                                                        bgcolor: isDraft ? "#f0f9ff" : "#f8fafc",
-                                                                        borderRadius: 2,
-                                                                    }}
-                                                                >
-                                                                    <FileUploadSharpIcon fontSize="small" />
                                                                 </IconButton>
                                                             </span>
                                                         </Tooltip>
@@ -859,8 +1109,18 @@ export default function AdminPackageFeeManagement() {
                 >
                     {detailRow && (
                         <Stack spacing={2}>
-                            <PackageDetailPriceDurationSection price={detailRow.price} durationDays={detailRow.durationDays} />
                             <PackageDetailInfoSection row={detailRow} />
+                            <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap">
+                                <Chip size="small" label={packageStatusLabel(detailRow.status)} {...packageStatusChipProps(detailRow.status)} />
+                            </Stack>
+                            <PackageDetailPriceDurationSection
+                                price={detailRow.price}
+                                serviceFee={detailRow.serviceFee}
+                                taxFee={detailRow.taxFee}
+                                finalPrice={detailRow.finalPrice}
+                                durationDays={detailRow.durationDays}
+                                packageType={detailRow.packageType}
+                            />
 
                             <Box sx={{ pt: 0.5 }}>
                                 <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: 2 }}>
@@ -872,127 +1132,242 @@ export default function AdminPackageFeeManagement() {
                         </Stack>
                     )}
                 </DialogContent>
+                <DialogActions sx={adminDialogActionsSx}>
+                    <Button
+                        variant="outlined"
+                        onClick={openEditFromDetail}
+                        disabled={!detailRow || detailRow.status !== "PACKAGE_DRAFT"}
+                        startIcon={<EditOutlinedIcon />}
+                        sx={{ textTransform: "none", fontWeight: 600 }}
+                    >
+                        Chỉnh sửa
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={openPublishConfirmFromDetail}
+                        disabled={!detailRow || detailRow.status !== "PACKAGE_DRAFT"}
+                        startIcon={<FileUploadSharpIcon />}
+                        sx={{ textTransform: "none", fontWeight: 700 }}
+                    >
+                        Công khai
+                    </Button>
+                </DialogActions>
             </Dialog>
 
             <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="md" PaperProps={{ sx: adminDialogPaperSx }}>
-                <DialogTitle sx={adminDialogTitleSx}>
-                    {isEdit ? "Cập nhật gói dịch vụ (Bản nháp)" : "Tạo gói dịch vụ mới"}
+                <DialogTitle sx={{ ...adminDialogTitleSx, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1 }}>
+                    <Typography component="span" sx={{ fontWeight: 800, fontSize: "1.12rem" }}>
+                        {isEdit ? "Cập nhật gói nháp" : "Tạo gói nháp"}
+                    </Typography>
+                    {isEdit ? <Chip size="small" label={pricePreview.status || "DRAFT"} color="warning" variant="outlined" /> : null}
                 </DialogTitle>
                 <DialogContent dividers sx={adminDialogContentSx}>
-                    <Stack spacing={2} sx={{ mt: 1 }}>
-                        <Typography variant="subtitle2" sx={{ color: "#1e40af", fontWeight: 700 }}>
-                            Thông tin cơ bản
-                        </Typography>
-                        <TextField label="Tên gói dịch vụ" size="small" value={form.name} onChange={handleChange("name")} fullWidth />
-                        <TextField
-                            label="Mô tả"
-                            size="small"
-                            value={form.description}
-                            onChange={handleChange("description")}
-                            fullWidth
-                            multiline
-                            minRows={2}
-                        />
-                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2}>
-                            <TextField
-                                label="Giá (VNĐ)"
-                                type="text"
-                                size="small"
-                                value={formatVnd(form.price)}
-                                onChange={handlePriceVndChange}
-                                fullWidth
-                                placeholder="Ví dụ: 15.000.000"
-                                inputProps={{ inputMode: "numeric", autoComplete: "off" }}
-                            />
-                            <TextField
-                                label="Thời hạn gói (ngày)"
-                                type="number"
-                                size="small"
-                                value={form.durationDays}
-                                onChange={handleChange("durationDays")}
-                                fullWidth
-                                inputProps={{ min: 1 }}
-                            />
-                        </Stack>
-                        <Divider />
-                        <Typography variant="subtitle2" sx={{ color: "#1e40af", fontWeight: 700 }}>
-                            Cấu hình tính năng
-                        </Typography>
-                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2}>
-                            <TextField
-                                label="Số tư vấn viên tối đa"
-                                type="number"
-                                size="small"
-                                value={form.maxCounsellors}
-                                onChange={handleChange("maxCounsellors")}
-                                fullWidth
-                            />
-                            <TextField
-                                label="Thứ hạng ưu tiên"
-                                type="number"
-                                size="small"
-                                value={form.topRanking}
-                                onChange={handleChange("topRanking")}
-                                fullWidth
-                            />
-                        </Stack>
-                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2}>
-                            <FormControl fullWidth size="small">
-                                <InputLabel id="parent-post-permission-label">Quyền đăng bài của nhà trường</InputLabel>
-                                <Select
-                                    labelId="parent-post-permission-label"
-                                    label="Quyền đăng bài của nhà trường"
-                                    value={form.parentPostPermission}
-                                    onChange={handleChange("parentPostPermission")}
-                                    renderValue={(v) => displayEnum(v)}
-                                >
-                                    {PARENT_POST_PERMISSIONS.map((v) => (
-                                        <MenuItem key={v} value={v}>
-                                            {v}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-                            <FormControl fullWidth size="small">
-                                <InputLabel id="support-level-label">Mức hỗ trợ</InputLabel>
-                                <Select
-                                    labelId="support-level-label"
-                                    label="Mức hỗ trợ"
-                                    value={form.supportLevel}
-                                    onChange={handleChange("supportLevel")}
-                                    renderValue={(v) => displayEnum(v)}
-                                >
-                                    {SUPPORT_LEVELS.map((v) => (
-                                        <MenuItem key={v} value={v}>
-                                            {v}
-                                        </MenuItem>
-                                    ))}
-                                </Select>
-                            </FormControl>
-                        </Stack>
-                        <Stack
-                            direction={{ xs: "column", sm: "row" }}
-                            spacing={1.2}
-                            sx={{ bgcolor: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 2, px: 1.5, py: 1 }}
-                        >
-                            <FormControlLabel
-                                control={<Switch checked={Boolean(form.allowChat)} onChange={(e) => setForm((prev) => ({ ...prev, allowChat: e.target.checked }))} />}
-                                label="Được dùng Chatbot AI"
-                            />
-                        </Stack>
-                        {isEdit && (
-                            <Typography variant="caption" color="#64748b" sx={{ wordBreak: "break-word" }}>
-                                Quyền nhà trường hiện tại: {displayEnum(form.parentPostPermission)}
-                            </Typography>
-                        )}
-                    </Stack>
+                    <Box sx={{ mt: 1 }}>
+                        <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1.8fr 1fr" }, gap: 2 }}>
+                            <Stack spacing={2}>
+                                <Typography variant="subtitle2" sx={{ color: "#1e40af", fontWeight: 700 }}>
+                                    A. Thông tin gói
+                                </Typography>
+                                <TextField label="Tên gói" required size="small" value={form.name} onChange={handleChange("name")} fullWidth />
+                                <FormControl fullWidth size="small" required>
+                                    <InputLabel id="package-type-label">Loại gói</InputLabel>
+                                    <Select labelId="package-type-label" label="Loại gói" value={form.packageType} onChange={handleChange("packageType")}>
+                                        {PACKAGE_TYPES.map((v) => (
+                                            <MenuItem key={v} value={v}>
+                                                {v}
+                                            </MenuItem>
+                                        ))}
+                                    </Select>
+                                </FormControl>
+                                <TextField
+                                    label="Mô tả"
+                                    size="small"
+                                    value={form.description}
+                                    onChange={handleChange("description")}
+                                    fullWidth
+                                    multiline
+                                    minRows={2}
+                                />
+                                <TextField
+                                    label="Thời hạn gói (ngày)"
+                                    type="number"
+                                    size="small"
+                                    required
+                                    value={form.durationDays}
+                                    onChange={handleChange("durationDays")}
+                                    fullWidth
+                                    inputProps={{ min: 1 }}
+                                />
+                                <Divider />
+                                <Typography variant="subtitle2" sx={{ color: "#1e40af", fontWeight: 700 }}>
+                                    B. Tính năng
+                                </Typography>
+                                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2}>
+                                    <TextField
+                                        label="Số tư vấn viên tối đa"
+                                        type="number"
+                                        size="small"
+                                        value={form.maxCounsellors}
+                                        onChange={handleChange("maxCounsellors")}
+                                        fullWidth
+                                        inputProps={{ min: 0 }}
+                                    />
+                                    <TextField
+                                        label="Giới hạn bài đăng (-1 = không giới hạn)"
+                                        type="number"
+                                        size="small"
+                                        value={form.postLimit}
+                                        onChange={handleChange("postLimit")}
+                                        fullWidth
+                                    />
+                                </Stack>
+                                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2}>
+                                    <FormControl fullWidth size="small" required>
+                                        <InputLabel id="parent-post-permission-label">Quyền school đăng bài</InputLabel>
+                                        <Select
+                                            labelId="parent-post-permission-label"
+                                            label="Quyền school đăng bài"
+                                            value={form.parentPostPermission}
+                                            onChange={handleChange("parentPostPermission")}
+                                            renderValue={(v) => displayEnum(v)}
+                                        >
+                                            {PARENT_POST_PERMISSIONS.map((v) => (
+                                                <MenuItem key={v} value={v}>
+                                                    {v}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </FormControl>
+                                    <FormControl fullWidth size="small" required>
+                                        <InputLabel id="support-level-label">Mức hỗ trợ</InputLabel>
+                                        <Select
+                                            labelId="support-level-label"
+                                            label="Mức hỗ trợ"
+                                            value={form.supportLevel}
+                                            onChange={handleChange("supportLevel")}
+                                            renderValue={(v) => displayEnum(v)}
+                                        >
+                                            {SUPPORT_LEVELS.map((v) => (
+                                                <MenuItem key={v} value={v} disabled={form.packageType === "TRIAL" && v === "PREMIUM_SUPPORT"}>
+                                                    {v}
+                                                </MenuItem>
+                                            ))}
+                                        </Select>
+                                    </FormControl>
+                                </Stack>
+                                <TextField
+                                    label="Top ranking"
+                                    type="number"
+                                    size="small"
+                                    value={form.topRanking}
+                                    onChange={handleChange("topRanking")}
+                                    fullWidth
+                                    inputProps={{ min: 0 }}
+                                    disabled={isTrialPackage}
+                                />
+                                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2}>
+                                    <FormControlLabel
+                                        control={
+                                            <Switch
+                                                checked={Boolean(form.hasAiAssistant)}
+                                                onChange={(e) => setForm((prev) => ({ ...prev, hasAiAssistant: e.target.checked }))}
+                                                disabled={isTrialPackage}
+                                            />
+                                        }
+                                        label="AI Assistant"
+                                        sx={{ width: "100%", m: 0, py: 0.8, px: 1.2, border: "1px solid #e2e8f0", borderRadius: 1.5 }}
+                                    />
+                                    <FormControlLabel
+                                        control={
+                                            <Switch
+                                                checked={Boolean(form.isFeatured)}
+                                                onChange={(e) => setForm((prev) => ({ ...prev, isFeatured: e.target.checked }))}
+                                            />
+                                        }
+                                        label="Gói nổi bật"
+                                        sx={{ width: "100%", m: 0, py: 0.8, px: 1.2, border: "1px solid #e2e8f0", borderRadius: 1.5 }}
+                                    />
+                                </Stack>
+                                {isTrialPackage && (
+                                    <Typography variant="caption" color="#b45309">
+                                        Gói TRIAL tự động áp dụng: hasAiAssistant = false, topRanking = 0 và không cho phép PREMIUM_SUPPORT.
+                                    </Typography>
+                                )}
+                                {submitAttempted && formValidationError ? (
+                                    <Typography variant="caption" sx={{ color: "#b91c1c" }}>
+                                        {formValidationError}
+                                    </Typography>
+                                ) : null}
+                            </Stack>
+                            <Box
+                                sx={{
+                                    border: "1px solid #dbeafe",
+                                    bgcolor: "#f8fbff",
+                                    borderRadius: 2,
+                                    p: 1.5,
+                                    height: "fit-content",
+                                }}
+                            >
+                                <Typography sx={{ fontWeight: 800, color: "#1e40af", mb: 1.2 }}>Giá hệ thống tính tự động</Typography>
+                                <Stack spacing={1}>
+                                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
+                                        <Typography sx={{ color: "#475569", fontSize: 12 }}>Giá gốc</Typography>
+                                        <Typography sx={{ fontWeight: 500, fontSize: 12 }}>
+                                            {pricePreview.price != null ? `${formatVnd(pricePreview.price)} VNĐ` : "—"}
+                                        </Typography>
+                                    </Box>
+                                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
+                                        <Typography sx={{ color: "#475569", fontSize: 12 }}>Phí dịch vụ</Typography>
+                                        <Typography sx={{ fontWeight: 500, fontSize: 12 }}>
+                                            {pricePreview.serviceFee != null ? `${formatVnd(pricePreview.serviceFee)} VNĐ` : "—"}
+                                        </Typography>
+                                    </Box>
+                                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
+                                        <Typography sx={{ color: "#475569", fontSize: 12 }}>Thuế</Typography>
+                                        <Typography sx={{ fontWeight: 500, fontSize: 12 }}>
+                                            {pricePreview.taxFee != null ? `${formatVnd(pricePreview.taxFee)} VNĐ` : "—"}
+                                        </Typography>
+                                    </Box>
+                                    <Divider />
+                                    <Box
+                                        sx={{
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                            gap: 1,
+                                        }}
+                                    >
+                                        <Typography sx={{ color: "#1e3a8a", fontWeight: 700, fontSize: 13 }}>Tổng thanh toán</Typography>
+                                        <Typography sx={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>
+                                            {pricePreview.finalPrice != null ? `${formatVnd(pricePreview.finalPrice)} VNĐ` : "—"}
+                                        </Typography>
+                                    </Box>
+                                </Stack>
+                            </Box>
+                        </Box>
+                    </Box>
                 </DialogContent>
                 <DialogActions sx={adminDialogActionsSx}>
                     <Button onClick={closeDialog} disabled={submitting} sx={{ textTransform: "none" }}>
                         Hủy
                     </Button>
-                    <Button variant="contained" onClick={submit} disabled={submitting} sx={{ textTransform: "none", fontWeight: 700 }}>
-                        {submitting ? <CircularProgress size={22} color="inherit" /> : isEdit ? "Lưu cập nhật" : "Tạo mới"}
+                    {isEdit && pricePreview.status === "DRAFT" ? (
+                        <Button
+                            variant="outlined"
+                            onClick={openPublishConfirmFromForm}
+                            disabled={submitting || publishLoading}
+                            startIcon={<FileUploadSharpIcon />}
+                            sx={{ textTransform: "none", fontWeight: 700 }}
+                        >
+                            Công bố
+                        </Button>
+                    ) : null}
+                    <Button
+                        variant="contained"
+                        onClick={submit}
+                        disabled={submitting}
+                        sx={{ textTransform: "none", fontWeight: 700 }}
+                    >
+                        {submitting ? <CircularProgress size={22} color="inherit" /> : isEdit ? "Chỉnh sửa" : "Tạo"}
                     </Button>
                 </DialogActions>
             </Dialog>
@@ -1020,14 +1395,6 @@ export default function AdminPackageFeeManagement() {
                 onCancel={closePublishConfirm}
                 onConfirm={handleConfirmPublish}
                 loading={publishLoading}
-                paperSx={{
-                    background: "linear-gradient(145deg, #eef7ff 0%, #f8fbff 46%, #ffffff 100%)",
-                    border: "1px solid rgba(59,130,246,0.25)",
-                }}
-                titleSx={{
-                    background: "linear-gradient(90deg, rgba(37,99,235,0.2) 0%, rgba(59,130,246,0.14) 100%)",
-                    borderBottom: "none",
-                }}
             />
 
             <ConfirmDialog
@@ -1055,14 +1422,6 @@ export default function AdminPackageFeeManagement() {
                 onCancel={closeDeactiveConfirm}
                 onConfirm={handleConfirmDeactive}
                 loading={deactiveLoading}
-                paperSx={{
-                    background: "linear-gradient(145deg, #fff1f2 0%, #fffbfb 46%, #ffffff 100%)",
-                    border: "1px solid rgba(220,38,38,0.22)",
-                }}
-                titleSx={{
-                    background: "linear-gradient(90deg, rgba(220,38,38,0.14) 0%, rgba(248,113,113,0.1) 100%)",
-                    borderBottom: "none",
-                }}
                 confirmButtonSx={{
                     background: "#dc2626",
                     boxShadow: "0 6px 14px rgba(220,38,38,0.35)",

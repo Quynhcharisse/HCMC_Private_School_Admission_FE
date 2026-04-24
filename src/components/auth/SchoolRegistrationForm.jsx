@@ -29,7 +29,14 @@ import {enqueueSnackbar} from 'notistack';
 import {showErrorSnackbar, showSuccessSnackbar} from '../ui/AppSnackbar.jsx';
 import CloudinaryUpload from '../ui/CloudinaryUpload.jsx';
 import {APP_PRIMARY_DARK, BRAND_NAVY, BRAND_SKY, BRAND_SKY_LIGHT} from '../../constants/homeLandingTheme';
-import {getSystemConfig} from '../../services/SystemConfigService.jsx';
+import {fetchSystemMediaConfig} from '../../services/SystemConfigService.jsx';
+import {
+    buildMediaImageRulesFromMedia,
+    getFallbackDocFormatExtensions,
+    getFallbackMediaImageRules,
+    parseDocFormatsFromMedia,
+    parseImageFormatsFromMedia,
+} from '../../utils/platformMediaConfig.js';
 
 const HEADER_MUTED = 'rgba(30, 58, 138, 0.82)';
 const PHONE_REGEX = /^\d{10}$/;
@@ -77,34 +84,44 @@ const SchoolRegistrationForm = ({email, onBack}) => {
     });
     const [allowedImgFormats, setAllowedImgFormats] = useState([]);
     const [allowedDocFormats, setAllowedDocFormats] = useState([]);
+    const [logoMediaImageRules, setLogoMediaImageRules] = useState(null);
+    const [logoMediaRulesLoading, setLogoMediaRulesLoading] = useState(true);
 
     useEffect(() => {
         let isMounted = true;
 
-        const normalizeFormat = (value) => {
-            const raw = String(value ?? '').trim().toLowerCase();
-            if (!raw) return '';
-            return raw.startsWith('.') ? raw : `.${raw}`;
-        };
+        const toDotSuffixes = (exts) =>
+            exts.map((e) => {
+                const s = String(e ?? '')
+                    .trim()
+                    .toLowerCase();
+                if (!s) return '';
+                return s.startsWith('.') ? s : `.${s}`;
+            }).filter(Boolean);
 
-        const extractFormats = (media, keys = []) => {
-            const source = keys.find((key) => Array.isArray(media?.[key]));
-            if (!source) return [];
-            return media[source]
-                .map((item) => (typeof item === 'string' ? item : item?.format))
-                .map(normalizeFormat)
-                .filter(Boolean);
+        const applyPublicFallback = () => {
+            const imgRules = getFallbackMediaImageRules();
+            setLogoMediaImageRules(imgRules);
+            setAllowedImgFormats(toDotSuffixes(imgRules.extensions));
+            setAllowedDocFormats(toDotSuffixes(getFallbackDocFormatExtensions()));
         };
 
         const loadMediaFormats = async () => {
+            setLogoMediaRulesLoading(true);
             try {
-                const res = await getSystemConfig();
-                const media = res?.data?.data?.media || res?.data?.media || res?.media;
-                if (!isMounted || !media) return;
-                setAllowedImgFormats(extractFormats(media, ['imgFormats', 'imgFormat']));
-                setAllowedDocFormats(extractFormats(media, ['docFormats', 'docFormat']));
+                const media = await fetchSystemMediaConfig({staleTimeMs: 10 * 60 * 1000});
+                if (!isMounted) return;
+                const imgExt = parseImageFormatsFromMedia(media);
+                const docExt = parseDocFormatsFromMedia(media);
+                const rules = buildMediaImageRulesFromMedia(media) ?? getFallbackMediaImageRules();
+                setLogoMediaImageRules(rules);
+                setAllowedImgFormats(toDotSuffixes(imgExt.length ? imgExt : rules.extensions));
+                setAllowedDocFormats(toDotSuffixes(docExt.length ? docExt : getFallbackDocFormatExtensions()));
             } catch (error) {
-                console.error('Failed to load media format config:', error);
+                if (!isMounted) return;
+                applyPublicFallback();
+            } finally {
+                if (isMounted) setLogoMediaRulesLoading(false);
             }
         };
 
@@ -113,6 +130,12 @@ const SchoolRegistrationForm = ({email, onBack}) => {
             isMounted = false;
         };
     }, []);
+
+    const taxCodeValueTrimmed = formData.taxCode.trim();
+    const isTaxCodeVerified =
+        lastTaxCodeCheckResult.taxCode === taxCodeValueTrimmed && lastTaxCodeCheckResult.isValid;
+    const lockFormUntilTaxCodeVerified = !isTaxCodeVerified;
+    const formSectionDisabled = lockFormUntilTaxCodeVerified || isSubmitting;
 
     const formatDisplayDate = (value) => {
         if (!value) return '';
@@ -651,7 +674,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                             <IconButton
                                                                 size="small"
                                                                 onClick={handleTaxCodeCheck}
-                                                                disabled={isCheckingTaxCode}
+                                                                disabled={isCheckingTaxCode || isSubmitting}
                                                                 sx={{
                                                                     color: '#16a34a',
                                                                     bgcolor: 'transparent',
@@ -692,7 +715,12 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             />
                                         </Grid>
                                     </Grid>
-
+                                    <Box
+                                        sx={{
+                                            opacity: lockFormUntilTaxCodeVerified ? 0.65 : 1,
+                                            transition: 'opacity 0.2s ease',
+                                        }}
+                                    >
                                     <Typography 
                                         variant="subtitle1" 
                                         sx={{
@@ -736,6 +764,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     onChange={handleInputChange}
                                                     fullWidth
                                                     size="small"
+                                                    disabled={formSectionDisabled}
                                                     multiline
                                                     minRows={3}
                                                     maxRows={8}
@@ -759,6 +788,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     onChange={handleInputChange}
                                                     fullWidth
                                                     size="small"
+                                                    disabled={formSectionDisabled}
                                                     placeholder="dd/mm/yyyy"
                                                     error={!!formErrors.foundingDate}
                                                     helperText={formErrors.foundingDate}
@@ -767,7 +797,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     InputProps={{
                                                         endAdornment: (
                                                             <InputAdornment position="end">
-                                                                <IconButton size="small" onClick={openFoundingDatePicker}>
+                                                                <IconButton size="small" onClick={openFoundingDatePicker} disabled={formSectionDisabled}>
                                                                     <CalendarMonth fontSize="small" />
                                                                 </IconButton>
                                                             </InputAdornment>
@@ -783,6 +813,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     ref={foundingDatePickerRef}
                                                     type="date"
                                                     value={normalizeFoundingDate(formData.foundingDate) ?? ''}
+                                                    disabled={formSectionDisabled}
                                                     onChange={(event) => {
                                                         const nextDisplayDate = formatDisplayDate(event.target.value);
                                                         setFormData((prev) => ({
@@ -810,6 +841,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 onChange={handleInputChange}
                                                 fullWidth
                                                 size="small"
+                                                disabled={formSectionDisabled}
                                                 multiline
                                                 minRows={5}
                                                 maxRows={16}
@@ -873,6 +905,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             onChange={handleInputChange}
                                             fullWidth
                                             size="small"
+                                            disabled={formSectionDisabled}
                                             multiline
                                             rows={2}
                                             error={!!formErrors.campusAddress}
@@ -896,6 +929,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     onChange={handleInputChange}
                                                     fullWidth
                                                     size="small"
+                                                    disabled={formSectionDisabled}
                                                     error={!!formErrors.campusPhone}
                                                     helperText={formErrors.campusPhone}
                                                     FormHelperTextProps={{sx: {minHeight: 20}}}
@@ -912,6 +946,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                     onChange={handleInputChange}
                                                     fullWidth
                                                     size="small"
+                                                    disabled={formSectionDisabled}
                                                     error={!!formErrors.hotline}
                                                     helperText={formErrors.hotline}
                                                     FormHelperTextProps={{sx: {minHeight: 20}}}
@@ -931,6 +966,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             onChange={handleInputChange}
                                             fullWidth
                                             size="small"
+                                            disabled={formSectionDisabled}
                                             placeholder="https://example.com"
                                             error={!!formErrors.websiteUrl}
                                             helperText={formErrors.websiteUrl}
@@ -987,6 +1023,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 onChange={handleInputChange}
                                                 fullWidth
                                                 size="small"
+                                                disabled={formSectionDisabled}
                                                 error={!!formErrors.representativeName}
                                                 helperText={formErrors.representativeName}
                                                 sx={{
@@ -1024,11 +1061,12 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                                 type="file"
                                                                 accept="application/pdf,.pdf"
                                                                 hidden
+                                                                disabled={formSectionDisabled}
                                                                 onChange={handleBusinessLicensePdfUpload}
                                                             />
                                                             <IconButton
                                                                 onClick={() => businessLicenseInputRef.current?.click()}
-                                                                disabled={isUploadingBusinessLicense}
+                                                                disabled={isUploadingBusinessLicense || formSectionDisabled}
                                                                 size="small"
                                                                 sx={{
                                                                     borderRadius: 1,
@@ -1052,6 +1090,9 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                                 inputId="school-registration-logo"
                                                 accept="image/*"
                                                 multiple={false}
+                                                disabled={formSectionDisabled}
+                                                mediaImageRules={logoMediaImageRules}
+                                                mediaImageRulesLoading={logoMediaRulesLoading}
                                                 onSuccess={([f]) => {
                                                     if (f?.url) {
                                                         setFormData((p) => ({...p, logoUrl: f.url}));
@@ -1124,7 +1165,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                     <Button
                                         type="submit"
                                         variant="contained"
-                                        disabled={isSubmitting}
+                                        disabled={isSubmitting || lockFormUntilTaxCodeVerified}
                                         sx={{
                                             minWidth: 170,
                                             py: 0.82,
@@ -1147,6 +1188,7 @@ const SchoolRegistrationForm = ({email, onBack}) => {
                                             'Đăng ký'
                                         )}
                                     </Button>
+                                </Box>
                                 </Box>
                             </Stack>
                         </Box>

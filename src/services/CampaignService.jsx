@@ -24,12 +24,20 @@ export const getCampaignTemplatesByYear = async (year) => {
  * @param {{ name: string, description?: string, year: number, startDate: string, endDate: string }} body
  */
 export const createCampaignTemplate = async (body) => {
+    const timelines = Array.isArray(body.admissionMethodTimelines)
+        ? body.admissionMethodTimelines.map((t) => ({
+              methodCode: String(t?.methodCode ?? "").trim(),
+              startDate: String(t?.startDate ?? "").trim(),
+              endDate: String(t?.endDate ?? "").trim(),
+          }))
+        : [];
     const response = await axiosClient.post("/school/campaign/template", {
         name: body.name?.trim() ?? "",
         description: body.description?.trim() ?? "",
         year: Number(body.year),
         startDate: body.startDate ?? "",
         endDate: body.endDate ?? "",
+        admissionMethodTimelines: timelines,
     });
     return response || null;
 };
@@ -39,6 +47,13 @@ export const createCampaignTemplate = async (body) => {
  * @param {{ admissionCampaignTemplateId: number, name: string, description?: string, year?: number, startDate: string, endDate: string }} body
  */
 export const updateCampaignTemplate = async (body) => {
+    const timelines = Array.isArray(body.admissionMethodTimelines)
+        ? body.admissionMethodTimelines.map((t) => ({
+              methodCode: String(t?.methodCode ?? "").trim(),
+              startDate: String(t?.startDate ?? "").trim(),
+              endDate: String(t?.endDate ?? "").trim(),
+          }))
+        : [];
     const response = await axiosClient.put("/school/campaign/template", {
         admissionCampaignTemplateId: Number(body.admissionCampaignTemplateId),
         name: body.name?.trim() ?? "",
@@ -46,6 +61,7 @@ export const updateCampaignTemplate = async (body) => {
         year: Number(body.year),
         startDate: body.startDate ?? "",
         endDate: body.endDate ?? "",
+        admissionMethodTimelines: timelines,
     });
     return response || null;
 };

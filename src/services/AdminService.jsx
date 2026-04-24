@@ -119,6 +119,26 @@ export const getAdminPackageFees = async () => {
     return response || null;
 };
 
+export const getAdminRevenueSummary = async ({ year, month, packageType }) => {
+    const response = await axiosClient.get("/admin/revenues/summary", {
+        params: {
+            year,
+            ...(month ? { month } : {}),
+            ...(packageType ? { packageType } : {}),
+        },
+    });
+    return response || null;
+};
+
+export const getAdminDashboardOverview = async ({ year }) => {
+    const response = await axiosClient.get("/admin/dashboard/overview", {
+        params: {
+            year,
+        },
+    });
+    return response || null;
+};
+
 export const upsertAdminPackageFee = async (payload) => {
     const response = await axiosClient.post("/admin/service/package/fee", payload);
     return response || null;
@@ -143,12 +163,39 @@ export const getAdminTemplateDocuments = async (categoryTemplate) => {
 
 export const uploadAdminTemplateDocument = async (categoryTemplate, file) => {
     const formData = new FormData();
+    // Key "file" phải khớp chính xác với @RequestParam("file") ở Backend
     formData.append("file", file);
-    const response = await axiosClient.post(`/admin/${categoryTemplate}/upload`, formData);
-    return response || null;
+
+    const response = await axiosClient.post(
+        `/admin/${categoryTemplate}/upload`,
+        formData,
+        {
+            headers: {
+                // QUAN TRỌNG: Phải đảm bảo không có 'Content-Type': 'application/json'
+                // Thường thì để trình duyệt tự xử lý 'multipart/form-data' là tốt nhất
+                "Content-Type": "multipart/form-data",
+            },
+        }
+    );
+    return response;
 };
+
+// Code cũ giữ lại để tham chiếu:
+// export const uploadAdminTemplateDocument = async (categoryTemplate, file) => {
+//     const formData = new FormData();
+//     formData.append("file", file);
+//     const response = await axiosClient.post(`/admin/${categoryTemplate}/upload`, formData);
+//     return response || null;
+// };
 
 export const deleteAdminTemplateDocument = async (templateId) => {
     const response = await axiosClient.delete(`/admin/${templateId}`);
+    return response || null;
+};
+
+export const autoFillAdminSchoolQuotas = async ({ url }) => {
+    const response = await axiosClient.post("/admin/school/quotas/auto/fill", {
+        url: String(url ?? "").trim(),
+    });
     return response || null;
 };

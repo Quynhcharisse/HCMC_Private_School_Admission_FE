@@ -56,6 +56,7 @@ import {
     parseBoardingType,
 } from "../../../constants/schoolBoardingType.js";
 import CloudinaryUpload from "../../ui/CloudinaryUpload.jsx";
+import {usePlatformMediaImageRules} from "../../../hooks/usePlatformMediaImageRules.js";
 
 const modalPaperSx = {
     borderRadius: "16px",
@@ -199,6 +200,7 @@ export default function SchoolCampus() {
     const [page, setPage] = useState(0);
     const rowsPerPage = 10;
     const [exporting, setExporting] = useState(false);
+    const {loading: mediaImageRulesLoading, rules: mediaImageRules} = usePlatformMediaImageRules();
     const createLatitude = formValues.latitude === "" ? NaN : Number(formValues.latitude);
     const createLongitude = formValues.longitude === "" ? NaN : Number(formValues.longitude);
     const hasCreateLatLng = Number.isFinite(createLatitude) && Number.isFinite(createLongitude);
@@ -332,7 +334,7 @@ export default function SchoolCampus() {
 
         if (parseBoardingType(formValues.boardingType) == null) {
             errors.boardingType =
-                "Loại hình nội trú không hợp lệ. Các giá trị chấp nhận: NONE, FULL_BOARDING, SEMI_BOARDING, BOTH";
+                "Loại hình nội trú không hợp lệ. Các giá trị chấp nhận: FULL_BOARDING, SEMI_BOARDING, BOTH";
         }
 
         setFormErrors(errors);
@@ -1856,6 +1858,8 @@ export default function SchoolCampus() {
                                 inputId="school-campus-edit-image"
                                 accept="image/*"
                                 multiple={false}
+                                mediaImageRules={mediaImageRules}
+                                mediaImageRulesLoading={mediaImageRulesLoading}
                                 onSuccess={handleCampusImageUploaded}
                                 onError={(msg) => enqueueSnackbar(msg, {variant: "error"})}
                             >

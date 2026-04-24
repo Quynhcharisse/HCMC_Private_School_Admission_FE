@@ -5,7 +5,7 @@ let stompClient = null;
 const messageListeners = new Set();
 
 const getWsHttpBase = () => import.meta.env.VITE_API_SERVER || "http://localhost:8080";
-const getWsEndpoint = () => import.meta.env.VITE_WS_ENDPOINT || "/ws";
+const getWsEndpoint = () => "/ws";
 
 /** Local ISO-8601 date-time (no zone) for Jackson LocalDateTime on the server. */
 export const toLocalDateTimeIso = (date = new Date()) => {
