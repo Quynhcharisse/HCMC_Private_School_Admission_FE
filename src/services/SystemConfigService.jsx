@@ -5,7 +5,6 @@ export const getSystemConfig = async () => {
     return res || null;
 };
 
-/** GET /system/config/key?k=admissionSettingsData — nếu BE chưa có, gọi getSystemConfig và lấy key. */
 export const getSystemConfigByKey = async (key) => {
     const res = await axiosClient.get("/system/config/key", {params: {k: key}});
     return res || null;
@@ -17,10 +16,6 @@ const MEDIA_CONFIG_CACHE = {
     pending: null,
 };
 
-/**
- * Đọc media config theo key=media.
- * Cache in-memory để không gọi API mỗi lần chọn file.
- */
 export const fetchSystemMediaConfig = async ({force = false, staleTimeMs = 10 * 60 * 1000} = {}) => {
     const now = Date.now();
     const hasFreshCache =
@@ -45,7 +40,6 @@ export const fetchSystemMediaConfig = async ({force = false, staleTimeMs = 10 * 
                 return byKeyMedia;
             }
         } catch {
-            // fallback sang config tổng
         }
 
         const fullRes = await getSystemConfig();
@@ -84,7 +78,6 @@ export const fetchSystemAdmissionSettingsData = async () => {
             }
         }
     } catch {
-        // fallback
     }
     try {
         const res = await getSystemConfig();
@@ -96,7 +89,18 @@ export const fetchSystemAdmissionSettingsData = async () => {
     }
 };
 
-    export const updateSystemConfig = async (body) => {
+export const importSystemAdmissionTemplate = async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await axiosClient.post("/system/config/admission/template/import", formData, {
+        headers: {
+            "Content-Type": "multipart/form-data",
+        },
+    });
+    return res || null;
+};
+
+export const updateSystemConfig = async (body) => {
     const res = await axiosClient.put("/system/config", body);
     return res || null;
 };
