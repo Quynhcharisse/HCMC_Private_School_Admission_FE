@@ -51,12 +51,12 @@ import {useSchool} from "../../../contexts/SchoolContext.jsx";
 import {
   getCampusConfig,
   getSchoolConfig,
+  getSchoolConfigByKey,
   importMandatoryDocsConfig,
   parseSchoolConfigResponseBody,
   updateCampusConfig,
   updateSchoolConfig,
 } from "../../../services/SchoolFacilityService.jsx";
-import {fetchSystemAdmissionSettingsData} from "../../../services/SystemConfigService.jsx";
 import {admissionSettingsComparableJson, sanitizeAdmissionSettingsForApi} from "../../../utils/admissionSettingsShared.js";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
 import SchoolWideScheduleReadOnlyPanel from "./SchoolWideScheduleReadOnlyPanel.jsx";
@@ -1760,6 +1760,14 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   const admissionFormBlocked = fieldDisabled || admissionViewMode === "preview";
   const admissionBlockPointerSx = admissionFormBlocked ? {pointerEvents: "none", cursor: "default"} : undefined;
 
+  const fetchAdmissionSettingsTemplateBySchoolKey = useCallback(async () => {
+    const res = await getSchoolConfigByKey("admissionSettingsData");
+    const body = parseSchoolConfigResponseBody(res);
+    const admissionSettingsData =
+      body?.admissionSettingsData && typeof body.admissionSettingsData === "object" ? body.admissionSettingsData : null;
+    return admissionSettingsData;
+  }, []);
+
   const load = useCallback(async (opts = {}) => {
     const silent = opts.silent === true;
     try {
@@ -1925,7 +1933,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     let cancelled = false;
     (async () => {
       try {
-        const tmpl = await fetchSystemAdmissionSettingsData();
+        const tmpl = await fetchAdmissionSettingsTemplateBySchoolKey();
         if (cancelled) return;
         if (tmpl && typeof tmpl === "object") {
           setSystemAdmissionComparable(admissionSettingsComparableJson(tmpl));
@@ -1939,7 +1947,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     return () => {
       cancelled = true;
     };
-  }, [isCampusVariant, schoolId, lastLoadedAt]);
+  }, [isCampusVariant, schoolId, lastLoadedAt, fetchAdmissionSettingsTemplateBySchoolKey]);
 
   useEffect(() => {
     if (tabSlug !== "admission") setAdmissionFirstRunOpen(false);
@@ -2196,7 +2204,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   const applySystemTemplateToForm = useCallback(async () => {
     setLoadingSystemAdmission(true);
     try {
-      const tmpl = await fetchSystemAdmissionSettingsData();
+      const tmpl = await fetchAdmissionSettingsTemplateBySchoolKey();
       if (!tmpl || typeof tmpl !== "object") {
         enqueueSnackbar("Không có mẫu phương thức trên hệ thống.", {variant: "info"});
         return;
@@ -2221,10 +2229,13 @@ export default function SchoolConfig({variant = "platform"} = {}) {
         },
       }));
       enqueueSnackbar("Đã áp dụng mẫu hệ thống vào form (chưa lưu DB).", {variant: "success"});
+    } catch (e) {
+      console.error(e);
+      enqueueSnackbar("Không thể tải mẫu hệ thống từ cấu hình trường.", {variant: "error"});
     } finally {
       setLoadingSystemAdmission(false);
     }
-  }, []);
+  }, [fetchAdmissionSettingsTemplateBySchoolKey]);
 
   const handleRestoreTemplateClick = useCallback(() => {
     if (isDirty) {
