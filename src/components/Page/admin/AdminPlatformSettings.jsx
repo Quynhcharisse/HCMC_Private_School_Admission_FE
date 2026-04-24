@@ -1102,7 +1102,7 @@ export default function AdminPlatformSettings() {
             const successMsg = String(res?.data?.message || "Import template tuyển sinh thành công").trim();
             await fetchConfig();
             enqueueSnackbar(successMsg, { variant: "success" });
-            setStatus({ type: "success", message: successMsg });
+            setStatus({ type: "", message: "" });
             setAdmissionTemplateEditing(false);
         } catch (e) {
             console.error("import admission template failed", e);
