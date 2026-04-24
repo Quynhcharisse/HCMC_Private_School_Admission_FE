@@ -1302,23 +1302,6 @@ export default function AdminPackageFeeManagement() {
                             >
                                 <Typography sx={{ fontWeight: 800, color: "#1e40af", mb: 1.2 }}>Giá hệ thống tính tự động</Typography>
                                 <Stack spacing={1}>
-                                    <Box
-                                        sx={{
-                                            border: "1px solid #bfdbfe",
-                                            borderRadius: 1.5,
-                                            bgcolor: "#eff6ff",
-                                            px: 1.2,
-                                            py: 0.9,
-                                            display: "flex",
-                                            justifyContent: "space-between",
-                                            gap: 1,
-                                        }}
-                                    >
-                                        <Typography sx={{ color: "#1e3a8a", fontWeight: 600, fontSize: 12 }}>Tổng thanh toán</Typography>
-                                        <Typography sx={{ fontWeight: 600, fontSize: 12, color: "#0f172a" }}>
-                                            {pricePreview.finalPrice != null ? `${formatVnd(pricePreview.finalPrice)} VNĐ` : "—"}
-                                        </Typography>
-                                    </Box>
                                     <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
                                         <Typography sx={{ color: "#475569", fontSize: 12 }}>Giá gốc</Typography>
                                         <Typography sx={{ fontWeight: 500, fontSize: 12 }}>
@@ -1338,9 +1321,18 @@ export default function AdminPackageFeeManagement() {
                                         </Typography>
                                     </Box>
                                     <Divider />
-                                    <Typography variant="caption" sx={{ color: "#64748b", mt: 0.8 }}>
-                                        Giá được cập nhật sau khi tạo/chỉnh sửa nháp thành công.
-                                    </Typography>
+                                    <Box
+                                        sx={{
+                                            display: "flex",
+                                            justifyContent: "space-between",
+                                            gap: 1,
+                                        }}
+                                    >
+                                        <Typography sx={{ color: "#1e3a8a", fontWeight: 700, fontSize: 13 }}>Tổng thanh toán</Typography>
+                                        <Typography sx={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>
+                                            {pricePreview.finalPrice != null ? `${formatVnd(pricePreview.finalPrice)} VNĐ` : "—"}
+                                        </Typography>
+                                    </Box>
                                 </Stack>
                             </Box>
                         </Box>
