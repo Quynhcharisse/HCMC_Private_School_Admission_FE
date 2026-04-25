@@ -466,6 +466,7 @@ export function buildStudentPayload({
     foreignRows,
     foreignGrades,
     foreignSubjects,
+    transcriptImages,
 }) {
     const personalityTypeCode =
         selectedPersonality?.code != null && String(selectedPersonality.code).trim() !== ''
@@ -512,13 +513,17 @@ export function buildStudentPayload({
         return {gradeLevel, subjectResults};
     }).filter((block) => (block.subjectResults || []).length > 0);
 
-    return {
+    const payload = {
         studentName: form.name != null ? String(form.name) : '',
         gender: form.gender != null ? String(form.gender) : '',
         personalityTypeCode,
         favouriteJob,
         academicInfos,
     };
+    if (Array.isArray(transcriptImages)) {
+        payload.transcriptImages = transcriptImages;
+    }
+    return payload;
 }
 
 export function setStudentState(setters, mapped) {

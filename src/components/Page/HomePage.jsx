@@ -619,7 +619,7 @@ function SchoolCard({school, onOpenDetail, onToggleCompare, onToggleSave, compar
                             }
                         }
                     }}
-                    sx={{
+                        sx={{
                         height: {xs: 92, sm: 96},
                         width: {xs: 92, sm: 96},
                         flexShrink: 0,
@@ -648,7 +648,7 @@ function SchoolCard({school, onOpenDetail, onToggleCompare, onToggleSave, compar
                 >
                     {displayName}
                 </Typography>
-            </Box>
+                </Box>
 
             <CardContent
                 sx={{
@@ -700,7 +700,7 @@ function SchoolCard({school, onOpenDetail, onToggleCompare, onToggleSave, compar
                                 }}
                             >
                                 Đang cập nhật giới thiệu trường.
-                            </Typography>
+                        </Typography>
                         )}
                     </Box>
 
@@ -717,8 +717,8 @@ function SchoolCard({school, onOpenDetail, onToggleCompare, onToggleSave, compar
                                 }}
                             >
                                 {address || 'Đang cập nhật'}
-                            </Typography>
-                        </Box>
+                        </Typography>
+                    </Box>
                         <Box sx={{display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0}}>
                             <LanguageIcon sx={{fontSize: 17, color: '#0f172a', flexShrink: 0}} />
                             {website ? (
@@ -2573,37 +2573,37 @@ export default function HomePage() {
                 }}
             >
                 <Container maxWidth="lg" sx={{px: {xs: 2.5, md: 4}, position: 'relative', zIndex: 3}}>
-                    <Box
-                        sx={{
+                        <Box
+                            sx={{
                             textAlign: 'center',
                             mb: {xs: 3.5, md: 4.5}
                         }}
                     >
-                        <Typography
+                            <Typography
                             component="h2"
-                            sx={{
-                                fontWeight: 700,
+                                sx={{
+                                    fontWeight: 700,
                                 fontSize: {xs: '1.8rem', md: '2.5rem'},
                                 lineHeight: 1.14,
-                                color: '#0f172a',
+                                    color: '#0f172a',
                                 letterSpacing: '-0.02em'
-                            }}
-                        >
-                            Danh sách trường tư thục
-                        </Typography>
-                        <Typography
-                            sx={{
+                                }}
+                            >
+                                Danh sách trường tư thục
+                            </Typography>
+                            <Typography
+                                sx={{
                                 color: '#64748b',
                                 fontSize: {xs: '0.93rem', md: '1rem'},
                                 lineHeight: 1.75,
                                 maxWidth: 620,
-                                mx: 'auto',
+                                    mx: 'auto',
                                 mt: 1.5
-                            }}
-                        >
-                            Khám phá nhanh các trường đang được quan tâm để bắt đầu hành trình chọn trường phù hợp.
-                        </Typography>
-                    </Box>
+                                }}
+                            >
+                                Khám phá nhanh các trường đang được quan tâm để bắt đầu hành trình chọn trường phù hợp.
+                            </Typography>
+                        </Box>
                     <Box sx={{position: 'relative', zIndex: 3}}>
                         {schoolLoading ? (
                             <Box sx={{display: "flex", alignItems: "center", gap: 1}}>
@@ -2614,21 +2614,21 @@ export default function HomePage() {
                             <Typography sx={{color: '#64748b', fontSize: '0.9rem'}}>Hiện chưa có dữ liệu trường.</Typography>
                         ) : (
                             <>
-                                <Box
-                                    sx={{
-                                        display: 'grid',
+                            <Box
+                                sx={{
+                                    display: 'grid',
                                         width: '100%',
                                         maxWidth: {xs: '100%', md: 1140},
                                         mx: 'auto',
-                                        gridTemplateColumns: {
+                                    gridTemplateColumns: {
                                             xs: 'minmax(0, 1fr)',
-                                            md: 'repeat(3, minmax(0, 1fr))'
-                                        },
+                                        md: 'repeat(3, minmax(0, 1fr))'
+                                    },
                                         gap: {xs: 2.5, md: 3},
                                         alignItems: 'stretch'
-                                    }}
-                                >
-                                    {showcaseSchools.map((school) => (
+                                }}
+                            >
+                                {showcaseSchools.map((school) => (
                                         <SchoolCard
                                             key={school.id || school.name}
                                             school={school}
@@ -2665,7 +2665,7 @@ export default function HomePage() {
                                         >
                                             Xem thêm trường
                                         </Button>
-                                    </Box>
+                            </Box>
                                 )}
                             </>
                         )}

@@ -56,7 +56,8 @@ import {
   updateCampusConfig,
   updateSchoolConfig,
 } from "../../../services/SchoolFacilityService.jsx";
-import {fetchSystemAdmissionSettingsData} from "../../../services/SystemConfigService.jsx";
+import {fetchSystemAdmissionSettingsData, getSystemConfigByKey} from "../../../services/SystemConfigService.jsx";
+import {getCurrentSchoolSubscription} from "../../../services/SchoolSubscriptionService.jsx";
 import {admissionSettingsComparableJson, sanitizeAdmissionSettingsForApi} from "../../../utils/admissionSettingsShared.js";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
 import SchoolWideScheduleReadOnlyPanel from "./SchoolWideScheduleReadOnlyPanel.jsx";
@@ -1698,6 +1699,8 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   const [admissionToggleOffConfirm, setAdmissionToggleOffConfirm] = useState({open: false, code: ""});
   const [admissionRemoveRowConfirm, setAdmissionRemoveRowConfirm] = useState({open: false, idx: -1});
   const [loadingSystemAdmission, setLoadingSystemAdmission] = useState(false);
+  const [resourceSummaryReport, setResourceSummaryReport] = useState(null);
+  const [resourceSummaryLoading, setResourceSummaryLoading] = useState(false);
   /** Pattern A: bật mới hiện form HK; tắt = không giới hạn (xóa ngày trong form). Đồng bộ sau load. */
   const [academicSemesterLimitEnabled, setAcademicSemesterLimitEnabled] = useState(false);
 
@@ -1966,6 +1969,71 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   useEffect(() => {
     if (tabSlug !== "admission") setAdmissionFirstRunOpen(false);
   }, [tabSlug]);
+
+  useEffect(() => {
+    if (isCampusVariant || tabSlug !== "quota") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getSystemConfigByKey("admissionQuota");
+        if (cancelled) return;
+        const body = res?.data?.body ?? res?.data?.data ?? res?.data ?? {};
+        const quotaRoot = body?.admissionQuota && typeof body.admissionQuota === "object" ? body.admissionQuota : body;
+        const year = String(quotaRoot?.source?.year ?? "").trim();
+        const quotas = Array.isArray(quotaRoot?.quotas) ? quotaRoot.quotas : [];
+        const sidNum = Number(schoolId);
+        const matched =
+          quotas.find((q) => Number(q?.schoolId) === sidNum) ??
+          quotas.find((q) => q?.value != null) ??
+          null;
+        const totalSystemQuota = matched != null ? Number(matched.value) || 0 : 0;
+        setConfig((prev) => ({
+          ...prev,
+          quotaConfigData: {
+            ...prev.quotaConfigData,
+            academicYear: year || prev.quotaConfigData.academicYear || "",
+            totalSystemQuota,
+          },
+        }));
+      } catch {
+        // ignore, giữ dữ liệu hiện tại nếu API system không khả dụng
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isCampusVariant, tabSlug, schoolId, lastLoadedAt]);
+
+  useEffect(() => {
+    if (isCampusVariant || tabSlug !== "resource-distribution") return;
+    let cancelled = false;
+    setResourceSummaryLoading(true);
+    getCurrentSchoolSubscription()
+      .then((res) => {
+        if (cancelled) return;
+        const body = res?.data?.body ?? res?.data ?? {};
+        const rs = body?.resourceSummary && typeof body.resourceSummary === "object" ? body.resourceSummary : null;
+        setResourceSummaryReport(
+          rs
+            ? {
+                totalPackageQuota: Number(rs.totalPackageQuota) || 0,
+                myCampusQuota: Number(rs.myCampusQuota) || 0,
+                otherCampusesQuota: Number(rs.otherCampusesQuota) || 0,
+              }
+            : null
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setResourceSummaryReport(null);
+      })
+      .finally(() => {
+        if (!cancelled) setResourceSummaryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isCampusVariant, tabSlug, lastLoadedAt]);
 
   useEffect(() => {
     if (isCampusVariant) return;
@@ -2276,18 +2344,18 @@ export default function SchoolConfig({variant = "platform"} = {}) {
           : Array.isArray(tmpl.byMethod)
             ? tmpl.byMethod
             : [];
-      const mandatoryRaw = Array.isArray(docRoot.mandatoryAll) ? docRoot.mandatoryAll : [];
       const byMethod = byMethodRaw.map(normalizeByMethodGroup).map((g) => ({
         ...g,
         documents: (g.documents || []).map((d) => ({...normalizeDocItem(d), required: true})),
       }));
-      const mandatoryAll = mandatoryRaw.map((d) => ({...normalizeDocItem(d), required: true}));
 
       setConfig((c) => ({
         ...c,
         documentRequirementsData: {
           ...c.documentRequirementsData,
-          mandatoryAll,
+          // Nút trong section "Theo phương thức tuyển sinh" chỉ áp dụng template cho byMethod.
+          // Giữ nguyên mandatoryAll để tránh mất dữ liệu vừa import/chỉnh tay.
+          mandatoryAll: c.documentRequirementsData?.mandatoryAll || [],
           byMethod,
         },
       }));
@@ -3563,7 +3631,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     fullWidth
                     size="small"
                     placeholder="Ví dụ: 2026-2027"
-                    inputProps={{readOnly: fieldDisabled}}
+                    inputProps={{readOnly: true}}
                   />
                   <TextField
                     label="Tổng chỉ tiêu toàn hệ thống"
@@ -3584,7 +3652,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     }
                     fullWidth
                     size="small"
-                    inputProps={{readOnly: fieldDisabled}}
+                    inputProps={{readOnly: true}}
                   />
 
                   <Box>
@@ -3651,442 +3719,6 @@ export default function SchoolConfig({variant = "platform"} = {}) {
             <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
               <CardContent sx={{p: 3}}>
                 <Stack spacing={3}>
-                  <Box>
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2} mb={2} flexWrap="wrap">
-                      <Box sx={{flex: 1, minWidth: 220}}>
-                        <Typography sx={{fontWeight: 800}}>Các khoản phí</Typography>
-                      </Box>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<AddIcon/>}
-                        disabled={fieldDisabled}
-                        onClick={() =>
-                          setConfig((c) => {
-                            const fin = c.financePolicyData;
-                            const nextItems = [...(fin.feeItems || []), emptyFinanceFeeItem()];
-                            return {
-                              ...c,
-                              financePolicyData: {
-                                ...fin,
-                                feeItems: nextItems,
-                                reservationFee: reservationFeeSnapshotFromItems(nextItems),
-                              },
-                            };
-                          })
-                        }
-                        sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, flexShrink: 0, ...blockPointerSx}}
-                      >
-                        Thêm khoản phí
-                      </Button>
-                    </Stack>
-                    <Stack spacing={2.5}>
-                      {(config.financePolicyData.feeItems || []).length === 0 ? (
-                        <Paper variant="outlined" sx={{p: 2, borderStyle: "dashed", color: "#64748b", borderRadius: 2}}>
-                          Chưa có khoản phí. Nhấn &quot;Thêm khoản phí&quot; và điền đủ feeCode (vd. RESERVATION_FEE, ADMISSION_FORM_FEE).
-                        </Paper>
-                      ) : null}
-                      {(config.financePolicyData.feeItems || []).map((row, idx) => {
-                        const accent = METHOD_PROCESS_VISUAL_ACCENTS[0];
-                        const codeTrim = String(row.feeCode ?? "").trim();
-                        return (
-                          <Accordion
-                            key={`fee-${idx}`}
-                            defaultExpanded
-                            elevation={0}
-                            disableGutters
-                            sx={{
-                              borderRadius: 2,
-                              overflow: "hidden",
-                              border: "1px solid",
-                              borderColor: accent.border,
-                              boxShadow: "none",
-                              bgcolor: "#ffffff",
-                              "&:before": {display: "none"},
-                              "&.Mui-expanded": {margin: "20px 0"},
-                            }}
-                          >
-                            <AccordionSummary
-                              expandIcon={<ExpandMoreIcon sx={{color: accent.bar}}/>}
-                              sx={{
-                                px: 0,
-                                pr: 1,
-                                minHeight: 0,
-                                background: accent.headerBg,
-                                borderBottom: "2px solid",
-                                borderBottomColor: accent.bar,
-                                "& .MuiAccordionSummary-content": {
-                                  margin: "0 !important",
-                                  flexGrow: 1,
-                                  minWidth: 0,
-                                },
-                              }}
-                            >
-                              <Box sx={{width: "100%", px: 2, py: 1.5, pr: {xs: 1, sm: 2}}}>
-                                <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
-                                  <Chip
-                                    label={`Khoản ${idx + 1}`}
-                                    size="small"
-                                    sx={{bgcolor: accent.bar, color: "#fff", fontWeight: 800, letterSpacing: "0.02em"}}
-                                  />
-                                  {codeTrim ? (
-                                    <Chip
-                                      label={codeTrim}
-                                      size="small"
-                                      variant="outlined"
-                                      sx={{
-                                        borderWidth: 2,
-                                        borderColor: accent.bar,
-                                        color: "#0f172a",
-                                        fontWeight: 800,
-                                        bgcolor: "rgba(255,255,255,0.85)",
-                                      }}
-                                    />
-                                  ) : (
-                                    <Chip
-                                      label="Chưa có mã phí"
-                                      size="small"
-                                      sx={{bgcolor: "#e2e8f0", color: "#475569", fontWeight: 700}}
-                                    />
-                                  )}
-                                  {row.isReservationFee ? (
-                                    <Chip label="Phí giữ chỗ" size="small" sx={{fontWeight: 800, bgcolor: accent.stepsBg, color: accent.bar}} />
-                                  ) : null}
-                                  {row.isMandatory ? (
-                                    <Chip
-                                      label="Bắt buộc"
-                                      size="small"
-                                      variant="outlined"
-                                      sx={{fontWeight: 700, borderColor: accent.bar, color: "#0f172a"}}
-                                    />
-                                  ) : null}
-                                </Stack>
-                              </Box>
-                            </AccordionSummary>
-                            <AccordionDetails sx={{p: 0, display: "block"}}>
-                              <CardContent sx={{py: 2, px: 2, bgcolor: "rgba(248, 250, 252, 0.9)"}}>
-                                <Stack spacing={2}>
-                                  <Stack
-                                    direction={{xs: "column", sm: "row"}}
-                                    spacing={1.5}
-                                    alignItems={{sm: "flex-start"}}
-                                    justifyContent="space-between"
-                                  >
-                                    <Box sx={{flex: 1, minWidth: 0, width: "100%"}}>
-                                      <Stack direction={{xs: "column", sm: "row"}} spacing={1.5}>
-                                        <TextField
-                                          size="small"
-                                          label="Mã định danh loại phí"
-                                          value={row.feeCode ?? ""}
-                                          onChange={(e) => {
-                                            const v = e.target.value;
-                                            setConfig((c) => {
-                                              const fin = c.financePolicyData;
-                                              const nextItems = [...(fin.feeItems || [])];
-                                              nextItems[idx] = {...nextItems[idx], feeCode: v};
-                                              return {
-                                                ...c,
-                                                financePolicyData: {
-                                                  ...fin,
-                                                  feeItems: nextItems,
-                                                  reservationFee: reservationFeeSnapshotFromItems(nextItems),
-                                                },
-                                              };
-                                            });
-                                          }}
-                                          fullWidth
-                                          inputProps={{readOnly: fieldDisabled}}
-                                          placeholder="VD: RESERVATION_FEE"
-                                        />
-                                        <TextField
-                                          size="small"
-                                          label="Tên hiển thị"
-                                          value={row.feeName ?? ""}
-                                          onChange={(e) => {
-                                            const v = e.target.value;
-                                            setConfig((c) => {
-                                              const fin = c.financePolicyData;
-                                              const nextItems = [...(fin.feeItems || [])];
-                                              nextItems[idx] = {...nextItems[idx], feeName: v};
-                                              return {
-                                                ...c,
-                                                financePolicyData: {
-                                                  ...fin,
-                                                  feeItems: nextItems,
-                                                  reservationFee: reservationFeeSnapshotFromItems(nextItems),
-                                                },
-                                              };
-                                            });
-                                          }}
-                                          fullWidth
-                                          inputProps={{readOnly: fieldDisabled}}
-                                        />
-                                      </Stack>
-                                    </Box>
-                                    <IconButton
-                                      size="small"
-                                      color="error"
-                                      aria-label="Xóa khoản phí"
-                                      onClick={() =>
-                                        setConfig((c) => {
-                                          const fin = c.financePolicyData;
-                                          const nextItems = [...(fin.feeItems || [])];
-                                          nextItems.splice(idx, 1);
-                                          return {
-                                            ...c,
-                                            financePolicyData: {
-                                              ...fin,
-                                              feeItems: nextItems,
-                                              reservationFee: reservationFeeSnapshotFromItems(nextItems),
-                                            },
-                                          };
-                                        })
-                                      }
-                                      disabled={fieldDisabled}
-                                      sx={{...blockPointerSx}}
-                                    >
-                                      <DeleteOutlineIcon fontSize="small"/>
-                                    </IconButton>
-                                  </Stack>
-                                  <Divider sx={{borderColor: accent.stepsBorder, opacity: 1}}/>
-                                  <Typography
-                                    variant="subtitle2"
-                                    sx={{
-                                      fontWeight: 800,
-                                      color: "#0f172a",
-                                      pl: 1,
-                                      borderLeft: "4px solid",
-                                      borderLeftColor: accent.bar,
-                                    }}
-                                  >
-                                    Số tiền & hiển thị
-                                  </Typography>
-                                  <Card
-                                    variant="outlined"
-                                    sx={{
-                                      borderRadius: 2,
-                                      bgcolor: accent.stepsBg,
-                                      borderColor: accent.stepsBorder,
-                                      borderWidth: 1,
-                                    }}
-                                  >
-                                    <CardContent sx={{py: 1.5, "&:last-child": {pb: 1.5}}}>
-                                      <Stack direction={{xs: "column", sm: "row"}} spacing={1.5}>
-                                        <TextField
-                                          size="small"
-                                          label="Số tiền"
-                                          type="number"
-                                          value={row.amount === "" || row.amount == null ? "" : row.amount}
-                                          onChange={(e) => {
-                                            const raw = e.target.value;
-                                            const n = raw === "" ? "" : Number(raw) || 0;
-                                            setConfig((c) => {
-                                              const fin = c.financePolicyData;
-                                              const nextItems = [...(fin.feeItems || [])];
-                                              const cur = nextItems[idx] || {};
-                                              nextItems[idx] = {...cur, amount: n};
-                                              return {
-                                                ...c,
-                                                financePolicyData: {
-                                                  ...fin,
-                                                  feeItems: nextItems,
-                                                  reservationFee: reservationFeeSnapshotFromItems(nextItems),
-                                                },
-                                              };
-                                            });
-                                          }}
-                                          onBlur={() => {
-                                            setConfig((c) => {
-                                              const fin = c.financePolicyData;
-                                              const nextItems = [...(fin.feeItems || [])];
-                                              const cur = nextItems[idx] || {};
-                                              const hasAmount = row.amount !== "" && row.amount != null;
-                                              const n = hasAmount ? Number(row.amount) || 0 : "";
-                                              nextItems[idx] = {
-                                                ...cur,
-                                                amount: n,
-                                                display: hasAmount ? formatVndDisplay(n) : "",
-                                              };
-                                              return {
-                                                ...c,
-                                                financePolicyData: {
-                                                  ...fin,
-                                                  feeItems: nextItems,
-                                                  reservationFee: reservationFeeSnapshotFromItems(nextItems),
-                                                },
-                                              };
-                                            });
-                                          }}
-                                          sx={{minWidth: {sm: 160}}}
-                                          inputProps={{readOnly: fieldDisabled}}
-                                        />
-                                        <TextField
-                                          size="small"
-                                          label="Đơn vị tiền tệ"
-                                          value={row.currency ?? "VND"}
-                                          onChange={(e) => {
-                                            const v = e.target.value;
-                                            setConfig((c) => {
-                                              const fin = c.financePolicyData;
-                                              const nextItems = [...(fin.feeItems || [])];
-                                              nextItems[idx] = {...nextItems[idx], currency: v};
-                                              return {
-                                                ...c,
-                                                financePolicyData: {
-                                                  ...fin,
-                                                  feeItems: nextItems,
-                                                  reservationFee: reservationFeeSnapshotFromItems(nextItems),
-                                                },
-                                              };
-                                            });
-                                          }}
-                                          sx={{maxWidth: {sm: 120}}}
-                                          inputProps={{readOnly: fieldDisabled}}
-                                        />
-                                        <TextField
-                                          size="small"
-                                          label="Số tiền hiển thị đầy đủ"
-                                          value={row.display ?? ""}
-                                          onChange={(e) => {
-                                            const v = e.target.value;
-                                            setConfig((c) => {
-                                              const fin = c.financePolicyData;
-                                              const nextItems = [...(fin.feeItems || [])];
-                                              nextItems[idx] = {...nextItems[idx], display: v};
-                                              return {
-                                                ...c,
-                                                financePolicyData: {
-                                                  ...fin,
-                                                  feeItems: nextItems,
-                                                  reservationFee: reservationFeeSnapshotFromItems(nextItems),
-                                                },
-                                              };
-                                            });
-                                          }}
-                                          fullWidth
-                                          inputProps={{readOnly: fieldDisabled}}
-                                          placeholder="VD: 2.000.000 VNĐ"
-                                        />
-                                      </Stack>
-                                    </CardContent>
-                                  </Card>
-                                  <Divider sx={{borderColor: accent.stepsBorder, opacity: 1}}/>
-                                  <Typography
-                                    variant="subtitle2"
-                                    sx={{
-                                      fontWeight: 800,
-                                      color: "#0f172a",
-                                      pl: 1,
-                                      borderLeft: "4px solid",
-                                      borderLeftColor: accent.bar,
-                                    }}
-                                  >
-                                    Tuỳ chọn & mô tả
-                                  </Typography>
-                                  <Stack direction={{xs: "column", sm: "row"}} spacing={1} alignItems={{sm: "center"}} flexWrap="wrap" useFlexGap>
-                                    <FormControlLabel
-                                      control={
-                                        <Checkbox
-                                          size="small"
-                                          checked={Boolean(row.isMandatory)}
-                                          onChange={(e) => {
-                                            const checked = e.target.checked;
-                                            setConfig((c) => {
-                                              const fin = c.financePolicyData;
-                                              const nextItems = [...(fin.feeItems || [])];
-                                              nextItems[idx] = {...nextItems[idx], isMandatory: checked};
-                                              return {
-                                                ...c,
-                                                financePolicyData: {
-                                                  ...fin,
-                                                  feeItems: nextItems,
-                                                  reservationFee: reservationFeeSnapshotFromItems(nextItems),
-                                                },
-                                              };
-                                            });
-                                          }}
-                                          disabled={fieldDisabled}
-                                        />
-                                      }
-                                      label="Bắt buộc"
-                                    />
-                                    <FormControlLabel
-                                      control={
-                                        <Checkbox
-                                          size="small"
-                                          checked={Boolean(row.isReservationFee)}
-                                          onChange={(e) => {
-                                            const checked = e.target.checked;
-                                            setConfig((c) => {
-                                              const fin = c.financePolicyData;
-                                              const nextItems = mapFeeItemsExclusiveReservation(fin.feeItems || [], idx, checked);
-                                              return {
-                                                ...c,
-                                                financePolicyData: {
-                                                  ...fin,
-                                                  feeItems: nextItems,
-                                                  reservationFee: reservationFeeSnapshotFromItems(nextItems),
-                                                },
-                                              };
-                                            });
-                                          }}
-                                          disabled={fieldDisabled}
-                                        />
-                                      }
-                                      label="Phí giữ chỗ"
-                                    />
-                                  </Stack>
-                                  <TextField
-                                    size="small"
-                                    label="Mô tả"
-                                    value={row.description ?? ""}
-                                    onChange={(e) => {
-                                      const v = e.target.value;
-                                      setConfig((c) => {
-                                        const fin = c.financePolicyData;
-                                        const nextItems = [...(fin.feeItems || [])];
-                                        nextItems[idx] = {...nextItems[idx], description: v};
-                                        return {
-                                          ...c,
-                                          financePolicyData: {
-                                            ...fin,
-                                            feeItems: nextItems,
-                                            reservationFee: reservationFeeSnapshotFromItems(nextItems),
-                                          },
-                                        };
-                                      });
-                                    }}
-                                    fullWidth
-                                    multiline
-                                    minRows={2}
-                                    inputProps={{readOnly: fieldDisabled}}
-                                  />
-                                </Stack>
-                              </CardContent>
-                            </AccordionDetails>
-                          </Accordion>
-                        );
-                      })}
-                    </Stack>
-                  </Box>
-
-                  <TextField
-                    label="Ghi chú thanh toán"
-                    multiline
-                    minRows={4}
-                    value={config.financePolicyData.paymentNotes ?? ""}
-                    onChange={(e) =>
-                      setConfig((c) => ({
-                        ...c,
-                        financePolicyData: {...c.financePolicyData, paymentNotes: e.target.value},
-                      }))
-                    }
-                    fullWidth
-                    inputProps={{readOnly: fieldDisabled}}
-                  />
-
-                  <Divider/>
-                  
                   <Stack direction={{xs: "column", sm: "row"}} spacing={2}>
                     <TextField
                       label="Hạn mức giảm tối đa / so với giá gốc (%)"
@@ -5116,186 +4748,6 @@ export default function SchoolConfig({variant = "platform"} = {}) {
       </Card>
               )}
 
-              {!useCampusConfigFlow ? (
-                <Card
-                  sx={{
-                    borderRadius: "12px",
-                    border: "1px solid rgba(226,232,240,1)",
-                    boxShadow: "0 8px 24px rgba(15,23,42,0.06)",
-                  }}
-                >
-                  <CardContent sx={{p: 3}}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1.5} mb={2}>
-                      <Typography sx={{fontWeight: 800}}>Lịch năm học &amp; gán lịch tư vấn</Typography>
-                      <Stack direction="row" gap={1} flexWrap="wrap" justifyContent="flex-end">
-                        {!academicSemesterLimitEnabled ? (
-                          <Chip size="small" label="Không giới hạn theo học kỳ" color="default" variant="outlined"/>
-                        ) : !isAcademicCalendarLimitActive(
-                            normalizeAcademicCalendar(config.operationSettingsData.academicCalendar)
-                          ) ? (
-                          <Chip size="small" label="Chưa đủ cặp ngày để áp dụng" color="warning" variant="outlined"/>
-                        ) : (
-                          <Chip size="small" label="Đang áp dụng giới hạn theo học kỳ" color="success" variant="outlined"/>
-                        )}
-                      </Stack>
-                    </Stack>
-
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={academicSemesterLimitEnabled}
-                          onChange={(e) => {
-                            const on = e.target.checked;
-                            setAcademicSemesterLimitEnabled(on);
-                            if (!on) {
-                              setConfig((c) => ({
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  academicCalendar: emptyAcademicCalendar(),
-                                },
-                              }));
-                            }
-                          }}
-                          disabled={fieldDisabled}
-                        />
-                      }
-                      label={
-                        <Box>
-                          <Typography component="span" fontWeight={700} display="block">
-                            Giới hạn gán lịch tư vấn trong phạm vi học kỳ
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            Khi tắt, cấu hình học kỳ không áp dụng cho việc gán lịch.
-                          </Typography>
-                        </Box>
-                      }
-                      sx={{alignItems: "flex-start", ml: 0, mr: 0}}
-                    />
-
-                    <Alert severity="info" sx={{mt: 2, mb: 2, borderRadius: 2}}>
-                      <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
-                        Chỉ khi nhập đủ ngày bắt đầu và kết thúc cho ít nhất một học kỳ, hệ thống mới kiểm tra ngày gán lịch. Nếu để
-                        trống, gán lịch không bị giới hạn theo học kỳ.
-                      </Typography>
-                    </Alert>
-
-                    <Collapse in={academicSemesterLimitEnabled} timeout="auto" unmountOnExit={false}>
-                      <Stack spacing={2.5}>
-                        <Typography sx={{fontWeight: 800}}>Học kỳ 1</Typography>
-                        <Stack direction={{xs: "column", md: "row"}} spacing={2}>
-                          <TextField
-                            label="Từ ngày"
-                            type="date"
-                            size="small"
-                            InputLabelProps={{shrink: true}}
-                            value={config.operationSettingsData.academicCalendar?.term1?.start ?? ""}
-                            onChange={(e) =>
-                              setConfig((c) => ({
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  academicCalendar: {
-                                    ...(c.operationSettingsData.academicCalendar || {}),
-                                    term1: {
-                                      ...(c.operationSettingsData.academicCalendar?.term1 || {}),
-                                      start: e.target.value,
-                                    },
-                                  },
-                                },
-                              }))
-                            }
-                            inputProps={{readOnly: fieldDisabled}}
-                            fullWidth
-                          />
-                          <TextField
-                            label="Đến ngày"
-                            type="date"
-                            size="small"
-                            InputLabelProps={{shrink: true}}
-                            value={config.operationSettingsData.academicCalendar?.term1?.end ?? ""}
-                            onChange={(e) =>
-                              setConfig((c) => ({
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  academicCalendar: {
-                                    ...(c.operationSettingsData.academicCalendar || {}),
-                                    term1: {
-                                      ...(c.operationSettingsData.academicCalendar?.term1 || {}),
-                                      end: e.target.value,
-                                    },
-                                  },
-                                },
-                              }))
-                            }
-                            inputProps={{readOnly: fieldDisabled}}
-                            fullWidth
-                          />
-                        </Stack>
-                        <Typography sx={{fontWeight: 800}}>Học kỳ 2</Typography>
-                        <Stack direction={{xs: "column", md: "row"}} spacing={2}>
-                          <TextField
-                            label="Từ ngày"
-                            type="date"
-                            size="small"
-                            InputLabelProps={{shrink: true}}
-                            value={config.operationSettingsData.academicCalendar?.term2?.start ?? ""}
-                            onChange={(e) =>
-                              setConfig((c) => ({
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  academicCalendar: {
-                                    ...(c.operationSettingsData.academicCalendar || {}),
-                                    term2: {
-                                      ...(c.operationSettingsData.academicCalendar?.term2 || {}),
-                                      start: e.target.value,
-                                    },
-                                  },
-                                },
-                              }))
-                            }
-                            inputProps={{readOnly: fieldDisabled}}
-                            fullWidth
-                          />
-                          <TextField
-                            label="Đến ngày"
-                            type="date"
-                            size="small"
-                            InputLabelProps={{shrink: true}}
-                            value={config.operationSettingsData.academicCalendar?.term2?.end ?? ""}
-                            onChange={(e) =>
-                              setConfig((c) => ({
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  academicCalendar: {
-                                    ...(c.operationSettingsData.academicCalendar || {}),
-                                    term2: {
-                                      ...(c.operationSettingsData.academicCalendar?.term2 || {}),
-                                      end: e.target.value,
-                                    },
-                                  },
-                                },
-                              }))
-                            }
-                            inputProps={{readOnly: fieldDisabled}}
-                            fullWidth
-                          />
-                        </Stack>
-                      </Stack>
-                    </Collapse>
-
-                    {!academicSemesterLimitEnabled ? (
-                      <Typography variant="body2" color="text.secondary" sx={{mt: 1}}>
-                        Để trống: không giới hạn theo học kỳ. Bật công tắc để cấu hình khoảng ngày HK1 / HK2.
-                      </Typography>
-                    ) : null}
-                  </CardContent>
-                </Card>
-              ) : null}
-
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>
                   <Alert severity="info" sx={{mb: 2, borderRadius: 2}}>
@@ -5746,6 +5198,68 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                       );
                     })}
                   </Stack>
+                )}
+
+                <Divider sx={{my: 2.5}}/>
+                <Typography
+                  sx={{
+                    fontSize: "0.8125rem",
+                    fontWeight: 700,
+                    color: "#64748b",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    mb: 1.5,
+                  }}
+                >
+                  Báo cáo tài nguyên tổng thể
+                </Typography>
+                {resourceSummaryLoading ? (
+                  <LinearProgress sx={{borderRadius: 1, height: 8}}/>
+                ) : resourceSummaryReport ? (
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: {xs: "1fr", sm: "repeat(3, minmax(0, 1fr))"},
+                      gap: 2,
+                      width: "100%",
+                    }}
+                  >
+                    {[
+                      {label: "Tổng tài nguyên hiện có", value: resourceSummaryReport.totalPackageQuota, accent: "#0D64DE"},
+                      {label: "Tài nguyên của cơ sở chính hiện có", value: resourceSummaryReport.myCampusQuota, accent: "#047857"},
+                      {label: "Tài nguyên của các chi nhánh hiện có", value: resourceSummaryReport.otherCampusesQuota, accent: "#b45309"},
+                    ].map((item) => (
+                      <Box
+                        key={item.label}
+                        sx={{
+                          borderRadius: 2,
+                          border: "1px solid #e2e8f0",
+                          p: 2,
+                          bgcolor: "#fff",
+                          boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+                        }}
+                      >
+                        <Typography
+                          sx={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#94a3b8",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.05em",
+                          }}
+                        >
+                          {item.label}
+                        </Typography>
+                        <Typography sx={{fontSize: "1.75rem", fontWeight: 800, color: item.accent, lineHeight: 1.1, mt: 0.6}}>
+                          {item.value}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" sx={{color: "#64748b"}}>
+                    Chưa có dữ liệu tài nguyên tổng thể từ gói dịch vụ hiện tại.
+                  </Typography>
                 )}
               </CardContent>
             </Card>

@@ -22,6 +22,7 @@ import {
     CalendarMonth as CalendarMonthIcon,
     CheckCircle as CheckCircleIcon,
     ChatBubbleOutline as ChatBubbleOutlineIcon,
+    Description as DescriptionIcon,
     Email as EmailIcon,
     Hotel as HotelIcon,
     Language as LanguageIcon,
@@ -29,8 +30,6 @@ import {
     MapsHomeWork as MapsHomeWorkIcon,
     Person as PersonIcon,
     Phone as PhoneIcon,
-    AutoStories as AutoStoriesIcon,
-    Fingerprint as FingerprintIcon,
     School as SchoolIcon,
     Share as ShareIcon,
     Favorite as FavoriteIcon,
@@ -44,6 +43,7 @@ import {APP_PRIMARY_DARK, BRAND_NAVY, landingSectionShadow} from "../../constant
 import {OPEN_PARENT_CHAT_EVENT} from "../../constants/parentChatEvents";
 import {showSuccessSnackbar} from "../ui/AppSnackbar.jsx";
 import {DEFAULT_SCHOOL_IMAGE} from "../../utils/schoolPublicMapper.js";
+import {getPublicSchoolCampaignTemplates} from "../../services/SchoolPublicService.jsx";
 
 const MAP_CONTAINER_STYLE = {width: "100%", height: "260px"};
 const NEARBY_SEARCH_RADIUS_KM = 10;
@@ -77,6 +77,8 @@ function getBoardingTypeTags(rawValue) {
     if (!normalized) return [];
     if (normalized === "both") return ["Nội trú", "Bán trú"];
     if (normalized.includes("both")) return ["Nội trú", "Bán trú"];
+    if (normalized === "full_boarding" || normalized.includes("full_boarding")) return ["Nội trú"];
+    if (normalized === "day_boarding" || normalized.includes("day_boarding")) return ["Bán trú"];
     if (normalized.includes("nội trú") && normalized.includes("bán trú")) {
         return ["Nội trú", "Bán trú"];
     }
@@ -92,29 +94,6 @@ function formatCampusStatus(status) {
     if (s === "PENDING") return "Chờ duyệt";
     if (s === "REJECTED") return "Không đạt";
     return status ? String(status) : "—";
-}
-
-const curriculumTypePublicLabel = {
-    NATIONAL: "Quốc gia",
-    INTERNATIONAL: "Quốc tế",
-    INTEGRATED: "Tích hợp"
-};
-
-const methodLearningPublicLabel = {
-    TRADITIONAL: "Truyền thống",
-    PROJECT_BASED: "Dự án (Project-based)",
-    INQUIRY_BASED: "Khám phá (Inquiry-based)",
-    STEM_STEAM: "STEM/STEAM"
-};
-
-function labelCurriculumType(value) {
-    if (value == null || value === "") return "—";
-    return curriculumTypePublicLabel[value] ?? String(value);
-}
-
-function labelMethodLearning(value) {
-    if (value == null || value === "") return "—";
-    return methodLearningPublicLabel[value] ?? String(value);
 }
 
 function curriculumStatusChipSx(status) {
@@ -234,6 +213,84 @@ function formatFoundingDate(value) {
     return `${day}/${month}/${year}`;
 }
 
+function formatDateArray(value) {
+    if (!Array.isArray(value) || value.length < 3) return "—";
+    const [y, m, d] = value;
+    if (!Number.isFinite(Number(y)) || !Number.isFinite(Number(m)) || !Number.isFinite(Number(d))) return "—";
+    const day = String(Number(d)).padStart(2, "0");
+    const month = String(Number(m)).padStart(2, "0");
+    const year = String(Number(y));
+    return `${day}/${month}/${year}`;
+}
+
+function formatIsoDate(value) {
+    if (!value) return "—";
+    const dt = new Date(value);
+    if (Number.isNaN(dt.getTime())) return String(value);
+    const day = String(dt.getDate()).padStart(2, "0");
+    const month = String(dt.getMonth() + 1).padStart(2, "0");
+    const year = dt.getFullYear();
+    return `${day}/${month}/${year}`;
+}
+
+function formatVnd(value) {
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) return "—";
+    return new Intl.NumberFormat("vi-VN", {
+        style: "currency",
+        currency: "VND",
+        maximumFractionDigits: 0
+    }).format(amount);
+}
+
+function classifyMandatoryDocument(name) {
+    const text = String(name || "").toLowerCase();
+    if (
+        text.includes("học bạ") ||
+        text.includes("hoc ba") ||
+        text.includes("tốt nghiệp") ||
+        text.includes("tot nghiep") ||
+        text.includes("đăng ký xét tuyển") ||
+        text.includes("dang ky xet tuyen")
+    ) {
+        return "academic";
+    }
+    if (
+        text.includes("khai sinh") ||
+        text.includes("cccd") ||
+        text.includes("căn cước") ||
+        text.includes("can cuoc") ||
+        text.includes("ảnh") ||
+        text.includes("anh") ||
+        text.includes("hộ khẩu") ||
+        text.includes("ho khau") ||
+        text.includes("cư trú") ||
+        text.includes("cu tru")
+    ) {
+        return "personal";
+    }
+    return "form";
+}
+
+function getDocCopyBadge(name) {
+    const text = String(name || "").toLowerCase();
+    if (text.includes("bản chính") || text.includes("ban chinh")) return "Bản chính";
+    if (text.includes("bản sao") || text.includes("ban sao")) return "Bản sao";
+    if (text.includes("photo") || text.includes("photocopy")) return "Photo";
+    return "";
+}
+
+function splitDocPrimaryAndNote(name) {
+    const text = String(name || "").trim();
+    if (!text) return {primary: "", note: ""};
+    const match = text.match(/^(.*?)(\s*\(([^)]*)\)\s*)$/);
+    if (!match) return {primary: text, note: ""};
+    return {
+        primary: String(match[1] || "").trim(),
+        note: String(match[2] || "").trim()
+    };
+}
+
 let detailScrollAnimGeneration = 0;
 
 function smoothScrollContainerToElement(container, element) {
@@ -272,6 +329,7 @@ function buildSchoolContact(school) {
             ? school.consultantEmails.map((e) => String(e || "").trim()).find(Boolean)
             : "";
         return (
+            String(school?.emailSupport || "").trim() ||
             String(school?.email || "").trim() ||
             String(school?.counsellorEmail || "").trim() ||
             fromList ||
@@ -394,6 +452,13 @@ function SchoolGeneralInfoCard({school}) {
 
 function SchoolCampusInfoCard({school, isParent, onMessageCampus}) {
     const list = Array.isArray(school?.campusList) ? school.campusList : [];
+    const [activeCampusIndex, setActiveCampusIndex] = React.useState(0);
+
+    React.useEffect(() => {
+        setActiveCampusIndex(0);
+    }, [school?.id, list.length]);
+
+    const activeCampus = list[activeCampusIndex] || null;
 
     return (
         <Box sx={detailMainColumnCardSx}>
@@ -404,8 +469,71 @@ function SchoolCampusInfoCard({school, isParent, onMessageCampus}) {
                     Chưa có thông tin cơ sở.
                 </Typography>
             ) : (
-                list.map((campus, idx) => {
-                    const name = String(campus?.name || "").trim() || `Cơ sở ${idx + 1}`;
+                <>
+
+                    <Tabs
+                        value={activeCampusIndex}
+                        onChange={(_, idx) => setActiveCampusIndex(idx)}
+                        variant="scrollable"
+                        scrollButtons="auto"
+                        allowScrollButtonsMobile
+                        sx={{
+                            minHeight: 44,
+                            mb: 2,
+                            "& .MuiTabs-scrollButtons": {
+                                width: 28,
+                                height: 28,
+                                borderRadius: "50%",
+                                border: "1px solid rgba(148,163,184,0.42)",
+                                mx: 0.35,
+                                "&.Mui-disabled": {opacity: 0.32}
+                            },
+                            "& .MuiTabs-indicator": {
+                                display: "none"
+                            },
+                            "& .MuiTabs-flexContainer": {
+                                gap: 0.75
+                            },
+                            "& .MuiTab-root": {
+                                textTransform: "none",
+                                fontWeight: 700,
+                                fontSize: "0.8rem",
+                                minHeight: 34,
+                                minWidth: "auto",
+                                px: 1.5,
+                                py: 0.85,
+                                color: "#334155",
+                                borderRadius: 999,
+                                border: "1px solid rgba(148,163,184,0.42)",
+                                bgcolor: "rgba(255,255,255,0.72)",
+                                transition: "all 0.2s ease",
+                                "&:hover": {
+                                    bgcolor: "rgba(255,255,255,0.9)",
+                                    borderColor: "rgba(71,85,105,0.48)"
+                                }
+                            },
+                            "& .Mui-selected": {
+                                color: "#ffffff !important",
+                                borderColor: "rgba(29,78,216,0.95)",
+                                bgcolor: "#2563eb",
+                                boxShadow: "0 6px 14px rgba(37,99,235,0.28)",
+                                "&:hover": {
+                                    bgcolor: "#2563eb",
+                                    borderColor: "rgba(29,78,216,0.95)"
+                                }
+                            }
+                        }}
+                    >
+                        {list.map((campus, idx) => {
+                            const tabLabel = String(campus?.name || "").trim() || `Cơ sở ${idx + 1}`;
+                            return <Tab key={campus?.id ?? `campus-tab-${idx}`} label={tabLabel} disableRipple/>;
+                        })}
+                    </Tabs>
+                    {activeCampus &&
+                        (() => {
+                            const campus = activeCampus;
+                            const idx = activeCampusIndex;
+                            const name = String(campus?.name || "").trim() || `Cơ sở ${idx + 1}`;
                     const city = String(campus?.city || "").trim();
                     const district = String(campus?.district || "").trim();
                     const addrRaw = String(campus?.address || "").trim();
@@ -438,9 +566,8 @@ function SchoolCampusInfoCard({school, isParent, onMessageCampus}) {
                         emails.length > 0 || hasStatus || Boolean(facility) || Boolean(policy);
                     const hasAfterEmails = hasStatus || Boolean(facility) || Boolean(policy);
 
-                    return (
-                        <Box key={campus?.id ?? `${name}-${idx}`} sx={{mt: idx === 0 ? 0 : 2.5}}>
-                            {idx > 0 && <Divider sx={{...contactDividerSx, mb: 2.5}}/>}
+                            return (
+                                <Box key={campus?.id ?? `${name}-${idx}`}>
 
                             <Typography
                                 sx={{
@@ -622,69 +749,54 @@ function SchoolCampusInfoCard({school, isParent, onMessageCampus}) {
                                     </Box>
                                 </>
                             ) : null}
-                        </Box>
-                    );
-                })
+                                </Box>
+                            );
+                        })()}
+                </>
             )}
         </Box>
     );
 }
 
-function SchoolCurriculumInfoCard({school}) {
-    const list = Array.isArray(school?.curriculumList) ? school.curriculumList : [];
+function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignError}) {
+    const list = Array.isArray(campaignTemplates) ? campaignTemplates : [];
 
     return (
         <Box sx={detailMainColumnCardSx}>
-            <Typography sx={mainDetailSectionTitleSx}>Chương trình đào tạo</Typography>
+            <Typography sx={mainDetailSectionTitleSx}>Chương trình đào tạo & tuyển sinh</Typography>
 
-            {list.length === 0 ? (
+            {campaignLoading ? (
                 <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.6}}>
-                    Chưa có thông tin chương trình đào tạo.
+                    Đang tải chiến dịch tuyển sinh...
                 </Typography>
-            ) : (
-                list.map((cur, idx) => {
-                    const name = String(cur?.name || "").trim() || `Chương trình ${idx + 1}`;
-                    const desc = cur?.description != null ? String(cur.description).trim() : "";
-                    const year = cur?.enrollmentYear;
-                    const groupCode = String(cur?.groupCode || "").trim();
-                    const subjects = Array.isArray(cur?.subjectsJsonb) ? cur.subjectsJsonb : [];
-                    const programs = Array.isArray(cur?.programList) ? cur.programList : [];
+            ) : null}
+            {!campaignLoading && campaignError ? (
+                <Typography sx={{fontSize: "0.9rem", color: "#b45309", lineHeight: 1.6}}>
+                    {campaignError}
+                </Typography>
+            ) : null}
+            {!campaignLoading && !campaignError && list.length === 0 ? (
+                <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.6}}>
+                    Chưa có thông tin chiến dịch tuyển sinh.
+                </Typography>
+            ) : null}
+
+            {!campaignLoading &&
+                !campaignError &&
+                list.map((campaign, idx) => {
+                    const campaignName = String(campaign?.name || "").trim() || `Chiến dịch ${idx + 1}`;
+                    const campaignDesc = String(campaign?.description || "").trim();
+                    const admissionMethodDetails = Array.isArray(campaign?.admissionMethodDetails)
+                        ? campaign.admissionMethodDetails
+                        : [];
+                    const mandatoryAll = Array.isArray(campaign?.mandatoryAll) ? campaign.mandatoryAll : [];
+                    const campusProgramOfferings = Array.isArray(campaign?.campusProgramOfferings)
+                        ? campaign.campusProgramOfferings
+                        : [];
 
                     return (
-                        <Box key={`${groupCode || name}-${idx}`} sx={{mt: idx === 0 ? 0 : 2.5}}>
-                            {idx > 0 && <Divider sx={{...contactDividerSx, mb: 2.5}}/>}
-
-                            <Stack direction="row" alignItems="flex-start" justifyContent="space-between" gap={1.25} sx={{mb: 1.25}}>
-                                <Stack
-                                    direction="row"
-                                    flexWrap="wrap"
-                                    useFlexGap
-                                    sx={{gap: 0.5, flex: 1, minWidth: 0, alignItems: "center"}}
-                                >
-                                    <Chip
-                                        size="small"
-                                        label={labelCurriculumType(cur?.curriculumType)}
-                                        sx={curriculumClassificationChipSx("type")}
-                                    />
-                                    <Chip
-                                        size="small"
-                                        label={labelMethodLearning(cur?.methodLearning)}
-                                        sx={curriculumClassificationChipSx("method")}
-                                    />
-                                    {year != null && String(year).trim() !== "" ? (
-                                        <Chip
-                                            size="small"
-                                            label={`Khóa ${year}`}
-                                            sx={curriculumClassificationChipSx("year")}
-                                        />
-                                    ) : null}
-                                </Stack>
-                                <Chip
-                                    size="small"
-                                    label={curriculumStatusLabel(cur?.curriculumStatus)}
-                                    sx={curriculumHeaderStatusChipSx(cur?.curriculumStatus)}
-                                />
-                            </Stack>
+                        <Box key={`${campaign?.id ?? idx}-${campaignName}`} sx={{mt: idx === 0 ? 0 : 3}}>
+                            {idx > 0 ? <Divider sx={{...contactDividerSx, mb: 2.5}}/> : null}
 
                             <Typography
                                 sx={{
@@ -692,158 +804,547 @@ function SchoolCurriculumInfoCard({school}) {
                                     color: "#0f172a",
                                     fontSize: {xs: "1.2rem", sm: "1.45rem"},
                                     letterSpacing: "-0.02em",
-                                    mb: 1.5,
+                                    mb: 1,
                                     lineHeight: 1.25
                                 }}
                             >
-                                {name}
+                                {campaignName}
                             </Typography>
 
-                            {!desc && (groupCode || programs.length > 0 || subjects.length > 0) ? (
-                                <Divider sx={{...contactDividerSx, mb: 1.5}}/>
-                            ) : null}
-
-                            {desc ? (
-                                <>
-                                    <Typography sx={{fontSize: "0.9rem", color: CURRICULUM_DESCRIPTION_TEXT, lineHeight: 1.55}}>
-                                        {desc}
+                            <Box
+                                sx={{
+                                    mb: 1.6,
+                                    p: {xs: 1.2, sm: 1.4},
+                                    borderRadius: 2,
+                                    border: "1px solid rgba(191,219,254,0.75)",
+                                    bgcolor: "rgba(239,246,255,0.75)"
+                                }}
+                            >
+                                <Typography sx={{fontSize: "0.88rem", fontWeight: 800, color: BRAND_NAVY, mb: 0.7}}>
+                                    Thông tin chiến dịch
+                                </Typography>
+                                <Stack direction="row" flexWrap="wrap" useFlexGap sx={{gap: 0.8, mb: campaignDesc ? 0.75 : 0}}>
+                                    <Chip size="small" label={`Năm ${campaign?.year ?? "—"}`} sx={curriculumClassificationChipSx("year")}/>
+                                    <Chip
+                                        size="small"
+                                        label={`Từ ${formatIsoDate(campaign?.startDate)} đến ${formatIsoDate(campaign?.endDate)}`}
+                                        sx={curriculumClassificationChipSx("method")}
+                                    />
+                                    <Chip
+                                        size="small"
+                                        label={String(campaign?.status || "—")}
+                                        sx={curriculumHeaderStatusChipSx(campaign?.status)}
+                                    />
+                                </Stack>
+                                {campaignDesc ? (
+                                    <Typography sx={{fontSize: "0.9rem", color: CURRICULUM_DESCRIPTION_TEXT, lineHeight: 1.6}}>
+                                        {campaignDesc.replace(/<[^>]+>/g, "")}
                                     </Typography>
-                                    {(groupCode || programs.length > 0 || subjects.length > 0) && (
-                                        <Divider sx={{...contactDividerSx, my: 1.5}}/>
-                                    )}
-                                </>
-                            ) : null}
+                                ) : null}
+                            </Box>
 
-                            {groupCode ? (
-                                <Box sx={{...contactRowSx, alignItems: "flex-start"}}>
-                                    <FingerprintIcon sx={{...contactIconSx, opacity: 0.95}}/>
-                                    <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.5}}>
-                                        <Box component="span" sx={{fontWeight: 600}}>
-                                            Mã nhóm:{" "}
-                                        </Box>
-                                        <Box
-                                            component="span"
-                                            sx={{fontFamily: "ui-monospace, monospace", color: "#334155", fontWeight: 600}}
-                                        >
-                                            {groupCode}
-                                        </Box>
+                            {campusProgramOfferings.length > 0 ? (
+                                <Box
+                                    sx={{
+                                        mb: 2,
+                                        p: {xs: 1.2, sm: 1.4},
+                                        borderRadius: 2,
+                                        border: "1px solid rgba(148,163,184,0.24)",
+                                        bgcolor: "rgba(255,255,255,0.78)"
+                                    }}
+                                >
+                                    <Typography sx={{fontSize: "0.98rem", fontWeight: 800, color: BRAND_NAVY, mb: 1.1}}>
+                                        Gói tuyển sinh theo cơ sở
                                     </Typography>
+                                    <Box
+                                        sx={{
+                                            display: "grid",
+                                            gridTemplateColumns: "1fr",
+                                            gap: 1.2
+                                        }}
+                                    >
+                                        {campusProgramOfferings.map((offering, offerIdx) => {
+                                            const program = offering?.program || {};
+                                            const curriculum = offering?.curriculum || program?.curriculum || {};
+                                            const subjects = Array.isArray(curriculum?.subjectOptions) ? curriculum.subjectOptions : [];
+                                            const quota = Number(offering?.quota);
+                                            const remainingQuota = Number(offering?.remainingQuota);
+                                            const hasQuota = Number.isFinite(quota) && quota > 0;
+                                            const hasRemaining = Number.isFinite(remainingQuota);
+                                            const filledRatio = hasQuota && hasRemaining
+                                                ? Math.max(0, Math.min(1, (quota - remainingQuota) / quota))
+                                                : 0;
+                                            const filledPercent = Math.round(filledRatio * 100);
+                                            const adjustmentPercent = Number(offering?.priceAdjustmentPercentage);
+                                            const isLowQuota = hasRemaining && remainingQuota < 50;
+                                            const quotaTone = isLowQuota
+                                                ? {main: "#c2410c", soft: "#9a3412"}
+                                                : {main: "#047857", soft: "#065f46"};
+                                            return (
+                                                <Box
+                                                    key={`${offering?.id ?? offerIdx}-${offering?.campusId ?? "campus"}`}
+                                                    sx={{
+                                                        borderRadius: "16px",
+                                                        background:
+                                                            "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,252,255,0.98) 100%)",
+                                                        p: {xs: 2, sm: 2.4},
+                                                        boxShadow: "0 14px 34px rgba(15,23,42,0.1)"
+                                                    }}
+                                                >
+                                                    <Box sx={{minWidth: 0, mb: 1.25}}>
+                                                        <Typography sx={{fontSize: "1.35rem", fontWeight: 900, color: "#111827", mb: 0.35, lineHeight: 1.2}}>
+                                                            {offering?.campusName || `Cơ sở ${offerIdx + 1}`}
+                                                        </Typography>
+                                                        <Stack direction="row" alignItems="center" spacing={0.5} sx={{color: "#64748b"}}>
+                                                            <LocationOnIcon sx={{fontSize: 14, color: "#94a3b8"}}/>
+                                                            <Typography sx={{fontSize: "0.85rem", color: "#6b7280"}}>
+                                                                {String(offering?.district || "").trim() || "—"},{" "}
+                                                                {String(offering?.city || "").trim() || "—"}
+                                                            </Typography>
+                                                        </Stack>
+                                                    </Box>
+
+                                                    <Stack
+                                                        direction={{xs: "column", sm: "row"}}
+                                                        alignItems={{xs: "flex-start", sm: "flex-end"}}
+                                                        justifyContent="space-between"
+                                                        spacing={1.25}
+                                                        sx={{mb: 1.15}}
+                                                    >
+                                                        <Box sx={{minWidth: 0}}>
+                                                            <Typography sx={{fontSize: "0.76rem", color: "#6b7280", fontWeight: 600, mb: 0.12}}>
+                                                                Học phí
+                                                            </Typography>
+                                                            <Typography sx={{fontSize: {xs: "1.45rem", sm: "1.62rem"}, color: "#1e3a8a", fontWeight: 900, lineHeight: 1.12}}>
+                                                                {formatVnd(offering?.tuitionFee)}
+                                                            </Typography>
+                                                            <Typography sx={{fontSize: "0.76rem", color: "#475569", mt: 0.25, fontWeight: 500}}>
+                                                                {formatVnd(offering?.baseTuitionFee)}
+                                                                {Number.isFinite(adjustmentPercent)
+                                                                    ? ` • ${(adjustmentPercent * 100).toFixed(1)}%`
+                                                                    : ""}
+                                                            </Typography>
+                                                        </Box>
+                                                        <Box sx={{textAlign: {xs: "left", sm: "right"}}}>
+                                                            <Typography sx={{fontSize: "0.76rem", color: "#6b7280", fontWeight: 600, mb: 0.12}}>
+                                                                Chỉ tiêu
+                                                            </Typography>
+                                                            <Typography sx={{fontSize: "1.02rem", color: quotaTone.main, fontWeight: 900}}>
+                                                                Còn {offering?.remainingQuota ?? "—"} suất
+                                                            </Typography>
+                                                            <Typography sx={{fontSize: "0.76rem", color: quotaTone.soft, fontWeight: 500}}>
+                                                                Tổng {offering?.quota ?? "—"} • {String(offering?.admissionMethod || "—")}
+                                                            </Typography>
+                                                        </Box>
+                                                    </Stack>
+
+                                                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{mb: 1.2}}>
+                                                        <Box sx={{minWidth: 0}}>
+                                                            <Typography sx={{fontSize: "0.78rem", color: "#6b7280", fontWeight: 600}}>
+                                                                Chương trình
+                                                            </Typography>
+                                                            <Typography sx={{fontSize: "0.93rem", color: "#111827", fontWeight: 700, lineHeight: 1.4}}>
+                                                                {program?.name || "—"}
+                                                            </Typography>
+                                                            <Typography sx={{fontSize: "0.78rem", color: "#6b7280", fontStyle: "italic", mt: 0.2}}>
+                                                                ({curriculum?.name || "—"})
+                                                            </Typography>
+                                                        </Box>
+                                                        <Stack
+                                                            direction="row"
+                                                            alignItems="center"
+                                                            spacing={0.6}
+                                                            sx={{
+                                                                px: 1,
+                                                                py: 0.5,
+                                                                borderRadius: 999,
+                                                                bgcolor: "rgba(255,247,237,0.95)",
+                                                                border: "1px solid rgba(251,191,36,0.24)",
+                                                                flexShrink: 0
+                                                            }}
+                                                        >
+                                                            <CalendarTodayIcon sx={{fontSize: 14, color: "#b45309"}}/>
+                                                            <Typography sx={{fontSize: "0.76rem", color: "#92400e", fontWeight: 700, whiteSpace: "nowrap"}}>
+                                                                {formatIsoDate(offering?.openDate)} - {formatIsoDate(offering?.closeDate)}
+                                                            </Typography>
+                                                        </Stack>
+                                                    </Stack>
+
+                                                    {hasQuota && hasRemaining && filledPercent > 0 ? (
+                                                        <Typography sx={{fontSize: "0.76rem", color: "#475569", mb: 1.05, fontWeight: 500}}>
+                                                            Đã tuyển {filledPercent}% chỉ tiêu
+                                                        </Typography>
+                                                    ) : null}
+
+                                                    {subjects.length > 0 ? (
+                                                        <Box sx={{mt: 1.35}}>
+                                                            <Typography sx={{fontSize: "0.76rem", color: "#6b7280", fontWeight: 600, mb: 0.55}}>
+                                                                Môn học
+                                                            </Typography>
+                                                            <Stack direction="row" flexWrap="wrap" useFlexGap sx={{gap: 0.55}}>
+                                                                {subjects.map((sub, subIdx) => (
+                                                                    <Box
+                                                                        key={`${sub?.name || subIdx}-${subIdx}`}
+                                                                        sx={{
+                                                                            display: "inline-flex",
+                                                                            alignItems: "center",
+                                                                            gap: 0.45,
+                                                                            px: 0.9,
+                                                                            py: 0.35,
+                                                                            borderRadius: 999,
+                                                                            bgcolor: "#f3f4f6",
+                                                                            color: "#374151",
+                                                                            fontSize: "0.74rem",
+                                                                            fontWeight: 500,
+                                                                            lineHeight: 1.2
+                                                                        }}
+                                                                    >
+                                                                        <Box
+                                                                            component="span"
+                                                                            sx={{
+                                                                                width: 5,
+                                                                                height: 5,
+                                                                                borderRadius: "50%",
+                                                                                bgcolor: sub?.isMandatory ? "#1d4ed8" : "#9ca3af",
+                                                                                flexShrink: 0
+                                                                            }}
+                                                                        />
+                                                                        {String(sub?.name || "").trim() || `Môn ${subIdx + 1}`}
+                                                                    </Box>
+                                                                ))}
+                                                            </Stack>
+                                                        </Box>
+                                                    ) : null}
+                                                </Box>
+                                            );
+                                        })}
+                                    </Box>
                                 </Box>
                             ) : null}
 
-                            {groupCode && (programs.length > 0 || subjects.length > 0) ? (
-                                <Divider sx={contactDividerSx}/>
-                            ) : null}
-
-                            {programs.length > 0 ? (
-                                <>
-                                    <Box sx={{...contactRowSx, alignItems: "flex-start"}}>
-                                        <BusinessIcon sx={contactIconSx}/>
-                                        <Box sx={{minWidth: 0}}>
-                                            <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.5}}>
-                                                <Box component="span" sx={{fontWeight: 600}}>
-                                                    Chương trình con
-                                                </Box>
-                                            </Typography>
-                                            <Stack component="ul" spacing={0.5} sx={{m: 0, mt: 0.75, pl: 2}}>
-                                                {programs.map((p, pi) => (
-                                                    <Typography
-                                                        key={pi}
-                                                        component="li"
-                                                        sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.5}}
-                                                    >
-                                                        {typeof p === "string"
-                                                            ? p
-                                                            : String(p?.name || p?.title || JSON.stringify(p))}
+                            {admissionMethodDetails.length > 0 ? (
+                                <Box
+                                    sx={{
+                                        mb: 2,
+                                        p: {xs: 1.35, sm: 1.6},
+                                        borderRadius: 2,
+                                        bgcolor: "rgba(248,252,255,0.86)",
+                                        boxShadow: "0 10px 22px rgba(15,23,42,0.07)"
+                                    }}
+                                >
+                                    <Typography sx={{fontSize: "0.98rem", fontWeight: 800, color: BRAND_NAVY, mb: 1}}>
+                                        Phương thức xét tuyển
+                                    </Typography>
+                                    <Stack spacing={1}>
+                                        {admissionMethodDetails.map((method, methodIdx) => {
+                                            const steps = Array.isArray(method?.admissionProcessSteps) ? method.admissionProcessSteps : [];
+                                            return (
+                                                <Box
+                                                    key={`${method?.methodCode || methodIdx}-${methodIdx}`}
+                                                    sx={{
+                                                        borderRadius: 2.4,
+                                                        bgcolor: "#ffffff",
+                                                        px: {xs: 1.25, sm: 1.45},
+                                                        py: {xs: 1.15, sm: 1.3},
+                                                        boxShadow: "0 8px 18px rgba(15,23,42,0.06)"
+                                                    }}
+                                                >
+                                                    <Typography sx={{fontSize: "1.02rem", fontWeight: 900, color: BRAND_NAVY, textTransform: "uppercase", letterSpacing: "0.01em"}}>
+                                                        {method?.displayName || method?.methodCode || `Phương thức ${methodIdx + 1}`}
                                                     </Typography>
-                                                ))}
-                                            </Stack>
-                                        </Box>
-                                    </Box>
-                                    {subjects.length > 0 ? <Divider sx={contactDividerSx}/> : null}
-                                </>
-                            ) : null}
+                                                    <Typography sx={{fontSize: "0.86rem", color: "#475569", lineHeight: 1.6, mt: 0.2}}>
+                                                        {String(method?.description || "").trim() || "—"}
+                                                    </Typography>
 
-                            {subjects.length > 0 ? (
-                                <Box sx={{...contactRowSx, alignItems: "flex-start"}}>
-                                    <AutoStoriesIcon sx={{...contactIconSx, opacity: 0.95}}/>
-                                    <Box sx={{minWidth: 0, flex: 1}}>
-                                        <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.5}}>
-                                            <Box component="span" sx={{fontWeight: 600}}>
-                                                Môn học
-                                            </Box>
-                                        </Typography>
-                                        <Stack spacing={1.1} sx={{mt: 1.1}}>
-                                            {subjects.map((sub, si) => {
-                                                const sn = String(sub?.name || "").trim() || `Môn ${si + 1}`;
-                                                const sd = sub?.description != null ? String(sub.description).trim() : "";
-                                                const mandatory = Boolean(sub?.isMandatory);
-                                                return (
-                                                    <Box
-                                                        key={`${sn}-${si}`}
+                                                    <Stack
+                                                        direction="row"
+                                                        alignItems="center"
+                                                        spacing={0.6}
                                                         sx={{
-                                                            borderRadius: {xs: 1.5, sm: 2},
-                                                            border: "1px solid rgba(191,219,254,0.7)",
-                                                            bgcolor: "rgba(248,252,255,0.98)",
-                                                            px: {xs: 1.25, sm: 1.5},
-                                                            py: {xs: 1.15, sm: 1.25}
+                                                            mt: 1,
+                                                            width: "fit-content",
+                                                            px: 1,
+                                                            py: 0.45,
+                                                            borderRadius: 999,
+                                                            bgcolor: "rgba(59,130,246,0.1)",
+                                                            border: "1px solid rgba(59,130,246,0.22)"
                                                         }}
                                                     >
-                                                        <Stack direction="row" alignItems="center" spacing={0.9} sx={{mb: 0.75, flexWrap: "wrap"}}>
-                                                            <Typography
-                                                                sx={{
-                                                                    fontWeight: 800,
-                                                                    fontSize: "1rem",
-                                                                    color: BRAND_NAVY,
-                                                                    lineHeight: 1.35,
-                                                                    overflowWrap: "anywhere",
-                                                                    wordBreak: "break-word"
-                                                                }}
-                                                            >
-                                                                {sn}
+                                                        <CalendarTodayIcon sx={{fontSize: 14, color: "#1d4ed8"}}/>
+                                                        <Typography sx={{fontSize: "0.78rem", color: "#1e3a8a", fontWeight: 700}}>
+                                                            {formatDateArray(method?.startDate)} - {formatDateArray(method?.endDate)}
+                                                        </Typography>
+                                                    </Stack>
+
+                                                    {Array.isArray(method?.methodDocumentRequirements) &&
+                                                    method.methodDocumentRequirements.length > 0 ? (
+                                                        <Box sx={{mt: 1.15}}>
+                                                            <Typography sx={{fontSize: "0.78rem", color: "#64748b", fontWeight: 700, mb: 0.55}}>
+                                                                Hồ sơ cần chuẩn bị
                                                             </Typography>
                                                             <Box
-                                                                component="span"
                                                                 sx={{
-                                                                    display: "inline-flex",
-                                                                    alignItems: "center",
-                                                                    justifyContent: "center",
-                                                                    px: 0.72,
-                                                                    py: 0.14,
-                                                                    borderRadius: 999,
-                                                                    fontSize: "0.62rem",
-                                                                    fontWeight: 700,
-                                                                    lineHeight: 1.15,
-                                                                    bgcolor: mandatory ? "rgba(59,130,246,0.16)" : "rgba(148,163,184,0.22)",
-                                                                    color: mandatory ? "#1d4ed8" : "#334155",
-                                                                    minHeight: 17
+                                                                    display: "grid",
+                                                                    gridTemplateColumns: {xs: "1fr", sm: "repeat(2, minmax(0, 1fr))"},
+                                                                    gap: 0.55
                                                                 }}
                                                             >
-                                                                {mandatory ? "Bắt buộc" : "Tự chọn"}
+                                                                {method.methodDocumentRequirements.map((doc, reqIdx) => (
+                                                                    <Stack key={`${doc?.code || reqIdx}-${reqIdx}`} direction="row" alignItems="center" spacing={0.55} sx={{minWidth: 0}}>
+                                                                        <CheckCircleIcon sx={{fontSize: 15, color: "#16a34a", flexShrink: 0}}/>
+                                                                        <Typography sx={{fontSize: "0.81rem", color: "#334155", lineHeight: 1.55}}>
+                                                                            {doc?.name || doc?.code || `Hồ sơ ${reqIdx + 1}`}
+                                                                            {doc?.required ? (
+                                                                                <Box component="span" sx={{color: "#dc2626", fontWeight: 800, fontSize: "0.72rem", ml: 0.28}}>
+                                                                                    *
+                                                                                </Box>
+                                                                            ) : null}
+                                                                        </Typography>
+                                                                    </Stack>
+                                                                ))}
                                                             </Box>
-                                                        </Stack>
+                                                        </Box>
+                                                    ) : null}
+
+                                                    {steps.length > 0 ? (
+                                                        <Box sx={{mt: 1.3}}>
+                                                            <Typography sx={{fontSize: "0.78rem", color: "#64748b", fontWeight: 700, mb: 0.7}}>
+                                                                Quy trình thực hiện
+                                                            </Typography>
+                                                            <Stack spacing={0.9}>
+                                                                {steps.map((step, stepIdx) => {
+                                                                    const isLast = stepIdx === steps.length - 1;
+                                                                    const stepName = String(step?.stepName || "").trim() || `Bước ${stepIdx + 1}`;
+                                                                    const lower = stepName.toLowerCase();
+                                                                    const stepIcon = lower.includes("phỏng vấn") || lower.includes("phong van")
+                                                                        ? <ChatBubbleOutlineIcon sx={{fontSize: 14, color: "#1e40af"}}/>
+                                                                        : <DescriptionIcon sx={{fontSize: 14, color: "#1e40af"}}/>;
+                                                                    return (
+                                                                        <Box key={`${step?.stepOrder || stepIdx}-${stepIdx}`} sx={{display: "flex", gap: 0.85, alignItems: "flex-start"}}>
+                                                                            <Box sx={{position: "relative", pt: 0.05}}>
+                                                                                <Box
+                                                                                    sx={{
+                                                                                        width: 22,
+                                                                                        height: 22,
+                                                                                        borderRadius: "50%",
+                                                                                        bgcolor: "rgba(59,130,246,0.14)",
+                                                                                        border: "1px solid rgba(59,130,246,0.35)",
+                                                                                        display: "inline-flex",
+                                                                                        alignItems: "center",
+                                                                                        justifyContent: "center",
+                                                                                        color: "#1d4ed8",
+                                                                                        fontSize: "0.72rem",
+                                                                                        fontWeight: 800
+                                                                                    }}
+                                                                                >
+                                                                                    {step?.stepOrder ?? stepIdx + 1}
+                                                                                </Box>
+                                                                                {!isLast ? (
+                                                                                    <Box
+                                                                                        sx={{
+                                                                                            position: "absolute",
+                                                                                            left: "50%",
+                                                                                            top: 23,
+                                                                                            transform: "translateX(-50%)",
+                                                                                            width: 1.5,
+                                                                                            height: 26,
+                                                                                            bgcolor: "rgba(148,163,184,0.35)",
+                                                                                            borderRadius: 999
+                                                                                        }}
+                                                                                    />
+                                                                                ) : null}
+                                                                            </Box>
+                                                                            <Box sx={{pt: 0.02, minWidth: 0}}>
+                                                                                <Stack direction="row" alignItems="center" spacing={0.5}>
+                                                                                    {stepIcon}
+                                                                                    <Typography sx={{fontSize: "0.84rem", color: "#0f172a", fontWeight: 800, lineHeight: 1.45}}>
+                                                                                        {stepName}
+                                                                                    </Typography>
+                                                                                </Stack>
+                                                                                <Typography sx={{fontSize: "0.8rem", color: "#475569", lineHeight: 1.6}}>
+                                                                                    {String(step?.description || "").trim()}
+                                                                                </Typography>
+                                                                            </Box>
+                                                                        </Box>
+                                                                    );
+                                                                })}
+                                                            </Stack>
+                                                        </Box>
+                                                    ) : null}
+                                                </Box>
+                                            );
+                                        })}
+                                    </Stack>
+                                </Box>
+                            ) : null}
+
+                            {mandatoryAll.length > 0 ? (
+                                <Box
+                                    sx={{
+                                        p: {xs: 1.8, sm: 2.25},
+                                        borderRadius: 2.4,
+                                        bgcolor: "#ffffff",
+                                        border: "1px solid rgba(229,231,235,0.9)",
+                                        boxShadow: "0 18px 36px rgba(15,23,42,0.1)"
+                                    }}
+                                >
+                                    <Typography sx={{fontSize: "1.08rem", fontWeight: 900, color: BRAND_NAVY, mb: 1.3}}>
+                                        Hồ sơ cần nộp
+                                    </Typography>
+                                    {(() => {
+                                        const groups = {
+                                            academic: {
+                                                title: "Giấy tờ học tập",
+                                                items: []
+                                            },
+                                            personal: {
+                                                title: "Giấy tờ cá nhân",
+                                                items: []
+                                            },
+                                            form: {
+                                                title: "Đơn từ & cam kết",
+                                                items: []
+                                            }
+                                        };
+                                        mandatoryAll.forEach((doc) => {
+                                            const bucket = classifyMandatoryDocument(doc?.name || doc?.code || "");
+                                            groups[bucket].items.push(doc);
+                                        });
+                                        const orderedGroups = [groups.academic, groups.personal, groups.form].filter(
+                                            (group) => group.items.length > 0
+                                        );
+                                        const totalDocs = mandatoryAll.length;
+                                        const preparedDocs = 0;
+                                        const progressPercent = totalDocs > 0 ? Math.round((preparedDocs / totalDocs) * 100) : 0;
+                                        return (
+                                            <Stack spacing={1.8}>
+                                                {orderedGroups.map((group) => (
+                                                    <Box key={group.title}>
                                                         <Typography
                                                             sx={{
-                                                                fontSize: "0.875rem",
-                                                                color: "#4B5563",
-                                                                lineHeight: 1.6,
-                                                                overflowWrap: "anywhere",
-                                                                wordBreak: "break-word"
+                                                                fontSize: "0.9rem",
+                                                                fontWeight: 800,
+                                                                color: "#111827",
+                                                                mb: 0.75
                                                             }}
                                                         >
-                                                            {sd || "—"}
+                                                            {group.title}
                                                         </Typography>
+                                                        <Box
+                                                            sx={{
+                                                                p: {xs: 1.1, sm: 1.25},
+                                                                borderRadius: 2,
+                                                                bgcolor: "#ffffff",
+                                                                boxShadow: "0 4px 12px rgba(15,23,42,0.05)"
+                                                            }}
+                                                        >
+                                                            <Box
+                                                                sx={{
+                                                                    display: "grid",
+                                                                    gridTemplateColumns: {xs: "1fr", sm: "1fr 1fr"},
+                                                                    rowGap: 1.35,
+                                                                    columnGap: 1.2
+                                                                }}
+                                                            >
+                                                                {group.items.map((doc, docIdx) => {
+                                                                    const name = doc?.name || doc?.code || `Hồ sơ ${docIdx + 1}`;
+                                                                    const copyBadge = getDocCopyBadge(name);
+                                                                    const {primary, note} = splitDocPrimaryAndNote(name);
+                                                                    return (
+                                                                        <Stack
+                                                                            key={`${group.title}-${doc?.code || docIdx}`}
+                                                                            direction="row"
+                                                                            alignItems="flex-start"
+                                                                            spacing={0.75}
+                                                                            sx={{
+                                                                                py: 0.1,
+                                                                                pr: 0.3
+                                                                            }}
+                                                                        >
+                                                                            <CheckCircleIcon sx={{fontSize: 15, color: "#cbd5e1", mt: 0.2, flexShrink: 0}}/>
+                                                                            <Box sx={{minWidth: 0}}>
+                                                                                <Typography
+                                                                                    sx={{
+                                                                                        fontSize: "0.86rem",
+                                                                                        color: "#374151",
+                                                                                        lineHeight: 1.7,
+                                                                                        fontWeight: 500
+                                                                                    }}
+                                                                                >
+                                                                                    {primary || name}{" "}
+                                                                                    {copyBadge ? (
+                                                                                        <Box
+                                                                                            component="span"
+                                                                                            sx={{
+                                                                                                fontSize: "0.73rem",
+                                                                                                fontWeight: 700,
+                                                                                                color:
+                                                                                                    copyBadge === "Bản chính"
+                                                                                                        ? "#1e40af"
+                                                                                                        : "#9a3412"
+                                                                                            }}
+                                                                                        >
+                                                                                            ({copyBadge})
+                                                                                        </Box>
+                                                                                    ) : null}
+                                                                                </Typography>
+                                                                                {note && !copyBadge ? (
+                                                                                    <Typography sx={{fontSize: "0.76rem", color: "#9ca3af", lineHeight: 1.55}}>
+                                                                                        {note}
+                                                                                    </Typography>
+                                                                                ) : null}
+                                                                            </Box>
+                                                                        </Stack>
+                                                                    );
+                                                                })}
+                                                            </Box>
+                                                        </Box>
                                                     </Box>
-                                                );
-                                            })}
-                                        </Stack>
-                                    </Box>
+                                                ))}
+                                                <Box
+                                                    sx={{
+                                                        mt: 0.25
+                                                    }}
+                                                >
+                                                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{mb: 0.45}}>
+                                                        <Typography sx={{fontSize: "0.78rem", color: "#475569", fontWeight: 600}}>
+                                                            Đã chuẩn bị {preparedDocs}/{totalDocs} loại giấy tờ
+                                                        </Typography>
+                                                        <Typography sx={{fontSize: "0.74rem", color: "#64748b", fontWeight: 700}}>
+                                                            {progressPercent}%
+                                                        </Typography>
+                                                    </Stack>
+                                                    <Box
+                                                        sx={{
+                                                            width: "100%",
+                                                            height: 6,
+                                                            borderRadius: 999,
+                                                            bgcolor: "rgba(148,163,184,0.24)",
+                                                            overflow: "hidden"
+                                                        }}
+                                                    >
+                                                        <Box
+                                                            sx={{
+                                                                width: `${progressPercent}%`,
+                                                                height: "100%",
+                                                                borderRadius: 999,
+                                                                bgcolor: "#2563eb",
+                                                                transition: "width 0.25s ease"
+                                                            }}
+                                                        />
+                                                    </Box>
+                                                    <Typography sx={{fontSize: "0.72rem", color: "#94a3b8", mt: 0.45}}>
+                                                        Tích chọn từng giấy tờ sau khi chuẩn bị để cập nhật tiến độ.
+                                                    </Typography>
+                                                </Box>
+                                            </Stack>
+                                        );
+                                    })()}
                                 </Box>
                             ) : null}
                         </Box>
                     );
-                })
-            )}
+                })}
         </Box>
     );
 }
@@ -1011,6 +1512,9 @@ export default function SchoolSearchDetailView({
     const [nearbyError, setNearbyError] = React.useState("");
     const [nearbyNotice, setNearbyNotice] = React.useState("");
     const [showScrollTopButton, setShowScrollTopButton] = React.useState(false);
+    const [campaignTemplates, setCampaignTemplates] = React.useState([]);
+    const [campaignLoading, setCampaignLoading] = React.useState(false);
+    const [campaignError, setCampaignError] = React.useState("");
 
     const schoolCampusMarkers = React.useMemo(() => {
         const list = Array.isArray(school?.campusList) ? school.campusList : [];
@@ -1135,6 +1639,36 @@ export default function SchoolSearchDetailView({
             cancelled = true;
         };
     }, [userLocation, fallbackCenter, onSearchNearbyCampuses]);
+
+    React.useEffect(() => {
+        const schoolId = Number(school?.id);
+        if (!Number.isFinite(schoolId)) {
+            setCampaignTemplates([]);
+            setCampaignError("");
+            setCampaignLoading(false);
+            return;
+        }
+        let cancelled = false;
+        (async () => {
+            setCampaignLoading(true);
+            setCampaignError("");
+            try {
+                const templates = await getPublicSchoolCampaignTemplates(schoolId, 0);
+                if (cancelled) return;
+                setCampaignTemplates(Array.isArray(templates) ? templates : []);
+            } catch (error) {
+                if (cancelled) return;
+                const msg = String(error?.response?.data?.message || error?.message || "").trim();
+                setCampaignTemplates([]);
+                setCampaignError(msg || "Không tải được chiến dịch tuyển sinh.");
+            } finally {
+                if (!cancelled) setCampaignLoading(false);
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [school?.id]);
 
     React.useEffect(() => {
         setDetailActiveSection("intro");
@@ -1824,7 +2358,11 @@ export default function SchoolSearchDetailView({
                                 id="school-detail-curriculum"
                                 sx={{scrollMarginTop: {xs: 56, sm: 52}, mb: 3}}
                             >
-                                <SchoolCurriculumInfoCard school={school}/>
+                                <SchoolCurriculumInfoCard
+                                    campaignTemplates={campaignTemplates}
+                                    campaignLoading={campaignLoading}
+                                    campaignError={campaignError}
+                                />
                             </Box>
 
                             <Box

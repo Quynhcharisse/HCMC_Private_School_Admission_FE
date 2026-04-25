@@ -1097,14 +1097,14 @@ export default function ChildrenInfoPage() {
                                     component={Paper}
                                     elevation={0}
                                     sx={{
-                                        overflowX: 'auto',
+                                        overflowX: 'hidden',
                                         borderRadius: 2,
                                         border: '1px solid rgba(226, 232, 240, 0.95)',
                                         boxShadow: '0 4px 18px rgba(15, 23, 42, 0.04)',
                                         bgcolor: 'rgba(255, 255, 255, 0.55)',
                                     }}
                                 >
-                                    <Table size="small" sx={{minWidth: 680}}>
+                                    <Table size="small" sx={{width: '100%', tableLayout: 'fixed'}}>
                                         <TableHead>
                                             <TableRow>
                                                 <TableCell
@@ -1117,7 +1117,7 @@ export default function ChildrenInfoPage() {
                                                         fontSize: 13,
                                                         color: '#1e293b',
                                                         border: '1px solid rgba(226, 232, 240, 0.95)',
-                                                        minWidth: 200,
+                                                        width: '36%',
                                                     }}
                                                 >
                                                     Môn học
@@ -1148,7 +1148,7 @@ export default function ChildrenInfoPage() {
                                                             fontSize: 12,
                                                             color: '#334155',
                                                             border: '1px solid rgba(226, 232, 240, 0.95)',
-                                                            minWidth: 88,
+                                                            width: '16%',
                                                             whiteSpace: 'nowrap',
                                                         }}
                                                     >
@@ -1185,6 +1185,7 @@ export default function ChildrenInfoPage() {
                                                                         fontWeight: 600,
                                                                         fontSize: 14,
                                                                         color: '#1e293b',
+                                                                        overflowWrap: 'anywhere',
                                                                     }}
                                                                 >
                                                                     {sub.name}
@@ -1197,7 +1198,7 @@ export default function ChildrenInfoPage() {
                                                                 key={g.key}
                                                                 sx={{
                                                                     border: '1px solid rgba(241, 245, 249, 0.95)',
-                                                                    p: 0.75,
+                                                                    p: 0.5,
                                                                     verticalAlign: 'middle',
                                                                 }}
                                                             >
@@ -1418,7 +1419,7 @@ export default function ChildrenInfoPage() {
                                                                     key={g.key}
                                                                     sx={{
                                                                         border: '1px solid rgba(241, 245, 249, 0.95)',
-                                                                        p: 0.75,
+                                                                        p: 0.5,
                                                                         verticalAlign: 'middle',
                                                                     }}
                                                                 >
