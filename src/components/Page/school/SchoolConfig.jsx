@@ -51,6 +51,7 @@ import {useSchool} from "../../../contexts/SchoolContext.jsx";
 import {
   getCampusConfig,
   getSchoolConfig,
+  importMandatoryDocsConfig,
   parseSchoolConfigResponseBody,
   updateCampusConfig,
   updateSchoolConfig,
@@ -119,7 +120,7 @@ function isMethodCodeReferencedInOtherConfig(code, cfg) {
   const c = String(code ?? "").trim();
   if (!c || !cfg || typeof cfg !== "object") return false;
   const doc = (cfg.documentRequirementsData?.byMethod || []).some((g) => String(g?.methodCode ?? "").trim() === c);
-  const proc = (cfg.operationSettingsData?.methodAdmissionProcess || []).some(
+  const proc = (cfg.admissionSettingsData?.methodAdmissionProcess || []).some(
     (g) => String(g?.methodCode ?? "").trim() === c
   );
   return doc || proc;
@@ -184,6 +185,7 @@ function defaultConfig() {
     admissionSettingsData: {
       availableMethods: [],
       allowedMethods: [],
+      methodAdmissionProcess: [],
       autoCloseOnFull: true,
       quotaAlertThresholdPercent: 90,
     },
@@ -222,8 +224,6 @@ function defaultConfig() {
         term1: {start: "", end: ""},
         term2: {start: "", end: ""},
       },
-      /** GET `admissionProcesses` / PUT `methodAdmissionProcess` — quy trình theo từng methodCode */
-      methodAdmissionProcess: [],
       /** Mùa / chiến dịch tuyển sinh (ca tăng cường, nhân sự…) — PUT `admissionSeasons` */
       admissionSeasons: [],
     },
@@ -891,23 +891,6 @@ function sanitizeOperationSettingsForApi(op) {
 
   const openSunday = Boolean(wc.isOpenSunday ?? wc.openSunday);
 
-  const methodAdmissionProcess = Array.isArray(op.methodAdmissionProcess)
-    ? op.methodAdmissionProcess
-        .map((g) => {
-          const ng = normalizeMethodAdmissionProcessGroup(g);
-          const steps = ng.steps.map((s, i) => ({
-            stepName: s.stepName != null ? String(s.stepName) : "",
-            stepOrder: s.stepOrder != null ? Number(s.stepOrder) : i + 1,
-            description: s.description != null ? String(s.description) : "",
-          }));
-          return {methodCode: ng.methodCode.trim(), steps};
-        })
-        .filter(
-          (row) =>
-            String(row.methodCode ?? "").trim() !== "" || (Array.isArray(row.steps) && row.steps.length > 0)
-        )
-    : [];
-
   const calIn = normalizeAcademicCalendar(op.academicCalendar);
   const academicCalendar = isAcademicCalendarLimitActive(calIn)
     ? {
@@ -953,7 +936,6 @@ function sanitizeOperationSettingsForApi(op) {
       openSunday,
     },
     academicCalendar,
-    methodAdmissionProcess,
     admissionSeasons,
   };
 }
@@ -1079,6 +1061,9 @@ function normalizeFromApi(body) {
         : Array.isArray(adm.allowed_methods)
           ? adm.allowed_methods
           : d.admissionSettingsData.allowedMethods,
+      methodAdmissionProcess: parseMethodAdmissionProcessFromOperation(adm).length > 0
+        ? parseMethodAdmissionProcessFromOperation(adm)
+        : parseMethodAdmissionProcessFromOperation(op),
       autoCloseOnFull:
         typeof adm.autoCloseOnFull === "boolean" ? adm.autoCloseOnFull : d.admissionSettingsData.autoCloseOnFull,
       quotaAlertThresholdPercent:
@@ -1161,6 +1146,27 @@ function buildPartialPayload(current, initial) {
     }
   }
   return out;
+}
+
+function getSectionKeysByTabSlug(tabSlug) {
+  switch (String(tabSlug || "").trim()) {
+    case "admission":
+      return ["admissionSettingsData"];
+    case "documents":
+      return ["documentRequirementsData"];
+    case "operation":
+      return ["operationSettingsData"];
+    case "finance":
+      return ["financePolicyData"];
+    case "facility":
+      return ["facilityData"];
+    case "quota":
+      return ["quotaConfigData"];
+    case "resource-distribution":
+      return ["resourceDistributionData"];
+    default:
+      return [];
+  }
 }
 
 function campusKey(c) {
@@ -1679,14 +1685,16 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   const initialRef = useRef(null);
   const facilityFormRef = useRef(null);
   const methodAdmissionProcessGroupRefs = useRef({});
+  const mandatoryDocsImportInputRef = useRef(null);
   const [pendingScrollToProcessIdx, setPendingScrollToProcessIdx] = useState(null);
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
   const [admissionMethodExpanded, setAdmissionMethodExpanded] = useState({});
   /** Chuỗi JSON so sánh với mẫu GET system (badge). */
   const [systemAdmissionComparable, setSystemAdmissionComparable] = useState("");
-  const [admissionViewMode, setAdmissionViewMode] = useState("edit");
+  const [admissionViewMode] = useState("edit");
   const [admissionFirstRunOpen, setAdmissionFirstRunOpen] = useState(false);
   const [admissionRestoreConfirmOpen, setAdmissionRestoreConfirmOpen] = useState(false);
+  const [restoreTemplateTarget, setRestoreTemplateTarget] = useState("admission");
   const [admissionToggleOffConfirm, setAdmissionToggleOffConfirm] = useState({open: false, code: ""});
   const [admissionRemoveRowConfirm, setAdmissionRemoveRowConfirm] = useState({open: false, idx: -1});
   const [loadingSystemAdmission, setLoadingSystemAdmission] = useState(false);
@@ -1731,7 +1739,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
       const c = String(g?.methodCode ?? "").trim();
       if (c && !codes.has(c)) codes.set(c, c);
     });
-    (config.operationSettingsData?.methodAdmissionProcess || []).forEach((g) => {
+    (config.admissionSettingsData?.methodAdmissionProcess || []).forEach((g) => {
       const c = String(g?.methodCode ?? "").trim();
       if (c && !codes.has(c)) codes.set(c, c);
     });
@@ -1741,7 +1749,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   }, [
     config.admissionSettingsData?.allowedMethods,
     config.documentRequirementsData?.byMethod,
-    config.operationSettingsData?.methodAdmissionProcess,
+    config.admissionSettingsData?.methodAdmissionProcess,
   ]);
 
   const schoolAdmissionComparable = useMemo(
@@ -2060,7 +2068,11 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     }
 
     /** Cơ sở chính: PUT /api/v1/school/config/{schoolId} (gồm operationSettingsData + facilityData nếu đổi). */
-    const schoolPayload = buildPartialPayload(config, initial);
+    const schoolPayloadRaw = buildPartialPayload(config, initial);
+    const allowedSectionKeys = new Set(getSectionKeysByTabSlug(tabSlug));
+    const schoolPayload = Object.fromEntries(
+      Object.entries(schoolPayloadRaw).filter(([key]) => allowedSectionKeys.has(key))
+    );
 
     if (Object.keys(schoolPayload).length === 0) {
       enqueueSnackbar("Không có thay đổi để lưu", {variant: "info"});
@@ -2192,6 +2204,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     schoolId,
     useCampusConfigFlow,
     effectiveCampusId,
+    tabSlug,
     branchPolicyDetail,
     setTabIndex,
     setSearchParams,
@@ -2216,6 +2229,12 @@ export default function SchoolConfig({variant = "platform"} = {}) {
         return;
       }
       const am = Array.isArray(tmpl.allowedMethods) ? tmpl.allowedMethods : [];
+      const processesRaw = Array.isArray(tmpl.methodAdmissionProcess)
+        ? tmpl.methodAdmissionProcess
+        : Array.isArray(tmpl.admissionProcesses)
+          ? tmpl.admissionProcesses
+          : [];
+      const processGroups = processesRaw.map(normalizeMethodAdmissionProcessGroup);
       const mapped = am.map((m) => ({
         code: m?.code != null ? String(m.code) : "",
         displayName: m?.displayName != null ? String(m.displayName) : "",
@@ -2227,6 +2246,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
           ...c.admissionSettingsData,
           availableMethods: mapped.map((x) => ({...x})),
           allowedMethods: mapped.map((x) => ({...x})),
+          methodAdmissionProcess: processGroups,
           autoCloseOnFull: typeof tmpl.autoCloseOnFull === "boolean" ? tmpl.autoCloseOnFull : true,
           quotaAlertThresholdPercent:
             tmpl.quotaAlertThresholdPercent != null && !Number.isNaN(Number(tmpl.quotaAlertThresholdPercent))
@@ -2240,13 +2260,55 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     }
   }, []);
 
-  const handleRestoreTemplateClick = useCallback(() => {
+  const applySystemDocumentTemplateToForm = useCallback(async () => {
+    setLoadingSystemAdmission(true);
+    try {
+      const tmpl = await fetchSystemAdmissionSettingsData();
+      if (!tmpl || typeof tmpl !== "object") {
+        enqueueSnackbar("Không có mẫu hồ sơ trên hệ thống.", {variant: "info"});
+        return;
+      }
+      const docRoot = tmpl.documentRequirementsData && typeof tmpl.documentRequirementsData === "object" ? tmpl.documentRequirementsData : {};
+      const byMethodRaw = Array.isArray(docRoot.byMethod)
+        ? docRoot.byMethod
+        : Array.isArray(tmpl.methodDocumentRequirements)
+          ? tmpl.methodDocumentRequirements
+          : Array.isArray(tmpl.byMethod)
+            ? tmpl.byMethod
+            : [];
+      const mandatoryRaw = Array.isArray(docRoot.mandatoryAll) ? docRoot.mandatoryAll : [];
+      const byMethod = byMethodRaw.map(normalizeByMethodGroup).map((g) => ({
+        ...g,
+        documents: (g.documents || []).map((d) => ({...normalizeDocItem(d), required: true})),
+      }));
+      const mandatoryAll = mandatoryRaw.map((d) => ({...normalizeDocItem(d), required: true}));
+
+      setConfig((c) => ({
+        ...c,
+        documentRequirementsData: {
+          ...c.documentRequirementsData,
+          mandatoryAll,
+          byMethod,
+        },
+      }));
+      enqueueSnackbar("Đã áp dụng mẫu hệ thống cho Cài đặt hồ sơ (chưa lưu DB).", {variant: "success"});
+    } finally {
+      setLoadingSystemAdmission(false);
+    }
+  }, []);
+
+  const handleRestoreTemplateClick = useCallback((target = "admission") => {
     if (isDirty) {
+      setRestoreTemplateTarget(target);
       setAdmissionRestoreConfirmOpen(true);
       return;
     }
+    if (target === "documents") {
+      void applySystemDocumentTemplateToForm();
+      return;
+    }
     void applySystemTemplateToForm();
-  }, [isDirty, applySystemTemplateToForm]);
+  }, [isDirty, applySystemTemplateToForm, applySystemDocumentTemplateToForm]);
 
   const applyToggleAdmissionMethod = useCallback(
     (code, checked) => {
@@ -2337,13 +2399,13 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   const addMethodAdmissionProcess = useCallback(() => {
     let newIndex = 0;
     setConfig((c) => {
-      const prev = [...(c.operationSettingsData.methodAdmissionProcess || [])];
+      const prev = [...(c.admissionSettingsData.methodAdmissionProcess || [])];
       newIndex = prev.length;
       prev.push({methodCode: "", steps: [{stepName: "", stepOrder: 1, description: ""}]});
       return {
         ...c,
-        operationSettingsData: {
-          ...c.operationSettingsData,
+        admissionSettingsData: {
+          ...c.admissionSettingsData,
           methodAdmissionProcess: prev,
         },
       };
@@ -2353,52 +2415,52 @@ export default function SchoolConfig({variant = "platform"} = {}) {
 
   const removeMethodAdmissionProcessAt = useCallback((groupIdx) => {
     setConfig((c) => {
-      const arr = [...(c.operationSettingsData.methodAdmissionProcess || [])];
+      const arr = [...(c.admissionSettingsData.methodAdmissionProcess || [])];
       arr.splice(groupIdx, 1);
-      return {...c, operationSettingsData: {...c.operationSettingsData, methodAdmissionProcess: arr}};
+      return {...c, admissionSettingsData: {...c.admissionSettingsData, methodAdmissionProcess: arr}};
     });
   }, []);
 
   const updateMethodAdmissionProcessCode = useCallback((groupIdx, methodCode) => {
     setConfig((c) => {
-      const arr = [...(c.operationSettingsData.methodAdmissionProcess || [])];
+      const arr = [...(c.admissionSettingsData.methodAdmissionProcess || [])];
       if (!arr[groupIdx]) return c;
       arr[groupIdx] = {...arr[groupIdx], methodCode};
-      return {...c, operationSettingsData: {...c.operationSettingsData, methodAdmissionProcess: arr}};
+      return {...c, admissionSettingsData: {...c.admissionSettingsData, methodAdmissionProcess: arr}};
     });
   }, []);
 
   const addAdmissionStepToMethod = useCallback((groupIdx) => {
     setConfig((c) => {
-      const arr = [...(c.operationSettingsData.methodAdmissionProcess || [])];
+      const arr = [...(c.admissionSettingsData.methodAdmissionProcess || [])];
       const g = arr[groupIdx];
       if (!g) return c;
       const steps = [...(g.steps || [])];
       steps.push({stepName: "", stepOrder: steps.length + 1, description: ""});
       arr[groupIdx] = {...g, steps};
-      return {...c, operationSettingsData: {...c.operationSettingsData, methodAdmissionProcess: arr}};
+      return {...c, admissionSettingsData: {...c.admissionSettingsData, methodAdmissionProcess: arr}};
     });
   }, []);
 
   const updateAdmissionStepInMethod = useCallback((groupIdx, stepIdx, field, value) => {
     setConfig((c) => {
-      const arr = [...(c.operationSettingsData.methodAdmissionProcess || [])];
+      const arr = [...(c.admissionSettingsData.methodAdmissionProcess || [])];
       const g = arr[groupIdx];
       if (!g) return c;
       const steps = (g.steps || []).map((s, i) => (i === stepIdx ? {...s, [field]: value} : s));
       arr[groupIdx] = {...g, steps};
-      return {...c, operationSettingsData: {...c.operationSettingsData, methodAdmissionProcess: arr}};
+      return {...c, admissionSettingsData: {...c.admissionSettingsData, methodAdmissionProcess: arr}};
     });
   }, []);
 
   const removeAdmissionStepInMethod = useCallback((groupIdx, stepIdx) => {
     setConfig((c) => {
-      const arr = [...(c.operationSettingsData.methodAdmissionProcess || [])];
+      const arr = [...(c.admissionSettingsData.methodAdmissionProcess || [])];
       const g = arr[groupIdx];
       if (!g) return c;
       const steps = (g.steps || []).filter((_, i) => i !== stepIdx).map((s, i) => ({...s, stepOrder: i + 1}));
       arr[groupIdx] = {...g, steps};
-      return {...c, operationSettingsData: {...c.operationSettingsData, methodAdmissionProcess: arr}};
+      return {...c, admissionSettingsData: {...c.admissionSettingsData, methodAdmissionProcess: arr}};
     });
   }, []);
 
@@ -2522,7 +2584,13 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     });
   }, []);
 
+  const onImportMandatoryDocsClick = useCallback(() => {
+    if (fieldDisabled) return;
+    mandatoryDocsImportInputRef.current?.click();
+  }, [fieldDisabled]);
+
   const addMandatoryDocument = useCallback(() => {
+    if (fieldDisabled) return;
     setConfig((c) => ({
       ...c,
       documentRequirementsData: {
@@ -2530,7 +2598,33 @@ export default function SchoolConfig({variant = "platform"} = {}) {
         mandatoryAll: [...(c.documentRequirementsData.mandatoryAll || []), {code: "", name: "", required: true}],
       },
     }));
-  }, []);
+  }, [fieldDisabled]);
+
+  const onMandatoryDocsFileChange = useCallback(
+    async (e) => {
+      const file = e?.target?.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+      if (fieldDisabled) return;
+      try {
+        const res = await importMandatoryDocsConfig(file);
+        const imported = Array.isArray(res?.data?.body) ? res.data.body.map((item) => ({...normalizeDocItem(item), required: true})) : [];
+        setConfig((c) => ({
+          ...c,
+          documentRequirementsData: {
+            ...c.documentRequirementsData,
+            mandatoryAll: imported,
+          },
+        }));
+        enqueueSnackbar(res?.data?.message || "Import hồ sơ thành công", {variant: "success"});
+      } catch (err) {
+        enqueueSnackbar(err?.response?.data?.message || err?.message || "Không thể import file hồ sơ bắt buộc chung", {
+          variant: "error",
+        });
+      }
+    },
+    [fieldDisabled]
+  );
 
   const removeMandatoryDocumentAt = useCallback((idx) => {
     setConfig((c) => {
@@ -2741,46 +2835,23 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                 <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1.5} sx={{mb: 2}}>
                   <Box sx={{minWidth: 0}}>
                     <Typography sx={{fontWeight: 800, fontSize: 18}}>Phương thức tuyển sinh</Typography>
-                    <Stack direction="row" alignItems="center" flexWrap="wrap" gap={1} sx={{mt: 1}}>
-                      <Chip size="small" label={admissionTemplateBadge.label} color={admissionTemplateBadge.color} variant="outlined"/>
-                    </Stack>
                   </Box>
                   <Stack direction="row" flexWrap="wrap" gap={1} alignItems="center" justifyContent="flex-end">
-                    <ToggleButtonGroup
-                      size="small"
-                      value={admissionViewMode}
-                      exclusive
-                      disabled={saving}
-                      onChange={(_, v) => v != null && setAdmissionViewMode(v)}
-                      sx={{"& .MuiToggleButton-root": {textTransform: "none", fontWeight: 700, px: 1.5}}}
-                    >
-                      <ToggleButton value="edit">Soạn thảo</ToggleButton>
-                      <ToggleButton value="preview">Xem trước</ToggleButton>
-                    </ToggleButtonGroup>
                     <Button
                       variant="outlined"
                       size="small"
-                      disabled={loadingSystemAdmission || saving}
+                      disabled={loadingSystemAdmission || saving || !editing}
                       onClick={() => void applySystemTemplateToForm()}
                       sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
                     >
                       Lấy mẫu từ hệ thống
-                    </Button>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      color="warning"
-                      disabled={loadingSystemAdmission || saving}
-                      onClick={handleRestoreTemplateClick}
-                      sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
-                    >
-                      Khôi phục theo mẫu hệ thống
                     </Button>
                     {admissionViewMode === "edit" ? (
                       <Button
                         variant="outlined"
                         size="small"
                         startIcon={<AddIcon/>}
+                        disabled={fieldDisabled}
                         onClick={addAdmissionMethod}
                         sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...admissionBlockPointerSx}}
                       >
@@ -3162,7 +3233,250 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                 {admissionViewMode === "edit" ? (
                 <>
                 <Divider sx={{my: 3}}/>
-
+                <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
+                  <CardContent sx={{p: 3}}>
+                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2} mb={2} flexWrap="wrap">
+                      <Box sx={{flex: 1, minWidth: 220}}>
+                        <Typography sx={{fontWeight: 800}}>Quy trình tuyển sinh theo phương thức</Typography>
+                      </Box>
+                      <Button startIcon={<AddIcon/>} disabled={fieldDisabled} onClick={addMethodAdmissionProcess} sx={{textTransform: "none", flexShrink: 0, ...blockPointerSx}}>
+                        Thêm phương thức
+                      </Button>
+                    </Stack>
+                    <Stack spacing={2.5}>
+                      {(config.admissionSettingsData.methodAdmissionProcess || []).length === 0 ? (
+                        <Paper variant="outlined" sx={{p: 2, borderStyle: "dashed", color: "#64748b", borderRadius: 2}}>
+                          Chưa có quy trình theo phương thức. Nhấn &quot;Thêm phương thức&quot; và chọn đúng mã (vd. ACADEMIC_RECORD,
+                          INTERNAL_TEST).
+                        </Paper>
+                      ) : null}
+                      {(config.admissionSettingsData.methodAdmissionProcess || []).map((group, gi) => {
+                        const accent = METHOD_PROCESS_VISUAL_ACCENTS[0];
+                        const codeTrim = (group.methodCode || "").trim();
+                        const optMatch = admissionMethodCodeOptions.find((o) => o.value === codeTrim);
+                        const methodSuggestionReadonlyDisplay = optMatch ? `${optMatch.label} (${codeTrim})` : codeTrim || "—";
+                        return (
+                        <Accordion
+                          key={`adm-proc-${gi}`}
+                          ref={(el) => {
+                            if (el) methodAdmissionProcessGroupRefs.current[gi] = el;
+                            else delete methodAdmissionProcessGroupRefs.current[gi];
+                          }}
+                          defaultExpanded
+                          elevation={0}
+                          disableGutters
+                          sx={{
+                            scrollMarginTop: "96px",
+                            borderRadius: 2,
+                            overflow: "hidden",
+                            border: "1px solid",
+                            borderColor: accent.border,
+                            boxShadow: "none",
+                            bgcolor: "#ffffff",
+                            "&:before": {display: "none"},
+                            "&.Mui-expanded": {margin: "10px 0"},
+                          }}
+                        >
+                          <AccordionSummary
+                            expandIcon={<ExpandMoreIcon sx={{color: accent.bar}}/>}
+                            sx={{
+                              px: 0,
+                              pr: 1,
+                              minHeight: 0,
+                              background: accent.headerBg,
+                              borderBottom: "2px solid",
+                              borderBottomColor: accent.bar,
+                              "& .MuiAccordionSummary-content": {
+                                margin: "0 !important",
+                                flexGrow: 1,
+                                minWidth: 0,
+                              },
+                            }}
+                          >
+                            <Box sx={{width: "100%", px: 2, py: 1.5, pr: {xs: 1, sm: 2}}}>
+                              <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
+                                <Chip
+                                  label={`Phương thức ${gi + 1}`}
+                                  size="small"
+                                  sx={{bgcolor: accent.bar, color: "#fff", fontWeight: 800, letterSpacing: "0.02em"}}
+                                />
+                                {group.methodCode?.trim() ? (
+                                  <Chip
+                                    label={group.methodCode.trim()}
+                                    size="small"
+                                    variant="outlined"
+                                    sx={{
+                                      borderWidth: 2,
+                                      borderColor: accent.bar,
+                                      color: "#0f172a",
+                                      fontWeight: 800,
+                                      bgcolor: "rgba(255,255,255,0.85)",
+                                    }}
+                                  />
+                                ) : (
+                                  <Chip label="Chưa chọn phương thức" size="small" sx={{bgcolor: "#e2e8f0", color: "#475569", fontWeight: 700}} />
+                                )}
+                              </Stack>
+                            </Box>
+                          </AccordionSummary>
+                          <AccordionDetails sx={{p: 0, display: "block"}}>
+                          <CardContent sx={{py: 2, px: 2, bgcolor: "rgba(248, 250, 252, 0.9)"}}>
+                            <Stack spacing={2}>
+                              <Stack direction={{xs: "column", sm: "row"}} spacing={1.5} alignItems={{sm: "flex-start"}} justifyContent="space-between">
+                                <Box sx={{flex: 1, minWidth: 0, width: "100%"}}>
+                                  <Stack spacing={1}>
+                                    {fieldDisabled ? (
+                                      <TextField
+                                        label="Phương thức"
+                                        size="small"
+                                        fullWidth
+                                        value={methodSuggestionReadonlyDisplay}
+                                        InputProps={{readOnly: true}}
+                                      />
+                                    ) : (
+                                      <TextField
+                                        select
+                                        label="Phương thức"
+                                        size="small"
+                                        fullWidth
+                                        value={
+                                          admissionMethodCodeOptions.some((o) => o.value === (group.methodCode || "").trim())
+                                            ? (group.methodCode || "").trim()
+                                            : "__custom__"
+                                        }
+                                        onChange={(e) => {
+                                          const v = e.target.value;
+                                          if (v === "__custom__") updateMethodAdmissionProcessCode(gi, "");
+                                          else updateMethodAdmissionProcessCode(gi, v);
+                                        }}
+                                      >
+                                        <MenuItem value="__custom__">
+                                          <em>Chọn Phương Thức</em>
+                                        </MenuItem>
+                                        {admissionMethodCodeOptions.map((o) => (
+                                          <MenuItem key={o.value} value={o.value}>
+                                            {o.label} ({o.value})
+                                          </MenuItem>
+                                        ))}
+                                      </TextField>
+                                    )}
+                                    <TextField
+                                      label="Mã Phương Thức"
+                                      size="small"
+                                      fullWidth
+                                      value={group.methodCode ?? ""}
+                                      onChange={(e) => updateMethodAdmissionProcessCode(gi, e.target.value.trim())}
+                                      placeholder="VD: ACADEMIC_RECORD"
+                                      helperText="Phải trùng code phương thức đã cấu hình tuyển sinh / hồ sơ."
+                                      inputProps={{readOnly: fieldDisabled}}
+                                    />
+                                  </Stack>
+                                </Box>
+                                <IconButton
+                                  size="small"
+                                  color="error"
+                                  aria-label="Xoá nhóm phương thức"
+                                  onClick={() => removeMethodAdmissionProcessAt(gi)}
+                                  sx={{...blockPointerSx}}
+                                >
+                                  <DeleteOutlineIcon fontSize="small"/>
+                                </IconButton>
+                              </Stack>
+                              <Divider sx={{borderColor: accent.stepsBorder, opacity: 1}}/>
+                              <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
+                                <Typography
+                                  variant="subtitle2"
+                                  sx={{
+                                    fontWeight: 800,
+                                    color: "#0f172a",
+                                    pl: 1,
+                                    borderLeft: "4px solid",
+                                    borderLeftColor: accent.bar,
+                                  }}
+                                >
+                                  Các bước
+                                </Typography>
+                                <Button
+                                  size="small"
+                                  startIcon={<AddIcon/>}
+                                  disabled={fieldDisabled}
+                                  onClick={() => addAdmissionStepToMethod(gi)}
+                                  sx={{textTransform: "none", ...blockPointerSx}}
+                                >
+                                  Thêm bước
+                                </Button>
+                              </Stack>
+                              <Stack spacing={1.5}>
+                                {(group.steps || []).map((step, si) => (
+                                  <Card
+                                    key={`step-${gi}-${si}`}
+                                    variant="outlined"
+                                    sx={{
+                                      borderRadius: 2,
+                                      bgcolor: accent.stepsBg,
+                                      borderColor: accent.stepsBorder,
+                                      borderWidth: 1,
+                                    }}
+                                  >
+                                    <CardContent sx={{py: 1.5, "&:last-child": {pb: 1.5}}}>
+                                      <Stack direction="row" spacing={1} alignItems="flex-start">
+                                        <Box sx={{flex: 1}}>
+                                          <Stack spacing={1.5}>
+                                            <Chip
+                                              size="small"
+                                              label={`Bước ${step.stepOrder ?? si + 1}`}
+                                              sx={{
+                                                alignSelf: "flex-start",
+                                                fontWeight: 700,
+                                                bgcolor: "rgba(255,255,255,0.92)",
+                                                border: `1px solid ${accent.stepsBorder}`,
+                                                color: "#0f172a",
+                                              }}
+                                            />
+                                            <TextField
+                                              label="Tên bước"
+                                              size="small"
+                                              fullWidth
+                                              value={step.stepName ?? ""}
+                                              onChange={(e) => updateAdmissionStepInMethod(gi, si, "stepName", e.target.value)}
+                                              inputProps={{readOnly: fieldDisabled}}
+                                            />
+                                            <TextField
+                                              label="Mô tả"
+                                              size="small"
+                                              fullWidth
+                                              multiline
+                                              minRows={2}
+                                              value={step.description ?? ""}
+                                              onChange={(e) => updateAdmissionStepInMethod(gi, si, "description", e.target.value)}
+                                              inputProps={{readOnly: fieldDisabled}}
+                                            />
+                                          </Stack>
+                                        </Box>
+                                        <IconButton
+                                          size="small"
+                                          color="error"
+                                          onClick={() => removeAdmissionStepInMethod(gi, si)}
+                                          aria-label="Xoá bước"
+                                          sx={{alignSelf: "flex-start", mt: 0.25, ...blockPointerSx}}
+                                        >
+                                          <DeleteOutlineIcon fontSize="small"/>
+                                        </IconButton>
+                                      </Stack>
+                                    </CardContent>
+                                  </Card>
+                                ))}
+                              </Stack>
+                            </Stack>
+                          </CardContent>
+                          </AccordionDetails>
+                        </Accordion>
+                        );
+                      })}
+                    </Stack>
+                  </CardContent>
+                </Card>
+                <Divider sx={{my: 3}}/>
                 <Stack spacing={2}>
                   <FormControlLabel
                     control={
@@ -3346,6 +3660,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                         variant="outlined"
                         size="small"
                         startIcon={<AddIcon/>}
+                        disabled={fieldDisabled}
                         onClick={() =>
                           setConfig((c) => {
                             const fin = c.financePolicyData;
@@ -3376,7 +3691,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                         const codeTrim = String(row.feeCode ?? "").trim();
                         return (
                           <Accordion
-                            key={`fee-${idx}-${codeTrim || "new"}`}
+                            key={`fee-${idx}`}
                             defaultExpanded
                             elevation={0}
                             disableGutters
@@ -3559,7 +3874,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                       <Stack direction={{xs: "column", sm: "row"}} spacing={1.5}>
                                         <TextField
                                           size="small"
-                                          label="Số lượng"
+                                          label="Số tiền"
                                           type="number"
                                           value={row.amount === "" || row.amount == null ? "" : row.amount}
                                           onChange={(e) => {
@@ -3630,7 +3945,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                         />
                                         <TextField
                                           size="small"
-                                          label="Số tiền"
+                                          label="Số tiền hiển thị đầy đủ"
                                           value={row.display ?? ""}
                                           onChange={(e) => {
                                             const v = e.target.value;
@@ -3854,15 +4169,36 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                 <Stack spacing={1.25} sx={{mb: 2}}>
                   <Stack direction="row" justifyContent="space-between" alignItems="center">
                     <Typography sx={{fontWeight: 800}}>Hồ sơ bắt buộc chung</Typography>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<AddIcon/>}
-                      onClick={addMandatoryDocument}
-                      sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
-                    >
-                      Thêm
-                    </Button>
+                    <Stack direction="row" spacing={1}>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<AddIcon/>}
+                        onClick={addMandatoryDocument}
+                        disabled={fieldDisabled}
+                        sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
+                      >
+                        Thêm
+                      </Button>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<AddIcon/>}
+                        onClick={onImportMandatoryDocsClick}
+                        disabled={fieldDisabled}
+                        sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
+                      >
+                        Import file
+                      </Button>
+                    </Stack>
+                    <input
+                      ref={mandatoryDocsImportInputRef}
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      style={{display: "none"}}
+                      onChange={onMandatoryDocsFileChange}
+                      disabled={fieldDisabled}
+                    />
                   </Stack>
                   <Alert severity="info" sx={{borderRadius: 2, maxWidth: 1200}}>
                     <Typography variant="body2" component="div" sx={{fontWeight: 700, mb: 0.75}}>
@@ -3946,15 +4282,27 @@ export default function SchoolConfig({variant = "platform"} = {}) {
 
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{mb: 2}}>
                   <Typography sx={{fontWeight: 800}}>Theo phương thức tuyển sinh</Typography>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<AddIcon/>}
-                    onClick={addByMethodGroup}
-                    sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
-                  >
-                    Thêm nhóm phương thức
-                  </Button>
+                  <Stack direction="row" spacing={1}>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      disabled={loadingSystemAdmission || saving || !editing}
+                      onClick={() => void applySystemDocumentTemplateToForm()}
+                      sx={{textTransform: "none", fontWeight: 700, borderRadius: 2}}
+                    >
+                      Lấy mẫu từ hệ thống
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<AddIcon/>}
+                      disabled={fieldDisabled}
+                      onClick={addByMethodGroup}
+                      sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
+                    >
+                      Thêm nhóm phương thức
+                    </Button>
+                  </Stack>
                 </Stack>
                 <Alert severity="info" sx={{borderRadius: 2, maxWidth: 1200, mb: 2.5}}>
                   <Typography variant="body2" component="div" sx={{fontWeight: 700, mb: 0.75}}>
@@ -4045,6 +4393,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                             variant="outlined"
                             size="small"
                             startIcon={<AddIcon/>}
+                            disabled={fieldDisabled}
                             onClick={() => addDocumentToMethod(gIdx)}
                             sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
                           >
@@ -4292,7 +4641,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                           }
                           size="small"
                           helperText="Dành cho phụ huynh khi đặt lịch: tối đa bao nhiêu lượt đặt hoặc chờ trong một khung giờ. Không phải số tư vấn viên — xem hai ô bên cạnh."
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
                         />
@@ -4318,10 +4667,9 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                           }
                           size="small"
                           helperText="Khi gán lịch cho tư vấn viên: mỗi khung giờ và khoảng ngày phải có ít nhất số người này. Không liên quan tới lượt đặt của phụ huynh (ô bên trái)."
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
-                          sx={{color: "red !important"}}
                         />
                       </Box>
                       <Box sx={{minWidth: 0}}>
@@ -4356,7 +4704,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                           }
                           size="small"
                           helperText="Giới hạn nhân sự: tối đa bao nhiêu tư vấn viên được gán chung một khung giờ và cùng khoảng ngày. 0 = không giới hạn. Khác với lượt đặt của phụ huynh."
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
                         />
@@ -4395,7 +4743,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                           }
                           size="small"
                           helperText="*Thời lượng của một cuộc hẹn tư vấn (ví dụ: 30, 45 phút)."
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
                         />
@@ -4434,7 +4782,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                           }
                           size="small"
                           helperText="(*) Thời gian nghỉ giữa hai slot tư vấn liên tiếp (0 = không nghỉ). Bước giữa hai bắt đầu tiết = độ dài tiết + nghỉ"
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
                         />
@@ -4470,7 +4818,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                           }
                           size="small"
                           helperText="(*) Thời gian tối thiểu phải đặt trước khi cuộc hẹn diễn ra"
-                          FormHelperTextProps={{sx: {fontWeight: 700, color: "red !important"}}}
+                          FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
                         />
@@ -4743,6 +5091,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     })}
                     <Button
                       startIcon={<AddIcon/>}
+                      disabled={fieldDisabled}
                       onClick={() =>
                         setConfig((c) => {
                           const ws = [
@@ -4767,186 +5116,6 @@ export default function SchoolConfig({variant = "platform"} = {}) {
       </Card>
               )}
 
-              {!useCampusConfigFlow ? (
-                <Card
-                  sx={{
-                    borderRadius: "12px",
-                    border: "1px solid rgba(226,232,240,1)",
-                    boxShadow: "0 8px 24px rgba(15,23,42,0.06)",
-                  }}
-                >
-                  <CardContent sx={{p: 3}}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1.5} mb={2}>
-                      <Typography sx={{fontWeight: 800}}>Lịch năm học &amp; gán lịch tư vấn</Typography>
-                      <Stack direction="row" gap={1} flexWrap="wrap" justifyContent="flex-end">
-                        {!academicSemesterLimitEnabled ? (
-                          <Chip size="small" label="Không giới hạn theo học kỳ" color="default" variant="outlined"/>
-                        ) : !isAcademicCalendarLimitActive(
-                            normalizeAcademicCalendar(config.operationSettingsData.academicCalendar)
-                          ) ? (
-                          <Chip size="small" label="Chưa đủ cặp ngày để áp dụng" color="warning" variant="outlined"/>
-                        ) : (
-                          <Chip size="small" label="Đang áp dụng giới hạn theo học kỳ" color="success" variant="outlined"/>
-                        )}
-                      </Stack>
-                    </Stack>
-
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={academicSemesterLimitEnabled}
-                          onChange={(e) => {
-                            const on = e.target.checked;
-                            setAcademicSemesterLimitEnabled(on);
-                            if (!on) {
-                              setConfig((c) => ({
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  academicCalendar: emptyAcademicCalendar(),
-                                },
-                              }));
-                            }
-                          }}
-                          disabled={fieldDisabled}
-                        />
-                      }
-                      label={
-                        <Box>
-                          <Typography component="span" fontWeight={700} display="block">
-                            Giới hạn gán lịch tư vấn trong phạm vi học kỳ
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            Khi tắt, cấu hình học kỳ không áp dụng cho việc gán lịch.
-                          </Typography>
-                        </Box>
-                      }
-                      sx={{alignItems: "flex-start", ml: 0, mr: 0}}
-                    />
-
-                    <Alert severity="info" sx={{mt: 2, mb: 2, borderRadius: 2}}>
-                      <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
-                        Chỉ khi nhập đủ ngày bắt đầu và kết thúc cho ít nhất một học kỳ, hệ thống mới kiểm tra ngày gán lịch. Nếu để
-                        trống, gán lịch không bị giới hạn theo học kỳ.
-                      </Typography>
-                    </Alert>
-
-                    <Collapse in={academicSemesterLimitEnabled} timeout="auto" unmountOnExit={false}>
-                      <Stack spacing={2.5}>
-                        <Typography sx={{fontWeight: 800}}>Học kỳ 1</Typography>
-                        <Stack direction={{xs: "column", md: "row"}} spacing={2}>
-                          <TextField
-                            label="Từ ngày"
-                            type="date"
-                            size="small"
-                            InputLabelProps={{shrink: true}}
-                            value={config.operationSettingsData.academicCalendar?.term1?.start ?? ""}
-                            onChange={(e) =>
-                              setConfig((c) => ({
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  academicCalendar: {
-                                    ...(c.operationSettingsData.academicCalendar || {}),
-                                    term1: {
-                                      ...(c.operationSettingsData.academicCalendar?.term1 || {}),
-                                      start: e.target.value,
-                                    },
-                                  },
-                                },
-                              }))
-                            }
-                            inputProps={{readOnly: fieldDisabled}}
-                            fullWidth
-                          />
-                          <TextField
-                            label="Đến ngày"
-                            type="date"
-                            size="small"
-                            InputLabelProps={{shrink: true}}
-                            value={config.operationSettingsData.academicCalendar?.term1?.end ?? ""}
-                            onChange={(e) =>
-                              setConfig((c) => ({
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  academicCalendar: {
-                                    ...(c.operationSettingsData.academicCalendar || {}),
-                                    term1: {
-                                      ...(c.operationSettingsData.academicCalendar?.term1 || {}),
-                                      end: e.target.value,
-                                    },
-                                  },
-                                },
-                              }))
-                            }
-                            inputProps={{readOnly: fieldDisabled}}
-                            fullWidth
-                          />
-                        </Stack>
-                        <Typography sx={{fontWeight: 800}}>Học kỳ 2</Typography>
-                        <Stack direction={{xs: "column", md: "row"}} spacing={2}>
-                          <TextField
-                            label="Từ ngày"
-                            type="date"
-                            size="small"
-                            InputLabelProps={{shrink: true}}
-                            value={config.operationSettingsData.academicCalendar?.term2?.start ?? ""}
-                            onChange={(e) =>
-                              setConfig((c) => ({
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  academicCalendar: {
-                                    ...(c.operationSettingsData.academicCalendar || {}),
-                                    term2: {
-                                      ...(c.operationSettingsData.academicCalendar?.term2 || {}),
-                                      start: e.target.value,
-                                    },
-                                  },
-                                },
-                              }))
-                            }
-                            inputProps={{readOnly: fieldDisabled}}
-                            fullWidth
-                          />
-                          <TextField
-                            label="Đến ngày"
-                            type="date"
-                            size="small"
-                            InputLabelProps={{shrink: true}}
-                            value={config.operationSettingsData.academicCalendar?.term2?.end ?? ""}
-                            onChange={(e) =>
-                              setConfig((c) => ({
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  academicCalendar: {
-                                    ...(c.operationSettingsData.academicCalendar || {}),
-                                    term2: {
-                                      ...(c.operationSettingsData.academicCalendar?.term2 || {}),
-                                      end: e.target.value,
-                                    },
-                                  },
-                                },
-                              }))
-                            }
-                            inputProps={{readOnly: fieldDisabled}}
-                            fullWidth
-                          />
-                        </Stack>
-                      </Stack>
-                    </Collapse>
-
-                    {!academicSemesterLimitEnabled ? (
-                      <Typography variant="body2" color="text.secondary" sx={{mt: 1}}>
-                        Để trống: không giới hạn theo học kỳ. Bật công tắc để cấu hình khoảng ngày HK1 / HK2.
-                      </Typography>
-                    ) : null}
-                  </CardContent>
-                </Card>
-              ) : null}
-
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>
                   <Alert severity="info" sx={{mb: 2, borderRadius: 2}}>
@@ -4968,7 +5137,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                         gửi cùng dữ liệu cấu hình vận hành của trường.
                       </Typography>
                     </Box>
-                    <Button startIcon={<AddIcon/>} onClick={addAdmissionSeason} sx={{textTransform: "none", flexShrink: 0, ...blockPointerSx}}>
+                    <Button startIcon={<AddIcon/>} disabled={fieldDisabled} onClick={addAdmissionSeason} sx={{textTransform: "none", flexShrink: 0, ...blockPointerSx}}>
                       Thêm chiến dịch
                     </Button>
                   </Stack>
@@ -5238,6 +5407,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                 variant="outlined"
                                 color="warning"
                                 startIcon={<AddIcon/>}
+                                disabled={fieldDisabled}
                                 onClick={() => addExtraShiftToAdmissionSeason(si)}
                                 sx={{textTransform: "none", alignSelf: "flex-start", mt: 1.5, ...blockPointerSx}}
                               >
@@ -5246,249 +5416,6 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                             </Box>
                           </Stack>
                         </Paper>
-                      );
-                    })}
-                  </Stack>
-                </CardContent>
-              </Card>
-
-              <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
-                <CardContent sx={{p: 3}}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2} mb={2} flexWrap="wrap">
-                    <Box sx={{flex: 1, minWidth: 220}}>
-                      <Typography sx={{fontWeight: 800}}>Quy trình tuyển sinh theo phương thức</Typography>
-                    </Box>
-                    <Button startIcon={<AddIcon/>} onClick={addMethodAdmissionProcess} sx={{textTransform: "none", flexShrink: 0, ...blockPointerSx}}>
-                      Thêm phương thức
-                    </Button>
-                  </Stack>
-                  <Stack spacing={2.5}>
-                    {(config.operationSettingsData.methodAdmissionProcess || []).length === 0 ? (
-                      <Paper variant="outlined" sx={{p: 2, borderStyle: "dashed", color: "#64748b", borderRadius: 2}}>
-                        Chưa có quy trình theo phương thức. Nhấn &quot;Thêm phương thức&quot; và chọn đúng mã (vd. ACADEMIC_RECORD,
-                        INTERNAL_TEST).
-                      </Paper>
-                    ) : null}
-                    {(config.operationSettingsData.methodAdmissionProcess || []).map((group, gi) => {
-                      const accent = METHOD_PROCESS_VISUAL_ACCENTS[0];
-                      const codeTrim = (group.methodCode || "").trim();
-                      const optMatch = admissionMethodCodeOptions.find((o) => o.value === codeTrim);
-                      const methodSuggestionReadonlyDisplay = optMatch ? `${optMatch.label} (${codeTrim})` : codeTrim || "—";
-                      return (
-                      <Accordion
-                        key={`adm-proc-${gi}`}
-                        ref={(el) => {
-                          if (el) methodAdmissionProcessGroupRefs.current[gi] = el;
-                          else delete methodAdmissionProcessGroupRefs.current[gi];
-                        }}
-                        defaultExpanded
-                        elevation={0}
-                        disableGutters
-                        sx={{
-                          scrollMarginTop: "96px",
-                          borderRadius: 2,
-                          overflow: "hidden",
-                          border: "1px solid",
-                          borderColor: accent.border,
-                          boxShadow: "none",
-                          bgcolor: "#ffffff",
-                          "&:before": {display: "none"},
-                          "&.Mui-expanded": {margin: "10px 0"},
-                        }}
-                      >
-                        <AccordionSummary
-                          expandIcon={<ExpandMoreIcon sx={{color: accent.bar}}/>}
-                          sx={{
-                            px: 0,
-                            pr: 1,
-                            minHeight: 0,
-                            background: accent.headerBg,
-                            borderBottom: "2px solid",
-                            borderBottomColor: accent.bar,
-                            "& .MuiAccordionSummary-content": {
-                              margin: "0 !important",
-                              flexGrow: 1,
-                              minWidth: 0,
-                            },
-                          }}
-                        >
-                          <Box sx={{width: "100%", px: 2, py: 1.5, pr: {xs: 1, sm: 2}}}>
-                            <Stack direction="row" alignItems="center" spacing={1} flexWrap="wrap" useFlexGap>
-                              <Chip
-                                label={`Phương thức ${gi + 1}`}
-                                size="small"
-                                sx={{bgcolor: accent.bar, color: "#fff", fontWeight: 800, letterSpacing: "0.02em"}}
-                              />
-                              {group.methodCode?.trim() ? (
-                                <Chip
-                                  label={group.methodCode.trim()}
-                                  size="small"
-                                  variant="outlined"
-                                  sx={{
-                                    borderWidth: 2,
-                                    borderColor: accent.bar,
-                                    color: "#0f172a",
-                                    fontWeight: 800,
-                                    bgcolor: "rgba(255,255,255,0.85)",
-                                  }}
-                                />
-                              ) : (
-                                <Chip label="Chưa chọn phương thức" size="small" sx={{bgcolor: "#e2e8f0", color: "#475569", fontWeight: 700}} />
-                              )}
-                            </Stack>
-                          </Box>
-                        </AccordionSummary>
-                        <AccordionDetails sx={{p: 0, display: "block"}}>
-                        <CardContent sx={{py: 2, px: 2, bgcolor: "rgba(248, 250, 252, 0.9)"}}>
-                          <Stack spacing={2}>
-                            <Stack direction={{xs: "column", sm: "row"}} spacing={1.5} alignItems={{sm: "flex-start"}} justifyContent="space-between">
-                              <Box sx={{flex: 1, minWidth: 0, width: "100%"}}>
-                                <Stack spacing={1}>
-                                  {fieldDisabled ? (
-                                    <TextField
-                                      label="Phương thức"
-                                      size="small"
-                                      fullWidth
-                                      value={methodSuggestionReadonlyDisplay}
-                                      InputProps={{readOnly: true}}
-                                    />
-                                  ) : (
-                                    <TextField
-                                      select
-                                      label="Phương thức"
-                                      size="small"
-                                      fullWidth
-                                      value={
-                                        admissionMethodCodeOptions.some((o) => o.value === (group.methodCode || "").trim())
-                                          ? (group.methodCode || "").trim()
-                                          : "__custom__"
-                                      }
-                                      onChange={(e) => {
-                                        const v = e.target.value;
-                                        if (v === "__custom__") updateMethodAdmissionProcessCode(gi, "");
-                                        else updateMethodAdmissionProcessCode(gi, v);
-                                      }}
-                                    >
-                                      <MenuItem value="__custom__">
-                                        <em>Chọn Phương Thức</em>
-                                      </MenuItem>
-                                      {admissionMethodCodeOptions.map((o) => (
-                                        <MenuItem key={o.value} value={o.value}>
-                                          {o.label} ({o.value})
-                                        </MenuItem>
-                                      ))}
-                                    </TextField>
-                                  )}
-                                  <TextField
-                                    label="Mã Phương Thức"
-                                    size="small"
-                                    fullWidth
-                                    value={group.methodCode ?? ""}
-                                    onChange={(e) => updateMethodAdmissionProcessCode(gi, e.target.value.trim())}
-                                    placeholder="VD: ACADEMIC_RECORD"
-                                    helperText="Phải trùng code phương thức đã cấu hình tuyển sinh / hồ sơ."
-                                    inputProps={{readOnly: fieldDisabled}}
-                                  />
-                                </Stack>
-                              </Box>
-                              <IconButton
-                                size="small"
-                                color="error"
-                                aria-label="Xoá nhóm phương thức"
-                                onClick={() => removeMethodAdmissionProcessAt(gi)}
-                                sx={{...blockPointerSx}}
-                              >
-                                <DeleteOutlineIcon fontSize="small"/>
-                              </IconButton>
-                            </Stack>
-                            <Divider sx={{borderColor: accent.stepsBorder, opacity: 1}}/>
-                            <Stack direction="row" justifyContent="space-between" alignItems="center" flexWrap="wrap" gap={1}>
-                              <Typography
-                                variant="subtitle2"
-                                sx={{
-                                  fontWeight: 800,
-                                  color: "#0f172a",
-                                  pl: 1,
-                                  borderLeft: "4px solid",
-                                  borderLeftColor: accent.bar,
-                                }}
-                              >
-                                Các bước
-                              </Typography>
-                              <Button
-                                size="small"
-                                startIcon={<AddIcon/>}
-                                onClick={() => addAdmissionStepToMethod(gi)}
-                                sx={{textTransform: "none", ...blockPointerSx}}
-                              >
-                                Thêm bước
-                              </Button>
-                            </Stack>
-                            <Stack spacing={1.5}>
-                              {(group.steps || []).map((step, si) => (
-                                <Card
-                                  key={`step-${gi}-${si}`}
-                                  variant="outlined"
-                                  sx={{
-                                    borderRadius: 2,
-                                    bgcolor: accent.stepsBg,
-                                    borderColor: accent.stepsBorder,
-                                    borderWidth: 1,
-                                  }}
-                                >
-                                  <CardContent sx={{py: 1.5, "&:last-child": {pb: 1.5}}}>
-                                    <Stack direction="row" spacing={1} alignItems="flex-start">
-                                      <Box sx={{flex: 1}}>
-                                        <Stack spacing={1.5}>
-                                          <Chip
-                                            size="small"
-                                            label={`Bước ${step.stepOrder ?? si + 1}`}
-                                            sx={{
-                                              alignSelf: "flex-start",
-                                              fontWeight: 700,
-                                              bgcolor: "rgba(255,255,255,0.92)",
-                                              border: `1px solid ${accent.stepsBorder}`,
-                                              color: "#0f172a",
-                                            }}
-                                          />
-                                          <TextField
-                                            label="Tên bước"
-                                            size="small"
-                                            fullWidth
-                                            value={step.stepName ?? ""}
-                                            onChange={(e) => updateAdmissionStepInMethod(gi, si, "stepName", e.target.value)}
-                                            inputProps={{readOnly: fieldDisabled}}
-                                          />
-                                          <TextField
-                                            label="Mô tả"
-                                            size="small"
-                                            fullWidth
-                                            multiline
-                                            minRows={2}
-                                            value={step.description ?? ""}
-                                            onChange={(e) => updateAdmissionStepInMethod(gi, si, "description", e.target.value)}
-                                            inputProps={{readOnly: fieldDisabled}}
-                                          />
-                                        </Stack>
-                                      </Box>
-                                      <IconButton
-                                        size="small"
-                                        color="error"
-                                        onClick={() => removeAdmissionStepInMethod(gi, si)}
-                                        aria-label="Xoá bước"
-                                        sx={{alignSelf: "flex-start", mt: 0.25, ...blockPointerSx}}
-                                      >
-                                        <DeleteOutlineIcon fontSize="small"/>
-                                      </IconButton>
-                                    </Stack>
-                                  </CardContent>
-                                </Card>
-                              ))}
-                            </Stack>
-                          </Stack>
-                        </CardContent>
-                        </AccordionDetails>
-                      </Accordion>
                       );
                     })}
                   </Stack>
@@ -5544,6 +5471,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     variant="outlined"
                     size="small"
                     startIcon={<AddIcon/>}
+                    disabled={fieldDisabled}
                     onClick={addResourceAllocation}
                     sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
                   >
@@ -5730,6 +5658,10 @@ export default function SchoolConfig({variant = "platform"} = {}) {
               color="warning"
               onClick={() => {
                 setAdmissionRestoreConfirmOpen(false);
+                if (restoreTemplateTarget === "documents") {
+                  void applySystemDocumentTemplateToForm();
+                  return;
+                }
                 void applySystemTemplateToForm();
               }}
               sx={{textTransform: "none", fontWeight: 700}}

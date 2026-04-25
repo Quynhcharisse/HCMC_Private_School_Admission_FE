@@ -496,6 +496,7 @@ export const SchoolFacilityFacilityForm = forwardRef(function SchoolFacilityFaci
             <Button
               variant="contained"
               startIcon={<AddIcon/>}
+              disabled={formLocked}
               onClick={handleAddFacility}
               sx={{
                 borderRadius: "12px",

@@ -32,29 +32,26 @@ import {
 } from "@mui/material";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import AddIcon from "@mui/icons-material/Add";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import { getSystemConfig, updateSystemConfig } from "../../../services/SystemConfigService.jsx";
+import { getSystemConfig, importSystemAdmissionTemplate, updateSystemConfig } from "../../../services/SystemConfigService.jsx";
 import { autoFillAdminSchoolQuotas } from "../../../services/AdminService.jsx";
 import { getPublicSchoolList } from "../../../services/SchoolPublicService.jsx";
 import { enqueueSnackbar } from "notistack";
 import { sanitizeAdmissionSettingsForApi } from "../../../utils/admissionSettingsShared.js";
-
-/** Hạn mức theo năm học: đọc đúng key BE trả là `admissionQuota`. */
 function getAdmissionQuotaMap(cfg) {
     if (!cfg || typeof cfg !== "object") return {};
     const raw = cfg.admissionQuota;
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
 
-    // Shape mới: admissionQuota = { source: {...}, quotas: [...] }
     if (raw.source || Array.isArray(raw.quotas)) {
         const year = String(raw?.source?.year ?? "").trim();
         const key = year || "current";
         return { [key]: raw };
     }
 
-    // Shape cũ: admissionQuota = { "2025": {...}, "2026": {...} }
     return raw;
 }
 
@@ -124,7 +121,7 @@ export default function AdminPlatformSettings() {
     const tabs = useMemo(
         () => [
             { label: "Cài đặt Doanh nghiệp", key: "business" },
-            { label: "Phương thức tuyển sinh", key: "admission" },
+            { label: "Cấu hình tuyển sinh", key: "admission" },
             { label: "Cài đặt Phương tiện", key: "media" },
             { label: "Cài đặt Hạn mức Tuyển sinh", key: "limits" },
         ],
@@ -227,10 +224,13 @@ export default function AdminPlatformSettings() {
 
     const [admissionTemplateForm, setAdmissionTemplateForm] = useState({
         allowedMethods: [],
-        autoCloseOnFull: true,
-        quotaAlertThresholdPercent: 90,
+        methodAdmissionProcess: [],
+        methodDocumentRequirements: [],
     });
     const [admissionTemplateEditing, setAdmissionTemplateEditing] = useState(false);
+    const [admissionImportPreview, setAdmissionImportPreview] = useState(null);
+    const [importingAdmissionTemplate, setImportingAdmissionTemplate] = useState(false);
+    const admissionImportInputRef = useRef(null);
 
     const [mediaFormatsTab, setMediaFormatsTab] = useState(0);
     const [imgFormatsDraft, setImgFormatsDraft] = useState([]);
@@ -434,8 +434,20 @@ export default function AdminPlatformSettings() {
     const getAdmissionInitialForm = (cfg) => {
         const adm = cfg?.admissionSettingsData;
         if (!adm || typeof adm !== "object") {
-            return { allowedMethods: [], autoCloseOnFull: true, quotaAlertThresholdPercent: 90 };
+            return { allowedMethods: [], methodAdmissionProcess: [], methodDocumentRequirements: [] };
         }
+        const processSource = Array.isArray(adm.methodAdmissionProcess)
+            ? adm.methodAdmissionProcess
+            : Array.isArray(adm.admissionProcesses)
+              ? adm.admissionProcesses
+              : [];
+        const methodDocsSource = Array.isArray(adm.methodDocumentRequirements)
+            ? adm.methodDocumentRequirements
+            : Array.isArray(adm?.documentRequirementsData?.byMethod)
+              ? adm.documentRequirementsData.byMethod
+              : Array.isArray(adm.byMethod)
+                ? adm.byMethod
+                : [];
         return {
             allowedMethods: Array.isArray(adm.allowedMethods)
                 ? adm.allowedMethods.map((m) => ({
@@ -444,11 +456,29 @@ export default function AdminPlatformSettings() {
                       description: m?.description != null ? String(m.description) : "",
                   }))
                 : [],
-            autoCloseOnFull: typeof adm.autoCloseOnFull === "boolean" ? adm.autoCloseOnFull : true,
-            quotaAlertThresholdPercent:
-                adm.quotaAlertThresholdPercent != null && !Number.isNaN(Number(adm.quotaAlertThresholdPercent))
-                    ? Number(adm.quotaAlertThresholdPercent)
-                    : 90,
+            methodAdmissionProcess: processSource.map((group) => ({
+                      methodCode: group?.methodCode != null ? String(group.methodCode) : "",
+                      steps: Array.isArray(group?.steps)
+                          ? group.steps.map((step, idx) => ({
+                                stepOrder:
+                                    step?.stepOrder != null && !Number.isNaN(Number(step.stepOrder))
+                                        ? Number(step.stepOrder)
+                                        : idx + 1,
+                                stepName: step?.stepName != null ? String(step.stepName) : "",
+                                description: step?.description != null ? String(step.description) : "",
+                            }))
+                          : [],
+                  })),
+            methodDocumentRequirements: methodDocsSource.map((group) => ({
+                      methodCode: group?.methodCode != null ? String(group.methodCode) : "",
+                      documents: Array.isArray(group?.documents)
+                          ? group.documents.map((doc) => ({
+                                code: doc?.code != null ? String(doc.code) : "",
+                                name: doc?.name != null ? String(doc.name) : "",
+                                required: doc?.required === true,
+                            }))
+                          : [],
+                  })),
         };
     };
 
@@ -479,7 +509,6 @@ export default function AdminPlatformSettings() {
                 const schools = await getPublicSchoolList();
                 const normalized = (Array.isArray(schools) ? schools : [])
                     .map((item) => ({
-                        // Ưu tiên đúng payload /school/public/list: { id, name }
                         schoolId: Number(item?.id ?? item?.schoolId),
                         schoolName: String(item?.name ?? item?.schoolName ?? "").trim(),
                     }))
@@ -540,6 +569,16 @@ export default function AdminPlatformSettings() {
 
         const admInit = getAdmissionInitialForm(configBody);
         setAdmissionTemplateForm(admInit);
+        setAdmissionImportPreview({
+            allowedMethods: admInit.allowedMethods,
+            documentRequirementsData: {
+                mandatoryAll: Array.isArray(configBody?.admissionSettingsData?.documentRequirementsData?.mandatoryAll)
+                    ? configBody.admissionSettingsData.documentRequirementsData.mandatoryAll
+                    : [],
+                byMethod: admInit.methodDocumentRequirements,
+            },
+            admissionProcesses: admInit.methodAdmissionProcess,
+        });
         setAdmissionTemplateEditing(false);
     }, [configBody]);
 
@@ -1025,11 +1064,6 @@ export default function AdminPlatformSettings() {
 
     const saveAdmissionTemplate = async () => {
         if (!configBody) return;
-        const pct = Number(admissionTemplateForm.quotaAlertThresholdPercent ?? 0);
-        if (Number.isNaN(pct) || pct < 0 || pct > 100) {
-            enqueueSnackbar("Ngưỡng cảnh báo phải từ 0 đến 100.", { variant: "error" });
-            return;
-        }
         setSaving(true);
         setStatus({ type: "", message: "" });
         try {
@@ -1053,9 +1087,56 @@ export default function AdminPlatformSettings() {
         }
     };
 
+    const handleSelectAdmissionTemplateFile = () => {
+        if (saving || importingAdmissionTemplate) return;
+        admissionImportInputRef.current?.click();
+    };
+
+    const handleAdmissionTemplateImport = async (event) => {
+        const file = event?.target?.files?.[0];
+        if (!file) return;
+        setImportingAdmissionTemplate(true);
+        setStatus({ type: "", message: "" });
+        try {
+            const res = await importSystemAdmissionTemplate(file);
+            const successMsg = String(res?.data?.message || "Import template tuyển sinh thành công").trim();
+            await fetchConfig();
+            enqueueSnackbar(successMsg, { variant: "success" });
+            setStatus({ type: "", message: "" });
+            setAdmissionTemplateEditing(false);
+        } catch (e) {
+            console.error("import admission template failed", e);
+            const msg = apiErrorMessage(e, "Import template thất bại. Vui lòng kiểm tra file mẫu.");
+            enqueueSnackbar(msg, { variant: "error" });
+            setStatus({ type: "error", message: msg });
+        } finally {
+            setImportingAdmissionTemplate(false);
+            if (event?.target) event.target.value = "";
+        }
+    };
+
     const renderAdmissionTab = () => {
         const rowDisabled = !admissionTemplateEditing || saving;
         const methods = admissionTemplateForm.allowedMethods || [];
+        const preview = admissionImportPreview;
+        const docsByMethod = Array.isArray(preview?.documentRequirementsData?.byMethod)
+            ? preview.documentRequirementsData.byMethod
+            : [];
+        const processByMethod = Array.isArray(preview?.admissionProcesses) ? preview.admissionProcesses : [];
+        const processByMethodMap = processByMethod.reduce((acc, group) => {
+            const methodCode = String(group?.methodCode ?? "").trim();
+            if (!methodCode) return acc;
+            acc[methodCode] = Array.isArray(group?.steps)
+                ? [...group.steps].sort((a, b) => Number(a?.stepOrder || 0) - Number(b?.stepOrder || 0))
+                : [];
+            return acc;
+        }, {});
+        const methodNameMap = methods.reduce((acc, method) => {
+            const code = String(method?.code ?? "").trim();
+            if (!code) return acc;
+            acc[code] = String(method?.displayName || code).trim();
+            return acc;
+        }, {});
         const admissionInputSx = {
             "& .MuiOutlinedInput-root": {
                 borderRadius: 1.75,
@@ -1072,6 +1153,49 @@ export default function AdminPlatformSettings() {
                 color: "#374151",
             },
         };
+        const previewHeaderRowSx = {
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "1fr 120px" },
+            gap: 1.25,
+            px: 1,
+            py: 0.75,
+            borderRadius: 1,
+            bgcolor: "#eef4ff",
+            mb: 1,
+        };
+        const previewDataRowSx = {
+            display: "grid",
+            gridTemplateColumns: { xs: "1fr", md: "1fr 120px" },
+            gap: 1.25,
+            px: 1,
+            py: 0.9,
+            borderRadius: 0.9,
+            borderBottom: "1px solid rgba(148, 163, 184, 0.2)",
+            bgcolor: "transparent",
+            transition: "all 220ms ease",
+            "&:hover": {
+                bgcolor: "#eff6ff",
+                transform: "translateX(2px)",
+            },
+        };
+        const previewSectionCardSx = {
+            p: 1.5,
+            borderRadius: 2,
+            border: "1px solid #dbe7fb",
+            bgcolor: "#ffffff",
+            boxShadow: "0 6px 16px rgba(15, 23, 42, 0.04)",
+        };
+        const previewSectionTitleSx = {
+            fontWeight: 800,
+            color: "#1e3a8a",
+            mb: 1,
+            px: 1.1,
+            py: 0.6,
+            borderRadius: 1,
+            bgcolor: "#eff6ff",
+            border: "1px solid #dbeafe",
+            display: "block",
+        };
 
         return (
             <Stack spacing={2.5} sx={{ width: "100%" }}>
@@ -1082,37 +1206,73 @@ export default function AdminPlatformSettings() {
                             py: 0.5,
                             display: "flex",
                             alignItems: "center",
-                            justifyContent: "space-between",
+                            justifyContent: "flex-end",
                             gap: 1,
                         }}
                     >
-                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1d4ed8" }}>
-                            Danh sách phương thức
-                        </Typography>
-                        <Button
-                            variant="contained"
-                            size="small"
-                            startIcon={<AddIcon />}
-                            disabled={rowDisabled}
-                            onClick={() =>
-                                setAdmissionTemplateForm((p) => ({
-                                    ...p,
-                                    allowedMethods: [...(p.allowedMethods || []), { code: "", displayName: "", description: "" }],
-                                }))
-                            }
-                            sx={{
-                                textTransform: "none",
-                                fontWeight: 700,
-                                borderRadius: 2,
-                                boxShadow: "none",
-                                bgcolor: "#2563eb",
-                                "&:hover": { bgcolor: "#1d4ed8" },
-                            }}
-                        >
-                            Thêm phương thức
-                        </Button>
+                        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                            <Button
+                                variant="outlined"
+                                size="small"
+                                startIcon={importingAdmissionTemplate ? <CircularProgress size={14} /> : <FileUploadOutlinedIcon />}
+                                disabled={saving || importingAdmissionTemplate}
+                                onClick={handleSelectAdmissionTemplateFile}
+                                sx={{
+                                    textTransform: "none",
+                                    fontWeight: 700,
+                                    borderRadius: 2,
+                                }}
+                            >
+                                {importingAdmissionTemplate ? "Đang tải lên..." : "Tải lên"}
+                            </Button>
+                            <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={<AddIcon />}
+                                disabled={rowDisabled}
+                                onClick={() =>
+                                    setAdmissionTemplateForm((p) => ({
+                                        ...p,
+                                        allowedMethods: [...(p.allowedMethods || []), { code: "", displayName: "", description: "" }],
+                                    }))
+                                }
+                                sx={{
+                                    textTransform: "none",
+                                    fontWeight: 700,
+                                    borderRadius: 2,
+                                    boxShadow: "none",
+                                    bgcolor: "#2563eb",
+                                    "&:hover": { bgcolor: "#1d4ed8" },
+                                }}
+                            >
+                                Thêm phương thức
+                            </Button>
+                        </Stack>
                     </Box>
-                    <Box sx={{ p: 1.5 }}>
+                    <input
+                        ref={admissionImportInputRef}
+                        type="file"
+                        accept=".xlsx,.xls,.csv"
+                        hidden
+                        onChange={handleAdmissionTemplateImport}
+                    />
+                    <Box
+                        sx={{
+                            p: 1.5,
+                            borderRadius: 2.25,
+                            border: "1px solid rgba(191, 219, 254, 0.9)",
+                            bgcolor: "rgba(248,251,255,0.78)",
+                            boxShadow: "0 10px 22px rgba(37, 99, 235, 0.08)",
+                            transition: "all 220ms ease",
+                            "&:hover": {
+                                borderColor: "rgba(96, 165, 250, 0.65)",
+                                boxShadow: "0 14px 28px rgba(37, 99, 235, 0.14)",
+                            },
+                        }}
+                    >
+                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1d4ed8", mb: 1 }}>
+                            Phương thức tuyển sinh
+                        </Typography>
                         <Box
                             sx={{
                                 display: "grid",
@@ -1158,13 +1318,13 @@ export default function AdminPlatformSettings() {
                                             gap: 1.25,
                                             p: 1.1,
                                             borderRadius: 2.25,
-                                            border: "1px solid #bfdbfe",
-                                            bgcolor: "#f8fbff",
-                                            boxShadow: "0 4px 10px rgba(37, 99, 235, 0.08)",
+                                            border: "1px solid rgba(148, 163, 184, 0.24)",
+                                            bgcolor: "rgba(255,255,255,0.88)",
+                                            boxShadow: "0 4px 12px rgba(37, 99, 235, 0.08)",
                                             transition: "all 0.2s ease",
                                             "&:hover": {
-                                                borderColor: "#60a5fa",
-                                                boxShadow: "0 10px 20px rgba(37, 99, 235, 0.16)",
+                                                borderColor: "rgba(59,130,246,0.45)",
+                                                boxShadow: "0 10px 20px rgba(37, 99, 235, 0.14)",
                                                 transform: "translateY(-1px)",
                                             },
                                         }}
@@ -1274,6 +1434,183 @@ export default function AdminPlatformSettings() {
                         )}
                     </Box>
                 </Box>
+
+                {preview ? (
+                    <Stack spacing={1.5} sx={{ width: "100%" }}>
+                        <Box sx={previewSectionCardSx}>
+                            <Typography sx={previewSectionTitleSx}>Hồ sơ theo phương thức</Typography>
+                            <Stack spacing={1.4}>
+                                {docsByMethod.length === 0 ? (
+                                    <Typography variant="body2" sx={{ color: "#64748b" }}>Không có dữ liệu hồ sơ theo phương thức.</Typography>
+                                ) : (
+                                    docsByMethod.map((group, idx) => {
+                                        const methodCode = String(group?.methodCode ?? "").trim();
+                                        const methodLabel = methodNameMap[methodCode] || methodCode || "Phương thức";
+                                        const docs = Array.isArray(group?.documents) ? group.documents : [];
+                                        const steps = processByMethodMap[methodCode] || [];
+                                        return (
+                                            <Box
+                                                key={`method-doc-group-${idx}`}
+                                                sx={{
+                                                    p: 1.1,
+                                                    borderRadius: 1.5,
+                                                    bgcolor: "#fcfdff",
+                                                    border: "1px solid #e2e8f0",
+                                                    transition: "all 220ms ease",
+                                                    boxShadow: "0 4px 10px rgba(15, 23, 42, 0.04)",
+                                                    "&:hover": {
+                                                        borderColor: "#bfdbfe",
+                                                        boxShadow: "0 10px 18px rgba(37, 99, 235, 0.12)",
+                                                        transform: "translateY(-1px)",
+                                                    },
+                                                }}
+                                            >
+                                                <Typography
+                                                    sx={{
+                                                        fontWeight: 800,
+                                                        color: "#1f2937",
+                                                        mb: 0.9,
+                                                        px: 0.9,
+                                                        py: 0.4,
+                                                        borderRadius: 1,
+                                                        bgcolor: "#eef2ff",
+                                                        display: "inline-block",
+                                                        border: "1px solid #dbeafe",
+                                                    }}
+                                                >
+                                                    {methodLabel}
+                                                </Typography>
+                                                <Box sx={previewHeaderRowSx}>
+                                                    <Typography sx={{ fontWeight: 800, color: "#374151", fontSize: 13 }}>Tên hồ sơ</Typography>
+                                                    <Typography sx={{ fontWeight: 800, color: "#374151", fontSize: 13, textAlign: "center" }}>Trạng thái</Typography>
+                                                </Box>
+                                                {docs.length === 0 ? (
+                                                    <Typography variant="body2" sx={{ color: "#64748b" }}>Không có hồ sơ.</Typography>
+                                                ) : (
+                                                    <Stack spacing={0.8}>
+                                                        {docs.map((doc, dIdx) => {
+                                                            const isRequired = doc?.required === true;
+                                                            return (
+                                                                <Box
+                                                                    key={`method-doc-${idx}-${dIdx}`}
+                                                                    sx={previewDataRowSx}
+                                                                >
+                                                                    <Typography variant="body2" sx={{ color: "#1e293b", fontWeight: 600 }}>{doc?.name || "-"}</Typography>
+                                                                    <Chip
+                                                                        size="small"
+                                                                        label={isRequired ? "Bắt buộc" : "Tùy chọn"}
+                                                                        sx={{
+                                                                            height: 24,
+                                                                            fontWeight: 700,
+                                                                            fontSize: 11,
+                                                                            color: isRequired ? "#b91c1c" : "#166534",
+                                                                            bgcolor: isRequired ? "#fee2e2" : "#dcfce7",
+                                                                            border: `1px solid ${isRequired ? "#fecaca" : "#bbf7d0"}`,
+                                                                            justifySelf: "center",
+                                                                        }}
+                                                                    />
+                                                                </Box>
+                                                            );
+                                                        })}
+                                                    </Stack>
+                                                )}
+                                                <Box
+                                                    sx={{
+                                                        mt: 1.25,
+                                                        p: 0.8,
+                                                        borderRadius: 1.5,
+                                                        bgcolor: "#ffffff",
+                                                        border: "1px dashed #dbeafe",
+                                                    }}
+                                                >
+                                                    <Typography sx={{ fontWeight: 800, color: "#1d4ed8", mb: 1, fontSize: 13.5 }}>
+                                                        Quy trình tuyển sinh
+                                                    </Typography>
+                                                    {steps.length === 0 ? (
+                                                        <Typography variant="body2" sx={{ color: "#64748b" }}>Không có bước.</Typography>
+                                                    ) : (
+                                                        <Stack spacing={0.2}>
+                                                            {steps.map((step, sIdx) => {
+                                                                const isLast = sIdx === steps.length - 1;
+                                                                const stepNumber = step?.stepOrder ?? sIdx + 1;
+                                                                return (
+                                                                    <Box
+                                                                        key={`method-step-inline-${idx}-${sIdx}`}
+                                                                        sx={{
+                                                                            display: "grid",
+                                                                            gridTemplateColumns: "32px 1fr",
+                                                                            gap: 1.1,
+                                                                            minHeight: 64,
+                                                                            borderRadius: 1.5,
+                                                                            px: 0.5,
+                                                                            py: 0.45,
+                                                                            transition: "all 200ms ease",
+                                                                            "&:hover": {
+                                                                                bgcolor: "#f1f7ff",
+                                                                                transform: "translateX(2px)",
+                                                                            },
+                                                                        }}
+                                                                    >
+                                                                        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                                                                            <Box
+                                                                                sx={{
+                                                                                    width: 30,
+                                                                                    height: 30,
+                                                                                    borderRadius: "50%",
+                                                                                    bgcolor: "#2563eb",
+                                                                                    color: "#ffffff",
+                                                                                    fontWeight: 600,
+                                                                                    fontSize: 12,
+                                                                                    display: "flex",
+                                                                                    alignItems: "center",
+                                                                                    justifyContent: "center",
+                                                                                    boxShadow: "0 6px 14px rgba(37, 99, 235, 0.35)",
+                                                                                }}
+                                                                            >
+                                                                                {stepNumber}
+                                                                            </Box>
+                                                                            {!isLast ? (
+                                                                                <Box
+                                                                                    sx={{
+                                                                                        width: "2px",
+                                                                                        flex: 1,
+                                                                                        borderRadius: 999,
+                                                                                        bgcolor: "rgba(148, 163, 184, 0.45)",
+                                                                                        mt: 0.5,
+                                                                                        mb: -0.2,
+                                                                                    }}
+                                                                                />
+                                                                            ) : null}
+                                                                        </Box>
+                                                                        <Box
+                                                                            sx={{
+                                                                                pt: 0.15,
+                                                                                minWidth: 0,
+                                                                                px: 0.2,
+                                                                                py: 0.45,
+                                                                            }}
+                                                                        >
+                                                                            <Typography sx={{ color: "#0f172a", fontWeight: 600, lineHeight: 1.3, fontSize: 14 }}>
+                                                                                {step?.stepName || `Bước ${stepNumber}`}
+                                                                            </Typography>
+                                                                            <Typography variant="body2" sx={{ color: "#475569", mt: 0.35, lineHeight: 1.45 }}>
+                                                                                {step?.description || "Không có mô tả"}
+                                                                            </Typography>
+                                                                        </Box>
+                                                                    </Box>
+                                                                );
+                                                            })}
+                                                        </Stack>
+                                                    )}
+                                                </Box>
+                                            </Box>
+                                        );
+                                    })
+                                )}
+                            </Stack>
+                        </Box>
+                    </Stack>
+                ) : null}
 
             </Stack>
         );
@@ -2341,28 +2678,29 @@ export default function AdminPlatformSettings() {
                     mb: 2.5,
                     color: "white",
                     background:
-                        "linear-gradient(95deg, #2563eb 0%, #3158ef 40%, #6d3df2 72%, #8b3dff 100%)",
-                    boxShadow: "0 18px 34px rgba(67, 56, 202, 0.28)",
+                        "linear-gradient(95deg, #60a5fa 0%, #818cf8 46%, #a78bfa 100%)",
+                    boxShadow: "0 12px 24px rgba(99, 102, 241, 0.2)",
                 }}
             >
-                <CardContent sx={{ p: { xs: 2.2, md: 2.8 }, "&:last-child": { pb: { xs: 2.2, md: 2.8 } } }}>
+                <CardContent sx={{ p: { xs: 1.5, md: 1.9 }, "&:last-child": { pb: { xs: 1.5, md: 1.9 } } }}>
                     <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                             <Avatar
                                 sx={{
-                                    bgcolor: alpha("#ffffff", 0.2),
+                                    bgcolor: alpha("#ffffff", 0.28),
                                     color: "white",
-                                    width: 42,
-                                    height: 42,
+                                    width: 34,
+                                    height: 34,
+                                    border: "1px solid rgba(255,255,255,0.45)",
                                 }}
                             >
                                 <SettingsOutlinedIcon />
                             </Avatar>
                             <Box>
-                                <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+                                <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.2, textShadow: "0 1px 2px rgba(15,23,42,0.24)" }}>
                                     Cài đặt nền tảng
                                 </Typography>
-                                <Typography variant="body2" sx={{ opacity: 0.92, mt: 0.45 }}>
+                                <Typography variant="body2" sx={{ opacity: 1, mt: 0.3, fontSize: 13, fontWeight: 500, textShadow: "0 1px 2px rgba(15,23,42,0.2)" }}>
                                     Cấu hình các thiết lập toàn hệ thống và hành vi nền tảng.
                                 </Typography>
                             </Box>

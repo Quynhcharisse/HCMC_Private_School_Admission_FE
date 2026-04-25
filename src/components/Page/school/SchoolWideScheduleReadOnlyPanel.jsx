@@ -57,13 +57,12 @@ export default function SchoolWideScheduleReadOnlyPanel({ workingConfig, showSch
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1.5 }} flexWrap="wrap" useFlexGap>
           <LockOutlinedIcon sx={{ fontSize: 20, color: "#64748B" }} aria-hidden />
           <Typography sx={{ fontWeight: 800, color: "#0f172a" }}>
-            Giờ làm việc & ca — theo cấu hình trường (áp dụng cho mọi cơ sở)
+            Giờ làm việc & ca (áp dụng cho mọi cơ sở)
           </Typography>
           <Chip size="small" label="Chung trường" sx={{ fontWeight: 700, bgcolor: "rgba(100,116,139,0.12)", color: "#475569" }} />
         </Stack>
         <Typography variant="body2" sx={{ color: "#64748B", lineHeight: 1.65, mb: 2 }}>
-          Cơ sở không chỉnh riêng giờ làm hay ca; mọi thay đổi do người quản lý cấp trường thực hiện và áp dụng đồng bộ. Tại
-          đây chỉ xem — dữ liệu là quy định chung do trụ sở chính thiết lập.
+          Cơ sở không được chỉnh sửa giờ làm hay ca; mọi thay đổi do người quản lý cấp trường thực hiện và áp dụng đồng bộ.
         </Typography>
 
         {!has ? (

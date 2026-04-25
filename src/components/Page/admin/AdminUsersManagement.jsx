@@ -35,8 +35,6 @@ import SchoolIcon from '@mui/icons-material/School';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import DownloadIcon from '@mui/icons-material/Download';
 import BlockIcon from '@mui/icons-material/Block';
-import FamilyRestroomIcon from '@mui/icons-material/FamilyRestroom';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import ApartmentIcon from '@mui/icons-material/Apartment';
 import PlaceIcon from '@mui/icons-material/Place';
 import InsightsIcon from '@mui/icons-material/Insights';
@@ -554,53 +552,6 @@ export default function AdminUsersManagement() {
         );
     };
 
-    const activeCount = users.filter((u) => (u.overallStatus || u.status || u.primaryCampus?.status) === "ACCOUNT_ACTIVE").length;
-    const parentCount = users.length;
-    const schoolCount = users.length;
-    const statCards = [
-        {
-            label: "Tổng người dùng",
-            value: users.length,
-            trend: `Trang ${pagination.page + 1}/${totalListPages}`,
-            icon: <PeopleIcon sx={{fontSize: 22}}/>,
-            iconColor: "#2563eb",
-            iconBg: "#dbeafe",
-            cardBg: "#eef7ff",
-            cardBorder: "#dbeafe",
-        },
-        {
-            label: "Đang hoạt động",
-            value: activeCount,
-            trend: "Theo dữ liệu trang hiện tại",
-            icon: <TrendingUpIcon sx={{fontSize: 22}}/>,
-            iconColor: "#16a34a",
-            iconBg: "#dcfce7",
-            cardBg: "#effcf5",
-            cardBorder: "#d6f5e4",
-        },
-        ...(roleTab === "PARENT"
-            ? [{
-                label: "Phụ huynh",
-                value: parentCount,
-                trend: "Đang xem",
-                icon: <FamilyRestroomIcon sx={{fontSize: 22}}/>,
-                iconColor: "#f97316",
-                iconBg: "#ffedd5",
-                cardBg: "#fff7ec",
-                cardBorder: "#fde7c7",
-            }]
-            : [{
-                label: "Nhà trường",
-                value: schoolCount,
-                trend: "Đang xem",
-                icon: <SchoolIcon sx={{fontSize: 22}}/>,
-                iconColor: "#0ea5e9",
-                iconBg: "#e0f2fe",
-                cardBg: "#eef7ff",
-                cardBorder: "#bae6fd",
-            }]),
-    ];
-
     const restrictConfirmLoading =
         !!restrictDialog.open &&
         restrictingAccountIds.has(accountIdSetKey(resolveAccountId(restrictDialog.user)));
@@ -630,28 +581,29 @@ export default function AdminUsersManagement() {
                     borderRadius: 3.5,
                     mb: 2.5,
                     color: "white",
-                    background: "linear-gradient(95deg, #2563eb 0%, #3158ef 40%, #6d3df2 72%, #8b3dff 100%)",
-                    boxShadow: "0 18px 34px rgba(67, 56, 202, 0.28)",
+                    background: "linear-gradient(95deg, #60a5fa 0%, #818cf8 46%, #a78bfa 100%)",
+                    boxShadow: "0 12px 24px rgba(99, 102, 241, 0.2)",
                 }}
             >
-                <CardContent sx={{p: {xs: 2.2, md: 2.8}, "&:last-child": {pb: {xs: 2.2, md: 2.8}}}}>
+                <CardContent sx={{p: {xs: 1.5, md: 1.9}, "&:last-child": {pb: {xs: 1.5, md: 1.9}}}}>
                     <Box sx={{display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2}}>
                         <Box sx={{display: "flex", alignItems: "center", gap: 1.5}}>
                             <Avatar
                                 sx={{
-                                    bgcolor: alpha("#ffffff", 0.2),
+                                    bgcolor: alpha("#ffffff", 0.28),
                                     color: "white",
-                                    width: 42,
-                                    height: 42,
+                                    width: 34,
+                                    height: 34,
+                                    border: "1px solid rgba(255,255,255,0.45)",
                                 }}
                             >
                                 <PeopleIcon />
                             </Avatar>
                             <Box>
-                                <Typography variant="h5" sx={{fontWeight: 700, lineHeight: 1.2}}>
+                                <Typography variant="h6" sx={{fontWeight: 800, lineHeight: 1.2, textShadow: "0 1px 2px rgba(15,23,42,0.24)"}}>
                                     Quản Lý Người Dùng
                                 </Typography>
-                                <Typography variant="body2" sx={{opacity: 0.92, mt: 0.45}}>
+                                <Typography variant="body2" sx={{opacity: 1, mt: 0.3, fontSize: 13, fontWeight: 500, textShadow: "0 1px 2px rgba(15,23,42,0.2)"}}>
                                     Hệ thống quản lý và theo dõi tài khoản người dùng
                                 </Typography>
                             </Box>
@@ -659,68 +611,6 @@ export default function AdminUsersManagement() {
                     </Box>
                 </CardContent>
             </Card>
-
-            <Box
-                sx={{
-                    mb: 2.5,
-                    display: "grid",
-                    gridTemplateColumns: {
-                        xs: "1fr",
-                        sm: "repeat(2, minmax(0, 1fr))",
-                        md: "repeat(3, minmax(0, 1fr))",
-                    },
-                    gap: 2,
-                    width: "100%",
-                }}
-            >
-                {statCards.map((item) => (
-                    <Box key={item.label}>
-                        <Card
-                            elevation={0}
-                            sx={{
-                                borderRadius: 3,
-                                border: `1px solid ${item.cardBorder}`,
-                                bgcolor: item.cardBg,
-                                minHeight: 132,
-                            }}
-                        >
-                            <CardContent
-                                sx={{
-                                    py: 2,
-                                    px: 2.25,
-                                    height: "100%",
-                                    display: "flex",
-                                    alignItems: "flex-start",
-                                    justifyContent: "space-between",
-                                }}
-                            >
-                                <Box>
-                                    <Box>
-                                        <Typography sx={{fontSize: 12, color: "#64748b"}}>
-                                            {item.label}
-                                        </Typography>
-                                        <Typography sx={{fontSize: 30, lineHeight: 1.2, fontWeight: 800, color: "#1e293b"}}>
-                                            {item.value}
-                                        </Typography>
-                                    </Box>
-                                </Box>
-                                <Avatar
-                                    sx={{
-                                        width: 42,
-                                        height: 42,
-                                        borderRadius: "50%",
-                                        bgcolor: item.iconBg,
-                                        color: item.iconColor,
-                                        mt: 0.5,
-                                    }}
-                                >
-                                    {item.icon}
-                                </Avatar>
-                            </CardContent>
-                        </Card>
-                    </Box>
-                ))}
-            </Box>
 
             <Card
                 elevation={0}

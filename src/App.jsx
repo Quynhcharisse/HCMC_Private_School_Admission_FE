@@ -35,6 +35,7 @@ const SchoolCounselorSchedule = lazy(() => import("./components/Page/school/Scho
 const SchoolCampaigns = lazy(() => import("./components/Page/school/SchoolCampaigns.jsx"));
 const SchoolCampaignOfferings = lazy(() => import("./components/Page/school/SchoolCampaignOfferings.jsx"));
 const SchoolCampaignDetail = lazy(() =>import("./components/Page/school/SchoolCampaignDetail.jsx"));
+const SchoolCampaignViewDetail = lazy(() =>import("./components/Page/school/SchoolCampaignViewDetail.jsx"));
 const SchoolProfile = lazy(() => import("./components/Page/school/SchoolProfile.jsx"));
 const SchoolConfig = lazy(() => import("./components/Page/school/SchoolConfig.jsx"));
 const SchoolHolidaySettingsPage = lazy(() => import("./components/Page/school/SchoolHolidaySettingsPage.jsx"));
@@ -412,6 +413,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <SchoolCampaigns/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'campaigns/view/:campaignId',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolCampaignViewDetail/>
                     </Suspense>
                 )
             },

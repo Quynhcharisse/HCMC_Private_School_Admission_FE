@@ -73,3 +73,26 @@ export const activateCurriculum = async (id, action) => {
     });
     return response || null;
 };
+
+/**
+ * GET /api/v1/school/templates/national
+ */
+export const getNationalCurriculumTemplate = async () => {
+    const response = await axiosClient.get("/school/templates/national");
+    return response || null;
+};
+
+/**
+ * POST /api/v1/school/extract/excel/international
+ * @param {File} file
+ */
+export const extractInternationalCurriculumFromExcel = async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await axiosClient.post("/school/extract/excel/international", formData, {
+        headers: {
+            "Content-Type": "multipart/form-data",
+        },
+    });
+    return response || null;
+};

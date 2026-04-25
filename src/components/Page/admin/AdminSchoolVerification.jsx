@@ -35,9 +35,7 @@ import LockIcon from "@mui/icons-material/Lock";
 import CloseIcon from "@mui/icons-material/Close";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
-import PendingRoundedIcon from "@mui/icons-material/PendingRounded";
 import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
-import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import {useNavigate} from "react-router-dom";
@@ -150,24 +148,33 @@ export default function AdminSchoolVerification() {
                 const verifiedEmail = String(res?.data?.body?.email || "").trim();
                 const schoolEmail = verifiedEmail || fallbackSchoolEmail;
                 showSuccessSnackbar("Xác thực trường học thành công!");
+
+                setRegistrations((prev) => prev.filter((item) => getVerifyRequestId(item) !== requestId));
+
                 if (schoolEmail) {
-                    try {
-                        await sendSchoolVerifiedEmail({schoolName, email: schoolEmail});
-                        enqueueSnackbar(`Đã gửi email kích hoạt cho "${schoolName}".`, {variant: "success"});
-                    } catch (emailError) {
-                        console.error("Send school verified notification email failed", emailError);
-                        enqueueSnackbar(
-                            "Đã xác thực trường học nhưng gửi email thông báo thất bại. Vui lòng kiểm tra cấu hình EmailJS.",
-                            {variant: "warning"}
-                        );
-                    }
+                    enqueueSnackbar(`Đã xác thực "${schoolName}". Hệ thống đang gửi email kích hoạt...`, {
+                        variant: "info",
+                    });
+                    void sendSchoolVerifiedEmail({schoolName, email: schoolEmail})
+                        .then(() => {
+                            enqueueSnackbar(`Đã gửi email kích hoạt cho "${schoolName}".`, {variant: "success"});
+                        })
+                        .catch((emailError) => {
+                            console.error("Send school verified notification email failed", emailError);
+                            enqueueSnackbar(
+                                "Đã xác thực trường học nhưng gửi email thông báo thất bại. Vui lòng kiểm tra cấu hình EmailJS.",
+                                {variant: "warning"}
+                            );
+                        });
                 } else {
                     enqueueSnackbar(
                         "Đã xác thực trường học nhưng không có email trong phản hồi để gửi thông báo.",
                         {variant: "warning"}
                     );
                 }
-                await fetchRegistrations();
+
+                // Đồng bộ lại dữ liệu nền, không chặn tương tác người dùng.
+                void fetchRegistrations();
                 closeDetail();
             }
         } catch (error) {
@@ -250,44 +257,6 @@ export default function AdminSchoolVerification() {
         return new Date(b?.createdAt || 0) - new Date(a?.createdAt || 0);
     });
 
-    const stats = {
-        total: registrations.length,
-        pending: registrations.filter(
-            (item) => item.status === "ACCOUNT_PENDING_VERIFY" || item.status === "PENDING"
-        ).length,
-        verified: registrations.filter((item) => item.status === "VERIFIED").length,
-    };
-
-    const statCards = [
-        {
-            label: "Tổng hồ sơ",
-            value: stats.total,
-            icon: <DescriptionRoundedIcon sx={{fontSize: 22}}/>,
-            iconColor: "#2563eb",
-            iconBg: "#dbeafe",
-            cardBg: "#eef7ff",
-            cardBorder: "#dbeafe",
-        },
-        {
-            label: "Chờ duyệt",
-            value: stats.pending,
-            icon: <PendingRoundedIcon sx={{fontSize: 22}}/>,
-            iconColor: "#f97316",
-            iconBg: "#ffedd5",
-            cardBg: "#fff7ec",
-            cardBorder: "#fde7c7",
-        },
-        {
-            label: "Đã duyệt",
-            value: stats.verified,
-            icon: <CheckCircleRoundedIcon sx={{fontSize: 22}}/>,
-            iconColor: "#16a34a",
-            iconBg: "#dcfce7",
-            cardBg: "#effcf5",
-            cardBorder: "#d6f5e4",
-        },
-    ];
-
     const tableColCount = 8;
 
     const detailSectionSx = {
@@ -365,28 +334,29 @@ export default function AdminSchoolVerification() {
                     borderRadius: 3.5,
                     mb: 2.5,
                     color: "white",
-                    background: "linear-gradient(95deg, #2563eb 0%, #3158ef 40%, #6d3df2 72%, #8b3dff 100%)",
-                    boxShadow: "0 18px 34px rgba(67, 56, 202, 0.28)",
+                    background: "linear-gradient(95deg, #60a5fa 0%, #818cf8 46%, #a78bfa 100%)",
+                    boxShadow: "0 12px 24px rgba(99, 102, 241, 0.2)",
                 }}
             >
-                <CardContent sx={{p: {xs: 2.2, md: 2.8}, "&:last-child": {pb: {xs: 2.2, md: 2.8}}}}>
+                <CardContent sx={{p: {xs: 1.5, md: 1.9}, "&:last-child": {pb: {xs: 1.5, md: 1.9}}}}>
                     <Box sx={{display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2}}>
                         <Box sx={{display: "flex", alignItems: "center", gap: 1.5}}>
                             <Avatar
                                 sx={{
-                                    bgcolor: alpha("#ffffff", 0.2),
+                                    bgcolor: alpha("#ffffff", 0.28),
                                     color: "white",
-                                    width: 42,
-                                    height: 42,
+                                    width: 34,
+                                    height: 34,
+                                    border: "1px solid rgba(255,255,255,0.45)",
                                 }}
                             >
                                 <SchoolIcon />
                             </Avatar>
                             <Box>
-                                <Typography variant="h5" sx={{fontWeight: 700, lineHeight: 1.2}}>
+                                <Typography variant="h6" sx={{fontWeight: 800, lineHeight: 1.2, textShadow: "0 1px 2px rgba(15,23,42,0.24)"}}>
                                     Xác Thực Trường Học
                                 </Typography>
-                                <Typography variant="body2" sx={{opacity: 0.92, mt: 0.45}}>
+                                <Typography variant="body2" sx={{opacity: 1, mt: 0.3, fontSize: 13, fontWeight: 500, textShadow: "0 1px 2px rgba(15,23,42,0.2)"}}>
                                     Hệ thống quản lý và xác thực hồ sơ trường học
                                 </Typography>
                             </Box>
@@ -394,63 +364,6 @@ export default function AdminSchoolVerification() {
                     </Box>
                 </CardContent>
             </Card>
-
-            <Box
-                sx={{
-                    mb: 2.5,
-                    display: "grid",
-                    gridTemplateColumns: {
-                        xs: "1fr",
-                        sm: "repeat(2, minmax(0, 1fr))",
-                        lg: "repeat(3, minmax(0, 1fr))",
-                    },
-                    gap: 2,
-                    width: "100%",
-                }}
-            >
-                {statCards.map((item) => (
-                    <Card
-                        key={item.label}
-                        elevation={0}
-                        sx={{
-                            borderRadius: 3,
-                            border: `1px solid ${item.cardBorder}`,
-                            bgcolor: item.cardBg,
-                            minHeight: 132,
-                        }}
-                    >
-                        <CardContent
-                            sx={{
-                                py: 2,
-                                px: 2.25,
-                                height: "100%",
-                                display: "flex",
-                                alignItems: "flex-start",
-                                justifyContent: "space-between",
-                            }}
-                        >
-                            <Box>
-                                <Typography sx={{fontSize: 12, color: "#64748b"}}>{item.label}</Typography>
-                                <Typography sx={{fontSize: 30, lineHeight: 1.2, fontWeight: 800, color: "#1e293b"}}>
-                                    {item.value}
-                                </Typography>
-                            </Box>
-                            <Avatar
-                                sx={{
-                                    width: 42,
-                                    height: 42,
-                                    borderRadius: "50%",
-                                    bgcolor: item.iconBg,
-                                    color: item.iconColor,
-                                    mt: 0.5,
-                                }}
-                            >
-                                {item.icon}
-                            </Avatar>
-                        </CardContent>
-                    </Card>
-                ))}
-            </Box>
 
             <Card
                 elevation={0}
@@ -474,9 +387,6 @@ export default function AdminSchoolVerification() {
                     >
                         <Typography variant="h6" sx={{fontWeight: 800, color: "#1e293b", fontSize: {xs: 17, sm: 18}}}>
                             Danh sách hồ sơ chờ duyệt
-                            <Typography component="span" sx={{display: "block", fontSize: 13, fontWeight: 500, color: "#64748b", mt: 0.35}}>
-                                {displayedRegistrations.length} hồ sơ
-                            </Typography>
                         </Typography>
                         <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                             <Chip
@@ -856,11 +766,11 @@ export default function AdminSchoolVerification() {
                 open={confirmOpen}
                 variant="modern"
                 title={
-                    <Stack spacing={1.1} alignItems="center" sx={{ width: "100%" }}>
+                    <Stack spacing={1.5} alignItems="center" sx={{ width: "100%" }}>
                         <Box
                             sx={{
-                                width: 76,
-                                height: 76,
+                                width: 82,
+                                height: 82,
                                 borderRadius: "50%",
                                 bgcolor: "#fff7e8",
                                 display: "flex",
@@ -870,7 +780,7 @@ export default function AdminSchoolVerification() {
                                 animation: "warningPulse 1.8s ease-in-out infinite",
                             }}
                         >
-                            <WarningAmberRoundedIcon sx={{ fontSize: 42, color: "#f59e0b" }} />
+                            <WarningAmberRoundedIcon sx={{ fontSize: 44, color: "#f59e0b" }} />
                         </Box>
                         <Box component="span">Xác thực hồ sơ trường học</Box>
                     </Stack>
@@ -878,10 +788,9 @@ export default function AdminSchoolVerification() {
                 description={
                     selectedRegistration ? (
                         <>
-                            Bạn có chắc muốn <ConfirmHighlight>xác thực hồ sơ</ConfirmHighlight>{" "}
+                            Bạn có chắc muốn xác thực hồ sơ của{" "}
                             <ConfirmHighlight>{selectedRegistration.schoolName || "trường học"}</ConfirmHighlight>?{" "}
-                            <ConfirmHighlight>Tài khoản</ConfirmHighlight> sẽ được <ConfirmHighlight>kích hoạt</ConfirmHighlight>{" "}
-                            sau khi <ConfirmHighlight>xác thực</ConfirmHighlight>.
+                            Tài khoản sẽ được kích hoạt sau khi xác thực.
                         </>
                     ) : (
                         ""
@@ -896,6 +805,7 @@ export default function AdminSchoolVerification() {
                     background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
                     border: "2px solid rgba(59,130,246,0.35)",
                     borderRadius: 4,
+                    width: "min(92vw, 700px)",
                     boxShadow: "0 30px 80px rgba(15,23,42,0.35), 0 0 0 1px rgba(59,130,246,0.2) inset",
                     animation: "modalPopIn 220ms ease-out",
                 }}
@@ -904,12 +814,12 @@ export default function AdminSchoolVerification() {
                     textAlign: "center",
                     bgcolor: "transparent",
                     borderBottom: "none",
-                    pt: 1,
-                    pb: 0.3,
+                    pt: 1.8,
+                    pb: 0.6,
                 }}
-                titleTextSx={{ fontSize: 30, lineHeight: 1.15, fontWeight: 800, width: "100%", textAlign: "center", color: "#0f172a" }}
-                contentSx={{ textAlign: "center", px: 4.2, pt: 0.35, pb: 1.1 }}
-                descriptionSx={{ fontSize: 14, lineHeight: 1.6, textAlign: "center", color: "#475569", m: 0 }}
+                titleTextSx={{ fontSize: { xs: 20, sm: 21 }, lineHeight: 1.25, fontWeight: 800, width: "100%", textAlign: "center", color: "#0f172a" }}
+                contentSx={{ textAlign: "center", px: { xs: 3, sm: 4.4 }, pt: 0.35, pb: 1.2 }}
+                descriptionSx={{ fontSize: { xs: 15, sm: 16 }, lineHeight: 1.62, textAlign: "center", color: "#475569", m: 0 }}
                 dialogSx={{
                     "@keyframes warningPulse": {
                         "0%": { transform: "scale(1)", boxShadow: "0 0 0 8px rgba(245,158,11,0.12), 0 12px 28px rgba(245,158,11,0.3)" },
@@ -922,21 +832,21 @@ export default function AdminSchoolVerification() {
                     },
                     "& .MuiDialogActions-root": {
                         justifyContent: "center",
-                        gap: 1.6,
-                        pb: 2.8,
-                        pt: 0.8,
+                        gap: 2,
+                        pb: 3.1,
+                        pt: 1.2,
                     },
                     "& .MuiDialogActions-root .MuiButton-root:first-of-type": {
-                        minWidth: 150,
-                        height: 42,
+                        minWidth: 142,
+                        height: 40,
                         borderRadius: 999,
                         borderColor: "rgba(15,23,42,0.12)",
                         backgroundColor: "#f8fafc",
                     },
                 }}
                 confirmButtonSx={{
-                    minWidth: 160,
-                    height: 42,
+                    minWidth: 158,
+                    height: 40,
                     borderRadius: 999,
                     boxShadow: "0 12px 26px rgba(37,99,235,0.5)",
                     background: "linear-gradient(135deg, #3b82f6 0%, #2563eb 58%, #1d4ed8 100%)",

@@ -194,28 +194,29 @@ export default function AdminSubjectsManagement() {
                     borderRadius: 3.5,
                     mb: 2.5,
                     color: "white",
-                    background: "linear-gradient(95deg, #2563eb 0%, #3158ef 40%, #6d3df2 72%, #8b3dff 100%)",
-                    boxShadow: "0 18px 34px rgba(67, 56, 202, 0.28)",
+                    background: "linear-gradient(95deg, #60a5fa 0%, #818cf8 46%, #a78bfa 100%)",
+                    boxShadow: "0 12px 24px rgba(99, 102, 241, 0.2)",
                 }}
             >
-                <CardContent sx={{ p: { xs: 2.2, md: 2.8 }, "&:last-child": { pb: { xs: 2.2, md: 2.8 } } }}>
+                <CardContent sx={{ p: { xs: 1.5, md: 1.9 }, "&:last-child": { pb: { xs: 1.5, md: 1.9 } } }}>
                     <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 2 }}>
                         <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                             <Avatar
                                 sx={{
-                                    bgcolor: alpha("#ffffff", 0.2),
+                                    bgcolor: alpha("#ffffff", 0.28),
                                     color: "white",
-                                    width: 42,
-                                    height: 42,
+                                    width: 34,
+                                    height: 34,
+                                    border: "1px solid rgba(255,255,255,0.45)",
                                 }}
                             >
                                 <MenuBookOutlinedIcon />
                             </Avatar>
                             <Box>
-                                <Typography variant="h5" sx={{ fontWeight: 700, lineHeight: 1.2 }}>
+                                <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.2, textShadow: "0 1px 2px rgba(15,23,42,0.24)" }}>
                                     Quản lý môn học
                                 </Typography>
-                                <Typography variant="body2" sx={{ opacity: 0.92, mt: 0.45 }}>
+                                <Typography variant="body2" sx={{ opacity: 1, mt: 0.3, fontSize: 13, fontWeight: 500, textShadow: "0 1px 2px rgba(15,23,42,0.2)" }}>
                                     Danh mục môn học chính và ngoại ngữ trên nền tảng
                                 </Typography>
                             </Box>
