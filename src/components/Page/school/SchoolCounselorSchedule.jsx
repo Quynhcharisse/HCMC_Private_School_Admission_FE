@@ -2037,38 +2037,6 @@ export default function SchoolCounselorSchedule() {
                                         </ToggleButtonGroup>
                                         {managePanel === "grid" ? (
                                             <>
-                                                <ToggleButtonGroup
-                                                    size="small"
-                                                    value={calendarGranularity}
-                                                    exclusive
-                                                    onChange={(_, v) => {
-                                                        if (v) setCalendarGranularity(v);
-                                                    }}
-                                                    sx={{
-                                                        bgcolor: SURFACE_CARD,
-                                                        p: "5px",
-                                                        borderRadius: "12px",
-                                                        border: `1px solid ${BORDER_SOFT}`,
-                                                        gap: 0.5,
-                                                        "& .MuiToggleButton-root": {
-                                                            border: "none",
-                                                            borderRadius: "10px !important",
-                                                            px: 2,
-                                                            py: 0.85,
-                                                            fontWeight: 700,
-                                                            fontSize: "0.8125rem",
-                                                            color: "#64748B",
-                                                            textTransform: "none",
-                                                            "&.Mui-selected": {
-                                                                bgcolor: PRIMARY_SOFT,
-                                                                color: PRIMARY,
-                                                                "&:hover": {bgcolor: "rgba(13,100,222,0.16)"},
-                                                            },
-                                                        },
-                                                    }}
-                                                >
-                                                    <ToggleButton value="week">Tuần</ToggleButton>
-                                                </ToggleButtonGroup>
                                                 <Box
                                                     sx={{
                                                         display: "inline-flex",
