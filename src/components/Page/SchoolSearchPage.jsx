@@ -102,6 +102,7 @@ function mapPublicSchoolToRow(api) {
         ward: LOCATION_FALLBACK_WARD,
         website: api.websiteUrl || "",
         phone: api.hotline || "",
+        emailSupport: String(api.emailSupport || "").trim(),
         email: api.email || api.schoolEmail || api.accountEmail || "",
         counsellorEmail: api.counsellorEmail || "",
         address: firstCampus?.address || api.address || "",

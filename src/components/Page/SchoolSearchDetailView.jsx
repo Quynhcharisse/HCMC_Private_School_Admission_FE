@@ -77,6 +77,8 @@ function getBoardingTypeTags(rawValue) {
     if (!normalized) return [];
     if (normalized === "both") return ["Nội trú", "Bán trú"];
     if (normalized.includes("both")) return ["Nội trú", "Bán trú"];
+    if (normalized === "full_boarding" || normalized.includes("full_boarding")) return ["Nội trú"];
+    if (normalized === "day_boarding" || normalized.includes("day_boarding")) return ["Bán trú"];
     if (normalized.includes("nội trú") && normalized.includes("bán trú")) {
         return ["Nội trú", "Bán trú"];
     }
@@ -272,6 +274,7 @@ function buildSchoolContact(school) {
             ? school.consultantEmails.map((e) => String(e || "").trim()).find(Boolean)
             : "";
         return (
+            String(school?.emailSupport || "").trim() ||
             String(school?.email || "").trim() ||
             String(school?.counsellorEmail || "").trim() ||
             fromList ||
@@ -394,6 +397,13 @@ function SchoolGeneralInfoCard({school}) {
 
 function SchoolCampusInfoCard({school, isParent, onMessageCampus}) {
     const list = Array.isArray(school?.campusList) ? school.campusList : [];
+    const [activeCampusIndex, setActiveCampusIndex] = React.useState(0);
+
+    React.useEffect(() => {
+        setActiveCampusIndex(0);
+    }, [school?.id, list.length]);
+
+    const activeCampus = list[activeCampusIndex] || null;
 
     return (
         <Box sx={detailMainColumnCardSx}>
@@ -404,8 +414,71 @@ function SchoolCampusInfoCard({school, isParent, onMessageCampus}) {
                     Chưa có thông tin cơ sở.
                 </Typography>
             ) : (
-                list.map((campus, idx) => {
-                    const name = String(campus?.name || "").trim() || `Cơ sở ${idx + 1}`;
+                <>
+
+                    <Tabs
+                        value={activeCampusIndex}
+                        onChange={(_, idx) => setActiveCampusIndex(idx)}
+                        variant="scrollable"
+                        scrollButtons="auto"
+                        allowScrollButtonsMobile
+                        sx={{
+                            minHeight: 44,
+                            mb: 2,
+                            "& .MuiTabs-scrollButtons": {
+                                width: 28,
+                                height: 28,
+                                borderRadius: "50%",
+                                border: "1px solid rgba(148,163,184,0.42)",
+                                mx: 0.35,
+                                "&.Mui-disabled": {opacity: 0.32}
+                            },
+                            "& .MuiTabs-indicator": {
+                                display: "none"
+                            },
+                            "& .MuiTabs-flexContainer": {
+                                gap: 0.75
+                            },
+                            "& .MuiTab-root": {
+                                textTransform: "none",
+                                fontWeight: 700,
+                                fontSize: "0.8rem",
+                                minHeight: 34,
+                                minWidth: "auto",
+                                px: 1.5,
+                                py: 0.85,
+                                color: "#334155",
+                                borderRadius: 999,
+                                border: "1px solid rgba(148,163,184,0.42)",
+                                bgcolor: "rgba(255,255,255,0.72)",
+                                transition: "all 0.2s ease",
+                                "&:hover": {
+                                    bgcolor: "rgba(255,255,255,0.9)",
+                                    borderColor: "rgba(71,85,105,0.48)"
+                                }
+                            },
+                            "& .Mui-selected": {
+                                color: "#ffffff !important",
+                                borderColor: "rgba(29,78,216,0.95)",
+                                bgcolor: "#2563eb",
+                                boxShadow: "0 6px 14px rgba(37,99,235,0.28)",
+                                "&:hover": {
+                                    bgcolor: "#2563eb",
+                                    borderColor: "rgba(29,78,216,0.95)"
+                                }
+                            }
+                        }}
+                    >
+                        {list.map((campus, idx) => {
+                            const tabLabel = String(campus?.name || "").trim() || `Cơ sở ${idx + 1}`;
+                            return <Tab key={campus?.id ?? `campus-tab-${idx}`} label={tabLabel} disableRipple/>;
+                        })}
+                    </Tabs>
+                    {activeCampus &&
+                        (() => {
+                            const campus = activeCampus;
+                            const idx = activeCampusIndex;
+                            const name = String(campus?.name || "").trim() || `Cơ sở ${idx + 1}`;
                     const city = String(campus?.city || "").trim();
                     const district = String(campus?.district || "").trim();
                     const addrRaw = String(campus?.address || "").trim();
@@ -438,9 +511,8 @@ function SchoolCampusInfoCard({school, isParent, onMessageCampus}) {
                         emails.length > 0 || hasStatus || Boolean(facility) || Boolean(policy);
                     const hasAfterEmails = hasStatus || Boolean(facility) || Boolean(policy);
 
-                    return (
-                        <Box key={campus?.id ?? `${name}-${idx}`} sx={{mt: idx === 0 ? 0 : 2.5}}>
-                            {idx > 0 && <Divider sx={{...contactDividerSx, mb: 2.5}}/>}
+                            return (
+                                <Box key={campus?.id ?? `${name}-${idx}`}>
 
                             <Typography
                                 sx={{
@@ -622,9 +694,10 @@ function SchoolCampusInfoCard({school, isParent, onMessageCampus}) {
                                     </Box>
                                 </>
                             ) : null}
-                        </Box>
-                    );
-                })
+                                </Box>
+                            );
+                        })()}
+                </>
             )}
         </Box>
     );
