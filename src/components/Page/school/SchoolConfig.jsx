@@ -57,6 +57,7 @@ import {
   updateSchoolConfig,
 } from "../../../services/SchoolFacilityService.jsx";
 import {fetchSystemAdmissionSettingsData} from "../../../services/SystemConfigService.jsx";
+import {getCurrentSchoolSubscription} from "../../../services/SchoolSubscriptionService.jsx";
 import {admissionSettingsComparableJson, sanitizeAdmissionSettingsForApi} from "../../../utils/admissionSettingsShared.js";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
 import SchoolWideScheduleReadOnlyPanel from "./SchoolWideScheduleReadOnlyPanel.jsx";
@@ -1698,6 +1699,8 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   const [admissionToggleOffConfirm, setAdmissionToggleOffConfirm] = useState({open: false, code: ""});
   const [admissionRemoveRowConfirm, setAdmissionRemoveRowConfirm] = useState({open: false, idx: -1});
   const [loadingSystemAdmission, setLoadingSystemAdmission] = useState(false);
+  const [resourceSummaryReport, setResourceSummaryReport] = useState(null);
+  const [resourceSummaryLoading, setResourceSummaryLoading] = useState(false);
   /** Pattern A: bật mới hiện form HK; tắt = không giới hạn (xóa ngày trong form). Đồng bộ sau load. */
   const [academicSemesterLimitEnabled, setAcademicSemesterLimitEnabled] = useState(false);
 
@@ -1966,6 +1969,37 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   useEffect(() => {
     if (tabSlug !== "admission") setAdmissionFirstRunOpen(false);
   }, [tabSlug]);
+
+  useEffect(() => {
+    if (isCampusVariant || tabSlug !== "resource-distribution") return;
+    let cancelled = false;
+    setResourceSummaryLoading(true);
+    getCurrentSchoolSubscription()
+      .then((res) => {
+        if (cancelled) return;
+        const body = res?.data?.body ?? res?.data ?? {};
+        const rs = body?.resourceSummary && typeof body.resourceSummary === "object" ? body.resourceSummary : null;
+        setResourceSummaryReport(
+          rs
+            ? {
+                totalPackageQuota: Number(rs.totalPackageQuota) || 0,
+                myCampusQuota: Number(rs.myCampusQuota) || 0,
+                otherCampusesQuota: Number(rs.otherCampusesQuota) || 0,
+              }
+            : null
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setResourceSummaryReport(null);
+      })
+      .finally(() => {
+        if (!cancelled) setResourceSummaryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isCampusVariant, tabSlug, lastLoadedAt]);
 
   useEffect(() => {
     if (isCampusVariant) return;
@@ -5566,6 +5600,68 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                       );
                     })}
                   </Stack>
+                )}
+
+                <Divider sx={{my: 2.5}}/>
+                <Typography
+                  sx={{
+                    fontSize: "0.8125rem",
+                    fontWeight: 700,
+                    color: "#64748b",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    mb: 1.5,
+                  }}
+                >
+                  Báo cáo tài nguyên tổng thể
+                </Typography>
+                {resourceSummaryLoading ? (
+                  <LinearProgress sx={{borderRadius: 1, height: 8}}/>
+                ) : resourceSummaryReport ? (
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: {xs: "1fr", sm: "repeat(3, minmax(0, 1fr))"},
+                      gap: 2,
+                      width: "100%",
+                    }}
+                  >
+                    {[
+                      {label: "Tổng tài nguyên hiện có", value: resourceSummaryReport.totalPackageQuota, accent: "#0D64DE"},
+                      {label: "Tài nguyên của cơ sở chính hiện có", value: resourceSummaryReport.myCampusQuota, accent: "#047857"},
+                      {label: "Tài nguyên của các chi nhánh hiện có", value: resourceSummaryReport.otherCampusesQuota, accent: "#b45309"},
+                    ].map((item) => (
+                      <Box
+                        key={item.label}
+                        sx={{
+                          borderRadius: 2,
+                          border: "1px solid #e2e8f0",
+                          p: 2,
+                          bgcolor: "#fff",
+                          boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+                        }}
+                      >
+                        <Typography
+                          sx={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#94a3b8",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.05em",
+                          }}
+                        >
+                          {item.label}
+                        </Typography>
+                        <Typography sx={{fontSize: "1.75rem", fontWeight: 800, color: item.accent, lineHeight: 1.1, mt: 0.6}}>
+                          {item.value}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" sx={{color: "#64748b"}}>
+                    Chưa có dữ liệu tài nguyên tổng thể từ gói dịch vụ hiện tại.
+                  </Typography>
                 )}
               </CardContent>
             </Card>

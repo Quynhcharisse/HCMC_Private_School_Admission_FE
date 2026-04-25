@@ -74,9 +74,9 @@ function mapTemplate(row) {
               endDate: normalizeDateLikeToIso(d?.endDate),
               admissionProcessSteps: Array.isArray(d?.admissionProcessSteps) ? d.admissionProcessSteps : [],
               methodDocumentRequirements: Array.isArray(d?.methodDocumentRequirements) ? d.methodDocumentRequirements : [],
-              mandatoryAll: Array.isArray(d?.mandatoryAll) ? d.mandatoryAll : [],
           }))
         : [];
+    const mandatoryAll = Array.isArray(row.mandatoryAll) ? row.mandatoryAll : [];
     return {
         ...row,
         id: row.admissionCampaignTemplateId ?? row.id,
@@ -84,6 +84,7 @@ function mapTemplate(row) {
         status: normalizeCampaignStatus(row.status),
         admissionMethodTimelines: timelines,
         admissionMethodDetails: details,
+        mandatoryAll,
     };
 }
 
@@ -417,6 +418,42 @@ export default function SchoolCampaignViewDetail() {
             <Card sx={{ borderRadius: 3, border: "1px solid #e2e8f0", boxShadow: "0 10px 30px rgba(15,23,42,0.06)" }}>
                 <CardContent sx={{ p: { xs: 2.2, md: 3 } }}>
                     <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
+                        <FolderOpenIcon sx={{ color: "#2563eb", fontSize: 20 }} />
+                        <Typography variant="h6" sx={{ fontWeight: 800, color: "#111827" }}>
+                            Hồ sơ bắt buộc chung
+                        </Typography>
+                    </Stack>
+                    <Stack spacing={0.75}>
+                        {(campaign.mandatoryAll || []).length > 0 ? (
+                            campaign.mandatoryAll.map((d, dIdx) => (
+                                <Box
+                                    key={`campaign-all-chip-${dIdx}`}
+                                    sx={{
+                                        borderRadius: 1.5,
+                                        border: "1px solid rgba(148,163,184,0.3)",
+                                        bgcolor: "rgba(248,250,252,0.95)",
+                                        px: 1.25,
+                                        py: 0.9,
+                                    }}
+                                >
+                                    <Typography variant="body2" sx={{ color: "#334155", fontWeight: 600 }}>
+                                        {d.required ? "• [Bắt buộc] " : "• "}
+                                        {d.name || d.code || "Tài liệu"}
+                                    </Typography>
+                                </Box>
+                            ))
+                        ) : (
+                            <Typography variant="body2" sx={{ color: "#94a3b8" }}>
+                                Không có hồ sơ bắt buộc chung.
+                            </Typography>
+                        )}
+                    </Stack>
+                </CardContent>
+            </Card>
+
+            <Card sx={{ borderRadius: 3, border: "1px solid #e2e8f0", boxShadow: "0 10px 30px rgba(15,23,42,0.06)" }}>
+                <CardContent sx={{ p: { xs: 2.2, md: 3 } }}>
+                    <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
                         <RouteIcon sx={{ color: "#2563eb" }} />
                         <Typography variant="h6" sx={{ fontWeight: 800, color: "#111827" }}>
                             Chi tiết phương thức tuyển sinh
@@ -549,34 +586,6 @@ export default function SchoolCampaignViewDetail() {
                                                 </Stack>
                                             </Box>
 
-                                            <Box>
-                                                <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-                                                    <FolderOpenIcon sx={{ color: "#64748b", fontSize: 20 }} />
-                                                    <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#334155" }}>
-                                                        Hồ sơ bắt buộc chung
-                                                    </Typography>
-                                                </Stack>
-                                                <Stack direction="row" spacing={0.8} useFlexGap flexWrap="wrap">
-                                                    {(detail.mandatoryAll || []).length > 0 ? (
-                                                        detail.mandatoryAll.map((d, dIdx) => (
-                                                            <Chip
-                                                                key={`all-chip-${dIdx}`}
-                                                                size="small"
-                                                                label={d.name || d.code || "Tài liệu"}
-                                                                sx={{
-                                                                    bgcolor: "rgba(148,163,184,0.16)",
-                                                                    color: "#475569",
-                                                                    fontWeight: 700,
-                                                                }}
-                                                            />
-                                                        ))
-                                                    ) : (
-                                                        <Typography variant="body2" sx={{ color: "#94a3b8" }}>
-                                                            Không có hồ sơ bắt buộc chung.
-                                                        </Typography>
-                                                    )}
-                                                </Stack>
-                                            </Box>
                                         </Stack>
                                     </AccordionDetails>
                                 </Accordion>
