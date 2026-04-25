@@ -5,6 +5,7 @@ import {
     Card,
     CardMedia,
     Chip,
+    CircularProgress,
     Divider,
     IconButton,
     Link,
@@ -46,6 +47,7 @@ import {OPEN_PARENT_CHAT_EVENT} from "../../constants/parentChatEvents";
 import {showSuccessSnackbar} from "../ui/AppSnackbar.jsx";
 import {DEFAULT_SCHOOL_IMAGE} from "../../utils/schoolPublicMapper.js";
 import {getPublicSchoolCampaignTemplates} from "../../services/SchoolPublicService.jsx";
+import {getParentConsultSlots, parseParentConsultSlotsBody} from "../../services/ParentConsultSlotsService.jsx";
 
 const MAP_CONTAINER_STYLE = {width: "100%", height: "260px"};
 const NEARBY_SEARCH_RADIUS_KM = 10;
@@ -58,8 +60,6 @@ const CONSULT_CALENDAR_DAYS = [
     {key: "SAT", label: "Th 7", offset: 5},
     {key: "SUN", label: "CN", offset: 6}
 ];
-const CONSULT_CALENDAR_ROW_MIN_PX = 22;
-const CONSULT_CALENDAR_ROWS_PER_SHIFT = 6;
 const CONSULT_CALENDAR_SHIFTS = [
     {
         key: "MORNING",
@@ -75,16 +75,108 @@ const CONSULT_CALENDAR_SHIFTS = [
     }
 ];
 
-const CONSULT_GRID_LINE_ROW = "1px solid rgba(100, 116, 139, 0.55)";
-const CONSULT_GRID_LINE_COL = "1px solid rgba(100, 116, 139, 0.42)";
+const CONSULT_HEADER_BG = "#6c8fcf";
+const CONSULT_CARD_BORDER = "1px solid rgba(59,130,246,0.22)";
+const CONSULT_GRID_LINE_ROW = "1px solid rgba(100, 116, 139, 0.36)";
+const CONSULT_GRID_LINE_COL = "1px solid rgba(100, 116, 139, 0.32)";
 const CONSULT_GRID_HEADER_COL = "1px solid rgba(255, 255, 255, 0.55)";
-const CONSULT_GRID_HEADER_UNDER = "1px solid rgba(51, 65, 85, 0.35)";
 const CONSULT_YEAR_OPTIONS = Array.from({length: 7}, (_, i) => String(new Date().getFullYear() - 2 + i));
+const CONSULT_SLOT_STATUS_CHIP = {
+    UPCOMING: "info",
+    ONGOING: "success",
+    COMPLETED: "default",
+    CANCELLED: "error"
+};
+
+function consultSlotLooksCompleted(status, statusLabel) {
+    const s = String(status || "").toUpperCase();
+    if (s === "COMPLETED") return true;
+    return String(statusLabel || "")
+        .trim()
+        .toLowerCase()
+        .includes("đã qua");
+}
+
+/** Chip theo trạng thái — COMPLETED / «Đã qua»: phẳng, không shadow */
+function consultCalendarSlotChipSx(status, statusLabel) {
+    const s = String(status || "").toUpperCase();
+    const label = {
+        px: 0.75,
+        display: "block",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        lineHeight: 1.25
+    };
+    const base = {
+        height: 26,
+        maxWidth: "100%",
+        fontSize: "0.68rem",
+        overflow: "hidden",
+        "& .MuiChip-label": label
+    };
+    if (consultSlotLooksCompleted(s, statusLabel)) {
+        return {
+            ...base,
+            fontWeight: 600,
+            borderRadius: "6px",
+            boxShadow: "none",
+            bgcolor: "rgba(255,255,255,0.88)",
+            color: "#475569",
+            border: "1px solid rgba(148,163,184,0.65)",
+            "&:hover": {
+                bgcolor: "rgba(255,255,255,0.98)",
+                borderColor: "rgba(100,116,139,0.55)"
+            }
+        };
+    }
+    return {
+        ...base,
+        fontWeight: 700,
+        borderRadius: "8px",
+        boxShadow: "0 3px 10px rgba(15,23,42,0.12)",
+        cursor: "pointer"
+    };
+}
 
 function formatDayMonth(date) {
     const dd = String(date.getDate()).padStart(2, "0");
     const mm = String(date.getMonth() + 1).padStart(2, "0");
     return `${dd}/${mm}`;
+}
+
+function toYmdDate(date) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+}
+
+function parseYmdLocal(ymd) {
+    const [y, mo, d] = String(ymd || "")
+        .slice(0, 10)
+        .split("-")
+        .map((x) => Number(x));
+    if (!Number.isFinite(y) || !Number.isFinite(mo) || !Number.isFinite(d)) return new Date(NaN);
+    return new Date(y, mo - 1, d);
+}
+
+function normalizeConsultSlotTime(value) {
+    return String(value || "").slice(0, 5);
+}
+
+function consultTimeToMinutes(value) {
+    const [h, m] = String(value || "")
+        .split(":")
+        .map((x) => Number(x));
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return h * 60 + m;
+}
+
+function consultSessionKeyFromStart(startTime) {
+    const mins = consultTimeToMinutes(startTime);
+    if (mins == null || !Number.isFinite(mins)) return "AFTERNOON";
+    return mins < 12 * 60 ? "MORNING" : "AFTERNOON";
 }
 
 function startOfMonday(date) {
@@ -532,13 +624,19 @@ function SchoolGeneralInfoCard({school}) {
     );
 }
 
-function SchoolCampusInfoCard({school, isParent, onMessageCampus}) {
+function SchoolCampusInfoCard({school, isParent, onMessageCampus, activeCampusIndex: activeCampusIndexProp, onActiveCampusIndexChange}) {
     const list = Array.isArray(school?.campusList) ? school.campusList : [];
-    const [activeCampusIndex, setActiveCampusIndex] = React.useState(0);
+    const [internalActiveIdx, setInternalActiveIdx] = React.useState(0);
+    const controlled =
+        typeof activeCampusIndexProp === "number" && typeof onActiveCampusIndexChange === "function";
+    const activeCampusIndex = controlled ? activeCampusIndexProp : internalActiveIdx;
+    const setActiveCampusIndex = controlled ? onActiveCampusIndexChange : setInternalActiveIdx;
 
     React.useEffect(() => {
-        setActiveCampusIndex(0);
-    }, [school?.id, list.length]);
+        if (!controlled) {
+            setInternalActiveIdx(0);
+        }
+    }, [school?.id, list.length, controlled]);
 
     const activeCampus = list[activeCampusIndex] || null;
 
@@ -1597,6 +1695,25 @@ export default function SchoolSearchDetailView({
     const [campaignTemplates, setCampaignTemplates] = React.useState([]);
     const [campaignLoading, setCampaignLoading] = React.useState(false);
     const [campaignError, setCampaignError] = React.useState("");
+    const [campusDetailTabIndex, setCampusDetailTabIndex] = React.useState(0);
+    const [parentSlotsRaw, setParentSlotsRaw] = React.useState([]);
+    const [parentSlotsLoading, setParentSlotsLoading] = React.useState(false);
+    const [parentSlotsError, setParentSlotsError] = React.useState("");
+
+    React.useEffect(() => {
+        setCampusDetailTabIndex(0);
+    }, [school?.id]);
+
+    const campusListForDetail = React.useMemo(
+        () => (Array.isArray(school?.campusList) ? school.campusList : []),
+        [school?.campusList]
+    );
+
+    React.useEffect(() => {
+        if (campusListForDetail.length > 0 && campusDetailTabIndex >= campusListForDetail.length) {
+            setCampusDetailTabIndex(0);
+        }
+    }, [campusListForDetail.length, campusDetailTabIndex]);
 
     const schoolCampusMarkers = React.useMemo(() => {
         const list = Array.isArray(school?.campusList) ? school.campusList : [];
@@ -1990,6 +2107,133 @@ export default function SchoolSearchDetailView({
         [consultWeekOptions, consultCalendarWeek]
     );
 
+    React.useEffect(() => {
+        if (!isParent || !school || !selectedConsultWeek?.start || !selectedConsultWeek?.end) {
+            setParentSlotsRaw([]);
+            setParentSlotsError("");
+            setParentSlotsLoading(false);
+            return undefined;
+        }
+        const campus = campusListForDetail[campusDetailTabIndex];
+        const rawId = campus?.id;
+        if (rawId == null) {
+            setParentSlotsRaw([]);
+            setParentSlotsLoading(false);
+            return undefined;
+        }
+        const campusId = Number(rawId);
+        if (!Number.isFinite(campusId)) {
+            setParentSlotsRaw([]);
+            setParentSlotsLoading(false);
+            return undefined;
+        }
+        const startDate = toYmdDate(selectedConsultWeek.start);
+        const endDate = toYmdDate(selectedConsultWeek.end);
+        const ac = new AbortController();
+        setParentSlotsLoading(true);
+        setParentSlotsError("");
+        setParentSlotsRaw([]);
+        (async () => {
+            try {
+                const res = await getParentConsultSlots(campusId, {startDate, endDate}, {signal: ac.signal});
+                const body = parseParentConsultSlotsBody(res);
+                if (!ac.signal.aborted) {
+                    setParentSlotsRaw(Array.isArray(body) ? body : []);
+                }
+            } catch (e) {
+                if (ac.signal.aborted || e?.code === "ERR_CANCELED") return;
+                if (!ac.signal.aborted) {
+                    setParentSlotsRaw([]);
+                    setParentSlotsError("Không tải được lịch khả dụng của cơ sở. Vui lòng thử lại.");
+                }
+            } finally {
+                if (!ac.signal.aborted) {
+                    setParentSlotsLoading(false);
+                }
+            }
+        })();
+        return () => ac.abort();
+    }, [isParent, school, campusDetailTabIndex, selectedConsultWeek, campusListForDetail]);
+
+    const parentSlotsNormalized = React.useMemo(() => {
+        const dedup = new Map();
+        parentSlotsRaw.forEach((item) => {
+            const date = String(item?.date || "").slice(0, 10);
+            const startTime = normalizeConsultSlotTime(item?.startTime);
+            const endTime = normalizeConsultSlotTime(item?.endTime);
+            const status = String(item?.status || "UPCOMING").toUpperCase();
+            if (!date || !startTime || !endTime) return;
+            const key = `${date}|${startTime}|${endTime}|${status}`;
+            if (!dedup.has(key)) {
+                dedup.set(key, {
+                    date,
+                    dayOfWeek: String(item?.dayOfWeek || "").toUpperCase(),
+                    startTime,
+                    endTime,
+                    status: status || "UPCOMING",
+                    statusLabel: String(item?.statusLabel || "").trim() || status || "UPCOMING",
+                    campusScheduleTemplateId: item?.campusScheduleTemplateId
+                });
+            }
+        });
+        return Array.from(dedup.values()).sort((a, b) => {
+            if (a.date !== b.date) return a.date.localeCompare(b.date);
+            return a.startTime.localeCompare(b.startTime);
+        });
+    }, [parentSlotsRaw]);
+
+    const consultWeekColumns = React.useMemo(() => {
+        if (!selectedConsultWeek?.start) return [];
+        return CONSULT_CALENDAR_DAYS.map((day) => {
+            const cellDate = new Date(selectedConsultWeek.start);
+            cellDate.setDate(cellDate.getDate() + day.offset);
+            return {
+                ...day,
+                ymd: toYmdDate(cellDate)
+            };
+        });
+    }, [selectedConsultWeek]);
+
+    const consultDynamicTimeRows = React.useMemo(() => {
+        if (!selectedConsultWeek?.start || !selectedConsultWeek?.end) return [];
+        const startY = toYmdDate(selectedConsultWeek.start);
+        const endY = toYmdDate(selectedConsultWeek.end);
+        const inWeek = parentSlotsNormalized.filter((s) => s.date >= startY && s.date <= endY);
+        const keyMap = new Map();
+        inWeek.forEach((row) => {
+            const key = `${row.startTime}-${row.endTime}`;
+            if (!keyMap.has(key)) {
+                const sessionKey = consultSessionKeyFromStart(row.startTime);
+                const stripBg = sessionKey === "MORNING" ? "#fef3c7" : "#dbeafe";
+                const rowBg = sessionKey === "MORNING" ? "rgba(254, 243, 199, 0.35)" : "rgba(219, 234, 254, 0.35)";
+                keyMap.set(key, {
+                    key,
+                    startTime: row.startTime,
+                    endTime: row.endTime,
+                    sortValue: row.startTime,
+                    sessionKey,
+                    stripBg,
+                    rowBg
+                });
+            }
+        });
+        return Array.from(keyMap.values()).sort((a, b) => a.sortValue.localeCompare(b.sortValue));
+    }, [parentSlotsNormalized, selectedConsultWeek]);
+
+    const consultSlotByCell = React.useMemo(() => {
+        const map = new Map();
+        parentSlotsNormalized.forEach((slot) => {
+            const rowKey = `${slot.startTime}-${slot.endTime}`;
+            map.set(`${slot.date}|${rowKey}`, slot);
+        });
+        return map;
+    }, [parentSlotsNormalized]);
+
+    const showConsultApiGrid = Boolean(isParent && consultDynamicTimeRows.length > 0);
+    const showConsultParentWeekEmpty = Boolean(
+        isParent && !parentSlotsLoading && !parentSlotsError && consultDynamicTimeRows.length === 0
+    );
+
     return (
         <Box
             sx={{
@@ -2092,7 +2336,7 @@ export default function SchoolSearchDetailView({
                             px: 0
                         }}
                     >
-                        <Box sx={{maxWidth: 1100, mx: "auto", width: "100%", px: {xs: 2, sm: 3}, py: {xs: 1, sm: 1.25}}}>
+                        <Box sx={{maxWidth: 1360, mx: "auto", width: "100%", px: {xs: 2, sm: 3}, py: {xs: 1, sm: 1.25}}}>
                             <Box
                                 sx={{
                                     display: "flex",
@@ -2282,7 +2526,7 @@ export default function SchoolSearchDetailView({
                     </Box>
                 </Box>
 
-                <Box sx={{maxWidth: 1100, mx: "auto", width: "100%", px: {xs: 2, sm: 3}, py: 2}}>
+                <Box sx={{maxWidth: 1360, mx: "auto", width: "100%", px: {xs: 2, sm: 3}, py: 2}}>
 
                     <Box
                         sx={{
@@ -2458,6 +2702,8 @@ export default function SchoolSearchDetailView({
                                     school={school}
                                     isParent={isParent}
                                     onMessageCampus={messageCampus}
+                                    activeCampusIndex={campusDetailTabIndex}
+                                    onActiveCampusIndexChange={setCampusDetailTabIndex}
                                 />
                             </Box>
 
@@ -2486,40 +2732,74 @@ export default function SchoolSearchDetailView({
                                     sx={{
                                         p: 2.5,
                                         borderRadius: 2,
-                                        border: "1px solid rgba(59,130,246,0.2)",
+                                        border: CONSULT_CARD_BORDER,
                                         bgcolor: "rgba(255,255,255,0.98)",
-                                        boxShadow: "0 4px 20px rgba(51,65,85,0.06)"
+                                        boxShadow: "0 4px 20px rgba(51,65,85,0.06)",
+                                        width: "100%",
+                                        maxWidth: "100%",
+                                        boxSizing: "border-box"
                                     }}
                                 >
-                                    <Stack direction="row" alignItems="flex-start" spacing={1.5}>
-                                        <Box sx={{minWidth: 0}}>
+                                    <Stack
+                                        direction="column"
+                                        alignItems="stretch"
+                                        spacing={1.5}
+                                        sx={{width: "100%", minWidth: 0}}
+                                    >
+                                        <Box sx={{minWidth: 0, width: "100%"}}>
                                             <Typography sx={mainDetailSectionTitleSx}>
                                                 Đặt lịch tư vấn
                                             </Typography>
+                                            {isParent && parentSlotsError ? (
+                                                <Typography sx={{color: "#b45309", fontSize: "0.82rem", mb: 1}}>
+                                                    {parentSlotsError}
+                                                </Typography>
+                                            ) : null}
+                                            <Box sx={{width: "100%", minWidth: 0}}>
                                             <Box
                                                 sx={{
-                                                    border: "1px solid rgba(59,130,246,0.22)",
+                                                    position: "relative",
+                                                    border: CONSULT_CARD_BORDER,
                                                     borderRadius: 2,
                                                     overflow: "hidden",
                                                     bgcolor: "#fff",
-                                                    width: "auto",
-                                                    mx: {xs: 1.5, sm: 2}
+                                                    width: "100%",
+                                                    maxWidth: "100%",
+                                                    minWidth: 0,
+                                                    boxSizing: "border-box"
                                                 }}
                                             >
+                                                {isParent && parentSlotsLoading ? (
+                                                    <Box
+                                                        sx={{
+                                                            position: "absolute",
+                                                            inset: 0,
+                                                            display: "flex",
+                                                            alignItems: "center",
+                                                            justifyContent: "center",
+                                                            bgcolor: "rgba(255,255,255,0.58)",
+                                                            zIndex: 3
+                                                        }}
+                                                    >
+                                                        <CircularProgress size={28} sx={{color: "#2563eb"}}/>
+                                                    </Box>
+                                                ) : null}
                                                 <Box
                                                     sx={{
                                                         display: "grid",
-                                                        gridTemplateColumns: "180px repeat(7, minmax(64px, 1fr))",
-                                                        bgcolor: "#6c8fcf",
+                                                        width: "100%",
+                                                        minWidth: 0,
+                                                        gridTemplateColumns: "220px repeat(7, minmax(88px, 1fr))",
+                                                        bgcolor: CONSULT_HEADER_BG,
                                                         color: "#fff"
                                                     }}
                                                 >
-                                                    <Box sx={{px: 0.75, py: 0.45}}>
+                                                    <Box sx={{px: 1, py: 0.65}}>
                                                         <Box sx={{display: "flex", alignItems: "center", gap: 0.5}}>
                                                             <Typography
                                                                 sx={{
                                                                     fontSize: "0.72rem",
-                                                                    color: "#ffffff",
+                                                                    color: "#fff",
                                                                     fontWeight: 800,
                                                                     letterSpacing: "0.02em"
                                                                 }}
@@ -2530,7 +2810,14 @@ export default function SchoolSearchDetailView({
                                                                 component="select"
                                                                 value={consultCalendarYear}
                                                                 onChange={(e) => setConsultCalendarYear(e.target.value)}
-                                                                sx={{fontSize: "0.72rem", height: 22, border: "1px solid #cbd5e1", borderRadius: 0.5}}
+                                                                sx={{
+                                                                    fontSize: "0.72rem",
+                                                                    height: 24,
+                                                                    border: "1px solid #cbd5e1",
+                                                                    borderRadius: 0.5,
+                                                                    bgcolor: "#fff",
+                                                                    color: "#333"
+                                                                }}
                                                             >
                                                                 {CONSULT_YEAR_OPTIONS.map((year) => (
                                                                     <option key={year} value={year}>
@@ -2541,24 +2828,49 @@ export default function SchoolSearchDetailView({
                                                         </Box>
                                                     </Box>
                                                     {CONSULT_CALENDAR_DAYS.map((day) => (
-                                                        <Box key={`consult-head-${day.key}`} sx={{px: 0.7, py: 0.45, borderLeft: CONSULT_GRID_HEADER_COL}}>
-                                                            <Typography sx={{fontSize: "0.72rem", fontWeight: 500}}>{day.label}</Typography>
+                                                        <Box
+                                                            key={`consult-head-${day.key}`}
+                                                            sx={{
+                                                                px: 0.85,
+                                                                py: 0.65,
+                                                                borderLeft: CONSULT_GRID_HEADER_COL,
+                                                                display: "flex",
+                                                                alignItems: "center",
+                                                                justifyContent: "center"
+                                                            }}
+                                                        >
+                                                            <Typography
+                                                                sx={{
+                                                                    fontSize: "0.72rem",
+                                                                    fontWeight: 600,
+                                                                    color: "#fff",
+                                                                    textAlign: "center",
+                                                                    width: "100%"
+                                                                }}
+                                                            >
+
+                                                                {day.label}
+                                                            </Typography>
                                                         </Box>
                                                     ))}
                                                 </Box>
                                                 <Box
                                                     sx={{
                                                         display: "grid",
-                                                        gridTemplateColumns: "180px repeat(7, minmax(64px, 1fr))",
-                                                        bgcolor: "#6c8fcf",
+                                                        width: "100%",
+                                                        minWidth: 0,
+                                                        gridTemplateColumns: "220px repeat(7, minmax(88px, 1fr))",
+                                                        bgcolor: CONSULT_HEADER_BG,
                                                         color: "#fff",
                                                         borderTop: "1px solid rgba(255,255,255,0.28)",
                                                         borderBottom: "1px solid rgba(148,163,184,0.35)"
                                                     }}
                                                 >
-                                                    <Box sx={{px: 0.75, py: 0.45}}>
+                                                    <Box sx={{px: 1, py: 0.6}}>
                                                         <Box sx={{display: "flex", alignItems: "center", gap: 0.5}}>
-                                                            <Typography sx={{fontSize: "0.7rem", color: "#111827", fontWeight: 500}}>TUẦN</Typography>
+                                                            <Typography sx={{fontSize: "0.7rem", color: "#fff", fontWeight: 600}}>
+                                                                TUẦN
+                                                            </Typography>
                                                             <Select
                                                                 value={consultCalendarWeek}
                                                                 onChange={(e) => setConsultCalendarWeek(String(e.target.value || ""))}
@@ -2626,8 +2938,26 @@ export default function SchoolSearchDetailView({
                                                         </Box>
                                                     </Box>
                                                     {CONSULT_CALENDAR_DAYS.map((day) => (
-                                                        <Box key={`consult-date-${day.key}`} sx={{px: 0.7, py: 0.45, borderLeft: CONSULT_GRID_HEADER_COL}}>
-                                                            <Typography sx={{fontSize: "0.72rem", fontWeight: 400}}>
+                                                        <Box
+                                                            key={`consult-date-${day.key}`}
+                                                            sx={{
+                                                                px: 0.85,
+                                                                py: 0.6,
+                                                                borderLeft: CONSULT_GRID_HEADER_COL,
+                                                                display: "flex",
+                                                                alignItems: "center",
+                                                                justifyContent: "center"
+                                                            }}
+                                                        >
+                                                            <Typography
+                                                                sx={{
+                                                                    fontSize: "0.72rem",
+                                                                    fontWeight: 500,
+                                                                    color: "#fff",
+                                                                    textAlign: "center",
+                                                                    width: "100%"
+                                                                }}
+                                                            >
                                                                 {selectedConsultWeek?.start
                                                                     ? formatDayMonth(
                                                                           new Date(
@@ -2641,66 +2971,194 @@ export default function SchoolSearchDetailView({
                                                         </Box>
                                                     ))}
                                                 </Box>
-                                                {CONSULT_CALENDAR_SHIFTS.flatMap((shift) =>
-                                                    Array.from({length: CONSULT_CALENDAR_ROWS_PER_SHIFT}, (_, rowIdx) => ({
-                                                        ...shift,
-                                                        rowIdx,
-                                                        rowKey: `${shift.key}-r${rowIdx}`
-                                                    }))
-                                                ).map((row) => (
+                                                {showConsultApiGrid
+                                                    ? consultDynamicTimeRows.map((row) => (
+                                                          <Box
+                                                              key={row.key}
+                                                              sx={{
+                                                                  display: "grid",
+                                                                  width: "100%",
+                                                                  minWidth: 0,
+                                                                  gridTemplateColumns: "220px repeat(7, minmax(88px, 1fr))",
+                                                                  borderBottom: CONSULT_GRID_LINE_ROW,
+                                                                  bgcolor: row.rowBg
+                                                              }}
+                                                          >
+                                                              <Box
+                                                                  sx={{
+                                                                      minHeight: 36,
+                                                                      bgcolor: row.stripBg,
+                                                                      borderRight: CONSULT_GRID_LINE_COL,
+                                                                      px: 1,
+                                                                      py: 0.5,
+                                                                      display: "flex",
+                                                                      alignItems: "center"
+                                                                  }}
+                                                              >
+                                                                  <Typography
+                                                                      sx={{
+                                                                          fontSize: "0.72rem",
+                                                                          fontWeight: 700,
+                                                                          color: "#334155",
+                                                                          letterSpacing: "0.01em"
+                                                                      }}
+                                                                  >
+                                                                      {row.startTime} – {row.endTime}
+                                                                  </Typography>
+                                                              </Box>
+                                                              {consultWeekColumns.map((col) => {
+                                                                  const slot = consultSlotByCell.get(`${col.ymd}|${row.key}`);
+                                                                  const mailBits = [
+                                                                      col.label,
+                                                                      formatDayMonth(parseYmdLocal(col.ymd)),
+                                                                      `${row.startTime}–${row.endTime}`
+                                                                  ];
+                                                                  return (
+                                                                      <Box
+                                                                          key={`${row.key}-${col.key}`}
+                                                                          sx={{
+                                                                              px: 0.75,
+                                                                              py: 0.5,
+                                                                              borderLeft: CONSULT_GRID_LINE_COL,
+                                                                              display: "flex",
+                                                                              alignItems: "center",
+                                                                              justifyContent: "center",
+                                                                              minHeight: 36
+                                                                          }}
+                                                                      >
+                                                                          {slot ? (
+                                                                              <Chip
+                                                                                  label={slot.statusLabel || slot.status}
+                                                                                  color={
+                                                                                      consultSlotLooksCompleted(slot.status, slot.statusLabel)
+                                                                                          ? undefined
+                                                                                          : CONSULT_SLOT_STATUS_CHIP[slot.status] || "default"
+                                                                                  }
+                                                                                  size="small"
+                                                                                  onClick={() =>
+                                                                                      openConsultMailto(mailBits.join(" — "))
+                                                                                  }
+                                                                                  sx={consultCalendarSlotChipSx(slot.status, slot.statusLabel)}
+                                                                              />
+                                                                          ) : (
+                                                                              <Box
+                                                                                  component="button"
+                                                                                  type="button"
+                                                                                  onClick={() =>
+                                                                                      openConsultMailto(mailBits.join(" — "))
+                                                                                  }
+                                                                                  aria-label="Đặt lịch tư vấn"
+                                                                                  sx={{
+                                                                                      border: "none",
+                                                                                      background: "transparent",
+                                                                                      cursor: "pointer",
+                                                                                      minWidth: 0,
+                                                                                      minHeight: 32,
+                                                                                      width: "100%",
+                                                                                      p: 0.5,
+                                                                                      opacity: 0,
+                                                                                      "&:hover": {opacity: 0.12},
+                                                                                      "&:focus-visible": {
+                                                                                          outline: `1px solid rgba(100,116,139,0.55)`,
+                                                                                          borderRadius: "4px",
+                                                                                          opacity: 1
+                                                                                      }
+                                                                                  }}
+                                                                              />
+                                                                          )}
+                                                                      </Box>
+                                                                  );
+                                                              })}
+                                                          </Box>
+                                                      ))
+                                                    : null}
+                                                {showConsultParentWeekEmpty ? (
                                                     <Box
-                                                        key={row.rowKey}
                                                         sx={{
-                                                            display: "grid",
-                                                            gridTemplateColumns: "180px repeat(7, minmax(64px, 1fr))",
-                                                            borderBottom: CONSULT_GRID_LINE_ROW,
-                                                            bgcolor: row.rowBg
+                                                            px: 2,
+                                                            py: 2.5,
+                                                            textAlign: "center",
+                                                            bgcolor: "rgba(248,250,252,0.95)",
+                                                            borderTop: CONSULT_GRID_LINE_ROW
                                                         }}
                                                     >
-                                                        <Box
-                                                            aria-hidden
-                                                            sx={{
-                                                                minHeight: CONSULT_CALENDAR_ROW_MIN_PX,
-                                                                bgcolor: row.stripBg,
-                                                                borderRight: CONSULT_GRID_LINE_COL
-                                                            }}
-                                                        />
-                                                        {CONSULT_CALENDAR_DAYS.map((day) => (
-                                                            <Box
-                                                                key={`${row.rowKey}-${day.key}`}
-                                                                sx={{
-                                                                    px: 0.15,
-                                                                    py: 0,
-                                                                    borderLeft: CONSULT_GRID_LINE_COL,
-                                                                    display: "flex",
-                                                                    alignItems: "center",
-                                                                    justifyContent: "center",
-                                                                    minHeight: CONSULT_CALENDAR_ROW_MIN_PX
-                                                                }}
-                                                            >
-                                                                <Button
-                                                                    variant="text"
-                                                                    size="small"
-                                                                    onClick={() =>
-                                                                        openConsultMailto(`${day.label} — ${row.mailLabel}`)
-                                                                    }
-                                                                    sx={{
-                                                                        minWidth: 0,
-                                                                        minHeight: CONSULT_CALENDAR_ROW_MIN_PX,
-                                                                        px: 0.25,
-                                                                        py: 0,
-                                                                        color: "#334155",
-                                                                        textTransform: "none",
-                                                                        fontSize: "0.75rem",
-                                                                        lineHeight: 1
-                                                                    }}
-                                                                >
-                                                                    -
-                                                                </Button>
-                                                            </Box>
-                                                        ))}
+                                                        <Typography sx={{fontSize: "0.88rem", color: "#64748b"}}>
+                                                            Tuần đã chọn chưa có khung giờ tư vấn trên lịch.
+                                                        </Typography>
                                                     </Box>
-                                                ))}
+                                                ) : null}
+                                                {!isParent
+                                                    ? CONSULT_CALENDAR_SHIFTS.map((shift) => (
+                                                          <Box
+                                                              key={shift.key}
+                                                              sx={{
+                                                                  display: "grid",
+                                                                  width: "100%",
+                                                                  minWidth: 0,
+                                                                  gridTemplateColumns: "220px repeat(7, minmax(88px, 1fr))",
+                                                                  borderBottom: CONSULT_GRID_LINE_ROW,
+                                                                  bgcolor: shift.rowBg
+                                                              }}
+                                                          >
+                                                              <Box
+                                                                  sx={{
+                                                                      minHeight: 36,
+                                                                      bgcolor: shift.stripBg,
+                                                                      borderRight: CONSULT_GRID_LINE_COL,
+                                                                      px: 1,
+                                                                      py: 0.5,
+                                                                      display: "flex",
+                                                                      alignItems: "center"
+                                                                  }}
+                                                              >
+                                                                  <Typography
+                                                                      sx={{
+                                                                          fontSize: "0.72rem",
+                                                                          fontWeight: 700,
+                                                                          color: "#334155"
+                                                                      }}
+                                                                  >
+                                                                      {shift.mailLabel}
+                                                                  </Typography>
+                                                              </Box>
+                                                              {CONSULT_CALENDAR_DAYS.map((day) => (
+                                                                  <Box
+                                                                      key={`${shift.key}-${day.key}`}
+                                                                      sx={{
+                                                                          px: 0.75,
+                                                                          py: 0.5,
+                                                                          borderLeft: CONSULT_GRID_LINE_COL,
+                                                                          display: "flex",
+                                                                          alignItems: "center",
+                                                                          justifyContent: "center",
+                                                                          minHeight: 36
+                                                                      }}
+                                                                  >
+                                                                      <Button
+                                                                          variant="text"
+                                                                          size="small"
+                                                                          onClick={() =>
+                                                                              openConsultMailto(`${day.label} — ${shift.mailLabel}`)
+                                                                          }
+                                                                          sx={{
+                                                                              minWidth: 0,
+                                                                              minHeight: 32,
+                                                                              px: 0.5,
+                                                                              py: 0,
+                                                                              color: "#64748b",
+                                                                              textTransform: "none",
+                                                                              fontSize: "0.8rem",
+                                                                              lineHeight: 1
+                                                                          }}
+                                                                      >
+                                                                          Đặt lịch
+                                                                      </Button>
+                                                                  </Box>
+                                                              ))}
+                                                          </Box>
+                                                      ))
+                                                    : null}
+                                            </Box>
                                             </Box>
                                             {!(school?.email || "").trim() && (
                                                 <Typography sx={{color: "#b45309", fontSize: "0.84rem", mt: 1}}>

@@ -16,13 +16,70 @@ const CALENDAR_DAYS = [
   { key: "SUN", label: "CN", offset: 6 },
 ];
 
+/** Đồng bộ với lịch «Đặt lịch tư vấn» (SchoolSearchDetailView — CONSULT_*) */
+const CAL_HEADER_BG = "#6c8fcf";
+const CAL_CARD_BORDER = "1px solid rgba(59,130,246,0.22)";
+const CAL_GRID_LINE_ROW = "1px solid rgba(100, 116, 139, 0.36)";
+const CAL_GRID_LINE_COL = "1px solid rgba(100, 116, 139, 0.32)";
+const CAL_GRID_HEADER_COL = "1px solid rgba(255, 255, 255, 0.55)";
+const CAL_BRAND = "#6c8fcf";
+const CAL_BRAND_HOVER = "#5a7ab5";
+
 const STATUS_COLOR = {
   UPCOMING: "info",
   ONGOING: "success",
   COMPLETED: "default",
   CANCELLED: "error",
 };
-const MIN_RENDER_ROWS = 10;
+
+function slotLooksCompleted(status, statusLabel) {
+  const s = String(status || "").toUpperCase();
+  if (s === "COMPLETED") return true;
+  return String(statusLabel || "")
+    .trim()
+    .toLowerCase()
+    .includes("đã qua");
+}
+
+function calendarSlotChipSx(status, statusLabel) {
+  const s = String(status || "").toUpperCase();
+  const label = {
+    px: 0.75,
+    display: "block",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    lineHeight: 1.25,
+  };
+  const base = {
+    height: 26,
+    maxWidth: "100%",
+    fontSize: "0.68rem",
+    overflow: "hidden",
+    "& .MuiChip-label": label,
+  };
+  if (slotLooksCompleted(s, statusLabel)) {
+    return {
+      ...base,
+      fontWeight: 600,
+      borderRadius: "6px",
+      boxShadow: "none",
+      bgcolor: "rgba(255,255,255,0.88)",
+      color: "#475569",
+      border: "1px solid rgba(148,163,184,0.65)",
+      "&:hover": {
+        bgcolor: "rgba(255,255,255,0.98)",
+        borderColor: "rgba(100,116,139,0.55)",
+      },
+    };
+  }
+  return {
+    ...base,
+    fontWeight: 700,
+    borderRadius: "8px",
+    boxShadow: "0 3px 10px rgba(15,23,42,0.12)",
+  };
+}
 
 const toYmd = (date) => {
   const y = date.getFullYear();
@@ -56,11 +113,11 @@ const normalizeTime = (value) => String(value || "").slice(0, 5);
 const sessionColors = {
   MORNING: {
     strip: "#fef3c7",
-    row: "rgba(254, 243, 199, 0.26)",
+    row: "rgba(254, 243, 199, 0.35)",
   },
   AFTERNOON: {
     strip: "#dbeafe",
-    row: "rgba(219, 234, 254, 0.26)",
+    row: "rgba(219, 234, 254, 0.35)",
   },
 };
 
@@ -125,18 +182,6 @@ export default function CounsellorCalendar() {
     return Array.from(keyMap.values()).sort((a, b) => a.sortValue.localeCompare(b.sortValue));
   }, [calendarRows]);
 
-  const displayRows = useMemo(() => {
-    if (timeRows.length >= MIN_RENDER_ROWS) return timeRows;
-    const fillers = Array.from({ length: MIN_RENDER_ROWS - timeRows.length }, (_, idx) => ({
-      key: `empty-${idx + 1}`,
-      startTime: "",
-      endTime: "",
-      isEmpty: true,
-      sessionKey: idx < Math.ceil((MIN_RENDER_ROWS - timeRows.length) / 2) ? "MORNING" : "AFTERNOON",
-    }));
-    return [...timeRows, ...fillers];
-  }, [timeRows]);
-
   const slotByCell = useMemo(() => {
     const map = new Map();
     calendarRows.forEach((slot) => {
@@ -200,7 +245,7 @@ export default function CounsellorCalendar() {
   }, [loadCalendar]);
 
   return (
-    <Box>
+    <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
       <Typography variant="h5" sx={{ fontWeight: 700, color: "#1e293b", mb: 0.5 }}>
         Lịch tư vấn
       </Typography>
@@ -211,10 +256,13 @@ export default function CounsellorCalendar() {
       <Card
         sx={{
           borderRadius: 3,
-          border: "1px solid rgba(148,163,184,0.28)",
-          boxShadow: "0 10px 28px rgba(15, 23, 42, 0.08)",
-          backgroundImage: "linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(241,245,249,0.96) 100%)",
+          border: CAL_CARD_BORDER,
+          boxShadow: "0 4px 20px rgba(51,65,85,0.06)",
+          bgcolor: "rgba(255,255,255,0.98)",
           mb: 2,
+          width: "100%",
+          maxWidth: "100%",
+          boxSizing: "border-box",
         }}
       >
         <CardContent sx={{ p: 2.2 }}>
@@ -232,8 +280,8 @@ export default function CounsellorCalendar() {
                   color: "#334155",
                   px: 1.8,
                   "&:hover": {
-                    borderColor: "rgba(37,99,235,0.55)",
-                    bgcolor: "rgba(37,99,235,0.08)",
+                    borderColor: "rgba(108,143,207,0.65)",
+                    bgcolor: "rgba(108,143,207,0.1)",
                   },
                 }}
               >
@@ -251,8 +299,8 @@ export default function CounsellorCalendar() {
                   color: "#334155",
                   px: 1.8,
                   "&:hover": {
-                    borderColor: "rgba(37,99,235,0.55)",
-                    bgcolor: "rgba(37,99,235,0.08)",
+                    borderColor: "rgba(108,143,207,0.65)",
+                    bgcolor: "rgba(108,143,207,0.1)",
                   },
                 }}
               >
@@ -267,11 +315,11 @@ export default function CounsellorCalendar() {
                   fontWeight: 700,
                   borderRadius: "12px",
                   px: 2,
-                  boxShadow: "0 8px 18px rgba(37,99,235,0.28)",
-                  bgcolor: "#2563eb",
+                  boxShadow: "0 8px 18px rgba(108,143,207,0.35)",
+                  bgcolor: CAL_BRAND,
                   "&:hover": {
-                    bgcolor: "#1d4ed8",
-                    boxShadow: "0 10px 22px rgba(29,78,216,0.34)",
+                    bgcolor: CAL_BRAND_HOVER,
+                    boxShadow: "0 10px 22px rgba(90,122,181,0.38)",
                   },
                 }}
               >
@@ -283,11 +331,11 @@ export default function CounsellorCalendar() {
                 px: 1.5,
                 py: 0.8,
                 borderRadius: "12px",
-                border: "1px solid rgba(37,99,235,0.25)",
-                bgcolor: "rgba(239,246,255,0.95)",
+                border: "1px solid rgba(108,143,207,0.42)",
+                bgcolor: "rgba(108,143,207,0.12)",
               }}
             >
-              <Typography sx={{ fontWeight: 700, color: "#1e3a8a", fontSize: "0.9rem", letterSpacing: "0.01em" }}>
+              <Typography sx={{ fontWeight: 700, color: CAL_BRAND, fontSize: "0.9rem", letterSpacing: "0.01em" }}>
                 {weekRangeLabel}
               </Typography>
             </Box>
@@ -303,31 +351,35 @@ export default function CounsellorCalendar() {
 
       {loading ? (
         <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
-          <CircularProgress />
+          <CircularProgress size={28} sx={{ color: CAL_BRAND }} />
         </Box>
       ) : (
-        <Box sx={{ width: "100%", overflowX: "auto", pb: 0.5 }}>
+        <Box sx={{ width: "100%", minWidth: 0, overflowX: "auto", pb: 0.5 }}>
           <Box
             sx={{
-              border: "1px solid rgba(59,130,246,0.24)",
-              borderRadius: 2.5,
+              border: CAL_CARD_BORDER,
+              borderRadius: 2,
               overflow: "hidden",
               bgcolor: "#fff",
               width: "100%",
-              minWidth: 980,
-              boxShadow: "0 14px 35px rgba(51,65,85,0.12)",
-              backgroundImage: "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.98) 100%)",
+              maxWidth: "100%",
+              minWidth: 1180,
+              minHeight: 0,
+              boxSizing: "border-box",
+              boxShadow: "0 4px 20px rgba(51,65,85,0.06)",
             }}
           >
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: "190px repeat(7, minmax(64px, 1fr))",
-              bgcolor: "#5e81c6",
+              width: "100%",
+              minWidth: 0,
+              gridTemplateColumns: "220px repeat(7, minmax(88px, 1fr))",
+              bgcolor: CAL_HEADER_BG,
               color: "#fff",
             }}
           >
-            <Box sx={{ px: 0.8, py: 0.5 }}>
+            <Box sx={{ px: 1, py: 0.65 }}>
               <Typography sx={{ fontSize: "0.72rem", color: "#fff", fontWeight: 800, letterSpacing: "0.02em" }}>
                 NĂM {weekDays[0]?.date?.getFullYear()}
               </Typography>
@@ -336,15 +388,17 @@ export default function CounsellorCalendar() {
               <Box
                 key={`head-${day.dateYmd}`}
                 sx={{
-                  px: 0.7,
-                  py: 0.45,
-                  borderLeft: "1px solid rgba(255,255,255,0.55)",
+                  px: 0.85,
+                  py: 0.65,
+                  borderLeft: CAL_GRID_HEADER_COL,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Typography sx={{ fontSize: "0.72rem", fontWeight: 600, textAlign: "center" }}>{day.dayLabel}</Typography>
+                <Typography sx={{ fontSize: "0.72rem", fontWeight: 600, textAlign: "center", color: "#fff", width: "100%" }}>
+                  {day.dayLabel}
+                </Typography>
               </Box>
             ))}
           </Box>
@@ -352,51 +406,71 @@ export default function CounsellorCalendar() {
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: "190px repeat(7, minmax(64px, 1fr))",
-              bgcolor: "#5e81c6",
+              width: "100%",
+              minWidth: 0,
+              gridTemplateColumns: "220px repeat(7, minmax(88px, 1fr))",
+              bgcolor: CAL_HEADER_BG,
               color: "#fff",
               borderTop: "1px solid rgba(255,255,255,0.28)",
               borderBottom: "1px solid rgba(148,163,184,0.35)",
             }}
           >
-            <Box sx={{ px: 0.8, py: 0.45 }}>
-              <Typography sx={{ fontSize: "0.72rem", color: "#fff", fontWeight: 700 }}>TUẦN</Typography>
+            <Box sx={{ px: 1, py: 0.6 }}>
+              <Typography sx={{ fontSize: "0.72rem", color: "#fff", fontWeight: 600 }}>TUẦN</Typography>
             </Box>
             {weekDays.map((day) => (
               <Box
                 key={`date-${day.dateYmd}`}
                 sx={{
-                  px: 0.7,
-                  py: 0.45,
-                  borderLeft: "1px solid rgba(255,255,255,0.55)",
+                  px: 0.85,
+                  py: 0.6,
+                  borderLeft: CAL_GRID_HEADER_COL,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Typography sx={{ fontSize: "0.72rem", fontWeight: 500, textAlign: "center" }}>
+                <Typography sx={{ fontSize: "0.72rem", fontWeight: 500, textAlign: "center", color: "#fff", width: "100%" }}>
                   {formatDateVi(day.date).slice(0, 5)}
                 </Typography>
               </Box>
             ))}
           </Box>
 
-          {displayRows.map((row, idx) => (
+          {timeRows.length === 0 ? (
+            <Box
+              sx={{
+                px: 2,
+                py: 2.5,
+                textAlign: "center",
+                bgcolor: "rgba(248,250,252,0.95)",
+                borderTop: CAL_GRID_LINE_ROW,
+              }}
+            >
+              <Typography sx={{ fontSize: "0.88rem", color: "#64748b" }}>
+                Tuần này chưa có khung giờ trên lịch.
+              </Typography>
+            </Box>
+          ) : null}
+          {timeRows.map((row) => (
             <Box
               key={row.key}
               sx={{
                 display: "grid",
-                gridTemplateColumns: "190px repeat(7, minmax(64px, 1fr))",
-                borderBottom: "1px solid rgba(100, 116, 139, 0.36)",
+                width: "100%",
+                minWidth: 0,
+                gridTemplateColumns: "220px repeat(7, minmax(88px, 1fr))",
+                borderBottom: CAL_GRID_LINE_ROW,
                 bgcolor: rowBg(row.sessionKey),
               }}
             >
               <Box
                 sx={{
-                  minHeight: 34,
+                  minHeight: 36,
                   bgcolor: stripKey(row.sessionKey),
-                  borderRight: "1px solid rgba(100, 116, 139, 0.32)",
+                  borderRight: CAL_GRID_LINE_COL,
                   px: 1,
+                  py: 0.5,
                   display: "flex",
                   alignItems: "center",
                 }}
@@ -412,30 +486,28 @@ export default function CounsellorCalendar() {
                   <Box
                     key={`${row.key}-${day.dateYmd}`}
                     sx={{
-                      px: 0.25,
-                      py: 0.25,
-                      borderLeft: "1px solid rgba(100, 116, 139, 0.32)",
+                      px: 0.75,
+                      py: 0.5,
+                      borderLeft: CAL_GRID_LINE_COL,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      minHeight: 34,
+                      minHeight: 36,
                     }}
                   >
                     {slot ? (
                       <Chip
                         label={slot.statusLabel || slot.status}
-                        color={STATUS_COLOR[slot.status] || "default"}
+                        color={
+                          slotLooksCompleted(slot.status, slot.statusLabel)
+                            ? undefined
+                            : STATUS_COLOR[slot.status] || "default"
+                        }
                         size="small"
-                        sx={{
-                          height: 22,
-                          fontSize: "0.68rem",
-                          fontWeight: 700,
-                          borderRadius: "8px",
-                          boxShadow: "0 3px 10px rgba(15,23,42,0.12)",
-                        }}
+                        sx={calendarSlotChipSx(slot.status, slot.statusLabel)}
                       />
                     ) : (
-                      <Typography sx={{ fontSize: "0.78rem", color: "#64748b" }}>-</Typography>
+                      <Box sx={{ minHeight: 24, width: "100%" }} aria-hidden />
                     )}
                   </Box>
                 );
