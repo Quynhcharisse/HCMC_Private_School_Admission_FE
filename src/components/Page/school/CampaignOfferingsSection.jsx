@@ -45,7 +45,6 @@ import {
     createCampaignOffering,
     updateCampaignOffering,
     updateCampusOfferingStatus,
-    closeCampusOffering,
 } from "../../../services/CampaignService.jsx";
 
 const LEARNING_MODES = [
@@ -380,7 +379,9 @@ export default function CampaignOfferingsSection({
         const errors = {};
         if (!formValues.campusId) errors.campusId = "Vui lòng chọn cơ sở";
         if (!formValues.programId) errors.programId = "Vui lòng chọn chương trình";
-        if (formValues.quota === "" || Number(formValues.quota) < 0) errors.quota = "Chỉ tiêu không hợp lệ";
+        if (editingRow && (formValues.quota === "" || Number(formValues.quota) < 0)) {
+            errors.quota = "Chỉ tiêu không hợp lệ";
+        }
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
     };
@@ -449,11 +450,12 @@ export default function CampaignOfferingsSection({
                     admissionCampaignId: campaignId,
                     campusId: Number(formValues.campusId),
                     programId: Number(formValues.programId),
-                    quota: Number(formValues.quota) || 0,
                     learningMode: formValues.learningMode || "DAY_SCHOOL",
-                    priceAdjustmentPercentage: Number(formValues.priceAdjustmentPercentage) || 0,
-                    openDate: formValues.openDate || "",
-                    closeDate: formValues.closeDate || "",
+                    // UI nhập theo phần trăm (vd: 10), BE nhận theo tỉ lệ thập phân (0.1).
+                    priceAdjustmentPercentage:
+                        Number.isFinite(Number(formValues.priceAdjustmentPercentage))
+                            ? Number(formValues.priceAdjustmentPercentage) / 100
+                            : 0,
                 });
                 if (res?.status === 200 || res?.data?.message != null) {
                     enqueueSnackbar(res?.data?.message || "Tạo chỉ tiêu thành công", { variant: "success" });
@@ -507,13 +509,14 @@ export default function CampaignOfferingsSection({
         setConfirmActionLoading(true);
         try {
             if (confirmActionType === "toggle") {
-                await updateCampusOfferingStatus(confirmRow.id, confirmTargetStatus);
+                const action = confirmTargetStatus === "PAUSED" ? "PAUSE" : "PUBLISH";
+                await updateCampusOfferingStatus(confirmRow.id, action);
                 enqueueSnackbar(
                     confirmTargetStatus === "PAUSED" ? "Đã tạm dừng nhận hồ sơ." : "Đã mở lại nhận hồ sơ.",
                     { variant: "success" }
                 );
             } else if (confirmActionType === "close") {
-                await closeCampusOffering(confirmRow.id);
+                await updateCampusOfferingStatus(confirmRow.id, "CLOSE");
                 enqueueSnackbar("Đã đóng chương trình.", { variant: "success" });
             }
             setConfirmActionOpen(false);
@@ -1009,19 +1012,21 @@ export default function CampaignOfferingsSection({
                                 ))}
                             </Select>
                         </FormControl>
-                        <TextField
-                            label="Chỉ tiêu"
-                            name="quota"
-                            type="number"
-                            fullWidth
-                            size="small"
-                            value={formValues.quota}
-                            onChange={handleChange}
-                            error={!!formErrors.quota}
-                            helperText={formErrors.quota}
-                            disabled={isEditingReadOnly}
-                            inputProps={{ min: 0 }}
-                        />
+                        {editingRow ? (
+                            <TextField
+                                label="Chỉ tiêu"
+                                name="quota"
+                                type="number"
+                                fullWidth
+                                size="small"
+                                value={formValues.quota}
+                                onChange={handleChange}
+                                error={!!formErrors.quota}
+                                helperText={formErrors.quota}
+                                disabled={isEditingReadOnly}
+                                inputProps={{ min: 0 }}
+                            />
+                        ) : null}
                         {editingRow ? (
                             <TextField
                                 label="Học phí (VNĐ)"
@@ -1052,28 +1057,32 @@ export default function CampaignOfferingsSection({
                                 helperText="Áp dụng trên học phí gốc của chương trình (API tạo chỉ tiêu)"
                             />
                         )}
-                        <TextField
-                            label="Ngày mở"
-                            name="openDate"
-                            type="date"
-                            fullWidth
-                            size="small"
-                            value={formValues.openDate}
-                            onChange={handleChange}
-                            InputLabelProps={{ shrink: true }}
-                            disabled={isEditingReadOnly}
-                        />
-                        <TextField
-                            label="Ngày đóng"
-                            name="closeDate"
-                            type="date"
-                            fullWidth
-                            size="small"
-                            value={formValues.closeDate}
-                            onChange={handleChange}
-                            InputLabelProps={{ shrink: true }}
-                            disabled={isEditingReadOnly}
-                        />
+                        {editingRow ? (
+                            <TextField
+                                label="Ngày mở"
+                                name="openDate"
+                                type="date"
+                                fullWidth
+                                size="small"
+                                value={formValues.openDate}
+                                onChange={handleChange}
+                                InputLabelProps={{ shrink: true }}
+                                disabled={isEditingReadOnly}
+                            />
+                        ) : null}
+                        {editingRow ? (
+                            <TextField
+                                label="Ngày đóng"
+                                name="closeDate"
+                                type="date"
+                                fullWidth
+                                size="small"
+                                value={formValues.closeDate}
+                                onChange={handleChange}
+                                InputLabelProps={{ shrink: true }}
+                                disabled={isEditingReadOnly}
+                            />
+                        ) : null}
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, py: 2, borderTop: "1px solid #e2e8f0" }}>

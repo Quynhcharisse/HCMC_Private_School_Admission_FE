@@ -126,11 +126,8 @@ export const getCampaignOfferingsByCampus = async (campusId, { page = 0, pageSiz
  *   admissionCampaignId: number,
  *   campusId: number,
  *   programId: number,
- *   quota: number,
  *   learningMode: string,
- *   priceAdjustmentPercentage: number,
- *   openDate: string,
- *   closeDate: string
+ *   priceAdjustmentPercentage: number
  * }} body
  */
 export const createCampaignOffering = async (body) => {
@@ -138,11 +135,8 @@ export const createCampaignOffering = async (body) => {
         admissionCampaignId: Number(body.admissionCampaignId),
         campusId: Number(body.campusId),
         programId: Number(body.programId),
-        quota: Number(body.quota) || 0,
         learningMode: body.learningMode ?? "DAY_SCHOOL",
         priceAdjustmentPercentage: Number(body.priceAdjustmentPercentage) || 0,
-        openDate: body.openDate ?? "",
-        closeDate: body.closeDate ?? "",
     });
     return response || null;
 };
@@ -166,11 +160,11 @@ export const updateCampaignOffering = async (body) => {
 /**
  * PUT /campus/{offeringId}/offering/status
  * @param {number} offeringId
- * @param {string} targetStatus - e.g. OPEN, CLOSED, PAUSED, ...
+ * @param {"PUBLISH"|"PAUSE"|"CLOSE"} action
  */
-export const updateCampusOfferingStatus = async (offeringId, targetStatus) => {
+export const updateCampusOfferingStatus = async (offeringId, action) => {
     const response = await axiosClient.put(`/campus/${Number(offeringId)}/offering/status`, null, {
-        params: { targetStatus },
+    params: { action },
     });
     return response || null;
 };
