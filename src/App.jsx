@@ -50,6 +50,7 @@ const CounsellorLayout = lazy(() => import("./components/layouts/CounsellorLayou
 const CounsellorDashboard = lazy(() => import("./components/Page/counsellor/CounsellorDashboard.jsx"));
 const CounsellorParentConsultation = lazy(() => import("./components/Page/counsellor/CounsellorParentConsultation.jsx"));
 const CounsellorProfile = lazy(() => import("./components/Page/counsellor/CounsellorProfile.jsx"));
+const CounsellorCalendar = lazy(() => import("./components/Page/counsellor/CounsellorCalendar.jsx"));
 const SchoolCurriculums = lazy(() => import("./components/Page/school/SchoolCurriculums.jsx"));
 const SchoolPrograms = lazy(() => import("./components/Page/school/SchoolPrograms.jsx"));
 const SchoolPurchasedPackages = lazy(() => import("./components/Page/school/SchoolPurchasedPackages.jsx"));
@@ -609,6 +610,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <CounsellorParentConsultation/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'calendar',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <CounsellorCalendar/>
                     </Suspense>
                 )
             },
