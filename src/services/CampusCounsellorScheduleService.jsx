@@ -28,7 +28,7 @@ function logCounsellorAssign(stage, data) {
 
 /**
  * Chuẩn hóa body trước POST — UNASSIGN: `action` + `slotIds` (tùy chọn `counsellorIds`), không gửi campusId (BE theo phiên).
- * ASSIGN: templateIds + counsellorIds + … (có thể kèm campusId nếu BE yêu cầu).
+ * ASSIGN: templateIds + counsellorIds + campaignId + action.
  * @param {Record<string, unknown>} payload
  * @returns {Record<string, unknown>}
  */
@@ -84,8 +84,18 @@ export function normalizeCounsellorAssignPayload(payload) {
     if (cids.length === 0) {
       throw new Error("counsellor/assign ASSIGN: counsellorIds is required");
     }
+    const campaignId = Number(out.campaignId ?? out.campaign_id);
+    if (!Number.isFinite(campaignId) || campaignId <= 0) {
+      throw new Error("counsellor/assign ASSIGN: campaignId is required");
+    }
     out.templateIds = tids;
     out.counsellorIds = cids;
+    out.campaignId = campaignId;
+    delete out.campaign_id;
+    delete out.startDate;
+    delete out.endDate;
+    delete out.start_date;
+    delete out.end_date;
   }
   return out;
 }
@@ -144,21 +154,18 @@ export function parseCounsellorAssignSuccessBody(res) {
 
 /**
  * GET /api/v1/campus/counsellor/slots/assigned
- * Query: campusId (required), counsellorId (optional).
- * @param {number|string} campusId
+ * Query: counsellorId (optional).
  * @param {number|string} [counsellorId]
  */
-export const getCounsellorAssignedSlots = async (campusId, counsellorId) => {
-  const id = campusId == null || campusId === "" ? null : Number(campusId);
-  if (id == null || Number.isNaN(id)) {
-    return Promise.reject(new Error("campusId is required"));
-  }
-  const params = { campusId: id };
+export const getCounsellorAssignedSlots = async (counsellorId) => {
+  const params = {};
   if (counsellorId != null && counsellorId !== "" && counsellorId !== "ALL") {
     const cid = Number(counsellorId);
     if (!Number.isNaN(cid)) params.counsellorId = cid;
   }
-  const response = await axiosClient.get("/campus/counsellor/slots/assigned", { params });
+  const response = await axiosClient.get("/campus/counsellor/slots/assigned", {
+    params: Object.keys(params).length > 0 ? params : undefined,
+  });
   if (import.meta.env.DEV) {
     const rows = response?.data?.body;
     // eslint-disable-next-line no-console

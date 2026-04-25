@@ -412,9 +412,12 @@ function formatAssignedRowSlotLabel(row) {
     if (!sch || typeof sch !== "object") return "—";
     const dow = getAssignedRowDayKey(row);
     const label = DAY_LABELS[dow] || dow;
-    const st = sch.startTime ?? sch.start_time ?? "";
-    const en = sch.endTime ?? sch.end_time ?? "";
-    return `${label} · ${st}–${en}`;
+    const st = String(sch.startTime ?? sch.start_time ?? "").trim();
+    const en = String(sch.endTime ?? sch.end_time ?? "").trim();
+    const timeRange = String(sch.time ?? "").trim();
+    if (st && en) return `${label} · ${st}–${en}`;
+    if (timeRange) return `${label} · ${timeRange}`;
+    return label;
 }
 
 function sessionCardColors(sessionType) {
@@ -565,8 +568,8 @@ export default function SchoolCounselorSchedule() {
     const [selectedFrameKeys, setSelectedFrameKeys] = useState(() => new Set());
     const [multiSelectMode, setMultiSelectMode] = useState(false);
 
-    /** Danh sách lượt gán (mặc định) · lưới lịch tuần/tháng */
-    const [managePanel, setManagePanel] = useState("list");
+    /** Lưới lịch (mặc định) · danh sách lượt gán */
+    const [managePanel, setManagePanel] = useState("grid");
     const [listFilterDay, setListFilterDay] = useState("");
     const [listRangeStart, setListRangeStart] = useState("");
     const [listRangeEnd, setListRangeEnd] = useState("");
@@ -780,7 +783,7 @@ export default function SchoolCounselorSchedule() {
         setLoadingAssigned(true);
         try {
             /** Luôn tải toàn bộ gán của cơ sở — lọc TVV chỉ áp dụng khi hiển thị lưới (tránh thiếu bản ghi khi có lọc). */
-            const res = await getCounsellorAssignedSlots(activeCampusId);
+            const res = await getCounsellorAssignedSlots();
             const st = res?.status ?? 0;
             if (st < 200 || st >= 300) {
                 throw new Error(res?.data?.message || "Không tải được lịch gán");
@@ -1248,7 +1251,6 @@ export default function SchoolCounselorSchedule() {
         try {
             const payload = buildUpsertCampusScheduleTemplatePayload({
                 templateId: form.templateId,
-                campusId: Number(activeCampusId),
                 dayOfWeek: form.dayOfWeek,
                 sessionType: String(form.sessionType).trim(),
                 expandToPolicySlots: !isEditing && form.expandToPolicySlots,
@@ -1987,277 +1989,162 @@ export default function SchoolCounselorSchedule() {
                 {viewMode === "manage" ? (
                     <>
                         <Box sx={{px: {xs: 2, sm: 3}, pt: 2, pb: 2}}>
-                            <Box
-                                sx={{
-                                    ...filterSurfaceSx,
-                                    p: {xs: 1.75, sm: 2},
-                                    display: "flex",
-                                    flexWrap: "wrap",
-                                    gap: 2,
-                                    justifyContent: "space-between",
-                                    alignItems: "center",
-                                }}
-                            >
-                                <Stack direction="row" flexWrap="wrap" alignItems="center" spacing={1.5} useFlexGap>
-                                    <ToggleButtonGroup
-                                        size="small"
-                                        value={managePanel}
-                                        exclusive
-                                        onChange={(_, v) => {
-                                            if (v) setManagePanel(v);
-                                        }}
-                                        sx={{
-                                            bgcolor: SURFACE_CARD,
-                                            p: "5px",
-                                            borderRadius: "12px",
-                                            border: `1px solid ${BORDER_SOFT}`,
-                                            gap: 0.5,
-                                            "& .MuiToggleButton-root": {
-                                                border: "none",
-                                                borderRadius: "10px !important",
-                                                px: 2,
-                                                py: 0.85,
-                                                fontWeight: 700,
-                                                fontSize: "0.8125rem",
-                                                color: "#64748B",
-                                                textTransform: "none",
-                                                "&.Mui-selected": {
-                                                    bgcolor: PRIMARY_SOFT,
-                                                    color: PRIMARY,
-                                                    "&:hover": {bgcolor: "rgba(13,100,222,0.16)"},
-                                                },
-                                            },
-                                        }}
-                                    >
-                                        <ToggleButton value="list">Danh sách lượt gán</ToggleButton>
-                                        <ToggleButton value="grid">Lưới lịch</ToggleButton>
-                                    </ToggleButtonGroup>
-                                    {managePanel === "grid" ? (
-                                        <>
-                                            <ToggleButtonGroup
-                                                size="small"
-                                                value={calendarGranularity}
-                                                exclusive
-                                                onChange={(_, v) => {
-                                                    if (v) setCalendarGranularity(v);
-                                                }}
-                                                sx={{
-                                                    bgcolor: SURFACE_CARD,
-                                                    p: "5px",
-                                                    borderRadius: "12px",
-                                                    border: `1px solid ${BORDER_SOFT}`,
-                                                    gap: 0.5,
-                                                    "& .MuiToggleButton-root": {
-                                                        border: "none",
-                                                        borderRadius: "10px !important",
-                                                        px: 2,
-                                                        py: 0.85,
-                                                        fontWeight: 700,
-                                                        fontSize: "0.8125rem",
-                                                        color: "#64748B",
-                                                        textTransform: "none",
-                                                        "&.Mui-selected": {
-                                                            bgcolor: PRIMARY_SOFT,
-                                                            color: PRIMARY,
-                                                            "&:hover": {bgcolor: "rgba(13,100,222,0.16)"},
-                                                        },
-                                                    },
-                                                }}
-                                            >
-                                                <ToggleButton value="week">Tuần</ToggleButton>
-                                            </ToggleButtonGroup>
-                                            <Box
-                                                sx={{
-                                                    display: "inline-flex",
-                                                    alignItems: "center",
-                                                    bgcolor: SURFACE_CARD,
-                                                    borderRadius: "12px",
-                                                    border: `1px solid ${BORDER_SOFT}`,
-                                                    px: 0.25,
-                                                    py: 0.25,
-                                                    boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
-                                                }}
-                                            >
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => shiftCalendar(-1)}
-                                                    aria-label="Trước"
-                                                    sx={{color: "#475569", borderRadius: "10px"}}
-                                                >
-                                                    <ChevronLeftIcon fontSize="small"/>
-                                                </IconButton>
-                                                <Typography
-                                                    variant="body2"
-                                                    sx={{
-                                                        minWidth: {xs: 150, sm: 200},
-                                                        textAlign: "center",
-                                                        fontWeight: 700,
-                                                        color: "#0f172a",
-                                                        fontSize: "0.8125rem",
-                                                        px: 1,
-                                                    }}
-                                                >
-                                                    {calendarLabelText}
-                                                </Typography>
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => shiftCalendar(1)}
-                                                    aria-label="Sau"
-                                                    sx={{color: "#475569", borderRadius: "10px"}}
-                                                >
-                                                    <ChevronRightIcon fontSize="small"/>
-                                                </IconButton>
-                                            </Box>
-                                            {calendarGranularity === "month" ? (
-                                                <TextField
-                                                    size="small"
-                                                    type="month"
-                                                    label="Chọn tháng"
-                                                    value={formatYMD(startOfMonth(calendarAnchorDate)).slice(0, 7)}
-                                                    onChange={(e) => {
-                                                        const v = e.target.value;
-                                                        if (!v) return;
-                                                        const [y, m] = v.split("-").map(Number);
-                                                        setCalendarAnchorDate(new Date(y, m - 1, 1));
-                                                    }}
-                                                    InputLabelProps={{shrink: true}}
-                                                    sx={{width: 168, ...outlineSelectSx}}
-                                                />
-                                            ) : null}
-                                        </>
-                                    ) : (
-                                        <>
-                                            <FormControl size="small" sx={{minWidth: 132, ...outlineSelectSx}}>
-                                                <InputLabel>Thứ</InputLabel>
-                                                <Select
-                                                    label="Thứ"
-                                                    value={listFilterDay}
-                                                    onChange={(e) => setListFilterDay(e.target.value)}
-                                                >
-                                                    <MenuItem value="">Tất cả</MenuItem>
-                                                    {DAYS.map((d) => (
-                                                        <MenuItem key={d} value={d}>
-                                                            {DAY_LABELS[d]}
-                                                        </MenuItem>
-                                                    ))}
-                                                </Select>
-                                            </FormControl>
-                                            <TextField
-                                                size="small"
-                                                type="date"
-                                                label="Từ ngày"
-                                                value={listRangeStart}
-                                                onChange={(e) => setListRangeStart(e.target.value)}
-                                                InputLabelProps={{shrink: true}}
-                                                sx={{width: 158, ...outlineSelectSx}}
-                                            />
-                                            <TextField
-                                                size="small"
-                                                type="date"
-                                                label="Đến ngày"
-                                                value={listRangeEnd}
-                                                onChange={(e) => setListRangeEnd(e.target.value)}
-                                                InputLabelProps={{shrink: true}}
-                                                sx={{width: 158, ...outlineSelectSx}}
-                                            />
-                                        </>
-                                    )}
-                                </Stack>
-                                <Stack direction="row" flexWrap="wrap" spacing={1.5} useFlexGap
-                                       justifyContent="flex-end">
-                                    <FormControl
-                                        size="small"
-                                        sx={{minWidth: 188, ...outlineSelectSx}}
-                                        disabled={loadingCampuses || campusRows.length === 0}
-                                    >
-                                        <InputLabel>Tư vấn viên</InputLabel>
-                                        <Select
-                                            label="Tư vấn viên"
-                                            value={filterCounsellorId === "" ? "" : String(filterCounsellorId)}
-                                            onChange={(e) => setFilterCounsellorId(e.target.value === "" ? "" : String(e.target.value))}
-                                        >
-                                            <MenuItem value="">Tất cả</MenuItem>
-                                            {counsellorFilterOptions.map((c) => (
-                                                <MenuItem key={c.id} value={String(c.id)}>
-                                                    {assignedCounsellorLabel(c)}
-                                                </MenuItem>
-                                            ))}
-                                        </Select>
-                                    </FormControl>
-                                    {viewMode === "manage" && managePanel === "grid" ? (
-                                        <FormControlLabel
-                                            control={
-                                                <Checkbox
-                                                    size="small"
-                                                    checked={multiSelectMode}
-                                                    onChange={(_, c) => setMultiSelectMode(c)}
-                                                    sx={{py: 0}}
-                                                />
-                                            }
-                                            label={<Typography
-                                                sx={{fontSize: "0.8125rem", fontWeight: 600, color: "#475569"}}>Chọn
-                                                nhiều khung</Typography>}
-                                        />
-                                    ) : null}
-                                    {viewMode === "manage" && managePanel === "grid" && multiSelectMode && selectedFrameKeys.size > 0 ? (
-                                        <>
-                                            <Typography sx={{
-                                                fontSize: "0.8125rem",
-                                                fontWeight: 600,
-                                                color: "#0f172a",
-                                                alignSelf: "center",
-                                                mr: 0.5
-                                            }}>
-                                                Đã chọn {selectedFrameKeys.size} khung
-                                            </Typography>
-                                            <Button
-                                                variant="contained"
-                                                size="small"
-                                                disabled={submitting}
-                                                onClick={openBatchAssignFromSelection}
-                                                startIcon={<PersonAddAlt1Icon sx={{fontSize: 18}}/>}
-                                                sx={{
-                                                    textTransform: "none",
+                            <Stack spacing={1.25}>
+                                <Box
+                                    sx={{
+                                        ...filterSurfaceSx,
+                                        p: {xs: 1.5, sm: 1.75},
+                                        display: "flex",
+                                        flexWrap: "wrap",
+                                        gap: 1.25,
+                                        justifyContent: "space-between",
+                                        alignItems: "center",
+                                    }}
+                                >
+                                    <Stack direction="row" flexWrap="wrap" alignItems="center" spacing={1.25} useFlexGap>
+                                        <ToggleButtonGroup
+                                            size="small"
+                                            value={managePanel}
+                                            exclusive
+                                            onChange={(_, v) => {
+                                                if (v) setManagePanel(v);
+                                            }}
+                                            sx={{
+                                                bgcolor: SURFACE_CARD,
+                                                p: "5px",
+                                                borderRadius: "12px",
+                                                border: `1px solid ${BORDER_SOFT}`,
+                                                gap: 0.5,
+                                                "& .MuiToggleButton-root": {
+                                                    border: "none",
+                                                    borderRadius: "10px !important",
+                                                    px: 2,
+                                                    py: 0.85,
                                                     fontWeight: 700,
-                                                    borderRadius: "10px",
-                                                    boxShadow: "none"
-                                                }}
+                                                    fontSize: "0.8125rem",
+                                                    color: "#64748B",
+                                                    textTransform: "none",
+                                                    "&.Mui-selected": {
+                                                        bgcolor: PRIMARY_SOFT,
+                                                        color: PRIMARY,
+                                                        "&:hover": {bgcolor: "rgba(13,100,222,0.16)"},
+                                                    },
+                                                },
+                                            }}
+                                        >
+                                            <ToggleButton value="grid">Lưới lịch</ToggleButton>
+                                            <ToggleButton value="list">Danh sách lượt gán</ToggleButton>
+                                        </ToggleButtonGroup>
+                                        {managePanel === "grid" ? (
+                                            <>
+                                                <Box
+                                                    sx={{
+                                                        display: "inline-flex",
+                                                        alignItems: "center",
+                                                        bgcolor: SURFACE_CARD,
+                                                        borderRadius: "12px",
+                                                        border: `1px solid ${BORDER_SOFT}`,
+                                                        px: 0.25,
+                                                        py: 0.25,
+                                                        boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+                                                    }}
+                                                >
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => shiftCalendar(-1)}
+                                                        aria-label="Trước"
+                                                        sx={{color: "#475569", borderRadius: "10px"}}
+                                                    >
+                                                        <ChevronLeftIcon fontSize="small"/>
+                                                    </IconButton>
+                                                    <Typography
+                                                        variant="body2"
+                                                        sx={{
+                                                            minWidth: {xs: 150, sm: 200},
+                                                            textAlign: "center",
+                                                            fontWeight: 700,
+                                                            color: "#0f172a",
+                                                            fontSize: "0.8125rem",
+                                                            px: 1,
+                                                        }}
+                                                    >
+                                                        {calendarLabelText}
+                                                    </Typography>
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => shiftCalendar(1)}
+                                                        aria-label="Sau"
+                                                        sx={{color: "#475569", borderRadius: "10px"}}
+                                                    >
+                                                        <ChevronRightIcon fontSize="small"/>
+                                                    </IconButton>
+                                                </Box>
+                                            </>
+                                        ) : null}
+                                    </Stack>
+                                </Box>
+
+                                <Box
+                                    sx={{
+                                        ...filterSurfaceSx,
+                                        p: {xs: 1.5, sm: 1.75},
+                                    }}
+                                >
+                                    <Stack direction="row" flexWrap="wrap" spacing={1.25} useFlexGap alignItems="center">
+                                        <FormControl size="small" sx={{minWidth: 132, ...outlineSelectSx}} disabled={managePanel === "grid"}>
+                                            <InputLabel>Thứ</InputLabel>
+                                            <Select
+                                                label="Thứ"
+                                                value={listFilterDay}
+                                                onChange={(e) => setListFilterDay(e.target.value)}
                                             >
-                                                Gán {selectedFrameKeys.size} khung
-                                            </Button>
-                                        </>
-                                    ) : null}
-                                    {viewMode === "manage" && managePanel === "list" && selectedAssignmentSlotIds.size > 0 ? (
-                                        <>
-                                            <Typography sx={{
-                                                fontSize: "0.8125rem",
-                                                fontWeight: 600,
-                                                color: "#0f172a",
-                                                alignSelf: "center",
-                                                mr: 0.5
-                                            }}>
-                                                Đã chọn {selectedAssignmentSlotIds.size} lượt
-                                            </Typography>
-                                            <Button
-                                                variant="outlined"
-                                                color="error"
-                                                size="small"
-                                                disabled={unassignSubmitting}
-                                                onClick={() => {
-                                                    const rows = sortedListViewRows.filter((r) => {
-                                                        const sid = getAssignedRowSlotId(r);
-                                                        return sid != null && selectedAssignmentSlotIds.has(sid);
-                                                    });
-                                                    if (rows.length === 0) return;
-                                                    setUnassignDialog({open: true, rows});
-                                                }}
-                                                startIcon={<LinkOffIcon sx={{fontSize: 18}}/>}
-                                                sx={{textTransform: "none", fontWeight: 700, borderRadius: "10px"}}
+                                                <MenuItem value="">Tất cả</MenuItem>
+                                                {DAYS.map((d) => (
+                                                    <MenuItem key={d} value={d}>
+                                                        {DAY_LABELS[d]}
+                                                    </MenuItem>
+                                                ))}
+                                            </Select>
+                                        </FormControl>
+                                        <TextField
+                                            size="small"
+                                            type="date"
+                                            label="Từ ngày"
+                                            value={listRangeStart}
+                                            onChange={(e) => setListRangeStart(e.target.value)}
+                                            InputLabelProps={{shrink: true}}
+                                            disabled={managePanel === "grid"}
+                                            sx={{width: 158, ...outlineSelectSx}}
+                                        />
+                                        <TextField
+                                            size="small"
+                                            type="date"
+                                            label="Đến ngày"
+                                            value={listRangeEnd}
+                                            onChange={(e) => setListRangeEnd(e.target.value)}
+                                            InputLabelProps={{shrink: true}}
+                                            disabled={managePanel === "grid"}
+                                            sx={{width: 158, ...outlineSelectSx}}
+                                        />
+                                        <FormControl
+                                            size="small"
+                                            sx={{minWidth: 188, ...outlineSelectSx}}
+                                            disabled={loadingCampuses || campusRows.length === 0}
+                                        >
+                                            <InputLabel>Tư vấn viên</InputLabel>
+                                            <Select
+                                                label="Tư vấn viên"
+                                                value={filterCounsellorId === "" ? "" : String(filterCounsellorId)}
+                                                onChange={(e) => setFilterCounsellorId(e.target.value === "" ? "" : String(e.target.value))}
                                             >
-                                                Hủy gán đã chọn
-                                            </Button>
-                                        </>
-                                    ) : null}
+                                                <MenuItem value="">Tất cả</MenuItem>
+                                                {counsellorFilterOptions.map((c) => (
+                                                    <MenuItem key={c.id} value={String(c.id)}>
+                                                        {assignedCounsellorLabel(c)}
+                                                    </MenuItem>
+                                                ))}
+                                            </Select>
+                                        </FormControl>
                                     <FormControl size="small" sx={{minWidth: 168, ...outlineSelectSx}}>
                                         <InputLabel>Loại buổi</InputLabel>
                                         <Select
@@ -2273,8 +2160,101 @@ export default function SchoolCounselorSchedule() {
                                             ))}
                                         </Select>
                                     </FormControl>
-                                </Stack>
-                            </Box>
+                                    </Stack>
+                                </Box>
+                                {viewMode === "manage" && managePanel === "list" && selectedAssignmentSlotIds.size > 0 ? (
+                                    <Box
+                                        sx={{
+                                            ...filterSurfaceSx,
+                                            p: {xs: 1.5, sm: 1.25},
+                                            display: "flex",
+                                            flexWrap: "wrap",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            gap: 1,
+                                        }}
+                                    >
+                                        <Typography sx={{fontSize: "0.8125rem", fontWeight: 600, color: "#0f172a", mr: 0.5}}>
+                                            Đã chọn {selectedAssignmentSlotIds.size} lượt
+                                        </Typography>
+                                        <Button
+                                            variant="outlined"
+                                            color="error"
+                                            size="small"
+                                            disabled={unassignSubmitting}
+                                            onClick={() => {
+                                                const rows = sortedListViewRows.filter((r) => {
+                                                    const sid = getAssignedRowSlotId(r);
+                                                    return sid != null && selectedAssignmentSlotIds.has(sid);
+                                                });
+                                                if (rows.length === 0) return;
+                                                setUnassignDialog({open: true, rows});
+                                            }}
+                                            startIcon={<LinkOffIcon sx={{fontSize: 18}}/>}
+                                            sx={{textTransform: "none", fontWeight: 700, borderRadius: "10px"}}
+                                        >
+                                            Hủy gán đã chọn
+                                        </Button>
+                                    </Box>
+                                ) : null}
+                                {viewMode === "manage" && managePanel === "grid" ? (
+                                    <Box
+                                        sx={{
+                                            ...filterSurfaceSx,
+                                            p: {xs: 1.5, sm: 1.25},
+                                            display: "flex",
+                                            flexWrap: "wrap",
+                                            alignItems: "center",
+                                            justifyContent: "space-between",
+                                            gap: 1,
+                                            minHeight: {sm: 62},
+                                        }}
+                                    >
+                                        <FormControlLabel
+                                            control={
+                                                <Checkbox
+                                                    size="small"
+                                                    checked={multiSelectMode}
+                                                    onChange={(_, c) => setMultiSelectMode(c)}
+                                                    sx={{py: 0}}
+                                                />
+                                            }
+                                            label={
+                                                <Typography sx={{fontSize: "0.8125rem", fontWeight: 600, color: "#475569"}}>
+                                                    Chọn nhiều khung
+                                                </Typography>
+                                            }
+                                        />
+                                        <Stack
+                                            direction="row"
+                                            spacing={1}
+                                            alignItems="center"
+                                            flexWrap="wrap"
+                                            useFlexGap
+                                            sx={{
+                                                minWidth: {xs: "100%", md: 330},
+                                                justifyContent: {xs: "flex-start", md: "flex-end"},
+                                                visibility: multiSelectMode && selectedFrameKeys.size > 0 ? "visible" : "hidden",
+                                            }}
+                                        >
+                                            {multiSelectMode && selectedFrameKeys.size > 0 ? (
+                                                <>
+                                                    <Button
+                                                        variant="contained"
+                                                        size="small"
+                                                        disabled={submitting}
+                                                        onClick={openBatchAssignFromSelection}
+                                                        startIcon={<PersonAddAlt1Icon sx={{fontSize: 18}}/>}
+                                                        sx={{textTransform: "none", fontWeight: 700, borderRadius: "10px", boxShadow: "none"}}
+                                                    >
+                                                        Gán {selectedFrameKeys.size} khung
+                                                    </Button>
+                                                </>
+                                            ) : null}
+                                        </Stack>
+                                    </Box>
+                                ) : null}
+                            </Stack>
                         </Box>
                     </>
                 ) : null}
