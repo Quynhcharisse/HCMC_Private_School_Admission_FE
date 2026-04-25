@@ -11,8 +11,12 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControl,
   FormControlLabel,
   IconButton,
+  InputLabel,
+  MenuItem,
+  Select,
   Stack,
   Switch,
   TextField,
@@ -41,6 +45,7 @@ import {
   mapCounsellorAssignApiErrorMessage,
   validateCounsellorCountForAssign,
 } from "../../../utils/counsellorAssignUi.js";
+import { getCampaignTemplatesByYear } from "../../../services/CampaignService.jsx";
 
 const PRIMARY = "#0D64DE";
 
@@ -109,6 +114,20 @@ function rowMatchesBusyHint(c, hints) {
     if (!t) return false;
     return label.includes(t) || t.includes(label) || (email && (email.includes(t) || t.includes(email)));
   });
+}
+
+function normalizeCampaignStatus(rawStatus) {
+  const s = String(rawStatus || "").trim().toUpperCase();
+  if (!s) return "DRAFT";
+  if (s === "OPEN" || s === "OPEN_ADMISSION_CAMPAIGN") return "OPEN";
+  if (s === "CANCELLED" || s === "CANCELLED_ADMISSION_CAMPAIGN") return "CANCELLED";
+  if (s === "DRAFT" || s === "DRAFT_ADMISSION_CAMPAIGN") return "DRAFT";
+  return s;
+}
+
+function campaignIdOf(row) {
+  const id = Number(row?.admissionCampaignTemplateId ?? row?.campaignId ?? row?.id);
+  return Number.isFinite(id) && id > 0 ? id : null;
 }
 
 function assignedRowsForTemplateDay(assignedRows, templateId, dayOfWeekKey) {
@@ -186,6 +205,8 @@ export default function CounsellorAssignModal({
   const [submitting, setSubmitting] = useState(false);
   const [rangeError, setRangeError] = useState("");
   const [holidayWarningLabels, setHolidayWarningLabels] = useState([]);
+  const [campaignOptions, setCampaignOptions] = useState([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState("");
   /** Chế độ «trọn phạm vi học kỳ trên máy chủ» vs nhập tay — chỉ ASSIGN khi đã bật HK đủ term */
   const [useCustomDateRange, setUseCustomDateRange] = useState(true);
 
@@ -217,6 +238,8 @@ export default function CounsellorAssignModal({
     setRowConflict({});
     setRangeError("");
     setHolidayWarningLabels([]);
+    setCampaignOptions([]);
+    setSelectedCampaignId("");
 
     const semesterOn = academicSemesterLimitActive && isAcademicCalendarLimitActive(academicCalendar);
     setUseCustomDateRange(!semesterOn);
@@ -224,32 +247,58 @@ export default function CounsellorAssignModal({
     setEndDate(semesterOn ? "" : defaultEndDate || "");
     setLoading(true);
 
-    const cid = campusId != null && campusId !== "" ? Number(campusId) : null;
-    const canLoadAssigned = cid != null && !Number.isNaN(cid);
-
     Promise.all([
       getCounsellorAvailableList().then((res) => {
         const st = res?.status ?? 0;
         return st >= 200 && st < 300 ? parseCounsellorAvailableListBody(res) : [];
       }),
-      canLoadAssigned
-        ? getCounsellorAssignedSlots(cid).then((res) => {
-            const st = res?.status ?? 0;
-            return st >= 200 && st < 300 ? parseCounsellorAssignedSlotsBody(res) : [];
-          })
-        : Promise.resolve([]),
+      getCounsellorAssignedSlots().then((res) => {
+        const st = res?.status ?? 0;
+        return st >= 200 && st < 300 ? parseCounsellorAssignedSlotsBody(res) : [];
+      }),
       getHolidayList()
         .then((res) => {
           const st = res?.status ?? 0;
           return st >= 200 && st < 300 ? extractHolidayListBody(res) : [];
         })
         .catch(() => []),
+      getCampaignTemplatesByYear(new Date().getFullYear())
+        .then((res) => {
+          const st = res?.status ?? 0;
+          if (st < 200 || st >= 300) return [];
+          const body = res?.data?.body ?? res?.data;
+          if (Array.isArray(body)) return body;
+          if (body && typeof body === "object") return [body];
+          return [];
+        })
+        .catch(() => []),
     ])
-      .then(([availableList, assignedRows, holidays]) => {
+      .then(([availableList, assignedRows, holidays, campaigns]) => {
         setList(Array.isArray(availableList) ? availableList : []);
         const pre = counsellorIntersectionAcrossPairs(assignedRows, schedulePairs);
         setSelected(pre);
         setHolidayWarningLabels(Array.isArray(holidays) ? holidays : []);
+        const normalizedCampaigns = (Array.isArray(campaigns) ? campaigns : [])
+          .map((raw) => {
+            const id = campaignIdOf(raw);
+            if (id == null) return null;
+            const status = normalizeCampaignStatus(raw?.status);
+            return {
+              id,
+              name: String(raw?.name ?? raw?.campaignName ?? `Chiến dịch #${id}`),
+              status,
+            };
+          })
+          .filter(Boolean);
+        const openFirst = normalizedCampaigns
+          .sort((a, b) => {
+            const ra = a.status === "OPEN" ? 0 : 1;
+            const rb = b.status === "OPEN" ? 0 : 1;
+            return ra - rb || a.name.localeCompare(b.name, "vi");
+          });
+        setCampaignOptions(openFirst);
+        const defaultCampaign = openFirst.find((c) => c.status === "OPEN") ?? openFirst[0] ?? null;
+        setSelectedCampaignId(defaultCampaign ? String(defaultCampaign.id) : "");
       })
       .catch(() => {
         setList([]);
@@ -355,12 +404,18 @@ export default function CounsellorAssignModal({
       enqueueSnackbar("Thiếu khung template — không gửi được.", { variant: "error" });
       return;
     }
+    const cid = Number(selectedCampaignId);
+    if (!Number.isFinite(cid) || cid <= 0) {
+      enqueueSnackbar("Chọn chiến dịch trước khi gán tư vấn viên.", { variant: "warning" });
+      return;
+    }
 
     setSubmitting(true);
     try {
       const res = await postCounsellorAssign({
         campusId: Number(campusId),
         counsellorIds: [...selected].filter((x) => Number.isFinite(Number(x))).map(Number),
+        campaignId: cid,
         action: "ASSIGN",
         templateIds: templateIdsForPayload,
         ...(useNullDatesForAssign ? { startDate: null, endDate: null } : { startDate, endDate }),
@@ -520,6 +575,26 @@ export default function CounsellorAssignModal({
             <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#374151" }}>
               Khoảng thời gian gán
             </Typography>
+            <FormControl fullWidth size="small">
+              <InputLabel id="assign-campaign-label">Chiến dịch</InputLabel>
+              <Select
+                labelId="assign-campaign-label"
+                value={selectedCampaignId}
+                label="Chiến dịch"
+                onChange={(e) => setSelectedCampaignId(String(e.target.value || ""))}
+                disabled={submitting || loading}
+              >
+                {campaignOptions.length === 0 ? (
+                  <MenuItem value="">Không có chiến dịch khả dụng</MenuItem>
+                ) : (
+                  campaignOptions.map((c) => (
+                    <MenuItem key={c.id} value={String(c.id)}>
+                      {c.name} {c.status === "OPEN" ? "(Đang mở)" : ""}
+                    </MenuItem>
+                  ))
+                )}
+              </Select>
+            </FormControl>
             {semesterLimitForUi && !useCustomDateRange ? (
               <Typography variant="body2" sx={{ color: "#475569", lineHeight: 1.55 }}>
                 Đang chọn gán theo học kỳ: không cần nhập Từ / Đến — máy chủ tự áp dụng phạm vi học kỳ đã cấu hình.

@@ -1693,7 +1693,6 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   /** Chuỗi JSON so sánh với mẫu GET system (badge). */
   const [systemAdmissionComparable, setSystemAdmissionComparable] = useState("");
   const [admissionViewMode] = useState("edit");
-  const [admissionFirstRunOpen, setAdmissionFirstRunOpen] = useState(false);
   const [admissionRestoreConfirmOpen, setAdmissionRestoreConfirmOpen] = useState(false);
   const [restoreTemplateTarget, setRestoreTemplateTarget] = useState("admission");
   const [admissionToggleOffConfirm, setAdmissionToggleOffConfirm] = useState({open: false, code: ""});
@@ -1967,10 +1966,6 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   }, [isCampusVariant, schoolId, lastLoadedAt]);
 
   useEffect(() => {
-    if (tabSlug !== "admission") setAdmissionFirstRunOpen(false);
-  }, [tabSlug]);
-
-  useEffect(() => {
     if (isCampusVariant || tabSlug !== "quota") return;
     let cancelled = false;
     (async () => {
@@ -2041,16 +2036,6 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     const n = normalizeAcademicCalendar(cal);
     setAcademicSemesterLimitEnabled(isAcademicCalendarLimitActive(n));
   }, [lastLoadedAt, isCampusVariant]);
-
-  useEffect(() => {
-    if (useCampusConfigFlow || tabSlug !== "admission") return;
-    try {
-      if (window.localStorage.getItem("school_config_admission_sys_prompt_v1")) return;
-    } catch {
-      return;
-    }
-    setAdmissionFirstRunOpen(true);
-  }, [useCampusConfigFlow, tabSlug]);
 
   const handleReset = useCallback(() => {
     const init = initialRef.current;
@@ -4610,8 +4595,16 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                       const code = canonicalizeWorkShiftName(sh.name);
                       const sel = WORK_SHIFT_TYPE_CODES.includes(code) ? code : "";
                       return (
-                        <Stack key={idx} direction={{xs: "column", sm: "row"}} spacing={1} alignItems={{sm: "flex-start"}}>
-                          <FormControl size="small" sx={{minWidth: {sm: 200}, flex: {sm: "0 0 auto"}}}>
+                        <Box
+                          key={idx}
+                          sx={{
+                            display: "grid",
+                            gridTemplateColumns: {xs: "1fr", sm: "minmax(240px, 1.8fr) minmax(160px, 1fr) minmax(160px, 1fr) auto"},
+                            gap: 1,
+                            alignItems: "center",
+                          }}
+                        >
+                          <FormControl size="small" fullWidth>
                             <InputLabel>Loại ca</InputLabel>
                             <Select
                               label="Loại ca"
@@ -4646,6 +4639,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                             label="Bắt đầu"
                             type="time"
                             size="small"
+                            fullWidth
                             InputLabelProps={{shrink: true}}
                             value={sh.startTime ?? ""}
                             onChange={(e) => {
@@ -4673,6 +4667,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                             label="Kết thúc"
                             type="time"
                             size="small"
+                            fullWidth
                             InputLabelProps={{shrink: true}}
                             value={sh.endTime ?? ""}
                             onChange={(e) => {
@@ -4714,11 +4709,11 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                 };
                               })
                             }
-                            sx={{...blockPointerSx, alignSelf: {xs: "flex-end", sm: "center"}}}
+                            sx={{...blockPointerSx, justifySelf: {xs: "end", sm: "center"}}}
                           >
                             <DeleteOutlineIcon fontSize="small"/>
                           </IconButton>
-                        </Stack>
+                        </Box>
                       );
                     })}
                     <Button
@@ -5290,51 +5285,6 @@ export default function SchoolConfig({variant = "platform"} = {}) {
             </>
           )}
         </Box>
-
-        <Dialog
-          open={admissionFirstRunOpen}
-          onClose={() => setAdmissionFirstRunOpen(false)}
-          maxWidth="sm"
-          fullWidth
-        >
-          <DialogTitle sx={{fontWeight: 800}}>Bắt đầu từ mẫu chung?</DialogTitle>
-          <DialogContent>
-            <Typography variant="body2" color="text.secondary">
-              Bạn có thể tải danh sách phương thức mẫu do nền tảng cấu hình, rồi chỉnh sửa riêng cho trường trước khi lưu.
-            </Typography>
-          </DialogContent>
-          <DialogActions sx={{px: 3, pb: 2, gap: 1, flexWrap: "wrap"}}>
-            <Button
-              onClick={() => {
-                try {
-                  window.localStorage.setItem("school_config_admission_sys_prompt_v1", "1");
-                } catch {
-                  /* ignore */
-                }
-                setAdmissionFirstRunOpen(false);
-              }}
-              sx={{textTransform: "none", fontWeight: 700}}
-            >
-              Để sau
-            </Button>
-            <Button
-              variant="contained"
-              disabled={loadingSystemAdmission}
-              onClick={() => {
-                try {
-                  window.localStorage.setItem("school_config_admission_sys_prompt_v1", "1");
-                } catch {
-                  /* ignore */
-                }
-                setAdmissionFirstRunOpen(false);
-                void applySystemTemplateToForm();
-              }}
-              sx={{textTransform: "none", fontWeight: 700}}
-            >
-              Lấy mẫu từ hệ thống
-            </Button>
-          </DialogActions>
-        </Dialog>
 
         <Dialog open={admissionRestoreConfirmOpen} onClose={() => setAdmissionRestoreConfirmOpen(false)} maxWidth="xs" fullWidth>
           <DialogTitle sx={{fontWeight: 800}}>Khôi phục mẫu hệ thống</DialogTitle>
