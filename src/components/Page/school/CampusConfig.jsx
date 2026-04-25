@@ -4073,54 +4073,6 @@ export default function CampusConfig() {
 
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>
-                  <Typography sx={{fontWeight: 800, mb: 2}}>Lịch năm học</Typography>
-                  <Stack spacing={2}>
-                    <Stack direction={{xs: "column", md: "row"}} spacing={2}>
-                      <TextField
-                        label="Học kỳ 1 - Bắt đầu"
-                        type="date"
-                        size="small"
-                        InputLabelProps={{shrink: true}}
-                        value={config.operationSettingsData.academicCalendar?.term1?.start ?? ""}
-                        inputProps={{readOnly: true}}
-                        fullWidth
-                      />
-                      <TextField
-                        label="Học kỳ 1 - Kết thúc"
-                        type="date"
-                        size="small"
-                        InputLabelProps={{shrink: true}}
-                        value={config.operationSettingsData.academicCalendar?.term1?.end ?? ""}
-                        inputProps={{readOnly: true}}
-                        fullWidth
-                      />
-                    </Stack>
-                    <Stack direction={{xs: "column", md: "row"}} spacing={2}>
-                      <TextField
-                        label="Học kỳ 2 - Bắt đầu"
-                        type="date"
-                        size="small"
-                        InputLabelProps={{shrink: true}}
-                        value={config.operationSettingsData.academicCalendar?.term2?.start ?? ""}
-                        inputProps={{readOnly: true}}
-                        fullWidth
-                      />
-                      <TextField
-                        label="Học kỳ 2 - Kết thúc"
-                        type="date"
-                        size="small"
-                        InputLabelProps={{shrink: true}}
-                        value={config.operationSettingsData.academicCalendar?.term2?.end ?? ""}
-                        inputProps={{readOnly: true}}
-                        fullWidth
-                      />
-                    </Stack>
-                  </Stack>
-                </CardContent>
-              </Card>
-
-              <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
-                <CardContent sx={{p: 3}}>
                   <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2} mb={2} flexWrap="wrap">
                     <Box sx={{flex: 1, minWidth: 220}}>
                       <Typography sx={{fontWeight: 800}}>Quy trình tuyển sinh theo phương thức</Typography>
