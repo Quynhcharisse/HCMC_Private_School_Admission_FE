@@ -8,7 +8,9 @@ import {
     Divider,
     IconButton,
     Link,
+    MenuItem,
     Rating,
+    Select,
     Stack,
     Tab,
     Tabs,
@@ -47,6 +49,86 @@ import {getPublicSchoolCampaignTemplates} from "../../services/SchoolPublicServi
 
 const MAP_CONTAINER_STYLE = {width: "100%", height: "260px"};
 const NEARBY_SEARCH_RADIUS_KM = 10;
+const CONSULT_CALENDAR_DAYS = [
+    {key: "MON", label: "Th 2", offset: 0},
+    {key: "TUE", label: "Th 3", offset: 1},
+    {key: "WED", label: "Th 4", offset: 2},
+    {key: "THU", label: "Th 5", offset: 3},
+    {key: "FRI", label: "Th 6", offset: 4},
+    {key: "SAT", label: "Th 7", offset: 5},
+    {key: "SUN", label: "CN", offset: 6}
+];
+const CONSULT_CALENDAR_ROW_MIN_PX = 22;
+const CONSULT_CALENDAR_ROWS_PER_SHIFT = 6;
+const CONSULT_CALENDAR_SHIFTS = [
+    {
+        key: "MORNING",
+        mailLabel: "Ca sáng",
+        stripBg: "#fef3c7",
+        rowBg: "rgba(254, 243, 199, 0.35)"
+    },
+    {
+        key: "AFTERNOON",
+        mailLabel: "Ca chiều",
+        stripBg: "#dbeafe",
+        rowBg: "rgba(219, 234, 254, 0.35)"
+    }
+];
+
+const CONSULT_GRID_LINE_ROW = "1px solid rgba(100, 116, 139, 0.55)";
+const CONSULT_GRID_LINE_COL = "1px solid rgba(100, 116, 139, 0.42)";
+const CONSULT_GRID_HEADER_COL = "1px solid rgba(255, 255, 255, 0.55)";
+const CONSULT_GRID_HEADER_UNDER = "1px solid rgba(51, 65, 85, 0.35)";
+const CONSULT_YEAR_OPTIONS = Array.from({length: 7}, (_, i) => String(new Date().getFullYear() - 2 + i));
+
+function formatDayMonth(date) {
+    const dd = String(date.getDate()).padStart(2, "0");
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    return `${dd}/${mm}`;
+}
+
+function startOfMonday(date) {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const day = d.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    d.setDate(d.getDate() + diff);
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+function buildWeeksOfYear(year) {
+    const y = Number(year);
+    if (!Number.isFinite(y)) return [];
+    const yearStart = new Date(y, 0, 1);
+    const yearEnd = new Date(y, 11, 31);
+    const cursor = startOfMonday(yearStart);
+    const out = [];
+    let weekNo = 1;
+    while (cursor <= yearEnd || cursor.getFullYear() < y) {
+        const weekStart = new Date(cursor);
+        const weekEnd = new Date(cursor);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+        if (weekStart.getFullYear() === y || weekEnd.getFullYear() === y) {
+            const code = `${y}-W${String(weekNo).padStart(2, "0")}`;
+            out.push({
+                value: code,
+                label: `${formatDayMonth(weekStart)} - ${formatDayMonth(weekEnd)}`,
+                start: weekStart,
+                end: weekEnd
+            });
+            weekNo += 1;
+        }
+        cursor.setDate(cursor.getDate() + 7);
+        if (weekNo > 60) break;
+    }
+    return out;
+}
+
+function findWeekValueByDate(weeks, date) {
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const hit = weeks.find((w) => w?.start && w?.end && d >= w.start && d <= w.end);
+    return hit?.value || "";
+}
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -1723,9 +1805,9 @@ export default function SchoolSearchDetailView({
     }, []);
 
     const detailTabIndex =
-        detailActiveSection === "consult"
+        detailActiveSection === "location"
             ? 4
-            : detailActiveSection === "location"
+            : detailActiveSection === "consult"
               ? 3
               : detailActiveSection === "curriculum"
                 ? 2
@@ -1755,8 +1837,8 @@ export default function SchoolSearchDetailView({
                     ["intro", intro],
                     ["campus", campus],
                     ["curriculum", curriculum],
-                    ["location", loc],
-                    ["consult", consult]
+                    ["consult", consult],
+                    ["location", loc]
                 ];
                 let active = "intro";
                 for (const [key, el] of sectionOrder) {
@@ -1867,7 +1949,7 @@ export default function SchoolSearchDetailView({
         [school]
     );
 
-    const openConsultMailto = React.useCallback(() => {
+    const openConsultMailto = React.useCallback((selectedSlot) => {
         if (!school) return;
         const email = (school.email || "").trim();
         if (!email) {
@@ -1875,12 +1957,38 @@ export default function SchoolSearchDetailView({
             showSuccessSnackbar("Đến trang chủ để xem các hình thức hỗ trợ và đặt lịch tư vấn.");
             return;
         }
+        const slotText = String(selectedSlot || "").trim();
         const subject = encodeURIComponent(`Đặt lịch tư vấn — ${school.school}`);
         const body = encodeURIComponent(
-            `Kính gửi ${school.school},\n\nTôi muốn đặt lịch tư vấn / tham quan trường.\n\nTrân trọng,`
+            `Kính gửi ${school.school},\n\nTôi muốn đặt lịch tư vấn / tham quan trường${
+                slotText ? ` vào khung giờ ${slotText}` : ""
+            }.\n\nTrân trọng,`
         );
         window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
     }, [school, navigate]);
+    const [consultCalendarYear, setConsultCalendarYear] = React.useState(String(new Date().getFullYear()));
+    const consultWeekOptions = React.useMemo(
+        () => buildWeeksOfYear(consultCalendarYear),
+        [consultCalendarYear]
+    );
+    const currentConsultWeekValue = React.useMemo(
+        () => findWeekValueByDate(consultWeekOptions, new Date()),
+        [consultWeekOptions]
+    );
+    const [consultCalendarWeek, setConsultCalendarWeek] = React.useState("");
+    React.useEffect(() => {
+        if (!consultWeekOptions.length) {
+            setConsultCalendarWeek("");
+            return;
+        }
+        if (!consultWeekOptions.some((w) => w.value === consultCalendarWeek)) {
+            setConsultCalendarWeek(currentConsultWeekValue || consultWeekOptions[0].value);
+        }
+    }, [consultWeekOptions, consultCalendarWeek, currentConsultWeekValue]);
+    const selectedConsultWeek = React.useMemo(
+        () => consultWeekOptions.find((w) => w.value === consultCalendarWeek) || consultWeekOptions[0] || null,
+        [consultWeekOptions, consultCalendarWeek]
+    );
 
     return (
         <Box
@@ -2202,8 +2310,8 @@ export default function SchoolSearchDetailView({
                                           : v === 2
                                             ? "curriculum"
                                             : v === 3
-                                              ? "location"
-                                              : "consult"
+                                              ? "consult"
+                                              : "location"
                                 )
                             }
                             variant="scrollable"
@@ -2246,8 +2354,8 @@ export default function SchoolSearchDetailView({
                             <Tab label="Giới thiệu" disableRipple/>
                             <Tab label="Thông tin cơ sở" disableRipple/>
                             <Tab label="Chương trình đào tạo" disableRipple/>
-                            <Tab label="Vị trí & bản đồ" disableRipple/>
                             <Tab label="Đặt lịch tư vấn" disableRipple/>
+                            <Tab label="Vị trí & bản đồ" disableRipple/>
                         </Tabs>
                     </Box>
                     {detailLoading && (
@@ -2366,6 +2474,245 @@ export default function SchoolSearchDetailView({
                             </Box>
 
                             <Box
+                                ref={detailConsultRef}
+                                id="school-detail-consult"
+                                sx={{
+                                    scrollMarginTop: {xs: 56, sm: 52},
+                                    pt: 1,
+                                    pb: 2
+                                }}
+                            >
+                                <Box
+                                    sx={{
+                                        p: 2.5,
+                                        borderRadius: 2,
+                                        border: "1px solid rgba(59,130,246,0.2)",
+                                        bgcolor: "rgba(255,255,255,0.98)",
+                                        boxShadow: "0 4px 20px rgba(51,65,85,0.06)"
+                                    }}
+                                >
+                                    <Stack direction="row" alignItems="flex-start" spacing={1.5}>
+                                        <Box sx={{minWidth: 0}}>
+                                            <Typography sx={mainDetailSectionTitleSx}>
+                                                Đặt lịch tư vấn
+                                            </Typography>
+                                            <Box
+                                                sx={{
+                                                    border: "1px solid rgba(59,130,246,0.22)",
+                                                    borderRadius: 2,
+                                                    overflow: "hidden",
+                                                    bgcolor: "#fff",
+                                                    width: "auto",
+                                                    mx: {xs: 1.5, sm: 2}
+                                                }}
+                                            >
+                                                <Box
+                                                    sx={{
+                                                        display: "grid",
+                                                        gridTemplateColumns: "180px repeat(7, minmax(64px, 1fr))",
+                                                        bgcolor: "#6c8fcf",
+                                                        color: "#fff"
+                                                    }}
+                                                >
+                                                    <Box sx={{px: 0.75, py: 0.45}}>
+                                                        <Box sx={{display: "flex", alignItems: "center", gap: 0.5}}>
+                                                            <Typography
+                                                                sx={{
+                                                                    fontSize: "0.72rem",
+                                                                    color: "#ffffff",
+                                                                    fontWeight: 800,
+                                                                    letterSpacing: "0.02em"
+                                                                }}
+                                                            >
+                                                                NĂM
+                                                            </Typography>
+                                                            <Box
+                                                                component="select"
+                                                                value={consultCalendarYear}
+                                                                onChange={(e) => setConsultCalendarYear(e.target.value)}
+                                                                sx={{fontSize: "0.72rem", height: 22, border: "1px solid #cbd5e1", borderRadius: 0.5}}
+                                                            >
+                                                                {CONSULT_YEAR_OPTIONS.map((year) => (
+                                                                    <option key={year} value={year}>
+                                                                        {year}
+                                                                    </option>
+                                                                ))}
+                                                            </Box>
+                                                        </Box>
+                                                    </Box>
+                                                    {CONSULT_CALENDAR_DAYS.map((day) => (
+                                                        <Box key={`consult-head-${day.key}`} sx={{px: 0.7, py: 0.45, borderLeft: CONSULT_GRID_HEADER_COL}}>
+                                                            <Typography sx={{fontSize: "0.72rem", fontWeight: 500}}>{day.label}</Typography>
+                                                        </Box>
+                                                    ))}
+                                                </Box>
+                                                <Box
+                                                    sx={{
+                                                        display: "grid",
+                                                        gridTemplateColumns: "180px repeat(7, minmax(64px, 1fr))",
+                                                        bgcolor: "#6c8fcf",
+                                                        color: "#fff",
+                                                        borderTop: "1px solid rgba(255,255,255,0.28)",
+                                                        borderBottom: "1px solid rgba(148,163,184,0.35)"
+                                                    }}
+                                                >
+                                                    <Box sx={{px: 0.75, py: 0.45}}>
+                                                        <Box sx={{display: "flex", alignItems: "center", gap: 0.5}}>
+                                                            <Typography sx={{fontSize: "0.7rem", color: "#111827", fontWeight: 500}}>TUẦN</Typography>
+                                                            <Select
+                                                                value={consultCalendarWeek}
+                                                                onChange={(e) => setConsultCalendarWeek(String(e.target.value || ""))}
+                                                                size="small"
+                                                                displayEmpty
+                                                                renderValue={(value) => {
+                                                                    const hit = consultWeekOptions.find((week) => week.value === value);
+                                                                    return hit?.label || "";
+                                                                }}
+                                                                MenuProps={{
+                                                                    PaperProps: {
+                                                                        sx: {
+                                                                            maxHeight: 300
+                                                                        }
+                                                                    }
+                                                                }}
+                                                                sx={{
+                                                                    fontSize: "0.72rem",
+                                                                    height: 22,
+                                                                    minWidth: 132,
+                                                                    bgcolor: "#fff",
+                                                                    borderRadius: 0.5,
+                                                                    ".MuiSelect-select": {py: 0.1, pr: 2.5, pl: 0.8},
+                                                                    ".MuiOutlinedInput-notchedOutline": {borderColor: "#cbd5e1"}
+                                                                }}
+                                                            >
+                                                                {consultWeekOptions.map((week) => (
+                                                                    <MenuItem
+                                                                        key={week.value}
+                                                                        value={week.value}
+                                                                        sx={{
+                                                                            fontSize: "0.78rem",
+                                                                            minHeight: 30,
+                                                                            ...(week.value === currentConsultWeekValue
+                                                                                ? {
+                                                                                      bgcolor: "rgba(16,185,129,0.18)",
+                                                                                      color: "#065f46",
+                                                                                      fontWeight: 700
+                                                                                  }
+                                                                                : null),
+                                                                            "&:hover": {
+                                                                                bgcolor:
+                                                                                    week.value === currentConsultWeekValue
+                                                                                        ? "rgba(16,185,129,0.26)"
+                                                                                        : "rgba(59,130,246,0.14)"
+                                                                            },
+                                                                            "&.Mui-selected": {
+                                                                                bgcolor:
+                                                                                    week.value === currentConsultWeekValue
+                                                                                        ? "rgba(16,185,129,0.18)"
+                                                                                        : "rgba(59,130,246,0.22)"
+                                                                            },
+                                                                            "&.Mui-selected:hover": {
+                                                                                bgcolor:
+                                                                                    week.value === currentConsultWeekValue
+                                                                                        ? "rgba(16,185,129,0.26)"
+                                                                                        : "rgba(59,130,246,0.28)"
+                                                                            }
+                                                                        }}
+                                                                    >
+                                                                        {week.label}
+                                                                    </MenuItem>
+                                                                ))}
+                                                            </Select>
+                                                        </Box>
+                                                    </Box>
+                                                    {CONSULT_CALENDAR_DAYS.map((day) => (
+                                                        <Box key={`consult-date-${day.key}`} sx={{px: 0.7, py: 0.45, borderLeft: CONSULT_GRID_HEADER_COL}}>
+                                                            <Typography sx={{fontSize: "0.72rem", fontWeight: 400}}>
+                                                                {selectedConsultWeek?.start
+                                                                    ? formatDayMonth(
+                                                                          new Date(
+                                                                              selectedConsultWeek.start.getFullYear(),
+                                                                              selectedConsultWeek.start.getMonth(),
+                                                                              selectedConsultWeek.start.getDate() + day.offset
+                                                                          )
+                                                                      )
+                                                                    : "--/--"}
+                                                            </Typography>
+                                                        </Box>
+                                                    ))}
+                                                </Box>
+                                                {CONSULT_CALENDAR_SHIFTS.flatMap((shift) =>
+                                                    Array.from({length: CONSULT_CALENDAR_ROWS_PER_SHIFT}, (_, rowIdx) => ({
+                                                        ...shift,
+                                                        rowIdx,
+                                                        rowKey: `${shift.key}-r${rowIdx}`
+                                                    }))
+                                                ).map((row) => (
+                                                    <Box
+                                                        key={row.rowKey}
+                                                        sx={{
+                                                            display: "grid",
+                                                            gridTemplateColumns: "180px repeat(7, minmax(64px, 1fr))",
+                                                            borderBottom: CONSULT_GRID_LINE_ROW,
+                                                            bgcolor: row.rowBg
+                                                        }}
+                                                    >
+                                                        <Box
+                                                            aria-hidden
+                                                            sx={{
+                                                                minHeight: CONSULT_CALENDAR_ROW_MIN_PX,
+                                                                bgcolor: row.stripBg,
+                                                                borderRight: CONSULT_GRID_LINE_COL
+                                                            }}
+                                                        />
+                                                        {CONSULT_CALENDAR_DAYS.map((day) => (
+                                                            <Box
+                                                                key={`${row.rowKey}-${day.key}`}
+                                                                sx={{
+                                                                    px: 0.15,
+                                                                    py: 0,
+                                                                    borderLeft: CONSULT_GRID_LINE_COL,
+                                                                    display: "flex",
+                                                                    alignItems: "center",
+                                                                    justifyContent: "center",
+                                                                    minHeight: CONSULT_CALENDAR_ROW_MIN_PX
+                                                                }}
+                                                            >
+                                                                <Button
+                                                                    variant="text"
+                                                                    size="small"
+                                                                    onClick={() =>
+                                                                        openConsultMailto(`${day.label} — ${row.mailLabel}`)
+                                                                    }
+                                                                    sx={{
+                                                                        minWidth: 0,
+                                                                        minHeight: CONSULT_CALENDAR_ROW_MIN_PX,
+                                                                        px: 0.25,
+                                                                        py: 0,
+                                                                        color: "#334155",
+                                                                        textTransform: "none",
+                                                                        fontSize: "0.75rem",
+                                                                        lineHeight: 1
+                                                                    }}
+                                                                >
+                                                                    -
+                                                                </Button>
+                                                            </Box>
+                                                        ))}
+                                                    </Box>
+                                                ))}
+                                            </Box>
+                                            {!(school?.email || "").trim() && (
+                                                <Typography sx={{color: "#b45309", fontSize: "0.84rem", mt: 1}}>
+                                                    Trường chưa công bố email. Khi chọn ô trên lịch, hệ thống sẽ chuyển bạn tới trang hỗ trợ.
+                                                </Typography>
+                                            )}
+                                        </Box>
+                                    </Stack>
+                                </Box>
+                            </Box>
+
+                            <Box
                                 ref={detailLocationRef}
                                 id="school-detail-location"
                                 sx={{scrollMarginTop: {xs: 56, sm: 52}, pt: 1, pb: 2}}
@@ -2436,66 +2783,6 @@ export default function SchoolSearchDetailView({
                                         >
                                             Chỉ đường đến trường
                                         </Button>
-                                    </Stack>
-                                </Box>
-                            </Box>
-
-                            <Box
-                                ref={detailConsultRef}
-                                id="school-detail-consult"
-                                sx={{
-                                    scrollMarginTop: {xs: 56, sm: 52},
-                                    pt: 1,
-                                    pb: 2
-                                }}
-                            >
-                                <Box
-                                    sx={{
-                                        p: 2.5,
-                                        borderRadius: 2,
-                                        border: "1px solid rgba(59,130,246,0.2)",
-                                        bgcolor: "rgba(255,255,255,0.98)",
-                                        boxShadow: "0 4px 20px rgba(51,65,85,0.06)"
-                                    }}
-                                >
-                                    <Stack direction="row" alignItems="flex-start" spacing={1.5}>
-                                        <CalendarMonthIcon
-                                            sx={{fontSize: 28, color: BRAND_NAVY, flexShrink: 0, mt: 0.25}}
-                                        />
-                                        <Box sx={{minWidth: 0}}>
-                                            <Typography sx={mainDetailSectionTitleSx}>
-                                                Đặt lịch tư vấn
-                                            </Typography>
-                                            <Typography sx={{color: "#0f172a", fontSize: "0.9rem", lineHeight: 1.6, mb: 1.5}}>
-                                                {(school?.email || "").trim()
-                                                    ? "Soạn email đặt lịch với nhà trường hoặc điều chỉnh nội dung trước khi gửi."
-                                                    : "Trường chưa công bố email trên hệ thống. Bạn có thể xem các hình thức hỗ trợ trên trang chủ."}
-                                            </Typography>
-                                            {(school?.email || "").trim() ? (
-                                                <Button
-                                                    variant="contained"
-                                                    size="small"
-                                                    onClick={openConsultMailto}
-                                                    sx={{
-                                                        textTransform: "none",
-                                                        fontWeight: 700,
-                                                        bgcolor: BRAND_NAVY,
-                                                        "&:hover": {bgcolor: APP_PRIMARY_DARK}
-                                                    }}
-                                                >
-                                                    Soạn email đặt lịch
-                                                </Button>
-                                            ) : (
-                                                <Button
-                                                    variant="outlined"
-                                                    size="small"
-                                                    onClick={() => navigate("/home")}
-                                                    sx={{textTransform: "none", fontWeight: 700}}
-                                                >
-                                                    Đến trang chủ
-                                                </Button>
-                                            )}
-                                        </Box>
                                     </Stack>
                                 </Box>
                             </Box>
