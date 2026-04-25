@@ -56,7 +56,7 @@ import {
   updateCampusConfig,
   updateSchoolConfig,
 } from "../../../services/SchoolFacilityService.jsx";
-import {fetchSystemAdmissionSettingsData} from "../../../services/SystemConfigService.jsx";
+import {fetchSystemAdmissionSettingsData, getSystemConfigByKey} from "../../../services/SystemConfigService.jsx";
 import {getCurrentSchoolSubscription} from "../../../services/SchoolSubscriptionService.jsx";
 import {admissionSettingsComparableJson, sanitizeAdmissionSettingsForApi} from "../../../utils/admissionSettingsShared.js";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
@@ -1971,6 +1971,40 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   }, [tabSlug]);
 
   useEffect(() => {
+    if (isCampusVariant || tabSlug !== "quota") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getSystemConfigByKey("admissionQuota");
+        if (cancelled) return;
+        const body = res?.data?.body ?? res?.data?.data ?? res?.data ?? {};
+        const quotaRoot = body?.admissionQuota && typeof body.admissionQuota === "object" ? body.admissionQuota : body;
+        const year = String(quotaRoot?.source?.year ?? "").trim();
+        const quotas = Array.isArray(quotaRoot?.quotas) ? quotaRoot.quotas : [];
+        const sidNum = Number(schoolId);
+        const matched =
+          quotas.find((q) => Number(q?.schoolId) === sidNum) ??
+          quotas.find((q) => q?.value != null) ??
+          null;
+        const totalSystemQuota = matched != null ? Number(matched.value) || 0 : 0;
+        setConfig((prev) => ({
+          ...prev,
+          quotaConfigData: {
+            ...prev.quotaConfigData,
+            academicYear: year || prev.quotaConfigData.academicYear || "",
+            totalSystemQuota,
+          },
+        }));
+      } catch {
+        // ignore, giữ dữ liệu hiện tại nếu API system không khả dụng
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isCampusVariant, tabSlug, schoolId, lastLoadedAt]);
+
+  useEffect(() => {
     if (isCampusVariant || tabSlug !== "resource-distribution") return;
     let cancelled = false;
     setResourceSummaryLoading(true);
@@ -3597,7 +3631,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     fullWidth
                     size="small"
                     placeholder="Ví dụ: 2026-2027"
-                    inputProps={{readOnly: fieldDisabled}}
+                    inputProps={{readOnly: true}}
                   />
                   <TextField
                     label="Tổng chỉ tiêu toàn hệ thống"
@@ -3618,7 +3652,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     }
                     fullWidth
                     size="small"
-                    inputProps={{readOnly: fieldDisabled}}
+                    inputProps={{readOnly: true}}
                   />
 
                   <Box>
