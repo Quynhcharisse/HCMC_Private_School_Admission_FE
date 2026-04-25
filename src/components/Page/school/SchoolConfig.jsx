@@ -56,7 +56,8 @@ import {
   updateCampusConfig,
   updateSchoolConfig,
 } from "../../../services/SchoolFacilityService.jsx";
-import {fetchSystemAdmissionSettingsData} from "../../../services/SystemConfigService.jsx";
+import {fetchSystemAdmissionSettingsData, getSystemConfigByKey} from "../../../services/SystemConfigService.jsx";
+import {getCurrentSchoolSubscription} from "../../../services/SchoolSubscriptionService.jsx";
 import {admissionSettingsComparableJson, sanitizeAdmissionSettingsForApi} from "../../../utils/admissionSettingsShared.js";
 import {SchoolFacilityFacilityForm} from "./SchoolFacilityConfiguration.jsx";
 import SchoolWideScheduleReadOnlyPanel from "./SchoolWideScheduleReadOnlyPanel.jsx";
@@ -1698,6 +1699,8 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   const [admissionToggleOffConfirm, setAdmissionToggleOffConfirm] = useState({open: false, code: ""});
   const [admissionRemoveRowConfirm, setAdmissionRemoveRowConfirm] = useState({open: false, idx: -1});
   const [loadingSystemAdmission, setLoadingSystemAdmission] = useState(false);
+  const [resourceSummaryReport, setResourceSummaryReport] = useState(null);
+  const [resourceSummaryLoading, setResourceSummaryLoading] = useState(false);
   /** Pattern A: bật mới hiện form HK; tắt = không giới hạn (xóa ngày trong form). Đồng bộ sau load. */
   const [academicSemesterLimitEnabled, setAcademicSemesterLimitEnabled] = useState(false);
 
@@ -1966,6 +1969,71 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   useEffect(() => {
     if (tabSlug !== "admission") setAdmissionFirstRunOpen(false);
   }, [tabSlug]);
+
+  useEffect(() => {
+    if (isCampusVariant || tabSlug !== "quota") return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await getSystemConfigByKey("admissionQuota");
+        if (cancelled) return;
+        const body = res?.data?.body ?? res?.data?.data ?? res?.data ?? {};
+        const quotaRoot = body?.admissionQuota && typeof body.admissionQuota === "object" ? body.admissionQuota : body;
+        const year = String(quotaRoot?.source?.year ?? "").trim();
+        const quotas = Array.isArray(quotaRoot?.quotas) ? quotaRoot.quotas : [];
+        const sidNum = Number(schoolId);
+        const matched =
+          quotas.find((q) => Number(q?.schoolId) === sidNum) ??
+          quotas.find((q) => q?.value != null) ??
+          null;
+        const totalSystemQuota = matched != null ? Number(matched.value) || 0 : 0;
+        setConfig((prev) => ({
+          ...prev,
+          quotaConfigData: {
+            ...prev.quotaConfigData,
+            academicYear: year || prev.quotaConfigData.academicYear || "",
+            totalSystemQuota,
+          },
+        }));
+      } catch {
+        // ignore, giữ dữ liệu hiện tại nếu API system không khả dụng
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isCampusVariant, tabSlug, schoolId, lastLoadedAt]);
+
+  useEffect(() => {
+    if (isCampusVariant || tabSlug !== "resource-distribution") return;
+    let cancelled = false;
+    setResourceSummaryLoading(true);
+    getCurrentSchoolSubscription()
+      .then((res) => {
+        if (cancelled) return;
+        const body = res?.data?.body ?? res?.data ?? {};
+        const rs = body?.resourceSummary && typeof body.resourceSummary === "object" ? body.resourceSummary : null;
+        setResourceSummaryReport(
+          rs
+            ? {
+                totalPackageQuota: Number(rs.totalPackageQuota) || 0,
+                myCampusQuota: Number(rs.myCampusQuota) || 0,
+                otherCampusesQuota: Number(rs.otherCampusesQuota) || 0,
+              }
+            : null
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setResourceSummaryReport(null);
+      })
+      .finally(() => {
+        if (!cancelled) setResourceSummaryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isCampusVariant, tabSlug, lastLoadedAt]);
 
   useEffect(() => {
     if (isCampusVariant) return;
@@ -3563,7 +3631,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     fullWidth
                     size="small"
                     placeholder="Ví dụ: 2026-2027"
-                    inputProps={{readOnly: fieldDisabled}}
+                    inputProps={{readOnly: true}}
                   />
                   <TextField
                     label="Tổng chỉ tiêu toàn hệ thống"
@@ -3584,7 +3652,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                     }
                     fullWidth
                     size="small"
-                    inputProps={{readOnly: fieldDisabled}}
+                    inputProps={{readOnly: true}}
                   />
 
                   <Box>
@@ -5116,186 +5184,6 @@ export default function SchoolConfig({variant = "platform"} = {}) {
       </Card>
               )}
 
-              {!useCampusConfigFlow ? (
-                <Card
-                  sx={{
-                    borderRadius: "12px",
-                    border: "1px solid rgba(226,232,240,1)",
-                    boxShadow: "0 8px 24px rgba(15,23,42,0.06)",
-                  }}
-                >
-                  <CardContent sx={{p: 3}}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" flexWrap="wrap" gap={1.5} mb={2}>
-                      <Typography sx={{fontWeight: 800}}>Lịch năm học &amp; gán lịch tư vấn</Typography>
-                      <Stack direction="row" gap={1} flexWrap="wrap" justifyContent="flex-end">
-                        {!academicSemesterLimitEnabled ? (
-                          <Chip size="small" label="Không giới hạn theo học kỳ" color="default" variant="outlined"/>
-                        ) : !isAcademicCalendarLimitActive(
-                            normalizeAcademicCalendar(config.operationSettingsData.academicCalendar)
-                          ) ? (
-                          <Chip size="small" label="Chưa đủ cặp ngày để áp dụng" color="warning" variant="outlined"/>
-                        ) : (
-                          <Chip size="small" label="Đang áp dụng giới hạn theo học kỳ" color="success" variant="outlined"/>
-                        )}
-                      </Stack>
-                    </Stack>
-
-                    <FormControlLabel
-                      control={
-                        <Switch
-                          checked={academicSemesterLimitEnabled}
-                          onChange={(e) => {
-                            const on = e.target.checked;
-                            setAcademicSemesterLimitEnabled(on);
-                            if (!on) {
-                              setConfig((c) => ({
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  academicCalendar: emptyAcademicCalendar(),
-                                },
-                              }));
-                            }
-                          }}
-                          disabled={fieldDisabled}
-                        />
-                      }
-                      label={
-                        <Box>
-                          <Typography component="span" fontWeight={700} display="block">
-                            Giới hạn gán lịch tư vấn trong phạm vi học kỳ
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" display="block">
-                            Khi tắt, cấu hình học kỳ không áp dụng cho việc gán lịch.
-                          </Typography>
-                        </Box>
-                      }
-                      sx={{alignItems: "flex-start", ml: 0, mr: 0}}
-                    />
-
-                    <Alert severity="info" sx={{mt: 2, mb: 2, borderRadius: 2}}>
-                      <Typography variant="body2" component="div" sx={{lineHeight: 1.65}}>
-                        Chỉ khi nhập đủ ngày bắt đầu và kết thúc cho ít nhất một học kỳ, hệ thống mới kiểm tra ngày gán lịch. Nếu để
-                        trống, gán lịch không bị giới hạn theo học kỳ.
-                      </Typography>
-                    </Alert>
-
-                    <Collapse in={academicSemesterLimitEnabled} timeout="auto" unmountOnExit={false}>
-                      <Stack spacing={2.5}>
-                        <Typography sx={{fontWeight: 800}}>Học kỳ 1</Typography>
-                        <Stack direction={{xs: "column", md: "row"}} spacing={2}>
-                          <TextField
-                            label="Từ ngày"
-                            type="date"
-                            size="small"
-                            InputLabelProps={{shrink: true}}
-                            value={config.operationSettingsData.academicCalendar?.term1?.start ?? ""}
-                            onChange={(e) =>
-                              setConfig((c) => ({
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  academicCalendar: {
-                                    ...(c.operationSettingsData.academicCalendar || {}),
-                                    term1: {
-                                      ...(c.operationSettingsData.academicCalendar?.term1 || {}),
-                                      start: e.target.value,
-                                    },
-                                  },
-                                },
-                              }))
-                            }
-                            inputProps={{readOnly: fieldDisabled}}
-                            fullWidth
-                          />
-                          <TextField
-                            label="Đến ngày"
-                            type="date"
-                            size="small"
-                            InputLabelProps={{shrink: true}}
-                            value={config.operationSettingsData.academicCalendar?.term1?.end ?? ""}
-                            onChange={(e) =>
-                              setConfig((c) => ({
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  academicCalendar: {
-                                    ...(c.operationSettingsData.academicCalendar || {}),
-                                    term1: {
-                                      ...(c.operationSettingsData.academicCalendar?.term1 || {}),
-                                      end: e.target.value,
-                                    },
-                                  },
-                                },
-                              }))
-                            }
-                            inputProps={{readOnly: fieldDisabled}}
-                            fullWidth
-                          />
-                        </Stack>
-                        <Typography sx={{fontWeight: 800}}>Học kỳ 2</Typography>
-                        <Stack direction={{xs: "column", md: "row"}} spacing={2}>
-                          <TextField
-                            label="Từ ngày"
-                            type="date"
-                            size="small"
-                            InputLabelProps={{shrink: true}}
-                            value={config.operationSettingsData.academicCalendar?.term2?.start ?? ""}
-                            onChange={(e) =>
-                              setConfig((c) => ({
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  academicCalendar: {
-                                    ...(c.operationSettingsData.academicCalendar || {}),
-                                    term2: {
-                                      ...(c.operationSettingsData.academicCalendar?.term2 || {}),
-                                      start: e.target.value,
-                                    },
-                                  },
-                                },
-                              }))
-                            }
-                            inputProps={{readOnly: fieldDisabled}}
-                            fullWidth
-                          />
-                          <TextField
-                            label="Đến ngày"
-                            type="date"
-                            size="small"
-                            InputLabelProps={{shrink: true}}
-                            value={config.operationSettingsData.academicCalendar?.term2?.end ?? ""}
-                            onChange={(e) =>
-                              setConfig((c) => ({
-                                ...c,
-                                operationSettingsData: {
-                                  ...c.operationSettingsData,
-                                  academicCalendar: {
-                                    ...(c.operationSettingsData.academicCalendar || {}),
-                                    term2: {
-                                      ...(c.operationSettingsData.academicCalendar?.term2 || {}),
-                                      end: e.target.value,
-                                    },
-                                  },
-                                },
-                              }))
-                            }
-                            inputProps={{readOnly: fieldDisabled}}
-                            fullWidth
-                          />
-                        </Stack>
-                      </Stack>
-                    </Collapse>
-
-                    {!academicSemesterLimitEnabled ? (
-                      <Typography variant="body2" color="text.secondary" sx={{mt: 1}}>
-                        Để trống: không giới hạn theo học kỳ. Bật công tắc để cấu hình khoảng ngày HK1 / HK2.
-                      </Typography>
-                    ) : null}
-                  </CardContent>
-                </Card>
-              ) : null}
-
               <Card sx={{borderRadius: "12px", border: "1px solid rgba(226,232,240,1)", boxShadow: "0 8px 24px rgba(15,23,42,0.06)"}}>
                 <CardContent sx={{p: 3}}>
                   <Alert severity="info" sx={{mb: 2, borderRadius: 2}}>
@@ -5746,6 +5634,68 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                       );
                     })}
                   </Stack>
+                )}
+
+                <Divider sx={{my: 2.5}}/>
+                <Typography
+                  sx={{
+                    fontSize: "0.8125rem",
+                    fontWeight: 700,
+                    color: "#64748b",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.06em",
+                    mb: 1.5,
+                  }}
+                >
+                  Báo cáo tài nguyên tổng thể
+                </Typography>
+                {resourceSummaryLoading ? (
+                  <LinearProgress sx={{borderRadius: 1, height: 8}}/>
+                ) : resourceSummaryReport ? (
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: {xs: "1fr", sm: "repeat(3, minmax(0, 1fr))"},
+                      gap: 2,
+                      width: "100%",
+                    }}
+                  >
+                    {[
+                      {label: "Tổng tài nguyên hiện có", value: resourceSummaryReport.totalPackageQuota, accent: "#0D64DE"},
+                      {label: "Tài nguyên của cơ sở chính hiện có", value: resourceSummaryReport.myCampusQuota, accent: "#047857"},
+                      {label: "Tài nguyên của các chi nhánh hiện có", value: resourceSummaryReport.otherCampusesQuota, accent: "#b45309"},
+                    ].map((item) => (
+                      <Box
+                        key={item.label}
+                        sx={{
+                          borderRadius: 2,
+                          border: "1px solid #e2e8f0",
+                          p: 2,
+                          bgcolor: "#fff",
+                          boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+                        }}
+                      >
+                        <Typography
+                          sx={{
+                            fontSize: "0.75rem",
+                            fontWeight: 700,
+                            color: "#94a3b8",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.05em",
+                          }}
+                        >
+                          {item.label}
+                        </Typography>
+                        <Typography sx={{fontSize: "1.75rem", fontWeight: 800, color: item.accent, lineHeight: 1.1, mt: 0.6}}>
+                          {item.value}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" sx={{color: "#64748b"}}>
+                    Chưa có dữ liệu tài nguyên tổng thể từ gói dịch vụ hiện tại.
+                  </Typography>
                 )}
               </CardContent>
             </Card>

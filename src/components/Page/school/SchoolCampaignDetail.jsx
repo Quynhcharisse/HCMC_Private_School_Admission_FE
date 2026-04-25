@@ -1306,11 +1306,6 @@ export default function SchoolCampaignDetail() {
                             {formErrors.year}
                         </Typography>
                     )}
-                    {formLocked && status !== "DRAFT" && !readOnlyTerminal && (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2 }}>
-                            Chỉ có thể cập nhật khi chiến dịch ở trạng thái «Bản nháp (DRAFT)».
-                        </Typography>
-                    )}
                     {!isPrimaryBranch && (
                         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 2 }}>
                             Bạn đang đăng nhập bằng Campus. Chỉ Primary Campus mới có quyền chỉnh sửa/công bố chiến dịch.
