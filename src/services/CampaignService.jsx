@@ -127,7 +127,9 @@ export const getCampaignOfferingsByCampus = async (campusId, { page = 0, pageSiz
  *   campusId: number,
  *   programId: number,
  *   learningMode: string,
- *   priceAdjustmentPercentage: number
+ *   priceAdjustmentPercentage: number,
+ *   openDate: string,
+ *   closeDate: string
  * }} body
  */
 export const createCampaignOffering = async (body) => {
@@ -137,22 +139,23 @@ export const createCampaignOffering = async (body) => {
         programId: Number(body.programId),
         learningMode: body.learningMode ?? "DAY_SCHOOL",
         priceAdjustmentPercentage: Number(body.priceAdjustmentPercentage) || 0,
+        openDate: String(body.openDate ?? "").trim(),
+        closeDate: String(body.closeDate ?? "").trim(),
     });
     return response || null;
 };
 
-/** PUT /campus/offering/list — cập nhật chỉ tiêu */
+/** PUT /campus/offering — cập nhật chỉ tiêu (học phí qua % điều chỉnh, kèm ngày mở/đóng) */
 export const updateCampaignOffering = async (body) => {
-    const response = await axiosClient.put("/campus/offering/list", {
+    const response = await axiosClient.put("/campus/offering", {
         id: Number(body.id),
         admissionCampaignId: Number(body.admissionCampaignId),
         campusId: Number(body.campusId),
         programId: Number(body.programId),
-        quota: Number(body.quota) || 0,
         learningMode: body.learningMode ?? "DAY_SCHOOL",
-        tuitionFee: Number(body.tuitionFee) || 0,
-        openDate: body.openDate ?? "",
-        closeDate: body.closeDate ?? "",
+        priceAdjustmentPercentage: Number(body.priceAdjustmentPercentage) || 0,
+        openDate: String(body.openDate ?? "").trim(),
+        closeDate: String(body.closeDate ?? "").trim(),
     });
     return response || null;
 };
@@ -164,7 +167,7 @@ export const updateCampaignOffering = async (body) => {
  */
 export const updateCampusOfferingStatus = async (offeringId, action) => {
     const response = await axiosClient.put(`/campus/${Number(offeringId)}/offering/status`, null, {
-    params: { action },
+        params: { action },
     });
     return response || null;
 };
