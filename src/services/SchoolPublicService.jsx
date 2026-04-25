@@ -22,6 +22,19 @@ export async function getPublicSchoolDetail(schoolId) {
 }
 
 /**
+ * GET /api/v1/school/{schoolId}/campaign/template/public?year=...
+ * Lấy danh sách chiến dịch tuyển sinh public của trường.
+ */
+export async function getPublicSchoolCampaignTemplates(schoolId, year = 0) {
+    if (schoolId === undefined || schoolId === null) return [];
+    const response = await axiosClient.get(`/school/${schoolId}/campaign/template/public`, {
+        params: {year: Number(year) || 0}
+    });
+    const body = response?.data?.body;
+    return Array.isArray(body) ? body : [];
+}
+
+/**
  * GET /api/v1/school/campus/search/nearby?lat=...&lng=...&radius=...
  * Tìm các campus lân cận dựa trên tọa độ phụ huynh.
  */
