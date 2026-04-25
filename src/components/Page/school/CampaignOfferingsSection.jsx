@@ -26,7 +26,6 @@ import {
     Typography,
     Pagination,
 } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
 import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import BusinessIcon from "@mui/icons-material/Business";
 import CampaignIcon from "@mui/icons-material/Campaign";
@@ -276,12 +275,22 @@ const emptyForm = {
  *   campaignId: number,
  *   campaignPaused: boolean,
  *   canMutate: boolean,
+ *   campaignOptions?: Array<{ id: number|string, name: string, year?: number|string, status?: string }>,
+ *   selectedCampaignId?: number|string,
+ *   onCampaignChange?: (id: string) => void,
+ *   campaignOptionsLoading?: boolean,
+ *   openCreateSignal?: number,
  * }} props
  */
 export default function CampaignOfferingsSection({
     campaignId,
     campaignPaused,
     canMutate,
+    campaignOptions = [],
+    selectedCampaignId = "",
+    onCampaignChange,
+    campaignOptionsLoading = false,
+    openCreateSignal = 0,
 }) {
     const { loading: schoolCtxLoading } = useSchool();
 
@@ -444,6 +453,11 @@ export default function CampaignOfferingsSection({
     useEffect(() => {
         setPage(0);
     }, [campusFilter, programFilter, statusFilter]);
+
+    useEffect(() => {
+        if (!openCreateSignal || !canMutate) return;
+        openCreate();
+    }, [openCreateSignal, canMutate]);
 
     const getLearningModeLabel = (mode) =>
         LEARNING_MODES.find((m) => m.value === mode)?.label ?? mode ?? "—";
@@ -671,57 +685,61 @@ export default function CampaignOfferingsSection({
 
     return (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <Box
-                sx={{
-                    display: "flex",
-                    flexDirection: { xs: "column", sm: "row" },
-                    alignItems: { xs: "stretch", sm: "center" },
-                    justifyContent: "space-between",
-                    gap: 2,
-                }}
-            >
-                <Box>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b" }}>
-                        Chỉ tiêu tuyển sinh
-                    </Typography>
-                    {campaignPaused && (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                            Chiến dịch đang tạm dừng — cột «Trạng thái» phản ánh dữ liệu từ hệ thống (thường là Tạm
-                            dừng).
-                        </Typography>
-                    )}
-                </Box>
-                {canMutate && (
-                    <Button
-                        variant="contained"
-                        startIcon={<AddIcon />}
-                        onClick={openCreate}
-                        disabled={!campusFilter}
-                        sx={{
-                            textTransform: "none",
-                            fontWeight: 600,
-                            borderRadius: 2,
-                            bgcolor: "#0D64DE",
-                            alignSelf: { xs: "stretch", sm: "auto" },
-                        }}
-                    >
-                        Thêm chỉ tiêu
-                    </Button>
-                )}
-            </Box>
-
             <Card
                 elevation={0}
                 sx={{
-                    borderRadius: 2,
+                    borderRadius: "16px",
                     border: "1px solid #e2e8f0",
+                    overflow: "hidden",
                     bgcolor: "#fff",
-                    boxShadow: "0 1px 3px rgba(51,65,85,0.06)",
+                    boxShadow: "0 4px 24px rgba(51,65,85,0.06)",
                 }}
             >
-                <CardContent sx={{ py: 2 }}>
+                <Box
+                    sx={{
+                        px: 2.5,
+                        pt: 2.5,
+                        pb: 1.5,
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 1.5,
+                    }}
+                >
+                    <AssignmentTurnedInIcon sx={{ color: "#0D64DE", fontSize: 28, mt: 0.25 }} />
+                    <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b", lineHeight: 1.3 }}>
+                            Danh sách chỉ tiêu
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5 }}>
+                            Quản lý chỉ tiêu tuyển sinh theo chiến dịch và cơ sở.
+                        </Typography>
+                        {campaignPaused && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                                Chiến dịch đang tạm dừng, dữ liệu chỉ tiêu đang ở chế độ chỉ xem.
+                            </Typography>
+                        )}
+                    </Box>
+                </Box>
+                <CardContent sx={{ p: 2.5, pt: 1.5, pb: 2 }}>
                     <Stack direction={{ xs: "column", md: "row" }} spacing={2} flexWrap="wrap">
-                        <FormControl size="small" sx={{ minWidth: 200 }} disabled={campusesLoading}>
+                        {typeof onCampaignChange === "function" ? (
+                            <FormControl size="small" sx={{ minWidth: 260 }} disabled={campaignOptionsLoading}>
+                                <InputLabel>Chiến dịch tuyển sinh</InputLabel>
+                                <Select
+                                    value={selectedCampaignId === "" ? "" : String(selectedCampaignId)}
+                                    label="Chiến dịch tuyển sinh"
+                                    onChange={(e) => onCampaignChange(String(e.target.value || ""))}
+                                    sx={{ borderRadius: 2, bgcolor: "#f8fafc" }}
+                                >
+                                    {campaignOptions.map((c) => (
+                                        <MenuItem key={String(c.id)} value={String(c.id)}>
+                                            {c.name} {c.year != null ? `(${c.year})` : ""} {c.status ? `· ${c.status}` : ""}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        ) : null}
+                        <FormControl size="small" sx={{ minWidth: 180 }} disabled={campusesLoading}>
                             <InputLabel>Cơ sở</InputLabel>
                             <Select
                                 value={campusFilter}
@@ -736,7 +754,7 @@ export default function CampaignOfferingsSection({
                                 ))}
                             </Select>
                         </FormControl>
-                        <FormControl size="small" sx={{ minWidth: 200 }} disabled={programsLoading}>
+                        <FormControl size="small" sx={{ minWidth: 180 }} disabled={programsLoading}>
                             <InputLabel>Chương trình</InputLabel>
                             <Select
                                 value={programFilter}
@@ -752,7 +770,7 @@ export default function CampaignOfferingsSection({
                                 ))}
                             </Select>
                         </FormControl>
-                        <FormControl size="small" sx={{ minWidth: 180 }}>
+                        <FormControl size="small" sx={{ minWidth: 170 }}>
                             <InputLabel>Trạng thái hồ sơ</InputLabel>
                             <Select
                                 value={statusFilter}
@@ -770,31 +788,19 @@ export default function CampaignOfferingsSection({
                         </FormControl>
                     </Stack>
                 </CardContent>
-            </Card>
-
-            <Card
-                elevation={0}
-                sx={{
-                    borderRadius: 2,
-                    border: "1px solid #e2e8f0",
-                    overflow: "hidden",
-                    bgcolor: "#fff",
-                    boxShadow: "0 1px 3px rgba(51,65,85,0.06)",
-                }}
-            >
-                <TableContainer>
-                    <Table size="small">
+                <TableContainer sx={{ borderTop: "1px solid #e2e8f0" }}>
+                    <Table>
                         <TableHead>
                             <TableRow sx={{ bgcolor: "#f8fafc" }}>
-                                <TableCell sx={{ fontWeight: 700 }}>Cơ sở</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Chương trình</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Hình thức</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Chỉ tiêu / Còn lại</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Học phí</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Trạng thái hồ sơ</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Mở — Đóng</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Cơ sở</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Chương trình</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Hình thức</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Chỉ tiêu / Còn lại</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Học phí</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Trạng thái hồ sơ</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Mở — Đóng</TableCell>
                                 {canMutate && (
-                                    <TableCell align="right" sx={{ fontWeight: 700 }}>
+                                    <TableCell align="right" sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>
                                         Thao tác
                                     </TableCell>
                                 )}
@@ -805,7 +811,7 @@ export default function CampaignOfferingsSection({
                                 Array.from({ length: 4 }).map((_, i) => (
                                     <TableRow key={i}>
                                         {Array.from({ length: canMutate ? 8 : 7 }).map((__, j) => (
-                                            <TableCell key={j}>
+                                            <TableCell key={j} sx={{ py: 2 }}>
                                                 <Skeleton variant="text" width="80%" />
                                             </TableCell>
                                         ))}
@@ -832,14 +838,14 @@ export default function CampaignOfferingsSection({
                                             bgcolor: rowMuted ? "rgba(250, 204, 21, 0.06)" : "inherit",
                                         }}
                                     >
-                                        <TableCell>{row.campusName ?? "—"}</TableCell>
-                                        <TableCell>{row.programName ?? getProgramName(row.programId)}</TableCell>
-                                        <TableCell>{getLearningModeLabel(row.learningMode)}</TableCell>
-                                        <TableCell>
+                                        <TableCell sx={{ py: 2.25 }}>{row.campusName ?? "—"}</TableCell>
+                                        <TableCell sx={{ py: 2.25 }}>{row.programName ?? getProgramName(row.programId)}</TableCell>
+                                        <TableCell sx={{ py: 2.25 }}>{getLearningModeLabel(row.learningMode)}</TableCell>
+                                        <TableCell sx={{ py: 2.25 }}>
                                             {row.quota ?? "—"} / {row.remainingQuota ?? "—"}
                                         </TableCell>
-                                        <TableCell>{formatCurrency(row.tuitionFee)}</TableCell>
-                                        <TableCell>
+                                        <TableCell sx={{ py: 2.25 }}>{formatCurrency(row.tuitionFee)}</TableCell>
+                                        <TableCell sx={{ py: 2.25 }}>
                                             {(() => {
                                                 const label = getApplicationStatusLabel(row.applicationStatus);
                                                 const { badgeBg, badgeColor } = getApplicationStatusBadgeStyle(
@@ -866,11 +872,11 @@ export default function CampaignOfferingsSection({
                                                 );
                                             })()}
                                         </TableCell>
-                                        <TableCell>
+                                        <TableCell sx={{ py: 2.25 }}>
                                             {formatDate(row.openDate)} — {formatDate(row.closeDate)}
                                         </TableCell>
                                         {canMutate && (
-                                            <TableCell align="right">
+                                            <TableCell align="right" sx={{ py: 2.25 }}>
                                                 <Stack direction="row" spacing={1.2} justifyContent="flex-end">
                                                     <IconButton
                                                         size="small"
@@ -909,8 +915,10 @@ export default function CampaignOfferingsSection({
                         sx={{
                             display: "flex",
                             justifyContent: "flex-end",
-                            p: 2,
+                            px: 3,
+                            py: 1.5,
                             borderTop: "1px solid #e2e8f0",
+                            bgcolor: "#f8fafc",
                         }}
                     >
                         <Pagination
