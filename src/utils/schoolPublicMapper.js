@@ -55,6 +55,7 @@ export function mapPublicSchoolDetailToRow(api) {
         ward,
         website: api.websiteUrl || "",
         phone: firstCampus?.phoneNumber || api.hotline || "",
+        emailSupport: String(api.emailSupport || "").trim(),
         email: primaryConsultantEmail || firstCampus?.email || api.email || api.schoolEmail || api.accountEmail || "",
         counsellorEmail:
             primaryConsultantEmail ||
