@@ -95,6 +95,11 @@ export const getParentSubjects = async () => {
     return response || null;
 };
 
+export const postParentTranscriptAutoFill = async (payload) => {
+    const response = await axiosClient.post('/parent/transcript/auto/fill', payload);
+    return response || null;
+};
+
 export const postParentFavouriteSchool = async (payload) => {
     const response = await axiosClient.post('/parent/favourite/school', payload);
     return response || null;
