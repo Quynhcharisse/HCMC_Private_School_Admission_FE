@@ -2166,7 +2166,7 @@ export default function SchoolPrograms() {
                                                                     "&:hover": {bgcolor: "#16a34a"},
                                                                 }}
                                                             >
-                                                                Kích hoạt
+                                                                Công bố
                                                             </Button>
                                                         )}
                                                     </Stack>
@@ -3192,7 +3192,7 @@ export default function SchoolPrograms() {
                 </IconButton>
                 <DialogContent sx={{pt: 3, px: 3, pr: 6}}>
                     <Typography variant="h6" sx={{fontWeight: 900}}>
-                        {actionType === "DEACTIVATE" ? "Xác nhận tạm dừng chương trình?" : "Xác nhận kích hoạt chương trình này?"}
+                        {actionType === "DEACTIVATE" ? "Xác nhận tạm dừng chương trình?" : "Xác nhận công bố chương trình này?"}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{mt: 1.25}}>
                         {actionType === "DEACTIVATE" ? (
@@ -3204,7 +3204,7 @@ export default function SchoolPrograms() {
                             </>
                         ) : (
                             <>
-                                Sau khi kích hoạt, bạn sẽ <ConfirmHighlight>không thể thay đổi Học phí và Khung chương
+                                Sau khi công bố, bạn sẽ <ConfirmHighlight>không thể thay đổi Học phí và Khung chương
                                 trình</ConfirmHighlight> trực tiếp.
                             </>
                         )}
@@ -3239,7 +3239,7 @@ export default function SchoolPrograms() {
                                 if (ok) {
                                     enqueueSnackbar(
                                         actionType === "ACTIVATE"
-                                            ? "Chương trình đã được kích hoạt thành công. Các cơ sở hiện đã có thể tạo đợt tuyển sinh."
+                                            ? "Chương trình đã được công bố thành công. Các cơ sở hiện đã có thể tạo đợt tuyển sinh."
                                             : "Chương trình đã tạm dừng. Bạn hiện có thể chỉnh sửa các thông tin cốt lõi.",
                                         {variant: "success"}
                                     );
@@ -3256,7 +3256,7 @@ export default function SchoolPrograms() {
                                 } else {
                                     enqueueSnackbar(
                                         actionType === "ACTIVATE"
-                                            ? "Không thể kích hoạt. Vui lòng kiểm tra lại dữ liệu chương trình."
+                                            ? "Không thể công bố. Vui lòng kiểm tra lại dữ liệu chương trình."
                                             : "Hành động không hợp lệ hoặc chương trình đã ở trạng thái Inactive.",
                                         {variant: "error"}
                                     );
@@ -3265,7 +3265,7 @@ export default function SchoolPrograms() {
                                 console.error("Program action error:", err);
                                 enqueueSnackbar(
                                     actionType === "ACTIVATE"
-                                        ? "Không thể kích hoạt. Vui lòng kiểm tra lại dữ liệu chương trình."
+                                        ? "Không thể công bố. Vui lòng kiểm tra lại dữ liệu chương trình."
                                         : "Hành động không hợp lệ hoặc chương trình đã ở trạng thái Inactive.",
                                     {variant: "error"}
                                 );

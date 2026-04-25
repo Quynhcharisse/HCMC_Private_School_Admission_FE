@@ -441,6 +441,14 @@ const router = createBrowserRouter([
                 )
             },
             {
+                path: 'campaign-offerings',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolCampaignOfferings/>
+                    </Suspense>
+                )
+            },
+            {
                 path: 'profile',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
