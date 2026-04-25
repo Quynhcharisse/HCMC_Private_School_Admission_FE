@@ -6,6 +6,10 @@ import {
     Card,
     CardContent,
     CircularProgress,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
     Divider,
     FormControl,
     FormControlLabel,
@@ -31,7 +35,7 @@ import {
     Tooltip,
     Typography,
 } from '@mui/material';
-import {Add, ArrowBack, DeleteOutline} from '@mui/icons-material';
+import {Add, ArrowBack, CloseRounded, DeleteOutline, UploadFile} from '@mui/icons-material';
 import {emptyGrades, genderOptions, GRADE_LEVELS} from './childrenInfo/childrenInfoHelpers.js';
 import {SubjectUnavailableHint} from './childrenInfo/SubjectUnavailableHint.jsx';
 import {
@@ -58,6 +62,7 @@ export default function ChildrenInfoPage() {
         loading,
         editMode,
         saving,
+        autoFillLoading,
         form,
         fieldsDisabled,
         personalityGroups,
@@ -76,6 +81,7 @@ export default function ChildrenInfoPage() {
         foreignGrades,
         regularSubjectAvailable,
         foreignRowAvailable,
+        gradeReportImages,
         studentRecords,
         activeStudentTab,
         creatingNewStudent,
@@ -90,10 +96,31 @@ export default function ChildrenInfoPage() {
         handleForeignSubjectChange,
         addForeignLanguageRow,
         removeForeignLanguageRow,
+        handleGradeReportImageChange,
+        removeGradeReportImage,
         foreignOptionsForRow,
         enterEditMode,
         handleSave,
+        handleAutoFillFromTranscriptImages,
     } = useChildrenInfoPage();
+    const [previewImageOpen, setPreviewImageOpen] = React.useState(false);
+    const [previewImage, setPreviewImage] = React.useState({url: '', title: ''});
+    const [transcriptImageListOpen, setTranscriptImageListOpen] = React.useState(false);
+
+    const openTranscriptImagePreview = (url, title) => {
+        if (!url) return;
+        setPreviewImage({url, title});
+        setPreviewImageOpen(true);
+    };
+    const openTranscriptImageListModal = () => {
+        setTranscriptImageListOpen(true);
+    };
+    const handleConfirmAutoFill = async () => {
+        const ok = await handleAutoFillFromTranscriptImages();
+        if (ok) {
+            setTranscriptImageListOpen(false);
+        }
+    };
 
     return (
         <Box sx={pageShellSx}>
@@ -1084,6 +1111,138 @@ export default function ChildrenInfoPage() {
                                     ' Phần ngoại ngữ: chọn ngôn ngữ và điền điểm; có thể thêm dòng nếu học nhiều ngôn ngữ.'}
                             </Typography>
                             <Box sx={sectionAccentBarSx}/>
+                            <Box
+                                sx={{
+                                    mb: 1.5,
+                                    width: '100%',
+                                    borderRadius: 2,
+                                    border: '1px solid rgba(226, 232, 240, 0.95)',
+                                    boxShadow: '0 4px 18px rgba(15, 23, 42, 0.04)',
+                                    bgcolor: 'rgba(255, 255, 255, 0.55)',
+                                    p: 1.25,
+                                }}
+                            >
+                                <Box
+                                    sx={{
+                                        display: 'grid',
+                                        gridTemplateColumns: {
+                                            xs: '1fr',
+                                            sm: 'repeat(2, minmax(0, 1fr))',
+                                            md: 'repeat(4, minmax(0, 1fr))',
+                                        },
+                                        gap: 1.25,
+                                    }}
+                                >
+                                    {GRADE_LEVELS.map((g) => {
+                                        const uploadItem = gradeReportImages?.[g.key] || null;
+                                        return (
+                                            <Box key={`report-image-${g.key}`} sx={{height: '100%'}}>
+                                                <Box
+                                                    sx={{
+                                                        p: 1.25,
+                                                        borderRadius: 2,
+                                                        border: '1px dashed rgba(59,130,246,0.45)',
+                                                        bgcolor: 'rgba(248,250,252,0.9)',
+                                                        minHeight: 158,
+                                                        height: '100%',
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        gap: 0.9,
+                                                        position: 'relative',
+                                                    }}
+                                                >
+                                                    <Box sx={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1}}>
+                                                        <Typography sx={{fontSize: 12.5, fontWeight: 700, color: '#1e3a8a'}}>
+                                                            {`Ảnh học bạ lớp ${g.label.replace('Lớp ', '')}`}
+                                                        </Typography>
+                                                        <Button
+                                                            component="label"
+                                                            size="small"
+                                                            startIcon={<UploadFile fontSize="small"/>}
+                                                            variant="outlined"
+                                                            disabled={fieldsDisabled}
+                                                            sx={{
+                                                                textTransform: 'none',
+                                                                borderColor: 'rgba(59,130,246,0.32)',
+                                                                color: '#1d4ed8',
+                                                                borderRadius: 1.5,
+                                                                minWidth: 'fit-content',
+                                                                px: 1,
+                                                                py: 0.25,
+                                                                fontSize: 11.5,
+                                                            }}
+                                                        >
+                                                            {uploadItem?.previewUrl ? 'Đổi ảnh' : 'Tải ảnh'}
+                                                            <input
+                                                                hidden
+                                                                type="file"
+                                                                accept="image/*"
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0] ?? null;
+                                                                    handleGradeReportImageChange(g.key, file);
+                                                                    e.target.value = '';
+                                                                }}
+                                                            />
+                                                        </Button>
+                                                    </Box>
+                                                    {uploadItem?.previewUrl ? (
+                                                        <Box sx={{display: 'flex', alignItems: 'stretch', gap: 1, flex: 1, minHeight: 96}}>
+                                                            <Box
+                                                                sx={{
+                                                                    width: '76%',
+                                                                    display: 'flex',
+                                                                    justifyContent: 'flex-start',
+                                                                    height: '100%',
+                                                                }}
+                                                            >
+                                                                <Box
+                                                                    component="img"
+                                                                    src={uploadItem.previewUrl}
+                                                                    alt={`Ảnh học bạ ${g.label}`}
+                                                                    onClick={() =>
+                                                                        openTranscriptImagePreview(
+                                                                            uploadItem.previewUrl,
+                                                                            `Ảnh học bạ lớp ${g.label.replace('Lớp ', '')}`,
+                                                                        )
+                                                                    }
+                                                                    sx={{
+                                                                        width: '100%',
+                                                                        maxWidth: 'none',
+                                                                        height: '100%',
+                                                                        borderRadius: 1.4,
+                                                                        objectFit: 'contain',
+                                                                        bgcolor: '#ffffff',
+                                                                        border: '1px solid rgba(148,163,184,0.35)',
+                                                                        cursor: 'zoom-in',
+                                                                    }}
+                                                                />
+                                                            </Box>
+                                                            <Box sx={{minWidth: 0, width: '24%'}}/>
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={() => removeGradeReportImage(g.key)}
+                                                                disabled={fieldsDisabled}
+                                                                sx={{
+                                                                    color: '#ef4444',
+                                                                    position: 'absolute',
+                                                                    right: 8,
+                                                                    bottom: 8,
+                                                                }}
+                                                            >
+                                                                <DeleteOutline fontSize="small"/>
+                                                            </IconButton>
+                                                        </Box>
+                                                    ) : (
+                                                        <Typography sx={{fontSize: 12, color: '#64748b', lineHeight: 1.4}}>
+                                                            Chưa có ảnh. Tải ảnh học bạ cho {g.label.toLowerCase()}.
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            </Box>
+                                        );
+                                    })}
+                                </Box>
+                            </Box>
                             {subjectGroupsLoading ? (
                                 <Box sx={{display: 'flex', justifyContent: 'center', py: 4}}>
                                     <CircularProgress sx={{color: '#2563eb'}}/>
@@ -1093,18 +1252,202 @@ export default function ChildrenInfoPage() {
                                     Chưa có dữ liệu môn học.
                                 </Typography>
                             ) : (
-                                <TableContainer
-                                    component={Paper}
-                                    elevation={0}
-                                    sx={{
-                                        overflowX: 'hidden',
-                                        borderRadius: 2,
-                                        border: '1px solid rgba(226, 232, 240, 0.95)',
-                                        boxShadow: '0 4px 18px rgba(15, 23, 42, 0.04)',
-                                        bgcolor: 'rgba(255, 255, 255, 0.55)',
-                                    }}
-                                >
-                                    <Table size="small" sx={{width: '100%', tableLayout: 'fixed'}}>
+                                <>
+                                    <Box sx={{display: {xs: 'block', sm: 'none'}, mb: 1}}>
+                                        <Stack spacing={1.1}>
+                                            {regularSubjects.map((sub) => {
+                                                const idStr = String(sub.id);
+                                                const row = regularGrades[idStr] || emptyGrades();
+                                                const regShowUnavailable = regularSubjectAvailable[idStr] === false;
+                                                return (
+                                                    <Box
+                                                        key={`reg-mobile-${sub.id}`}
+                                                        sx={{
+                                                            p: 1.2,
+                                                            borderRadius: 1.6,
+                                                            border: '1px solid rgba(226, 232, 240, 0.95)',
+                                                            bgcolor: 'rgba(255,255,255,0.8)',
+                                                        }}
+                                                    >
+                                                        <Typography sx={{fontSize: 13.5, fontWeight: 700, color: '#1e293b', mb: 0.8}}>
+                                                            {sub.name}
+                                                        </Typography>
+                                                        {regShowUnavailable && <SubjectUnavailableHint/>}
+                                                        <Grid container spacing={0.8} sx={{mt: 0.2}}>
+                                                            {GRADE_LEVELS.map((g) => (
+                                                                <Grid item xs={6} key={`${sub.id}-${g.key}`}>
+                                                                    <Typography sx={{fontSize: 11, color: '#64748b', mb: 0.35}}>
+                                                                        {g.label}
+                                                                    </Typography>
+                                                                    <TextField
+                                                                        value={row[g.key]}
+                                                                        onChange={(e) =>
+                                                                            handleRegularGradeChange(sub.id, g.key, e.target.value)
+                                                                        }
+                                                                        variant="outlined"
+                                                                        size="small"
+                                                                        fullWidth
+                                                                        placeholder="—"
+                                                                        disabled={fieldsDisabled || regShowUnavailable}
+                                                                        inputProps={{
+                                                                            inputMode: 'decimal',
+                                                                            style: {textAlign: 'center'},
+                                                                        }}
+                                                                        sx={gradeTextFieldSx}
+                                                                    />
+                                                                </Grid>
+                                                            ))}
+                                                        </Grid>
+                                                    </Box>
+                                                );
+                                            })}
+                                            {foreignSubjects.length > 0 &&
+                                                (() => {
+                                                    const canPickForeignLanguage = editMode || creatingNewStudent;
+                                                    const rowsSource = canPickForeignLanguage
+                                                        ? foreignRows
+                                                        : foreignRows.filter((r) => {
+                                                              const hasCustom =
+                                                                  r.customSubjectName && String(r.customSubjectName).trim();
+                                                              const hasCatalog = r.subjectId !== '' && r.subjectId != null;
+                                                              return Boolean(hasCustom || hasCatalog);
+                                                          });
+                                                    return [...rowsSource]
+                                                        .sort((a, b) => {
+                                                            const rank = (r) => {
+                                                                if (r.customSubjectName && String(r.customSubjectName).trim()) return 0;
+                                                                if (r.subjectId !== '' && r.subjectId != null) return 1;
+                                                                return 2;
+                                                            };
+                                                            return rank(a) - rank(b);
+                                                        })
+                                                        .map((fr) => {
+                                                            const rowGrades = foreignGrades[fr.rowId] || emptyGrades();
+                                                            const options = foreignOptionsForRow(fr.rowId, fr.subjectId);
+                                                            const customLabel = fr.customSubjectName != null
+                                                                ? String(fr.customSubjectName).trim()
+                                                                : '';
+                                                            const selectedForeignSubject = fr.subjectId === ''
+                                                                ? null
+                                                                : foreignSubjects.find((s) => s.id === fr.subjectId) || null;
+                                                            const canEditForeignGrades = Boolean(customLabel) || Boolean(selectedForeignSubject);
+                                                            const foreignShowUnavailable = foreignRowAvailable[fr.rowId] === false;
+                                                            const title = customLabel || selectedForeignSubject?.name || 'Ngoại ngữ';
+                                                            return (
+                                                                <Box
+                                                                    key={`foreign-mobile-${fr.rowId}`}
+                                                                    sx={{
+                                                                        p: 1.2,
+                                                                        borderRadius: 1.6,
+                                                                        border: '1px solid rgba(226, 232, 240, 0.95)',
+                                                                        bgcolor: 'rgba(255,255,255,0.8)',
+                                                                    }}
+                                                                >
+                                                                    <Box sx={{display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.8}}>
+                                                                        <Typography sx={{fontSize: 13.5, fontWeight: 700, color: '#1e293b', flex: 1}}>
+                                                                            {title}
+                                                                        </Typography>
+                                                                        {(editMode || creatingNewStudent) && (
+                                                                            <IconButton
+                                                                                size="small"
+                                                                                onClick={() => removeForeignLanguageRow(fr.rowId)}
+                                                                                disabled={fieldsDisabled}
+                                                                                sx={{color: '#94a3b8'}}
+                                                                            >
+                                                                                <DeleteOutline fontSize="small"/>
+                                                                            </IconButton>
+                                                                        )}
+                                                                    </Box>
+                                                                    {!customLabel && !selectedForeignSubject && (
+                                                                        <FormControl fullWidth size="small" sx={{mb: 0.8}}>
+                                                                            <InputLabel id={`fl-mobile-${fr.rowId}`}>Ngôn ngữ</InputLabel>
+                                                                            <Select
+                                                                                labelId={`fl-mobile-${fr.rowId}`}
+                                                                                label="Ngôn ngữ"
+                                                                                value={fr.subjectId === '' ? '' : fr.subjectId}
+                                                                                disabled={fieldsDisabled || foreignShowUnavailable}
+                                                                                onChange={(e) => {
+                                                                                    const v = e.target.value;
+                                                                                    handleForeignSubjectChange(
+                                                                                        fr.rowId,
+                                                                                        v === '' ? '' : Number(v),
+                                                                                    );
+                                                                                }}
+                                                                            >
+                                                                                <MenuItem value="">
+                                                                                    <em>Chọn ngôn ngữ</em>
+                                                                                </MenuItem>
+                                                                                {options.map((s) => (
+                                                                                    <MenuItem key={s.id} value={s.id}>
+                                                                                        {s.name}
+                                                                                    </MenuItem>
+                                                                                ))}
+                                                                            </Select>
+                                                                        </FormControl>
+                                                                    )}
+                                                                    {foreignShowUnavailable && <SubjectUnavailableHint/>}
+                                                                    <Grid container spacing={0.8} sx={{mt: 0.2}}>
+                                                                        {GRADE_LEVELS.map((g) => (
+                                                                            <Grid item xs={6} key={`${fr.rowId}-${g.key}`}>
+                                                                                <Typography sx={{fontSize: 11, color: '#64748b', mb: 0.35}}>
+                                                                                    {g.label}
+                                                                                </Typography>
+                                                                                <TextField
+                                                                                    value={rowGrades[g.key]}
+                                                                                    onChange={(e) =>
+                                                                                        handleForeignGradeChange(fr.rowId, g.key, e.target.value)
+                                                                                    }
+                                                                                    variant="outlined"
+                                                                                    size="small"
+                                                                                    fullWidth
+                                                                                    placeholder="—"
+                                                                                    disabled={
+                                                                                        fieldsDisabled ||
+                                                                                        !canEditForeignGrades ||
+                                                                                        foreignShowUnavailable
+                                                                                    }
+                                                                                    inputProps={{
+                                                                                        inputMode: 'decimal',
+                                                                                        style: {textAlign: 'center'},
+                                                                                    }}
+                                                                                    sx={gradeTextFieldSx}
+                                                                                />
+                                                                            </Grid>
+                                                                        ))}
+                                                                    </Grid>
+                                                                </Box>
+                                                            );
+                                                        });
+                                                })()}
+                                            {foreignSubjects.length > 0 && (editMode || creatingNewStudent) && (
+                                                <Box sx={{pt: 0.2}}>
+                                                    <Button
+                                                        size="small"
+                                                        variant="outlined"
+                                                        startIcon={<Add fontSize="small"/>}
+                                                        onClick={addForeignLanguageRow}
+                                                        disabled={fieldsDisabled}
+                                                        sx={{textTransform: 'none'}}
+                                                    >
+                                                        Thêm ngôn ngữ
+                                                    </Button>
+                                                </Box>
+                                            )}
+                                        </Stack>
+                                    </Box>
+                                    <TableContainer
+                                        component={Paper}
+                                        elevation={0}
+                                        sx={{
+                                            display: {xs: 'none', sm: 'block'},
+                                            overflowX: 'hidden',
+                                            borderRadius: 2,
+                                            border: '1px solid rgba(226, 232, 240, 0.95)',
+                                            boxShadow: '0 4px 18px rgba(15, 23, 42, 0.04)',
+                                            bgcolor: 'rgba(255, 255, 255, 0.55)',
+                                        }}
+                                    >
+                                        <Table size="small" sx={{width: '100%', tableLayout: 'fixed'}}>
                                         <TableHead>
                                             <TableRow>
                                                 <TableCell
@@ -1117,7 +1460,8 @@ export default function ChildrenInfoPage() {
                                                         fontSize: 13,
                                                         color: '#1e293b',
                                                         border: '1px solid rgba(226, 232, 240, 0.95)',
-                                                        width: '36%',
+                                                        borderRight: '1px solid rgba(203, 213, 225, 0.78)',
+                                                        width: {xs: '44%', sm: '30%', md: '24%'},
                                                     }}
                                                 >
                                                     Môn học
@@ -1131,10 +1475,50 @@ export default function ChildrenInfoPage() {
                                                         fontSize: 13,
                                                         color: '#1e293b',
                                                         border: '1px solid rgba(226, 232, 240, 0.95)',
+                                                        borderLeft: '1px solid rgba(203, 213, 225, 0.78)',
                                                         letterSpacing: 0.5,
+                                                        py: 1.1,
                                                     }}
                                                 >
-                                                    CẢ NĂM
+                                                    <Box
+                                                        sx={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'space-between',
+                                                            gap: 1,
+                                                        }}
+                                                    >
+                                                        <Box sx={{flex: 1}}/>
+                                                        <Typography component="span" sx={{fontWeight: 800, fontSize: 13, letterSpacing: 0.5}}>
+                                                            CẢ NĂM
+                                                        </Typography>
+                                                        <Box sx={{flex: 1, display: 'flex', justifyContent: 'flex-end'}}>
+                                                            {editMode && (
+                                                                <Button
+                                                                    size="medium"
+                                                                    variant="contained"
+                                                                    onClick={openTranscriptImageListModal}
+                                                                    sx={{
+                                                                        textTransform: 'none',
+                                                                        minWidth: 'fit-content',
+                                                                        px: 1.5,
+                                                                        py: 0.55,
+                                                                        fontSize: 13,
+                                                                        fontWeight: 600,
+                                                                        color: '#ffffff',
+                                                                        background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                                                                        boxShadow: '0 6px 16px rgba(37,99,235,0.35)',
+                                                                        '&:hover': {
+                                                                            background: 'linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)',
+                                                                            boxShadow: '0 8px 20px rgba(29,78,216,0.4)',
+                                                                        },
+                                                                    }}
+                                                                >
+                                                                    Tự động điền
+                                                                </Button>
+                                                            )}
+                                                        </Box>
+                                                    </Box>
                                                 </TableCell>
                                             </TableRow>
                                             <TableRow>
@@ -1148,7 +1532,7 @@ export default function ChildrenInfoPage() {
                                                             fontSize: 12,
                                                             color: '#334155',
                                                             border: '1px solid rgba(226, 232, 240, 0.95)',
-                                                            width: '16%',
+                                                            width: {xs: '14%', sm: '17.5%', md: '19%'},
                                                             whiteSpace: 'nowrap',
                                                         }}
                                                     >
@@ -1168,7 +1552,9 @@ export default function ChildrenInfoPage() {
                                                         <TableCell
                                                             sx={{
                                                                 border: '1px solid rgba(241, 245, 249, 0.95)',
+                                                                borderRight: '1px solid rgba(203, 213, 225, 0.78)',
                                                                 verticalAlign: 'middle',
+                                                                wordBreak: 'break-word',
                                                             }}
                                                         >
                                                             <Box
@@ -1183,8 +1569,9 @@ export default function ChildrenInfoPage() {
                                                                     component="span"
                                                                     sx={{
                                                                         fontWeight: 600,
-                                                                        fontSize: 14,
+                                                                        fontSize: {xs: 12, sm: 14},
                                                                         color: '#1e293b',
+                                                                        lineHeight: {xs: 1.3, sm: 1.4},
                                                                         overflowWrap: 'anywhere',
                                                                     }}
                                                                 >
@@ -1198,7 +1585,7 @@ export default function ChildrenInfoPage() {
                                                                 key={g.key}
                                                                 sx={{
                                                                     border: '1px solid rgba(241, 245, 249, 0.95)',
-                                                                    p: 0.5,
+                                                                    p: 0.75,
                                                                     verticalAlign: 'middle',
                                                                 }}
                                                             >
@@ -1293,6 +1680,7 @@ export default function ChildrenInfoPage() {
                                                             <TableCell
                                                                 sx={{
                                                                     border: '1px solid rgba(241, 245, 249, 0.95)',
+                                                                    borderRight: '1px solid rgba(203, 213, 225, 0.78)',
                                                                     fontWeight: 600,
                                                                     fontSize: 14,
                                                                     color: '#1e293b',
@@ -1321,12 +1709,13 @@ export default function ChildrenInfoPage() {
                                                                     <Typography
                                                                         sx={{
                                                                             fontWeight: 600,
-                                                                            fontSize: 14,
+                                                                            fontSize: {xs: 12, sm: 14},
                                                                             color: '#1e293b',
                                                                             lineHeight: 1.45,
                                                                             minHeight: 40,
                                                                             display: 'flex',
                                                                             alignItems: 'center',
+                                                                            overflowWrap: 'anywhere',
                                                                         }}
                                                                     >
                                                                         {customLabel}
@@ -1378,12 +1767,13 @@ export default function ChildrenInfoPage() {
                                                                     <Typography
                                                                         sx={{
                                                                             fontWeight: 600,
-                                                                            fontSize: 14,
+                                                                            fontSize: {xs: 12, sm: 14},
                                                                             color: '#1e293b',
                                                                             lineHeight: 1.45,
                                                                             minHeight: 40,
                                                                             display: 'flex',
                                                                             alignItems: 'center',
+                                                                            overflowWrap: 'anywhere',
                                                                         }}
                                                                     >
                                                                         {selectedForeignSubject.name}
@@ -1419,7 +1809,7 @@ export default function ChildrenInfoPage() {
                                                                     key={g.key}
                                                                     sx={{
                                                                         border: '1px solid rgba(241, 245, 249, 0.95)',
-                                                                        p: 0.5,
+                                                                        p: 0.75,
                                                                         verticalAlign: 'middle',
                                                                     }}
                                                                 >
@@ -1503,8 +1893,9 @@ export default function ChildrenInfoPage() {
                                                 </TableRow>
                                             )}
                                         </TableBody>
-                                    </Table>
-                                </TableContainer>
+                                        </Table>
+                                    </TableContainer>
+                                </>
                             )}
                         </CardContent>
                     </Card>
@@ -1531,6 +1922,188 @@ export default function ChildrenInfoPage() {
                         </Button>
                     </Box>
                 )}
+                <Dialog
+                    open={transcriptImageListOpen}
+                    onClose={() => setTranscriptImageListOpen(false)}
+                    maxWidth="sm"
+                    fullWidth
+                    PaperProps={{
+                        sx: {
+                            borderRadius: 2,
+                            overflow: 'hidden',
+                        },
+                    }}
+                >
+                    <DialogTitle
+                        sx={{
+                            fontSize: 16,
+                            fontWeight: 700,
+                            borderBottom: '1px solid rgba(226,232,240,0.95)',
+                        }}
+                    >
+                        Danh sách ảnh học bạ theo khối lớp
+                    </DialogTitle>
+                    <DialogContent sx={{p: 0}}>
+                        {GRADE_LEVELS.map((g, idx) => {
+                            const item = gradeReportImages?.[g.key] || null;
+                            const hasImage = Boolean(item?.previewUrl);
+                            const title = `Ảnh học bạ lớp ${g.label.replace('Lớp ', '')}`;
+                            return (
+                                <Box
+                                    key={`transcript-list-${g.key}`}
+                                    sx={{
+                                        px: 2,
+                                        py: 1.25,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'space-between',
+                                        gap: 1,
+                                        borderBottom:
+                                            idx === GRADE_LEVELS.length - 1
+                                                ? 'none'
+                                                : '1px solid rgba(241,245,249,0.95)',
+                                    }}
+                                >
+                                    <Box sx={{minWidth: 0}}>
+                                        <Typography sx={{fontSize: 14, fontWeight: 700, color: '#1e293b'}}>
+                                            {title}
+                                        </Typography>
+                                        <Typography sx={{fontSize: 12, color: hasImage ? '#15803d' : '#64748b'}}>
+                                            {hasImage ? 'Đã có ảnh' : 'Chưa có ảnh'}
+                                        </Typography>
+                                    </Box>
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        disabled={!hasImage}
+                                        onClick={() => {
+                                            if (!item?.previewUrl) return;
+                                            openTranscriptImagePreview(item.previewUrl, title);
+                                        }}
+                                        sx={{textTransform: 'none'}}
+                                    >
+                                        Xem ảnh
+                                    </Button>
+                                </Box>
+                            );
+                        })}
+                    </DialogContent>
+                    <Box sx={{px: 1.5, pb: 0.75}}>
+                        <Alert
+                            severity="warning"
+                            sx={{
+                                borderRadius: 1.5,
+                                border: '1px solid rgba(245,158,11,0.35)',
+                                '& .MuiAlert-message': {fontSize: 13.5, lineHeight: 1.5},
+                            }}
+                        >
+                            <strong>Lưu ý:</strong> Tất cả danh sách môn sẽ được viết lại hoàn toàn dựa trên kết quả tự động điền.
+                            Dữ liệu môn đã nhập trước đó sẽ bị xóa.
+                        </Alert>
+                    </Box>
+                    <DialogActions sx={{px: 2, py: 1.25, borderTop: '1px solid rgba(226,232,240,0.95)'}}>
+                        <Button
+                            variant="outlined"
+                            onClick={() => setTranscriptImageListOpen(false)}
+                            disabled={autoFillLoading}
+                            sx={{textTransform: 'none'}}
+                        >
+                            Đóng
+                        </Button>
+                        <Button
+                            variant="contained"
+                            onClick={() => void handleConfirmAutoFill()}
+                            disabled={autoFillLoading}
+                            startIcon={
+                                autoFillLoading ? (
+                                    <CircularProgress size={14} thickness={6} sx={{color: '#ffffff'}}/>
+                                ) : null
+                            }
+                            sx={{
+                                textTransform: 'none',
+                                color: '#ffffff',
+                                background: 'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)',
+                                boxShadow: '0 6px 14px rgba(37,99,235,0.3)',
+                                '&:hover': {
+                                    background: 'linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%)',
+                                },
+                            }}
+                        >
+                            {autoFillLoading ? 'Đang xử lý...' : 'Xác nhận'}
+                        </Button>
+                    </DialogActions>
+                </Dialog>
+                <Dialog
+                    open={previewImageOpen}
+                    onClose={() => setPreviewImageOpen(false)}
+                    maxWidth="md"
+                    fullWidth
+                    PaperProps={{
+                        sx: {
+                            borderRadius: 2.5,
+                            overflow: 'hidden',
+                            boxShadow: '0 28px 80px rgba(15, 23, 42, 0.36)',
+                            bgcolor: '#020617',
+                        },
+                    }}
+                    BackdropProps={{
+                        sx: {
+                            bgcolor: 'rgba(15, 23, 42, 0.62)',
+                            backdropFilter: 'blur(2px)',
+                        },
+                    }}
+                >
+                    <DialogTitle
+                        sx={{
+                            py: 1.1,
+                            px: 2,
+                            fontSize: 15,
+                            fontWeight: 700,
+                            color: '#f8fafc',
+                            borderBottom: '1px solid rgba(71,85,105,0.6)',
+                            bgcolor: '#020617',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                        }}
+                    >
+                        <Box component="span">{previewImage.title || 'Ảnh học bạ'}</Box>
+                        <IconButton
+                            size="small"
+                            onClick={() => setPreviewImageOpen(false)}
+                            sx={{
+                                color: '#cbd5e1',
+                                '&:hover': {color: '#ffffff', bgcolor: 'rgba(148,163,184,0.2)'},
+                            }}
+                        >
+                            <CloseRounded fontSize="small"/>
+                        </IconButton>
+                    </DialogTitle>
+                    <DialogContent
+                        sx={{
+                            px: {xs: 1.2, sm: 2},
+                            pb: {xs: 1.2, sm: 2},
+                            pt: {xs: 3.5, sm: 4.5},
+                            bgcolor: '#020617',
+                        }}
+                    >
+                        <Box
+                            component="img"
+                            src={previewImage.url}
+                            alt={previewImage.title || 'Ảnh học bạ'}
+                            sx={{
+                                width: '100%',
+                                maxHeight: '74vh',
+                                objectFit: 'contain',
+                                borderRadius: 1,
+                                display: 'block',
+                                mx: 'auto',
+                                mt: {xs: 1.2, sm: 1.8},
+                                bgcolor: '#020617',
+                            }}
+                        />
+                    </DialogContent>
+                </Dialog>
             </Box>
         </Box>
     );
