@@ -57,14 +57,14 @@ const LEARNING_MODES = [
 const APPLICATION_STATUS_OPTIONS = [
     { value: "OPEN", label: "Đang mở" },
     { value: "CLOSED", label: "Đã đóng" },
-    { value: "PAUSED", label: "Tạm dừng" },
+    { value: "PAUSE", label: "Tạm dừng" },
     { value: "FULL", label: "Đầy chỗ" },
     { value: "CANCELLED", label: "Đã hủy" },
 ];
 
 const APPLICATION_STATUS_BADGES = {
     OPEN: { badgeBg: "rgba(34, 197, 94, 0.16)", badgeColor: "#16a34a" }, // green
-    PAUSED: { badgeBg: "rgba(250, 204, 21, 0.22)", badgeColor: "#a16207" }, // amber
+    PAUSE: { badgeBg: "rgba(250, 204, 21, 0.22)", badgeColor: "#a16207" }, // amber
     FULL: { badgeBg: "rgba(239, 68, 68, 0.14)", badgeColor: "#dc2626" }, // red
     CLOSED: { badgeBg: "rgba(148, 163, 184, 0.22)", badgeColor: "#475569" }, // slate
     CANCELLED: { badgeBg: "rgba(248, 113, 113, 0.14)", badgeColor: "#b91c1c" }, // muted red
@@ -98,6 +98,12 @@ function normalizeCampaignLifecycleStatus(raw) {
     return s;
 }
 
+function normalizeApplicationStatus(raw) {
+    const s = String(raw || "").toUpperCase();
+    if (s === "PAUSED") return "PAUSE";
+    return s;
+}
+
 function normalizeOfferingRow(row) {
     if (!row || typeof row !== "object") return row;
     const programObj = row.program && typeof row.program === "object" ? row.program : null;
@@ -109,6 +115,7 @@ function normalizeOfferingRow(row) {
     return {
         ...row,
         status: normalizeCampaignLifecycleStatus(row.status),
+        applicationStatus: normalizeApplicationStatus(row.applicationStatus),
         applicationYear:
             row.applicationYear ??
             programObj?.applicationYear ??
@@ -203,6 +210,7 @@ const DETAIL_SECTIONS = [
             { key: "priceAdjustmentPercentage", label: "Điều chỉnh học phí (%)" },
             { key: "quota", label: "Chỉ tiêu" },
             { key: "remainingQuota", label: "Chỉ tiêu còn lại" },
+            { key: "applicationStatus", label: "Trạng thái hồ sơ" },
             { key: "openDate", label: "Ngày mở nhận hồ sơ" },
             { key: "closeDate", label: "Ngày đóng nhận hồ sơ" },
             { key: "tuitionFee", label: "Học phí áp dụng" },
@@ -419,7 +427,7 @@ export default function CampaignOfferingsSection({
         if (statusFilter !== "all") {
             list = list.filter(
                 (r) =>
-                    String(r.applicationStatus || "").toUpperCase() === statusFilter ||
+                    normalizeApplicationStatus(r.applicationStatus) === statusFilter ||
                     String(r.status || "").toUpperCase() === statusFilter
             );
         }
@@ -440,17 +448,21 @@ export default function CampaignOfferingsSection({
     const getLearningModeLabel = (mode) =>
         LEARNING_MODES.find((m) => m.value === mode)?.label ?? mode ?? "—";
     const getApplicationStatusLabel = (s) =>
-        APPLICATION_STATUS_OPTIONS.find((o) => o.value === s)?.label ?? s ?? "—";
+        APPLICATION_STATUS_OPTIONS.find((o) => o.value === normalizeApplicationStatus(s))?.label ??
+        normalizeApplicationStatus(s) ??
+        "—";
 
     const getApplicationStatusBadgeStyle = (s) => {
-        const key = String(s || "").toUpperCase();
+        const key = normalizeApplicationStatus(s);
         return APPLICATION_STATUS_BADGES[key] ?? { badgeBg: "#f1f5f9", badgeColor: "#64748b" };
     };
 
     const getProgramName = (id) =>
         programs.find((p) => Number(p.id) === Number(id))?.name ?? id ?? "—";
-    const getLifecycleStatus = (row) =>
-        normalizeCampaignLifecycleStatus(row?.status ?? "");
+    const getLifecycleStatus = (row) => normalizeCampaignLifecycleStatus(row?.status ?? "");
+    const getApplicationStatus = (row) => normalizeApplicationStatus(row?.applicationStatus ?? "");
+    const canPauseOrClose = (row) => getApplicationStatus(row) === "OPEN";
+    const canPublishOrClose = (row) => getApplicationStatus(row) === "PAUSE";
 
     const formatDetailValue = (key, value) => {
         if (value === null || value === undefined || value === "") return "—";
@@ -635,10 +647,10 @@ export default function CampaignOfferingsSection({
         setConfirmActionLoading(true);
         try {
             if (confirmActionType === "toggle") {
-                const action = confirmTargetStatus === "PAUSED" ? "PAUSE" : "PUBLISH";
+                const action = confirmTargetStatus === "PAUSE" ? "PAUSE" : "PUBLISH";
                 await updateCampusOfferingStatus(confirmRow.id, action);
                 enqueueSnackbar(
-                    confirmTargetStatus === "PAUSED" ? "Đã tạm dừng chỉ tiêu." : "Đã xuất bản chỉ tiêu.",
+                    confirmTargetStatus === "PAUSE" ? "Đã tạm dừng chỉ tiêu." : "Đã công bố chỉ tiêu.",
                     { variant: "success" }
                 );
             } else if (confirmActionType === "close") {
@@ -779,6 +791,7 @@ export default function CampaignOfferingsSection({
                                 <TableCell sx={{ fontWeight: 700 }}>Hình thức</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>Chỉ tiêu / Còn lại</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>Học phí</TableCell>
+                                <TableCell sx={{ fontWeight: 700 }}>Trạng thái hồ sơ</TableCell>
                                 <TableCell sx={{ fontWeight: 700 }}>Mở — Đóng</TableCell>
                                 {canMutate && (
                                     <TableCell align="right" sx={{ fontWeight: 700 }}>
@@ -791,7 +804,7 @@ export default function CampaignOfferingsSection({
                             {loading ? (
                                 Array.from({ length: 4 }).map((_, i) => (
                                     <TableRow key={i}>
-                                        {Array.from({ length: canMutate ? 7 : 6 }).map((__, j) => (
+                                        {Array.from({ length: canMutate ? 8 : 7 }).map((__, j) => (
                                             <TableCell key={j}>
                                                 <Skeleton variant="text" width="80%" />
                                             </TableCell>
@@ -800,7 +813,7 @@ export default function CampaignOfferingsSection({
                                 ))
                             ) : items.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={canMutate ? 7 : 6} align="center" sx={{ py: 6 }}>
+                                    <TableCell colSpan={canMutate ? 8 : 7} align="center" sx={{ py: 6 }}>
                                         <Typography color="text.secondary">Chưa có chỉ tiêu cho bộ lọc này.</Typography>
                                     </TableCell>
                                 </TableRow>
@@ -827,6 +840,33 @@ export default function CampaignOfferingsSection({
                                         </TableCell>
                                         <TableCell>{formatCurrency(row.tuitionFee)}</TableCell>
                                         <TableCell>
+                                            {(() => {
+                                                const label = getApplicationStatusLabel(row.applicationStatus);
+                                                const { badgeBg, badgeColor } = getApplicationStatusBadgeStyle(
+                                                    row.applicationStatus
+                                                );
+                                                return (
+                                                    <Box
+                                                        component="span"
+                                                        sx={{
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            px: 1.2,
+                                                            py: 0.4,
+                                                            borderRadius: "999px",
+                                                            fontSize: 12,
+                                                            fontWeight: 800,
+                                                            lineHeight: 1,
+                                                            color: badgeColor,
+                                                            bgcolor: badgeBg,
+                                                        }}
+                                                    >
+                                                        {label}
+                                                    </Box>
+                                                );
+                                            })()}
+                                        </TableCell>
+                                        <TableCell>
                                             {formatDate(row.openDate)} — {formatDate(row.closeDate)}
                                         </TableCell>
                                         {canMutate && (
@@ -844,7 +884,7 @@ export default function CampaignOfferingsSection({
                                                         <EditIcon fontSize="small" />
                                                     </IconButton>
 
-                                                    {["OPEN", "PAUSED"].includes(getLifecycleStatus(row)) && (
+                                                    {(canPauseOrClose(row) || canPublishOrClose(row)) && (
                                                         <IconButton
                                                             size="small"
                                                             aria-label="Thao tác khác"
@@ -1013,8 +1053,56 @@ export default function CampaignOfferingsSection({
                         }}
                         sx={{ textTransform: "none" }}
                     >
-                        Đóng
+                        Đóng cửa sổ
                     </Button>
+                    {canMutate && detailRow && canPauseOrClose(detailRow) ? (
+                        <Button
+                            variant="outlined"
+                            color="warning"
+                            disabled={confirmActionLoading}
+                            onClick={() => {
+                                setConfirmRow(detailRow);
+                                setConfirmTargetStatus("PAUSE");
+                                setConfirmActionType("toggle");
+                                setConfirmActionOpen(true);
+                            }}
+                            sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                        >
+                            Tạm dừng
+                        </Button>
+                    ) : null}
+                    {canMutate && detailRow && canPublishOrClose(detailRow) ? (
+                        <Button
+                            variant="outlined"
+                            color="primary"
+                            disabled={confirmActionLoading}
+                            onClick={() => {
+                                setConfirmRow(detailRow);
+                                setConfirmTargetStatus("OPEN");
+                                setConfirmActionType("toggle");
+                                setConfirmActionOpen(true);
+                            }}
+                            sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                        >
+                            Công bố
+                        </Button>
+                    ) : null}
+                    {canMutate && detailRow && (canPauseOrClose(detailRow) || canPublishOrClose(detailRow)) ? (
+                        <Button
+                            variant="outlined"
+                            color="error"
+                            disabled={confirmActionLoading}
+                            onClick={() => {
+                                setConfirmRow(detailRow);
+                                setConfirmTargetStatus(null);
+                                setConfirmActionType("close");
+                                setConfirmActionOpen(true);
+                            }}
+                            sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                        >
+                            Đóng
+                        </Button>
+                    ) : null}
                     {canMutate && detailRow && (
                         <Button
                             variant="contained"
@@ -1203,12 +1291,11 @@ export default function CampaignOfferingsSection({
                     paper: { sx: { borderRadius: 2, minWidth: 220 } },
                 }}
             >
-                {actionMenuRow &&
-                    getLifecycleStatus(actionMenuRow) === "OPEN" && (
+                {actionMenuRow && canPauseOrClose(actionMenuRow) && (
                         <MenuItem
                             onClick={() => {
                                 closeActionMenu();
-                                openConfirmToggle(actionMenuRow, "PAUSED");
+                                openConfirmToggle(actionMenuRow, "PAUSE");
                             }}
                             disabled={confirmActionLoading}
                         >
@@ -1216,8 +1303,7 @@ export default function CampaignOfferingsSection({
                         </MenuItem>
                     )}
 
-                {actionMenuRow &&
-                    getLifecycleStatus(actionMenuRow) === "PAUSED" && (
+                {actionMenuRow && canPublishOrClose(actionMenuRow) && (
                         <MenuItem
                             onClick={() => {
                                 closeActionMenu();
@@ -1229,9 +1315,7 @@ export default function CampaignOfferingsSection({
                         </MenuItem>
                     )}
 
-                {actionMenuRow &&
-                    ["OPEN", "PAUSED"].includes(getLifecycleStatus(actionMenuRow)) &&
-                    !["CLOSED", "FULL"].includes(String(actionMenuRow.status || "").toUpperCase()) && (
+                {actionMenuRow && (canPauseOrClose(actionMenuRow) || canPublishOrClose(actionMenuRow)) && (
                         <MenuItem
                             onClick={() => {
                                 closeActionMenu();
@@ -1263,7 +1347,7 @@ export default function CampaignOfferingsSection({
                 <DialogContent sx={{ pt: 2 }}>
                     <Typography variant="body2" color="text.secondary" component="div">
                         {confirmActionType === "toggle" &&
-                            (confirmTargetStatus === "PAUSED" ? (
+                            (confirmTargetStatus === "PAUSE" ? (
                                 <>
                                     Bạn có chắc chắn muốn <ConfirmHighlight>tạm dừng nhận hồ sơ</ConfirmHighlight>? Khi tạm dừng, chương trình sẽ{" "}
                                     <ConfirmHighlight>không còn nhận hồ sơ mới</ConfirmHighlight>.
