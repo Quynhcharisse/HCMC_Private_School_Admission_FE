@@ -6,6 +6,7 @@ import {
     getParentPersonalityTypes,
     getParentStudent,
     getParentSubjects,
+    postParentTranscriptAutoFill,
     postParentStudent,
     putParentStudent,
 } from '../../../services/ParentService.jsx';
@@ -13,6 +14,7 @@ import {
     applyStudentBodyToState,
     buildStudentPayload,
     emptyGrades,
+    GRADE_LEVELS,
     findPersonalityByCode,
     findPersonalityById,
     getEmptyStudentState,
@@ -23,6 +25,45 @@ import {
     setStudentState,
 } from './childrenInfoHelpers.js';
 import {AUTH_USER_STORAGE_CHANGED_EVENT} from '../../../utils/userRole.js';
+import {isCloudinaryConfigured, uploadFileToCloudinary} from '../../../utils/cloudinaryUpload.js';
+
+const createEmptyGradeReportImages = () =>
+    GRADE_LEVELS.reduce((acc, g) => {
+        acc[g.key] = null;
+        return acc;
+    }, {});
+
+const gradeEnumToKeyMap = GRADE_LEVELS.reduce((acc, g) => {
+    acc[String(g.gradeLevelEnum)] = g.key;
+    return acc;
+}, {});
+
+const pickRawStudentObject = (input) => {
+    let raw = input?.student ?? input?.data?.student ?? input?.data ?? input;
+    if (Array.isArray(raw)) raw = raw.length ? raw[0] : null;
+    return raw && typeof raw === 'object' ? raw : null;
+};
+
+const mapTranscriptImagesToGradeState = (input) => {
+    const base = createEmptyGradeReportImages();
+    const raw = pickRawStudentObject(input);
+    const list = Array.isArray(raw?.transcriptImages) ? raw.transcriptImages : [];
+    list.forEach((item) => {
+        const gradeRaw = String(item?.grade ?? '').trim();
+        const gradeKey = gradeEnumToKeyMap[gradeRaw] ?? null;
+        const imageUrl = String(item?.imageUrl ?? '').trim();
+        if (!gradeKey || !imageUrl) return;
+        base[gradeKey] = {
+            file: null,
+            previewUrl: imageUrl,
+            uploadedUrl: imageUrl,
+            name: imageUrl.split('/').pop() || `${gradeRaw}.jpg`,
+            size: 0,
+            type: 'remote',
+        };
+    });
+    return base;
+};
 
 export function useChildrenInfoPage() {
     const navigate = useNavigate();
@@ -54,11 +95,14 @@ export function useChildrenInfoPage() {
     const [pendingAcademicInfos, setPendingAcademicInfos] = useState(null);
     const [regularSubjectAvailable, setRegularSubjectAvailable] = useState({});
     const [foreignRowAvailable, setForeignRowAvailable] = useState({});
+    const [gradeReportImages, setGradeReportImages] = useState(createEmptyGradeReportImages);
+    const gradeReportImagesRef = useRef(gradeReportImages);
     const [pendingFavouriteJobLabel, setPendingFavouriteJobLabel] = useState(null);
     const [studentRecords, setStudentRecords] = useState([]);
     const [activeStudentTab, setActiveStudentTab] = useState(0);
     const [creatingNewStudent, setCreatingNewStudent] = useState(false);
     const [currentStudentId, setCurrentStudentId] = useState(null);
+    const [autoFillLoading, setAutoFillLoading] = useState(false);
 
     const setters = {
         setForm,
@@ -85,6 +129,15 @@ export function useChildrenInfoPage() {
     const applyStudentRecordToEditor = (record) => {
         const mapped = applyStudentBodyToState(record);
         setStudentState(setters, mapped);
+        const nextTranscriptState = mapTranscriptImagesToGradeState(record);
+        setGradeReportImages((prev) => {
+            Object.values(prev).forEach((img) => {
+                if (img?.previewUrl && String(img.previewUrl).startsWith('blob:')) {
+                    URL.revokeObjectURL(img.previewUrl);
+                }
+            });
+            return nextTranscriptState;
+        });
     };
 
     /** Cùng tab: đăng nhập đổi tài khoản; tab khác: `storage`. Tránh giữ form học sinh của phiên trước. */
@@ -427,11 +480,138 @@ export function useChildrenInfoPage() {
         setActiveStudentTab(studentRecords.length);
         setEditMode(true);
         setStudentState(setters, getEmptyStudentState());
+        setGradeReportImages((prev) => {
+            Object.values(prev).forEach((img) => {
+                if (img?.previewUrl) URL.revokeObjectURL(img.previewUrl);
+            });
+            return createEmptyGradeReportImages();
+        });
+    };
+
+    const handleGradeReportImageChange = (gradeKey, file) => {
+        if (!gradeKey) return;
+        setGradeReportImages((prev) => {
+            const current = prev?.[gradeKey];
+            if (current?.previewUrl) {
+                URL.revokeObjectURL(current.previewUrl);
+            }
+            if (!file) {
+                return {...prev, [gradeKey]: null};
+            }
+            const previewUrl = URL.createObjectURL(file);
+            return {
+                ...prev,
+                [gradeKey]: {
+                    file,
+                    previewUrl,
+                    name: file.name,
+                    size: file.size,
+                    type: file.type,
+                },
+            };
+        });
+    };
+
+    const removeGradeReportImage = (gradeKey) => {
+        if (!gradeKey) return;
+        setGradeReportImages((prev) => {
+            const current = prev?.[gradeKey];
+            if (current?.previewUrl) {
+                URL.revokeObjectURL(current.previewUrl);
+            }
+            return {...prev, [gradeKey]: null};
+        });
+    };
+
+    const uploadTranscriptImages = async () => {
+        const uploadQueue = GRADE_LEVELS.map((g) => {
+            const item = gradeReportImages?.[g.key];
+            const file = item?.file;
+            if (file instanceof File) return {grade: g.gradeLevelEnum, file};
+            const existingUrl = String(item?.uploadedUrl ?? item?.previewUrl ?? '').trim();
+            if (existingUrl) return {grade: g.gradeLevelEnum, imageUrl: existingUrl};
+            return null;
+        }).filter(Boolean);
+
+        if (uploadQueue.length === 0) return [];
+        const hasNewFile = uploadQueue.some((x) => x.file instanceof File);
+        if (hasNewFile && !isCloudinaryConfigured()) {
+            throw new Error('Thiếu cấu hình Cloudinary để upload ảnh học bạ.');
+        }
+
+        const uploaded = await Promise.all(
+            uploadQueue.map(async ({grade, file, imageUrl}) => {
+                if (!(file instanceof File)) return {grade, imageUrl};
+                const res = await uploadFileToCloudinary(file);
+                return {grade, imageUrl: res.url};
+            }),
+        );
+        return uploaded;
+    };
+
+    const buildTranscriptImagePayloadWithNulls = async () => {
+        const hasNewFile = GRADE_LEVELS.some((g) => gradeReportImages?.[g.key]?.file instanceof File);
+        if (hasNewFile && !isCloudinaryConfigured()) {
+            throw new Error('Thiếu cấu hình Cloudinary để upload ảnh học bạ.');
+        }
+
+        const images = await Promise.all(
+            GRADE_LEVELS.map(async (g) => {
+                const item = gradeReportImages?.[g.key] || null;
+                const file = item?.file;
+                if (file instanceof File) {
+                    const uploaded = await uploadFileToCloudinary(file);
+                    return {gradeLevel: g.gradeLevelEnum, imageUrl: uploaded.url};
+                }
+                const existingUrl = String(item?.uploadedUrl ?? item?.previewUrl ?? '').trim();
+                return {gradeLevel: g.gradeLevelEnum, imageUrl: existingUrl || null};
+            }),
+        );
+        return images;
+    };
+
+    const handleAutoFillFromTranscriptImages = async () => {
+        if (!regularSubjects.length && !foreignSubjects.length) {
+            enqueueSnackbar('Chưa có danh mục môn học để map điểm.', {variant: 'warning'});
+            return false;
+        }
+        setAutoFillLoading(true);
+        try {
+            const images = await buildTranscriptImagePayloadWithNulls();
+            const res = await postParentTranscriptAutoFill({images});
+            if (!res || res.status < 200 || res.status >= 300) {
+                enqueueSnackbar('Không thể tự động điền từ ảnh học bạ.', {variant: 'error'});
+                return false;
+            }
+
+            const parsed = parseBody(res);
+            const academicInfos = Array.isArray(parsed?.academicInfos)
+                ? parsed.academicInfos
+                : Array.isArray(parsed?.body?.academicInfos)
+                  ? parsed.body.academicInfos
+                  : [];
+            const merged = mergeAcademicInfosIntoGrades(academicInfos, regularSubjects, foreignSubjects);
+            setRegularGrades(merged.regularGrades);
+            setForeignRows(merged.foreignRows);
+            setForeignGrades(merged.foreignGrades);
+            setRegularSubjectAvailable(merged.regularSubjectAvailable ?? {});
+            setForeignRowAvailable(merged.foreignRowAvailable ?? {});
+            setPendingAcademicInfos(null);
+            enqueueSnackbar('Đã tự động điền điểm từ ảnh học bạ.', {variant: 'success'});
+            return true;
+        } catch (e) {
+            console.error('Auto fill transcript error:', e);
+            enqueueSnackbar('Tự động điền thất bại.', {variant: 'error'});
+            return false;
+        } finally {
+            setAutoFillLoading(false);
+        }
     };
 
     const handleSave = async () => {
         setSaving(true);
         try {
+            const transcriptImages = await uploadTranscriptImages();
             const payload = buildStudentPayload({
                 form,
                 selectedPersonality,
@@ -443,6 +623,7 @@ export function useChildrenInfoPage() {
                 foreignRows,
                 foreignGrades,
                 foreignSubjects,
+                transcriptImages,
             });
             const usePut =
                 !creatingNewStudent &&
@@ -533,11 +714,27 @@ export function useChildrenInfoPage() {
         });
     }, [selectedPersonalityId, personalityLoading, personalityGroups]);
 
+    useEffect(() => {
+        gradeReportImagesRef.current = gradeReportImages;
+    }, [gradeReportImages]);
+
+    useEffect(
+        () => () => {
+            Object.values(gradeReportImagesRef.current || {}).forEach((img) => {
+                if (img?.previewUrl && String(img.previewUrl).startsWith('blob:')) {
+                    URL.revokeObjectURL(img.previewUrl);
+                }
+            });
+        },
+        [],
+    );
+
     return {
         navigate,
         loading,
         editMode,
         saving,
+        autoFillLoading,
         form,
         fieldsDisabled,
         personalityGroups,
@@ -556,6 +753,7 @@ export function useChildrenInfoPage() {
         foreignGrades,
         regularSubjectAvailable,
         foreignRowAvailable,
+        gradeReportImages,
         handleChange,
         handlePersonalityListScroll,
         handlePersonalityChange,
@@ -565,6 +763,8 @@ export function useChildrenInfoPage() {
         handleForeignSubjectChange,
         addForeignLanguageRow,
         removeForeignLanguageRow,
+        handleGradeReportImageChange,
+        removeGradeReportImage,
         foreignOptionsForRow,
         studentRecords,
         activeStudentTab,
@@ -573,5 +773,6 @@ export function useChildrenInfoPage() {
         handleAddStudentTab,
         enterEditMode,
         handleSave,
+        handleAutoFillFromTranscriptImages,
     };
 }
