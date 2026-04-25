@@ -570,10 +570,20 @@ export function useChildrenInfoPage() {
         return images;
     };
 
-    const handleAutoFillFromTranscriptImages = async () => {
+    const applyMergedAcademicInfos = (merged) => {
+        if (!merged) return;
+        setRegularGrades(merged.regularGrades);
+        setForeignRows(merged.foreignRows);
+        setForeignGrades(merged.foreignGrades);
+        setRegularSubjectAvailable(merged.regularSubjectAvailable ?? {});
+        setForeignRowAvailable(merged.foreignRowAvailable ?? {});
+        setPendingAcademicInfos(null);
+    };
+
+    const requestAutoFillFromTranscriptImages = async () => {
         if (!regularSubjects.length && !foreignSubjects.length) {
             enqueueSnackbar('Chưa có danh mục môn học để map điểm.', {variant: 'warning'});
-            return false;
+            return null;
         }
         setAutoFillLoading(true);
         try {
@@ -581,7 +591,7 @@ export function useChildrenInfoPage() {
             const res = await postParentTranscriptAutoFill({images});
             if (!res || res.status < 200 || res.status >= 300) {
                 enqueueSnackbar('Không thể tự động điền từ ảnh học bạ.', {variant: 'error'});
-                return false;
+                return null;
             }
 
             const parsed = parseBody(res);
@@ -591,21 +601,22 @@ export function useChildrenInfoPage() {
                   ? parsed.body.academicInfos
                   : [];
             const merged = mergeAcademicInfosIntoGrades(academicInfos, regularSubjects, foreignSubjects);
-            setRegularGrades(merged.regularGrades);
-            setForeignRows(merged.foreignRows);
-            setForeignGrades(merged.foreignGrades);
-            setRegularSubjectAvailable(merged.regularSubjectAvailable ?? {});
-            setForeignRowAvailable(merged.foreignRowAvailable ?? {});
-            setPendingAcademicInfos(null);
-            enqueueSnackbar('Đã tự động điền điểm từ ảnh học bạ.', {variant: 'success'});
-            return true;
+            return {academicInfos, merged};
         } catch (e) {
             console.error('Auto fill transcript error:', e);
             enqueueSnackbar('Tự động điền thất bại.', {variant: 'error'});
-            return false;
+            return null;
         } finally {
             setAutoFillLoading(false);
         }
+    };
+
+    const handleAutoFillFromTranscriptImages = async () => {
+        const autoFillResult = await requestAutoFillFromTranscriptImages();
+        if (!autoFillResult) return false;
+        applyMergedAcademicInfos(autoFillResult.merged);
+        enqueueSnackbar('Đã tự động điền điểm từ ảnh học bạ.', {variant: 'success'});
+        return true;
     };
 
     const handleSave = async () => {
@@ -774,5 +785,7 @@ export function useChildrenInfoPage() {
         enterEditMode,
         handleSave,
         handleAutoFillFromTranscriptImages,
+        requestAutoFillFromTranscriptImages,
+        applyMergedAcademicInfos,
     };
 }
