@@ -9,6 +9,9 @@ import {
     CardContent,
     Chip,
     Divider,
+    Dialog,
+    DialogActions,
+    DialogContent,
     LinearProgress,
     Stack,
     Tooltip,
@@ -19,7 +22,6 @@ import CampaignIcon from "@mui/icons-material/Campaign";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import EditIcon from "@mui/icons-material/Edit";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import FlagCircleIcon from "@mui/icons-material/FlagCircle";
@@ -27,9 +29,11 @@ import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import InsightsIcon from "@mui/icons-material/Insights";
 import PlaylistAddCheckCircleIcon from "@mui/icons-material/PlaylistAddCheckCircle";
 import RouteIcon from "@mui/icons-material/Route";
+import PublishIcon from "@mui/icons-material/Publish";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
-import { getCampaignTemplatesByYear } from "../../../services/CampaignService.jsx";
+import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
+import { getCampaignTemplatesByYear, updateCampaignTemplateStatus } from "../../../services/CampaignService.jsx";
 
 const CURRENT_YEAR = new Date().getFullYear();
 const SCAN_YEARS = [CURRENT_YEAR + 1, CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2, CURRENT_YEAR - 3];
@@ -122,6 +126,8 @@ export default function SchoolCampaignViewDetail() {
     const location = useLocation();
     const { campaignId } = useParams();
     const [loading, setLoading] = useState(true);
+    const [publishLoading, setPublishLoading] = useState(false);
+    const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
     const [campaign, setCampaign] = useState(null);
 
     const idNum = campaignId ? parseInt(campaignId, 10) : NaN;
@@ -170,6 +176,22 @@ export default function SchoolCampaignViewDetail() {
 
     const status = useMemo(() => statusUi(campaign?.status), [campaign?.status]);
 
+    const handlePublishCampaign = useCallback(async () => {
+        if (!campaign?.id || publishLoading) return;
+        setPublishLoading(true);
+        try {
+            await updateCampaignTemplateStatus(campaign.id);
+            const latest = await resolveCampaignFromApi();
+            if (latest) setCampaign(latest);
+            setConfirmPublishOpen(false);
+            enqueueSnackbar("Công bố chiến dịch thành công.", { variant: "success" });
+        } catch {
+            enqueueSnackbar("Công bố chiến dịch thất bại.", { variant: "error" });
+        } finally {
+            setPublishLoading(false);
+        }
+    }, [campaign?.id, publishLoading, resolveCampaignFromApi]);
+
     if (loading) {
         return (
             <Box sx={{ width: "100%", py: 4 }}>
@@ -190,7 +212,8 @@ export default function SchoolCampaignViewDetail() {
     }
 
     return (
-        <Box sx={{ display: "flex", flexDirection: "column", gap: 3, width: "100%" }}>
+        <>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 3, width: "100%" }}>
             <Card
                 sx={{
                     position: "sticky",
@@ -286,23 +309,26 @@ export default function SchoolCampaignViewDetail() {
                                     Chỉnh sửa
                                 </Button>
                             </Tooltip>
-                            <Tooltip title="Nhân bản nhanh (đi tới trang chỉnh sửa)">
-                                <Button
-                                    startIcon={<ContentCopyIcon />}
-                                    variant="outlined"
-                                    onClick={() => navigate(`/school/campaigns/detail/${campaign.id}`)}
-                                    sx={{
-                                        textTransform: "none",
-                                        borderRadius: 999,
-                                        px: 2,
-                                        borderColor: "rgba(255,255,255,0.7)",
-                                        color: "#fff",
-                                        "&:hover": { borderColor: "#fff", bgcolor: "rgba(255,255,255,0.12)" },
-                                    }}
-                                >
-                                    Nhân bản
-                                </Button>
-                            </Tooltip>
+                            {campaign?.status === "DRAFT" ? (
+                                <Tooltip title="Công bố chiến dịch">
+                                    <Button
+                                        startIcon={<PublishIcon />}
+                                        variant="outlined"
+                                        onClick={() => setConfirmPublishOpen(true)}
+                                        disabled={publishLoading}
+                                        sx={{
+                                            textTransform: "none",
+                                            borderRadius: 999,
+                                            px: 2,
+                                            borderColor: "rgba(255,255,255,0.7)",
+                                            color: "#fff",
+                                            "&:hover": { borderColor: "#fff", bgcolor: "rgba(255,255,255,0.12)" },
+                                        }}
+                                    >
+                                        {publishLoading ? "Đang công bố..." : "Công bố"}
+                                    </Button>
+                                </Tooltip>
+                            ) : null}
                         </Stack>
                     </Stack>
                 </Box>
@@ -594,7 +620,42 @@ export default function SchoolCampaignViewDetail() {
                     </Stack>
                 </CardContent>
             </Card>
-        </Box>
+            </Box>
+
+            <Dialog
+                open={confirmPublishOpen}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    if (!publishLoading) setConfirmPublishOpen(false);
+                }}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{ sx: { borderRadius: "16px" } }}
+            >
+                <DialogContent>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Công bố chiến dịch?
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        Bạn có chắc chắn muốn <ConfirmHighlight>công bố chiến dịch này</ConfirmHighlight>? Sau khi công bố sẽ{" "}
+                        <ConfirmHighlight>không thể chỉnh sửa thông tin cơ bản</ConfirmHighlight>.
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button onClick={() => setConfirmPublishOpen(false)} disabled={publishLoading} sx={{ textTransform: "none" }}>
+                        Hủy
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={handlePublishCampaign}
+                        disabled={publishLoading}
+                        sx={{ textTransform: "none", fontWeight: 600, bgcolor: "#0D64DE", borderRadius: "12px" }}
+                    >
+                        {publishLoading ? "Đang công bố..." : "Công bố"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        </>
     );
 }
 

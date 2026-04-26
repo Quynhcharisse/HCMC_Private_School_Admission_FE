@@ -39,7 +39,6 @@ import {
     parseSchoolConfigResponseBody,
     SCHOOL_CONFIG_KEY,
 } from "../../../services/SchoolFacilityService.jsx";
-import CampaignOfferingsSection from "./CampaignOfferingsSection.jsx";
 import CreatePostRichTextEditor from "../../ui/CreatePostRichTextEditor.jsx";
 
 const HEADER_ACCENT = "#0D64DE";
@@ -325,8 +324,6 @@ export default function SchoolCampaignDetail() {
     const [cancelReason, setCancelReason] = useState("");
     const [cancelReasonError, setCancelReasonError] = useState("");
     const [isInfoEditing, setIsInfoEditing] = useState(false);
-    /** Tăng sau khi lưu template để remount phần chỉ tiêu và gọi lại API */
-    const [offeringsRemountKey, setOfferingsRemountKey] = useState(0);
     const [descriptionFieldKey, setDescriptionFieldKey] = useState(0);
     const [admissionMethodOptions, setAdmissionMethodOptions] = useState([]);
 
@@ -415,7 +412,6 @@ export default function SchoolCampaignDetail() {
     const formLocked = status !== "DRAFT" || !isPrimaryBranch || isPastYearCampaign;
     const isCampaignInfoEditable = !formLocked && isInfoEditing;
     const readOnlyTerminal = status === "CLOSED" || status === "EXPIRED";
-    const canMutateOfferings = status === "OPEN" && !readOnlyTerminal && !isPastYearCampaign;
     const isDraft = status === "DRAFT";
     const isCancelled = status === "CANCELLED";
     const today = startOfLocalToday();
@@ -713,7 +709,6 @@ export default function SchoolCampaignDetail() {
                 enqueueSnackbar("Đã công bố chiến dịch thành công.", { variant: "success" });
                 setConfirmPublishOpen(false);
                 const updated = await refreshCampaign();
-                setOfferingsRemountKey((k) => k + 1);
                 if (updated && campaignId) {
                     navigate(`/school/campaigns/detail/${campaignId}`, {
                         replace: true,
@@ -756,7 +751,6 @@ export default function SchoolCampaignDetail() {
                 enqueueSnackbar("Đã hủy chiến dịch thành công.", { variant: "success" });
                 resetCancelFlow();
                 const updated = await refreshCampaign();
-                setOfferingsRemountKey((k) => k + 1);
                 if (updated && campaignId) {
                     navigate(`/school/campaigns/detail/${campaignId}`, {
                         replace: true,
@@ -852,7 +846,6 @@ export default function SchoolCampaignDetail() {
                 enqueueSnackbar("Đã lưu thay đổi chiến dịch.", { variant: "success" });
                 const updated = await refreshCampaign();
                 setIsInfoEditing(false);
-                setOfferingsRemountKey((k) => k + 1);
                 if (updated && campaignId) {
                     navigate(`/school/campaigns/detail/${campaignId}`, {
                         replace: true,
@@ -1130,7 +1123,7 @@ export default function SchoolCampaignDetail() {
                                     onClick={addTimelineRow}
                                     sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
                                 >
-                                    + Thêm phương thức
+                                    Thêm phương thức
                                 </Button>
                             )}
                         </Stack>
@@ -1329,25 +1322,6 @@ export default function SchoolCampaignDetail() {
                                 : ""}
                         </Typography>
                     )}
-                </CardContent>
-            </Card>
-
-            <Card
-                elevation={0}
-                sx={{
-                    borderRadius: "16px",
-                    border: "1px solid #e2e8f0",
-                    boxShadow: "0 4px 24px rgba(51,65,85,0.06)",
-                    p: 0,
-                }}
-            >
-                <CardContent sx={{ p: 3 }}>
-                    <CampaignOfferingsSection
-                        key={`offerings-${templateId}-${offeringsRemountKey}`}
-                        campaignId={Number(templateId)}
-                        campaignPaused={status !== "OPEN"}
-                        canMutate={canMutateOfferings}
-                    />
                 </CardContent>
             </Card>
 

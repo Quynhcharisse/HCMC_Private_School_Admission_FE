@@ -35,8 +35,15 @@ import {
     Tooltip,
     Typography,
 } from '@mui/material';
-import {Add, ArrowBack, CloseRounded, DeleteOutline, UploadFile} from '@mui/icons-material';
-import {emptyGrades, genderOptions, GRADE_LEVELS} from './childrenInfo/childrenInfoHelpers.js';
+import {
+    Add,
+    ArrowBack,
+    ArrowForwardIos,
+    ArrowBackIosNew,
+    DeleteOutline,
+    UploadFile,
+} from '@mui/icons-material';
+import {emptyGrades, genderOptions, GRADE_LEVELS, gradeLevelApiToKey} from './childrenInfo/childrenInfoHelpers.js';
 import {SubjectUnavailableHint} from './childrenInfo/SubjectUnavailableHint.jsx';
 import {
     backButtonSx,
@@ -101,25 +108,68 @@ export default function ChildrenInfoPage() {
         foreignOptionsForRow,
         enterEditMode,
         handleSave,
-        handleAutoFillFromTranscriptImages,
+        requestAutoFillFromTranscriptImages,
+        applyMergedAcademicInfos,
     } = useChildrenInfoPage();
-    const [previewImageOpen, setPreviewImageOpen] = React.useState(false);
-    const [previewImage, setPreviewImage] = React.useState({url: '', title: ''});
     const [transcriptImageListOpen, setTranscriptImageListOpen] = React.useState(false);
+    const [autoFillPreviewData, setAutoFillPreviewData] = React.useState(null);
+    const [activeTranscriptSlide, setActiveTranscriptSlide] = React.useState(0);
+    const transcriptSlides = React.useMemo(
+        () =>
+            GRADE_LEVELS.map((g) => {
+                const item = gradeReportImages?.[g.key] || null;
+                const imageUrl = item?.previewUrl || '';
+                return {
+                    key: g.key,
+                    gradeLevelEnum: g.gradeLevelEnum,
+                    label: g.label,
+                    title: `Khối ${g.label.replace('Lớp ', '')}`,
+                    imageUrl,
+                    hasImage: Boolean(imageUrl),
+                };
+            }).filter((x) => x.hasImage),
+        [gradeReportImages],
+    );
 
-    const openTranscriptImagePreview = (url, title) => {
-        if (!url) return;
-        setPreviewImage({url, title});
-        setPreviewImageOpen(true);
-    };
-    const openTranscriptImageListModal = () => {
+    const selectedSlide = transcriptSlides[activeTranscriptSlide] || null;
+
+    const selectedSlideSubjectRows = React.useMemo(() => {
+        if (!selectedSlide || !Array.isArray(autoFillPreviewData?.academicInfos)) return [];
+        const selectedGradeKey = gradeLevelApiToKey(selectedSlide.gradeLevelEnum);
+        const matchedInfo = autoFillPreviewData.academicInfos.find(
+            (ai) => gradeLevelApiToKey(ai?.gradeLevel) === selectedGradeKey,
+        );
+        const rows = matchedInfo?.subjectResults ?? matchedInfo?.subjectResultList ?? matchedInfo?.results ?? [];
+        return Array.isArray(rows)
+            ? rows
+                  .map((sr) => {
+                      const subjectName = String(sr?.subjectName ?? sr?.name ?? sr?.subject ?? '').trim();
+                      if (!subjectName) return null;
+                      const scoreRaw = sr?.score ?? sr?.subjectScore ?? sr?.point ?? sr?.grade ?? sr?.mark;
+                      const scoreText = scoreRaw != null && scoreRaw !== '' ? String(scoreRaw) : '—';
+                      return {subjectName, scoreText};
+                  })
+                  .filter(Boolean)
+            : [];
+    }, [selectedSlide, autoFillPreviewData]);
+
+    const openTranscriptImageListModal = async () => {
+        setActiveTranscriptSlide(0);
+        setAutoFillPreviewData(null);
+        if (transcriptSlides.length === 0) {
+            setTranscriptImageListOpen(true);
+            return;
+        }
+        const result = await requestAutoFillFromTranscriptImages();
+        if (!result) return;
+        setAutoFillPreviewData(result);
         setTranscriptImageListOpen(true);
     };
-    const handleConfirmAutoFill = async () => {
-        const ok = await handleAutoFillFromTranscriptImages();
-        if (ok) {
-            setTranscriptImageListOpen(false);
-        }
+
+    const handleApplyAutoFillFromPreview = () => {
+        if (!autoFillPreviewData?.merged) return;
+        applyMergedAcademicInfos(autoFillPreviewData.merged);
+        setTranscriptImageListOpen(false);
     };
 
     return (
@@ -1199,12 +1249,6 @@ export default function ChildrenInfoPage() {
                                                                     component="img"
                                                                     src={uploadItem.previewUrl}
                                                                     alt={`Ảnh học bạ ${g.label}`}
-                                                                    onClick={() =>
-                                                                        openTranscriptImagePreview(
-                                                                            uploadItem.previewUrl,
-                                                                            `Ảnh học bạ lớp ${g.label.replace('Lớp ', '')}`,
-                                                                        )
-                                                                    }
                                                                     sx={{
                                                                         width: '100%',
                                                                         maxWidth: 'none',
@@ -1213,7 +1257,6 @@ export default function ChildrenInfoPage() {
                                                                         objectFit: 'contain',
                                                                         bgcolor: '#ffffff',
                                                                         border: '1px solid rgba(148,163,184,0.35)',
-                                                                        cursor: 'zoom-in',
                                                                     }}
                                                                 />
                                                             </Box>
@@ -1925,7 +1968,7 @@ export default function ChildrenInfoPage() {
                 <Dialog
                     open={transcriptImageListOpen}
                     onClose={() => setTranscriptImageListOpen(false)}
-                    maxWidth="sm"
+                    maxWidth="lg"
                     fullWidth
                     PaperProps={{
                         sx: {
@@ -1941,52 +1984,121 @@ export default function ChildrenInfoPage() {
                             borderBottom: '1px solid rgba(226,232,240,0.95)',
                         }}
                     >
-                        Danh sách ảnh học bạ theo khối lớp
+                        {selectedSlide?.title || 'Khối lớp'}
                     </DialogTitle>
-                    <DialogContent sx={{p: 0}}>
-                        {GRADE_LEVELS.map((g, idx) => {
-                            const item = gradeReportImages?.[g.key] || null;
-                            const hasImage = Boolean(item?.previewUrl);
-                            const title = `Ảnh học bạ lớp ${g.label.replace('Lớp ', '')}`;
-                            return (
+                    <DialogContent sx={{p: {xs: 1.25, sm: 1.5}, bgcolor: '#f8fafc'}}>
+                        {transcriptSlides.length === 0 ? (
+                            <Alert severity="info">Chưa có ảnh học bạ để tự động điền.</Alert>
+                        ) : (
+                            <Box
+                                sx={{
+                                    display: 'grid',
+                                    gridTemplateColumns: {xs: '1fr', md: '1fr 1fr'},
+                                    gap: 1.5,
+                                }}
+                            >
                                 <Box
-                                    key={`transcript-list-${g.key}`}
                                     sx={{
-                                        px: 2,
-                                        py: 1.25,
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'space-between',
-                                        gap: 1,
-                                        borderBottom:
-                                            idx === GRADE_LEVELS.length - 1
-                                                ? 'none'
-                                                : '1px solid rgba(241,245,249,0.95)',
+                                        border: '1px solid rgba(226,232,240,0.9)',
+                                        borderRadius: 2,
+                                        bgcolor: '#ffffff',
+                                        p: 1.25,
                                     }}
                                 >
-                                    <Box sx={{minWidth: 0}}>
-                                        <Typography sx={{fontSize: 14, fontWeight: 700, color: '#1e293b'}}>
-                                            {title}
+                                    <Box sx={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1}}>
+                                        <Typography sx={{fontSize: 14, fontWeight: 700, color: '#0f172a'}}>
+                                            {selectedSlide?.title || 'Khối lớp'}
                                         </Typography>
-                                        <Typography sx={{fontSize: 12, color: hasImage ? '#15803d' : '#64748b'}}>
-                                            {hasImage ? 'Đã có ảnh' : 'Chưa có ảnh'}
-                                        </Typography>
+                                        <Box sx={{display: 'flex', alignItems: 'center', gap: 0.25}}>
+                                            <IconButton
+                                                size="small"
+                                                disabled={activeTranscriptSlide <= 0}
+                                                onClick={() => setActiveTranscriptSlide((i) => Math.max(0, i - 1))}
+                                            >
+                                                <ArrowBackIosNew fontSize="inherit" />
+                                            </IconButton>
+                                            <Typography sx={{fontSize: 12, color: '#64748b', minWidth: 52, textAlign: 'center'}}>
+                                                {transcriptSlides.length > 0 ? `${activeTranscriptSlide + 1}/${transcriptSlides.length}` : '0/0'}
+                                            </Typography>
+                                            <IconButton
+                                                size="small"
+                                                disabled={activeTranscriptSlide >= transcriptSlides.length - 1}
+                                                onClick={() =>
+                                                    setActiveTranscriptSlide((i) => Math.min(transcriptSlides.length - 1, i + 1))
+                                                }
+                                            >
+                                                <ArrowForwardIos fontSize="inherit" />
+                                            </IconButton>
+                                        </Box>
                                     </Box>
-                                    <Button
-                                        size="small"
-                                        variant="outlined"
-                                        disabled={!hasImage}
-                                        onClick={() => {
-                                            if (!item?.previewUrl) return;
-                                            openTranscriptImagePreview(item.previewUrl, title);
-                                        }}
-                                        sx={{textTransform: 'none'}}
-                                    >
-                                        Xem ảnh
-                                    </Button>
+                                    {selectedSlide?.imageUrl ? (
+                                        <Box
+                                            component="img"
+                                            src={selectedSlide.imageUrl}
+                                            alt={selectedSlide.title}
+                                            sx={{
+                                                width: '100%',
+                                                height: {xs: 360, sm: 500},
+                                                objectFit: 'contain',
+                                                borderRadius: 1.5,
+                                                border: '1px solid rgba(148,163,184,0.35)',
+                                                bgcolor: '#ffffff',
+                                            }}
+                                        />
+                                    ) : (
+                                        <Alert severity="info">Khối này chưa có ảnh.</Alert>
+                                    )}
                                 </Box>
-                            );
-                        })}
+
+                                <Box
+                                    sx={{
+                                        border: '1px solid rgba(226,232,240,0.9)',
+                                        borderRadius: 2,
+                                        bgcolor: '#ffffff',
+                                        p: 1.25,
+                                        minHeight: {xs: 300, sm: 390},
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                    }}
+                                >
+                                    <Typography sx={{fontSize: 14, fontWeight: 700, color: '#0f172a', mb: 1}}>
+                                        Điểm trích xuất ({selectedSlide?.title || 'Khối lớp'})
+                                    </Typography>
+                                    {autoFillLoading && !autoFillPreviewData ? (
+                                        <Box sx={{display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 1}}>
+                                            <CircularProgress size={24} sx={{color: '#2563eb'}} />
+                                        </Box>
+                                    ) : (
+                                        <Box sx={{overflow: 'auto', border: '1px solid rgba(241,245,249,0.95)', borderRadius: 1.5}}>
+                                            <Table size="small" stickyHeader>
+                                                <TableHead>
+                                                    <TableRow>
+                                                        <TableCell sx={{fontWeight: 700}}>Môn học</TableCell>
+                                                        <TableCell sx={{fontWeight: 700, width: 120}}>Điểm</TableCell>
+                                                    </TableRow>
+                                                </TableHead>
+                                                <TableBody>
+                                                    {selectedSlideSubjectRows.length > 0 ? (
+                                                        selectedSlideSubjectRows.map((row, idx) => (
+                                                            <TableRow key={`preview-row-${idx}`}>
+                                                                <TableCell>{row.subjectName}</TableCell>
+                                                                <TableCell>{row.scoreText}</TableCell>
+                                                            </TableRow>
+                                                        ))
+                                                    ) : (
+                                                        <TableRow>
+                                                            <TableCell colSpan={2} sx={{color: '#64748b'}}>
+                                                                Chưa có dữ liệu điểm trích xuất cho khối này.
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        </Box>
+                                    )}
+                                </Box>
+                            </Box>
+                        )}
                     </DialogContent>
                     <Box sx={{px: 1.5, pb: 0.75}}>
                         <Alert
@@ -2012,8 +2124,8 @@ export default function ChildrenInfoPage() {
                         </Button>
                         <Button
                             variant="contained"
-                            onClick={() => void handleConfirmAutoFill()}
-                            disabled={autoFillLoading}
+                            onClick={handleApplyAutoFillFromPreview}
+                            disabled={autoFillLoading || !autoFillPreviewData?.merged}
                             startIcon={
                                 autoFillLoading ? (
                                     <CircularProgress size={14} thickness={6} sx={{color: '#ffffff'}}/>
@@ -2029,80 +2141,9 @@ export default function ChildrenInfoPage() {
                                 },
                             }}
                         >
-                            {autoFillLoading ? 'Đang xử lý...' : 'Xác nhận'}
+                            {autoFillLoading ? 'Đang xử lý...' : 'Áp dụng vào bảng điểm'}
                         </Button>
                     </DialogActions>
-                </Dialog>
-                <Dialog
-                    open={previewImageOpen}
-                    onClose={() => setPreviewImageOpen(false)}
-                    maxWidth="md"
-                    fullWidth
-                    PaperProps={{
-                        sx: {
-                            borderRadius: 2.5,
-                            overflow: 'hidden',
-                            boxShadow: '0 28px 80px rgba(15, 23, 42, 0.36)',
-                            bgcolor: '#020617',
-                        },
-                    }}
-                    BackdropProps={{
-                        sx: {
-                            bgcolor: 'rgba(15, 23, 42, 0.62)',
-                            backdropFilter: 'blur(2px)',
-                        },
-                    }}
-                >
-                    <DialogTitle
-                        sx={{
-                            py: 1.1,
-                            px: 2,
-                            fontSize: 15,
-                            fontWeight: 700,
-                            color: '#f8fafc',
-                            borderBottom: '1px solid rgba(71,85,105,0.6)',
-                            bgcolor: '#020617',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                        }}
-                    >
-                        <Box component="span">{previewImage.title || 'Ảnh học bạ'}</Box>
-                        <IconButton
-                            size="small"
-                            onClick={() => setPreviewImageOpen(false)}
-                            sx={{
-                                color: '#cbd5e1',
-                                '&:hover': {color: '#ffffff', bgcolor: 'rgba(148,163,184,0.2)'},
-                            }}
-                        >
-                            <CloseRounded fontSize="small"/>
-                        </IconButton>
-                    </DialogTitle>
-                    <DialogContent
-                        sx={{
-                            px: {xs: 1.2, sm: 2},
-                            pb: {xs: 1.2, sm: 2},
-                            pt: {xs: 3.5, sm: 4.5},
-                            bgcolor: '#020617',
-                        }}
-                    >
-                        <Box
-                            component="img"
-                            src={previewImage.url}
-                            alt={previewImage.title || 'Ảnh học bạ'}
-                            sx={{
-                                width: '100%',
-                                maxHeight: '74vh',
-                                objectFit: 'contain',
-                                borderRadius: 1,
-                                display: 'block',
-                                mx: 'auto',
-                                mt: {xs: 1.2, sm: 1.8},
-                                bgcolor: '#020617',
-                            }}
-                        />
-                    </DialogContent>
                 </Dialog>
             </Box>
         </Box>

@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
     Box,
     Button,
     Card,
     CardContent,
+    Chip,
     Dialog,
     DialogActions,
     DialogContent,
@@ -26,10 +28,8 @@ import {
     Typography,
     Pagination,
 } from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
 import AssignmentTurnedInIcon from "@mui/icons-material/AssignmentTurnedIn";
 import BusinessIcon from "@mui/icons-material/Business";
-import CampaignIcon from "@mui/icons-material/Campaign";
 import CloseIcon from "@mui/icons-material/Close";
 import EditIcon from "@mui/icons-material/Edit";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
@@ -55,23 +55,55 @@ const LEARNING_MODES = [
 ];
 
 const APPLICATION_STATUS_OPTIONS = [
-    { value: "OPEN", label: "Đang mở" },
-    { value: "CLOSED", label: "Đã đóng" },
+    { value: "UPCOMING_OFFERING", label: "Sắp mở" },
+    { value: "OPEN", label: "Đang nhận hồ sơ" },
     { value: "PAUSED", label: "Tạm dừng" },
-    { value: "FULL", label: "Đầy chỗ" },
-    { value: "CANCELLED", label: "Đã hủy" },
+    { value: "FULL", label: "Đã đầy chỉ tiêu" },
+    { value: "CLOSED", label: "Đã đóng" },
 ];
 
 const APPLICATION_STATUS_BADGES = {
-    OPEN: { badgeBg: "rgba(34, 197, 94, 0.16)", badgeColor: "#16a34a" }, // green
-    PAUSED: { badgeBg: "rgba(250, 204, 21, 0.22)", badgeColor: "#a16207" }, // amber
-    FULL: { badgeBg: "rgba(239, 68, 68, 0.14)", badgeColor: "#dc2626" }, // red
-    CLOSED: { badgeBg: "rgba(148, 163, 184, 0.22)", badgeColor: "#475569" }, // slate
-    CANCELLED: { badgeBg: "rgba(248, 113, 113, 0.14)", badgeColor: "#b91c1c" }, // muted red
+    UPCOMING_OFFERING: { badgeBg: "rgba(59, 130, 246, 0.16)", badgeColor: "#1d4ed8" },
+    OPEN: { badgeBg: "rgba(34, 197, 94, 0.16)", badgeColor: "#16a34a" },
+    PAUSED: { badgeBg: "rgba(250, 204, 21, 0.22)", badgeColor: "#a16207" },
+    PAUSE: { badgeBg: "rgba(250, 204, 21, 0.22)", badgeColor: "#a16207" },
+    FULL: { badgeBg: "rgba(239, 68, 68, 0.14)", badgeColor: "#dc2626" },
+    CLOSED: { badgeBg: "rgba(148, 163, 184, 0.22)", badgeColor: "#475569" },
+    CANCELLED: { badgeBg: "rgba(248, 113, 113, 0.14)", badgeColor: "#b91c1c" },
 };
 
-/** Trạng thái vòng đời chỉ tiêu (field `status` từ API) */
+const BADGE_EMPTY = { badgeBg: "rgba(241, 245, 249, 0.95)", badgeColor: "#94a3b8" };
+
+/** Chiến dịch template: OPEN / DRAFT / CANCELLED */
+const CAMPAIGN_TEMPLATE_STATUS_BADGES = {
+    OPEN: { badgeBg: "rgba(34, 197, 94, 0.16)", badgeColor: "#16a34a" },
+    DRAFT: { badgeBg: "rgba(59, 130, 246, 0.14)", badgeColor: "#1d4ed8" },
+    CANCELLED: { badgeBg: "rgba(248, 113, 113, 0.16)", badgeColor: "#b91c1c" },
+};
+
+/** lifecycleStatus trên chỉ tiêu */
+const OFFERING_LIFECYCLE_BADGES = {
+    OFFERING_ACTIVE: { badgeBg: "rgba(34, 197, 94, 0.14)", badgeColor: "#166534" },
+    OFFERING_INACTIVE: { badgeBg: "rgba(148, 163, 184, 0.22)", badgeColor: "#475569" },
+};
+
+const DETAIL_BADGE_FIELD_KEYS = new Set([
+    "campaignStatus",
+    "lifecycleStatus",
+    "operationalStatus",
+    "applicationStatus",
+    "lifecycleActive",
+    "canReceiveApplications",
+    "isTerminal",
+    "curriculumStatus",
+    "programStatus",
+    "admissionMethod",
+]);
+
+/** Trạng thái vòng đời bản ghi / chiến dịch (field `status` hoặc statusContext.lifecycleStatus) */
 const OFFERING_STATUS_LABELS = {
+    OFFERING_ACTIVE: "Còn hiệu lực quản trị",
+    OFFERING_INACTIVE: "Đã ngừng vòng đời",
     OPEN: "Đang mở",
     OPEN_ADMISSION_CAMPAIGN: "Đang mở",
     PAUSED: "Tạm dừng",
@@ -98,6 +130,103 @@ function normalizeCampaignLifecycleStatus(raw) {
     return s;
 }
 
+function normalizeApplicationStatus(raw) {
+    const s = String(raw || "").trim().toUpperCase();
+    if (s === "PAUSE") return "PAUSED";
+    return s;
+}
+
+/** API: phân số (0.1) hoặc phần trăm (10) → % hiển thị */
+function priceAdjustmentToDisplayPercent(raw) {
+    const n = Number(String(raw ?? "").replace(",", "."));
+    if (!Number.isFinite(n)) return 0;
+    return Math.abs(n) <= 1 ? n * 100 : n;
+}
+
+/** Form % → gửi API (0.1 = 10%) */
+function priceAdjustmentToApiFraction(raw) {
+    const n = Number(String(raw ?? "").replace(",", "."));
+    if (!Number.isFinite(n)) return 0;
+    return Math.abs(n) <= 1 ? n : n / 100;
+}
+
+function getLifecycleStatusLabel(raw) {
+    const u = String(raw || "").trim().toUpperCase();
+    if (u === "OFFERING_ACTIVE") return "Còn hiệu lực quản trị";
+    if (u === "OFFERING_INACTIVE") return "Đã ngừng vòng đời";
+    return getOfferingStatusLabel(u);
+}
+
+/** Trạng thái chiến dịch tuyển sinh (template) — lấy từ campaign đang chọn */
+function getCampaignTemplateStatusLabel(raw) {
+    const s = String(raw || "").trim().toUpperCase();
+    if (!s) return "—";
+    if (s === "OPEN" || s === "OPEN_ADMISSION_CAMPAIGN") return "Đang mở";
+    if (s === "DRAFT" || s === "DRAFT_ADMISSION_CAMPAIGN") return "Bản nháp";
+    if (s === "CANCELLED" || s === "CANCELLED_ADMISSION_CAMPAIGN") return "Đã hủy";
+    return s.replaceAll("_", " ");
+}
+
+function normalizeCampaignTemplateStatusKey(raw) {
+    const s = String(raw || "").trim().toUpperCase();
+    if (s === "OPEN" || s === "OPEN_ADMISSION_CAMPAIGN") return "OPEN";
+    if (s === "DRAFT" || s === "DRAFT_ADMISSION_CAMPAIGN") return "DRAFT";
+    if (s === "CANCELLED" || s === "CANCELLED_ADMISSION_CAMPAIGN") return "CANCELLED";
+    return s;
+}
+
+/** { label, badgeBg, badgeColor } hoặc null nếu field không dùng badge */
+function getDetailFieldBadge(key, value) {
+    if (!DETAIL_BADGE_FIELD_KEYS.has(key)) return null;
+    if (value === null || value === undefined || value === "") {
+        return { label: "—", ...BADGE_EMPTY };
+    }
+    if (key === "campaignStatus") {
+        const nk = normalizeCampaignTemplateStatusKey(value);
+        const label = getCampaignTemplateStatusLabel(value);
+        const st = CAMPAIGN_TEMPLATE_STATUS_BADGES[nk] ?? BADGE_EMPTY;
+        return { label, ...st };
+    }
+    if (key === "lifecycleStatus") {
+        const u = String(value).trim().toUpperCase();
+        const label = getLifecycleStatusLabel(value);
+        const st = OFFERING_LIFECYCLE_BADGES[u] ?? { badgeBg: "rgba(241, 245, 249, 0.95)", badgeColor: "#64748b" };
+        return { label, ...st };
+    }
+    if (key === "operationalStatus" || key === "applicationStatus") {
+        const norm = normalizeApplicationStatus(value);
+        const label =
+            APPLICATION_STATUS_OPTIONS.find((o) => o.value === norm)?.label ?? formatEnumLabel(norm);
+        const st = APPLICATION_STATUS_BADGES[norm] ?? { badgeBg: "rgba(241, 245, 249, 0.95)", badgeColor: "#64748b" };
+        return { label, ...st };
+    }
+    if (key === "lifecycleActive" || key === "canReceiveApplications" || key === "isTerminal") {
+        if (value !== true && value !== false) {
+            return { label: "—", ...BADGE_EMPTY };
+        }
+        const label = value ? "Có" : "Không";
+        const st = value
+            ? { badgeBg: "rgba(34, 197, 94, 0.14)", badgeColor: "#166534" }
+            : { badgeBg: "rgba(148, 163, 184, 0.2)", badgeColor: "#475569" };
+        return { label, ...st };
+    }
+    if (key === "curriculumStatus" || key === "programStatus") {
+        return {
+            label: formatEnumLabel(value),
+            badgeBg: "rgba(99, 102, 241, 0.12)",
+            badgeColor: "#4338ca",
+        };
+    }
+    if (key === "admissionMethod") {
+        return {
+            label: formatEnumLabel(value),
+            badgeBg: "rgba(14, 165, 233, 0.12)",
+            badgeColor: "#0369a1",
+        };
+    }
+    return null;
+}
+
 function normalizeOfferingRow(row) {
     if (!row || typeof row !== "object") return row;
     const programObj = row.program && typeof row.program === "object" ? row.program : null;
@@ -106,9 +235,21 @@ function normalizeOfferingRow(row) {
         : programObj?.curriculum && typeof programObj.curriculum === "object"
             ? programObj.curriculum
             : null;
+    const sc = row.statusContext && typeof row.statusContext === "object" ? row.statusContext : {};
+    const operationalFromContext = sc.operationalStatus != null ? String(sc.operationalStatus).trim() : "";
+    const lifecycleFromContext = sc.lifecycleStatus != null ? String(sc.lifecycleStatus).trim() : "";
     return {
         ...row,
+        statusContext: sc,
+        admissionCampaignId: row.admissionCampaignId ?? row.campaignId,
+        campaignId: row.campaignId ?? row.admissionCampaignId,
+        lifecycleStatus: lifecycleFromContext || String(row.lifecycleStatus ?? row.status ?? "").trim(),
+        operationalStatus: operationalFromContext || String(row.operationalStatus ?? row.applicationStatus ?? "").trim(),
+        lifecycleActive: sc.lifecycleActive ?? row.lifecycleActive,
+        canReceiveApplications: sc.canReceiveApplications ?? row.canReceiveApplications,
+        isTerminal: Boolean(sc.isTerminal ?? row.isTerminal),
         status: normalizeCampaignLifecycleStatus(row.status),
+        applicationStatus: normalizeApplicationStatus(row.applicationStatus),
         applicationYear:
             row.applicationYear ??
             programObj?.applicationYear ??
@@ -142,6 +283,45 @@ function normalizeOfferingRow(row) {
     };
 }
 
+function isTerminalOfferingRow(row) {
+    return Boolean(row?.statusContext?.isTerminal ?? row?.isTerminal);
+}
+
+function getOperationalStatusUpper(row) {
+    const fromCtx = String(row?.statusContext?.operationalStatus ?? "").trim().toUpperCase();
+    if (fromCtx) return fromCtx;
+    return normalizeApplicationStatus(row?.applicationStatus ?? row?.operationalStatus ?? "");
+}
+
+function isRowTerminalOrClosedForForm(row) {
+    if (!row) return true;
+    if (isTerminalOfferingRow(row)) return true;
+    const app = normalizeApplicationStatus(row.applicationStatus);
+    if (app === "CLOSED" || app === "FULL") return true;
+    const ls = String(row.statusContext?.lifecycleStatus ?? row.lifecycleStatus ?? "").toUpperCase();
+    if (ls === "OFFERING_INACTIVE") return true;
+    if (row.statusContext && row.statusContext.lifecycleActive === false) return true;
+    return false;
+}
+
+function canEditOfferingRow(row) {
+    if (!row || isRowTerminalOrClosedForForm(row)) return false;
+    const sc = row.statusContext;
+    if (sc && typeof sc === "object" && Object.keys(sc).length > 0) {
+        return sc.lifecycleActive === true && String(sc.operationalStatus || "").toUpperCase() === "PAUSED";
+    }
+    const op = normalizeApplicationStatus(row.operationalStatus ?? row.applicationStatus);
+    return op === "PAUSED";
+}
+
+function canPauseOrCloseOffering(row) {
+    return !isTerminalOfferingRow(row) && getOperationalStatusUpper(row) === "OPEN";
+}
+
+function canPublishOrCloseOffering(row) {
+    return !isTerminalOfferingRow(row) && getOperationalStatusUpper(row) === "PAUSED";
+}
+
 function formatDate(dateStr) {
     if (!dateStr) return "—";
     const d = new Date(dateStr);
@@ -163,18 +343,6 @@ function formatEnumLabel(v) {
     return s.replaceAll("_", " ");
 }
 
-const BOARDING_TYPE_LABELS = {
-    FULL_BOARDING: "Nội trú",
-    SEMI_BOARDING: "Bán trú",
-    BOTH: "Cả hai (Nội trú & Bán trú)",
-};
-
-function formatBoardingTypeLabel(v) {
-    const s = String(v || "").trim().toUpperCase();
-    if (!s) return "—";
-    return BOARDING_TYPE_LABELS[s] ?? formatEnumLabel(s);
-}
-
 function stripHtmlTags(html) {
     const text = String(html || "").replace(/<[^>]*>/g, " ");
     return text.replace(/\s+/g, " ").trim();
@@ -183,42 +351,31 @@ function stripHtmlTags(html) {
 /** Nhóm nội dung trong dialog chi tiết (theo domain). */
 const DETAIL_SECTIONS = [
     {
-        id: "campaign",
-        title: "Chiến dịch tuyển sinh",
-        Icon: CampaignIcon,
-        fields: [
-            { key: "campaignYear", label: "Năm chiến dịch" },
-            { key: "campaignName", label: "Tên chiến dịch" },
-            { key: "status", label: "Trạng thái chiến dịch" },
-        ],
-    },
-    {
         id: "offering",
         title: "Chỉ tiêu tuyển sinh",
         Icon: AssignmentTurnedInIcon,
         fields: [
+            { key: "campaignStatus", label: "Trạng thái chiến dịch" },
+            { key: "lifecycleStatus", label: "Trạng thái vòng đời (lifecycle)" },
+            { key: "operationalStatus", label: "Trạng thái vận hành" },
+            { key: "applicationStatus", label: "Trạng thái hồ sơ" },
+            { key: "lifecycleActive", label: "Vòng đời đang hoạt động" },
+            { key: "canReceiveApplications", label: "Có thể nhận hồ sơ" },
+            { key: "isTerminal", label: "Kết thúc vận hành (terminal)" },
             { key: "learningMode", label: "Hình thức học" },
-            { key: "boardingType", label: "Loại nội trú" },
-            { key: "admissionMethod", label: "Phương thức tuyển sinh" },
-            { key: "priceAdjustmentPercentage", label: "Điều chỉnh học phí (%)" },
             { key: "quota", label: "Chỉ tiêu" },
             { key: "remainingQuota", label: "Chỉ tiêu còn lại" },
+            { key: "admissionMethod", label: "Phương thức tuyển sinh" },
+            { key: "tuitionFee", label: "Học phí áp dụng" },
             { key: "openDate", label: "Ngày mở nhận hồ sơ" },
             { key: "closeDate", label: "Ngày đóng nhận hồ sơ" },
-            { key: "tuitionFee", label: "Học phí áp dụng" },
         ],
     },
     {
         id: "campus",
         title: "Cơ sở",
         Icon: BusinessIcon,
-        fields: [
-            { key: "campusName", label: "Tên cơ sở" },
-            { key: "city", label: "Thành phố" },
-            { key: "latitude", label: "Vĩ độ" },
-            { key: "longitude", label: "Kinh độ" },
-            { key: "district", label: "Quận / huyện" },
-        ],
+        fields: [{ key: "campusName", label: "Tên cơ sở" }],
     },
     {
         id: "curriculum",
@@ -256,8 +413,6 @@ const emptyForm = {
     campusId: "",
     programId: "",
     learningMode: "DAY_SCHOOL",
-    quota: "",
-    tuitionFee: "",
     priceAdjustmentPercentage: "0",
     openDate: "",
     closeDate: "",
@@ -268,14 +423,25 @@ const emptyForm = {
  *   campaignId: number,
  *   campaignPaused: boolean,
  *   canMutate: boolean,
+ *   campaignOptions?: Array<{ id: number|string, name: string, year?: number|string, status?: string }>,
+ *   selectedCampaignId?: number|string,
+ *   onCampaignChange?: (id: string) => void,
+ *   campaignOptionsLoading?: boolean,
+ *   openCreateSignal?: number,
  * }} props
  */
 export default function CampaignOfferingsSection({
     campaignId,
     campaignPaused,
     canMutate,
+    campaignOptions = [],
+    selectedCampaignId = "",
+    onCampaignChange,
+    campaignOptionsLoading = false,
+    openCreateSignal = 0,
 }) {
     const { loading: schoolCtxLoading } = useSchool();
+    const navigate = useNavigate();
 
     const [campuses, setCampuses] = useState([]);
     const [programs, setPrograms] = useState([]);
@@ -381,7 +547,13 @@ export default function CampaignOfferingsSection({
                     const body = res?.data?.body ?? res?.data;
                     const chunk = Array.isArray(body) ? body : body?.items ?? [];
                     const forCampaign = chunk
-                        .filter((row) => Number(row?.campaignId) === Number(campaignId))
+                        .filter((row) => {
+                            const m = row?.admissionCampaignId ?? row?.campaignId;
+                            if (m != null && String(m).trim() !== "" && Number.isFinite(Number(m))) {
+                                return Number(m) === Number(campaignId);
+                            }
+                            return true;
+                        })
                         .map(normalizeOfferingRow);
                     acc.push(...forCampaign);
                     if (chunk.length === 0) break;
@@ -417,11 +589,7 @@ export default function CampaignOfferingsSection({
             list = list.filter((r) => Number(r.programId) === pid);
         }
         if (statusFilter !== "all") {
-            list = list.filter(
-                (r) =>
-                    String(r.applicationStatus || "").toUpperCase() === statusFilter ||
-                    String(r.status || "").toUpperCase() === statusFilter
-            );
+            list = list.filter((r) => normalizeApplicationStatus(r.applicationStatus) === statusFilter);
         }
         return list;
     }, [rawItems, programFilter, statusFilter]);
@@ -437,27 +605,40 @@ export default function CampaignOfferingsSection({
         setPage(0);
     }, [campusFilter, programFilter, statusFilter]);
 
+    useEffect(() => {
+        if (!openCreateSignal || !canMutate) return;
+        openCreate();
+    }, [openCreateSignal, canMutate]);
+
     const getLearningModeLabel = (mode) =>
         LEARNING_MODES.find((m) => m.value === mode)?.label ?? mode ?? "—";
     const getApplicationStatusLabel = (s) =>
-        APPLICATION_STATUS_OPTIONS.find((o) => o.value === s)?.label ?? s ?? "—";
+        APPLICATION_STATUS_OPTIONS.find((o) => o.value === normalizeApplicationStatus(s))?.label ??
+        normalizeApplicationStatus(s) ??
+        "—";
 
     const getApplicationStatusBadgeStyle = (s) => {
-        const key = String(s || "").toUpperCase();
+        const key = normalizeApplicationStatus(s);
         return APPLICATION_STATUS_BADGES[key] ?? { badgeBg: "#f1f5f9", badgeColor: "#64748b" };
     };
 
     const getProgramName = (id) =>
         programs.find((p) => Number(p.id) === Number(id))?.name ?? id ?? "—";
-    const getLifecycleStatus = (row) =>
-        normalizeCampaignLifecycleStatus(row?.status ?? "");
+
+    const mergeDetailWithCampaign = useCallback(
+        (row) => {
+            const c = campaignOptions.find((x) => Number(x.id) === Number(campaignId));
+            return { ...row, campaignStatus: c?.status ?? null };
+        },
+        [campaignOptions, campaignId]
+    );
 
     const formatDetailValue = (key, value) => {
         if (value === null || value === undefined || value === "") return "—";
+        if (key === "campaignStatus") return getCampaignTemplateStatusLabel(value);
         if (key === "tuitionFee" || key === "baseTuitionFee" || key === "programBaseTuitionFee") return formatCurrency(value);
         if (key === "openDate" || key === "closeDate") return formatDate(value);
         if (key === "learningMode") return getLearningModeLabel(value);
-        if (key === "boardingType") return formatBoardingTypeLabel(value);
         if (
             key === "admissionMethod" ||
             key === "curriculumType" ||
@@ -467,6 +648,14 @@ export default function CampaignOfferingsSection({
         ) return formatEnumLabel(value);
         if (key === "applicationStatus")
             return getApplicationStatusLabel(String(value || "").toUpperCase());
+        if (key === "lifecycleStatus") return getLifecycleStatusLabel(value);
+        if (key === "operationalStatus")
+            return getApplicationStatusLabel(normalizeApplicationStatus(String(value || "")));
+        if (key === "lifecycleActive" || key === "canReceiveApplications" || key === "isTerminal") {
+            if (value === true) return "Có";
+            if (value === false) return "Không";
+            return "—";
+        }
         if (key === "curriculumSubjectOptions") {
             if (!Array.isArray(value) || value.length === 0) return "—";
             return value
@@ -491,26 +680,23 @@ export default function CampaignOfferingsSection({
             return stripHtmlTags(value) || "—";
         }
         if (key === "status") return getOfferingStatusLabel(String(value || "").toUpperCase());
-        if (key === "priceAdjustmentPercentage") {
-            const n = Number(value);
-            if (!Number.isFinite(n)) return String(value);
-            const pct = Math.abs(n) <= 1 ? n * 100 : n;
-            return `${pct}%`;
-        }
-        if (key === "latitude" || key === "longitude") {
-            const n = Number(value);
-            return Number.isFinite(n) ? n.toFixed(6) : String(value);
-        }
         if (typeof value === "object") return JSON.stringify(value);
         return String(value);
     };
+
+    const isEditingReadOnly =
+        !!editingRow && (isRowTerminalOrClosedForForm(editingRow) || !canEditOfferingRow(editingRow));
 
     const validateForm = () => {
         const errors = {};
         if (!formValues.campusId) errors.campusId = "Vui lòng chọn cơ sở";
         if (!formValues.programId) errors.programId = "Vui lòng chọn chương trình";
-        if (editingRow && (formValues.quota === "" || Number(formValues.quota) < 0)) {
-            errors.quota = "Chỉ tiêu không hợp lệ";
+        if (!editingRow) {
+            if (!String(formValues.openDate || "").trim()) errors.openDate = "Vui lòng chọn ngày mở nhận hồ sơ";
+            if (!String(formValues.closeDate || "").trim()) errors.closeDate = "Vui lòng chọn ngày đóng nhận hồ sơ";
+        } else if (canEditOfferingRow(editingRow)) {
+            if (!String(formValues.openDate || "").trim()) errors.openDate = "Vui lòng chọn ngày mở";
+            if (!String(formValues.closeDate || "").trim()) errors.closeDate = "Vui lòng chọn ngày đóng";
         }
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
@@ -528,14 +714,19 @@ export default function CampaignOfferingsSection({
 
     const openEdit = (row) => {
         setEditingRow(row);
+        const base = Number(row.baseTuitionFee ?? row.programBaseTuitionFee);
+        const fee = Number(row.tuitionFee);
+        const derivedPct =
+            row.priceAdjustmentPercentage != null && row.priceAdjustmentPercentage !== ""
+                ? priceAdjustmentToDisplayPercent(row.priceAdjustmentPercentage)
+                : Number.isFinite(base) && base > 0 && Number.isFinite(fee)
+                  ? ((fee / base) - 1) * 100
+                  : 0;
         setFormValues({
             campusId: String(row.campusId ?? ""),
             programId: String(row.programId ?? ""),
             learningMode: row.learningMode || "DAY_SCHOOL",
-            quota: row.quota != null ? String(row.quota) : "",
-            tuitionFee: row.tuitionFee != null ? String(row.tuitionFee) : "",
-            priceAdjustmentPercentage:
-                row.priceAdjustmentPercentage != null ? String(row.priceAdjustmentPercentage) : "0",
+            priceAdjustmentPercentage: String(Number.isFinite(derivedPct) ? Math.round(derivedPct * 1000) / 1000 : 0),
             openDate: row.openDate?.slice(0, 10) || "",
             closeDate: row.closeDate?.slice(0, 10) || "",
         });
@@ -549,8 +740,7 @@ export default function CampaignOfferingsSection({
     };
 
     const handleSubmit = async () => {
-        const isEditingReadOnly = !!editingRow && String(editingRow.applicationStatus || "").toUpperCase() === "CLOSED";
-        if (isEditingReadOnly) return;
+        if (editingRow && !canEditOfferingRow(editingRow)) return;
         if (!validateForm() || !campaignId) return;
         setSubmitLoading(true);
         try {
@@ -560,13 +750,12 @@ export default function CampaignOfferingsSection({
                     admissionCampaignId: campaignId,
                     campusId: Number(formValues.campusId),
                     programId: Number(formValues.programId),
-                    quota: Number(formValues.quota) || 0,
                     learningMode: formValues.learningMode || "DAY_SCHOOL",
-                    tuitionFee: Number(formValues.tuitionFee) || 0,
+                    priceAdjustmentPercentage: priceAdjustmentToApiFraction(formValues.priceAdjustmentPercentage),
                     openDate: formValues.openDate || "",
                     closeDate: formValues.closeDate || "",
                 });
-                if (res?.status === 200 || res?.data?.message) {
+                if (res?.status === 200 || res?.status === 201 || res?.data?.message) {
                     enqueueSnackbar(res?.data?.message || "Cập nhật chỉ tiêu thành công", {
                         variant: "success",
                     });
@@ -581,9 +770,11 @@ export default function CampaignOfferingsSection({
                     campusId: Number(formValues.campusId),
                     programId: Number(formValues.programId),
                     learningMode: formValues.learningMode || "DAY_SCHOOL",
-                    priceAdjustmentPercentage: Number(formValues.priceAdjustmentPercentage) || 0,
+                    priceAdjustmentPercentage: priceAdjustmentToApiFraction(formValues.priceAdjustmentPercentage),
+                    openDate: formValues.openDate || "",
+                    closeDate: formValues.closeDate || "",
                 });
-                if (res?.status === 200 || res?.data?.message != null) {
+                if (res?.status === 200 || res?.status === 201 || res?.data?.message != null) {
                     enqueueSnackbar(res?.data?.message || "Tạo chỉ tiêu thành công", { variant: "success" });
                     setModalOpen(false);
                     setPage(0);
@@ -602,8 +793,6 @@ export default function CampaignOfferingsSection({
     const rowMuted = campaignPaused;
 
     const programOptions = useMemo(() => programs, [programs]);
-    const isEditingReadOnly =
-        !!editingRow && String(editingRow.applicationStatus || "").toUpperCase() === "CLOSED";
 
     const openConfirmToggle = (row, targetStatus) => {
         setConfirmRow(row);
@@ -635,10 +824,10 @@ export default function CampaignOfferingsSection({
         setConfirmActionLoading(true);
         try {
             if (confirmActionType === "toggle") {
-                const action = confirmTargetStatus === "PAUSED" ? "PAUSE" : "PUBLISH";
+                const action = confirmTargetStatus === "PAUSE" ? "PAUSE" : "PUBLISH";
                 await updateCampusOfferingStatus(confirmRow.id, action);
                 enqueueSnackbar(
-                    confirmTargetStatus === "PAUSED" ? "Đã tạm dừng chỉ tiêu." : "Đã xuất bản chỉ tiêu.",
+                    confirmTargetStatus === "PAUSE" ? "Đã tạm dừng chỉ tiêu." : "Đã công bố / mở lại chỉ tiêu.",
                     { variant: "success" }
                 );
             } else if (confirmActionType === "close") {
@@ -659,57 +848,61 @@ export default function CampaignOfferingsSection({
 
     return (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-            <Box
-                sx={{
-                    display: "flex",
-                    flexDirection: { xs: "column", sm: "row" },
-                    alignItems: { xs: "stretch", sm: "center" },
-                    justifyContent: "space-between",
-                    gap: 2,
-                }}
-            >
-                <Box>
-                    <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b" }}>
-                        Chỉ tiêu tuyển sinh
-                    </Typography>
-                    {campaignPaused && (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                            Chiến dịch đang tạm dừng — cột «Trạng thái» phản ánh dữ liệu từ hệ thống (thường là Tạm
-                            dừng).
-                        </Typography>
-                    )}
-                </Box>
-                {canMutate && (
-                    <Button
-                        variant="contained"
-                        startIcon={<AddIcon />}
-                        onClick={openCreate}
-                        disabled={!campusFilter}
-                        sx={{
-                            textTransform: "none",
-                            fontWeight: 600,
-                            borderRadius: 2,
-                            bgcolor: "#0D64DE",
-                            alignSelf: { xs: "stretch", sm: "auto" },
-                        }}
-                    >
-                        Thêm chỉ tiêu
-                    </Button>
-                )}
-            </Box>
-
             <Card
                 elevation={0}
                 sx={{
-                    borderRadius: 2,
+                    borderRadius: "16px",
                     border: "1px solid #e2e8f0",
+                    overflow: "hidden",
                     bgcolor: "#fff",
-                    boxShadow: "0 1px 3px rgba(51,65,85,0.06)",
+                    boxShadow: "0 4px 24px rgba(51,65,85,0.06)",
                 }}
             >
-                <CardContent sx={{ py: 2 }}>
+                <Box
+                    sx={{
+                        px: 2.5,
+                        pt: 2.5,
+                        pb: 1.5,
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 1.5,
+                    }}
+                >
+                    <AssignmentTurnedInIcon sx={{ color: "#0D64DE", fontSize: 28, mt: 0.25 }} />
+                    <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b", lineHeight: 1.3 }}>
+                            Danh sách chỉ tiêu
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5 }}>
+                            Quản lý chỉ tiêu tuyển sinh theo chiến dịch và cơ sở.
+                        </Typography>
+                        {campaignPaused && (
+                            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                                Chiến dịch đang tạm dừng, dữ liệu chỉ tiêu đang ở chế độ chỉ xem.
+                            </Typography>
+                        )}
+                    </Box>
+                </Box>
+                <CardContent sx={{ p: 2.5, pt: 1.5, pb: 2 }}>
                     <Stack direction={{ xs: "column", md: "row" }} spacing={2} flexWrap="wrap">
-                        <FormControl size="small" sx={{ minWidth: 200 }} disabled={campusesLoading}>
+                        {typeof onCampaignChange === "function" ? (
+                            <FormControl size="small" sx={{ minWidth: 260 }} disabled={campaignOptionsLoading}>
+                                <InputLabel>Chiến dịch tuyển sinh</InputLabel>
+                                <Select
+                                    value={selectedCampaignId === "" ? "" : String(selectedCampaignId)}
+                                    label="Chiến dịch tuyển sinh"
+                                    onChange={(e) => onCampaignChange(String(e.target.value || ""))}
+                                    sx={{ borderRadius: 2, bgcolor: "#f8fafc" }}
+                                >
+                                    {campaignOptions.map((c) => (
+                                        <MenuItem key={String(c.id)} value={String(c.id)}>
+                                            {c.name} {c.year != null ? `(${c.year})` : ""} {c.status ? `· ${c.status}` : ""}
+                                        </MenuItem>
+                                    ))}
+                                </Select>
+                            </FormControl>
+                        ) : null}
+                        <FormControl size="small" sx={{ minWidth: 180 }} disabled={campusesLoading}>
                             <InputLabel>Cơ sở</InputLabel>
                             <Select
                                 value={campusFilter}
@@ -724,7 +917,7 @@ export default function CampaignOfferingsSection({
                                 ))}
                             </Select>
                         </FormControl>
-                        <FormControl size="small" sx={{ minWidth: 200 }} disabled={programsLoading}>
+                        <FormControl size="small" sx={{ minWidth: 180 }} disabled={programsLoading}>
                             <InputLabel>Chương trình</InputLabel>
                             <Select
                                 value={programFilter}
@@ -740,7 +933,7 @@ export default function CampaignOfferingsSection({
                                 ))}
                             </Select>
                         </FormControl>
-                        <FormControl size="small" sx={{ minWidth: 180 }}>
+                        <FormControl size="small" sx={{ minWidth: 170 }}>
                             <InputLabel>Trạng thái hồ sơ</InputLabel>
                             <Select
                                 value={statusFilter}
@@ -758,30 +951,19 @@ export default function CampaignOfferingsSection({
                         </FormControl>
                     </Stack>
                 </CardContent>
-            </Card>
-
-            <Card
-                elevation={0}
-                sx={{
-                    borderRadius: 2,
-                    border: "1px solid #e2e8f0",
-                    overflow: "hidden",
-                    bgcolor: "#fff",
-                    boxShadow: "0 1px 3px rgba(51,65,85,0.06)",
-                }}
-            >
-                <TableContainer>
-                    <Table size="small">
+                <TableContainer sx={{ borderTop: "1px solid #e2e8f0" }}>
+                    <Table>
                         <TableHead>
                             <TableRow sx={{ bgcolor: "#f8fafc" }}>
-                                <TableCell sx={{ fontWeight: 700 }}>Cơ sở</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Chương trình</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Hình thức</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Chỉ tiêu / Còn lại</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Học phí</TableCell>
-                                <TableCell sx={{ fontWeight: 700 }}>Mở — Đóng</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Cơ sở</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Chương trình</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Hình thức</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Chỉ tiêu / Còn lại</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Học phí</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Trạng thái hồ sơ</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Mở — Đóng</TableCell>
                                 {canMutate && (
-                                    <TableCell align="right" sx={{ fontWeight: 700 }}>
+                                    <TableCell align="right" sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>
                                         Thao tác
                                     </TableCell>
                                 )}
@@ -791,8 +973,8 @@ export default function CampaignOfferingsSection({
                             {loading ? (
                                 Array.from({ length: 4 }).map((_, i) => (
                                     <TableRow key={i}>
-                                        {Array.from({ length: canMutate ? 7 : 6 }).map((__, j) => (
-                                            <TableCell key={j}>
+                                        {Array.from({ length: canMutate ? 8 : 7 }).map((__, j) => (
+                                            <TableCell key={j} sx={{ py: 2 }}>
                                                 <Skeleton variant="text" width="80%" />
                                             </TableCell>
                                         ))}
@@ -800,7 +982,7 @@ export default function CampaignOfferingsSection({
                                 ))
                             ) : items.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={canMutate ? 7 : 6} align="center" sx={{ py: 6 }}>
+                                    <TableCell colSpan={canMutate ? 8 : 7} align="center" sx={{ py: 6 }}>
                                         <Typography color="text.secondary">Chưa có chỉ tiêu cho bộ lọc này.</Typography>
                                     </TableCell>
                                 </TableRow>
@@ -810,7 +992,7 @@ export default function CampaignOfferingsSection({
                                         key={row.id}
                                         hover
                                         onClick={() => {
-                                            setDetailRow(row);
+                                            setDetailRow(mergeDetailWithCampaign(row));
                                             setDetailOpen(true);
                                         }}
                                         sx={{
@@ -819,18 +1001,45 @@ export default function CampaignOfferingsSection({
                                             bgcolor: rowMuted ? "rgba(250, 204, 21, 0.06)" : "inherit",
                                         }}
                                     >
-                                        <TableCell>{row.campusName ?? "—"}</TableCell>
-                                        <TableCell>{row.programName ?? getProgramName(row.programId)}</TableCell>
-                                        <TableCell>{getLearningModeLabel(row.learningMode)}</TableCell>
-                                        <TableCell>
+                                        <TableCell sx={{ py: 2.25 }}>{row.campusName ?? "—"}</TableCell>
+                                        <TableCell sx={{ py: 2.25 }}>{row.programName ?? getProgramName(row.programId)}</TableCell>
+                                        <TableCell sx={{ py: 2.25 }}>{getLearningModeLabel(row.learningMode)}</TableCell>
+                                        <TableCell sx={{ py: 2.25 }}>
                                             {row.quota ?? "—"} / {row.remainingQuota ?? "—"}
                                         </TableCell>
-                                        <TableCell>{formatCurrency(row.tuitionFee)}</TableCell>
-                                        <TableCell>
+                                        <TableCell sx={{ py: 2.25 }}>{formatCurrency(row.tuitionFee)}</TableCell>
+                                        <TableCell sx={{ py: 2.25 }}>
+                                            {(() => {
+                                                const label = getApplicationStatusLabel(row.applicationStatus);
+                                                const { badgeBg, badgeColor } = getApplicationStatusBadgeStyle(
+                                                    row.applicationStatus
+                                                );
+                                                return (
+                                                    <Box
+                                                        component="span"
+                                                        sx={{
+                                                            display: "inline-flex",
+                                                            alignItems: "center",
+                                                            px: 1.2,
+                                                            py: 0.4,
+                                                            borderRadius: "999px",
+                                                            fontSize: 12,
+                                                            fontWeight: 800,
+                                                            lineHeight: 1,
+                                                            color: badgeColor,
+                                                            bgcolor: badgeBg,
+                                                        }}
+                                                    >
+                                                        {label}
+                                                    </Box>
+                                                );
+                                            })()}
+                                        </TableCell>
+                                        <TableCell sx={{ py: 2.25 }}>
                                             {formatDate(row.openDate)} — {formatDate(row.closeDate)}
                                         </TableCell>
                                         {canMutate && (
-                                            <TableCell align="right">
+                                            <TableCell align="right" sx={{ py: 2.25 }}>
                                                 <Stack direction="row" spacing={1.2} justifyContent="flex-end">
                                                     <IconButton
                                                         size="small"
@@ -839,12 +1048,13 @@ export default function CampaignOfferingsSection({
                                                             openEdit(row);
                                                         }}
                                                         aria-label="Sửa chỉ tiêu"
+                                                        disabled={!canEditOfferingRow(row)}
                                                         sx={{ color: "#0D64DE" }}
                                                     >
                                                         <EditIcon fontSize="small" />
                                                     </IconButton>
 
-                                                    {["OPEN", "PAUSED"].includes(getLifecycleStatus(row)) && (
+                                                    {(canPauseOrCloseOffering(row) || canPublishOrCloseOffering(row)) && (
                                                         <IconButton
                                                             size="small"
                                                             aria-label="Thao tác khác"
@@ -869,8 +1079,10 @@ export default function CampaignOfferingsSection({
                         sx={{
                             display: "flex",
                             justifyContent: "flex-end",
-                            p: 2,
+                            px: 3,
+                            py: 1.5,
                             borderTop: "1px solid #e2e8f0",
+                            bgcolor: "#f8fafc",
                         }}
                     >
                         <Pagination
@@ -969,35 +1181,59 @@ export default function CampaignOfferingsSection({
                                             gap: 1.5,
                                         }}
                                     >
-                                        {fields.map(({ key, label }) => (
-                                            <Box
-                                                key={key}
-                                                sx={{
-                                                    border: "1px solid #e8eef5",
-                                                    borderRadius: "12px",
-                                                    p: 1.5,
-                                                    bgcolor: "#f8fafc",
-                                                }}
-                                            >
-                                                <Typography
-                                                    variant="caption"
-                                                    color="text.secondary"
-                                                    sx={{ display: "block", mb: 0.5 }}
-                                                >
-                                                    {label}
-                                                </Typography>
-                                                <Typography
-                                                    variant="body2"
+                                        {fields.map(({ key, label }) => {
+                                            const raw = detailRow?.[key];
+                                            const badge = getDetailFieldBadge(key, raw);
+                                            return (
+                                                <Box
+                                                    key={key}
                                                     sx={{
-                                                        fontWeight: 600,
-                                                        color: "#1e293b",
-                                                        wordBreak: "break-word",
+                                                        border: "1px solid #e8eef5",
+                                                        borderRadius: "12px",
+                                                        p: 1.5,
+                                                        bgcolor: "#f8fafc",
                                                     }}
                                                 >
-                                                    {formatDetailValue(key, detailRow?.[key])}
-                                                </Typography>
-                                            </Box>
-                                        ))}
+                                                    <Typography
+                                                        variant="caption"
+                                                        color="text.secondary"
+                                                        sx={{ display: "block", mb: 0.5 }}
+                                                    >
+                                                        {label}
+                                                    </Typography>
+                                                    {badge ? (
+                                                        <Chip
+                                                            size="small"
+                                                            label={badge.label}
+                                                            sx={{
+                                                                height: 26,
+                                                                fontWeight: 700,
+                                                                fontSize: "0.75rem",
+                                                                bgcolor: badge.badgeBg,
+                                                                color: badge.badgeColor,
+                                                                maxWidth: "100%",
+                                                                "& .MuiChip-label": {
+                                                                    px: 1.1,
+                                                                    overflow: "hidden",
+                                                                    textOverflow: "ellipsis",
+                                                                },
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <Typography
+                                                            variant="body2"
+                                                            sx={{
+                                                                fontWeight: 600,
+                                                                color: "#1e293b",
+                                                                wordBreak: "break-word",
+                                                            }}
+                                                        >
+                                                            {formatDetailValue(key, raw)}
+                                                        </Typography>
+                                                    )}
+                                                </Box>
+                                            );
+                                        })}
                                     </Box>
                                 </CardContent>
                             </Card>
@@ -1005,7 +1241,7 @@ export default function CampaignOfferingsSection({
                         })}
                     </Stack>
                 </DialogContent>
-                <DialogActions sx={{ px: 3, py: 2 }}>
+                <DialogActions sx={{ px: 3, py: 2, flexWrap: "wrap", gap: 1 }}>
                     <Button
                         onClick={() => {
                             setDetailOpen(false);
@@ -1013,9 +1249,70 @@ export default function CampaignOfferingsSection({
                         }}
                         sx={{ textTransform: "none" }}
                     >
-                        Đóng
+                        Đóng cửa sổ
                     </Button>
-                    {canMutate && detailRow && (
+                    {detailRow ? (
+                        <Button
+                            variant="outlined"
+                            disabled={detailRow?.canReceiveApplications !== true}
+                            onClick={() => {
+                                if (detailRow?.canReceiveApplications !== true) return;
+                                navigate("/school/dashboard");
+                            }}
+                            sx={{ textTransform: "none", fontWeight: 600, borderRadius: 2 }}
+                        >
+                            Nộp hồ sơ
+                        </Button>
+                    ) : null}
+                    {canMutate && detailRow && canPauseOrCloseOffering(detailRow) ? (
+                        <Button
+                            variant="outlined"
+                            color="warning"
+                            disabled={confirmActionLoading}
+                            onClick={() => {
+                                setConfirmRow(detailRow);
+                                setConfirmTargetStatus("PAUSE");
+                                setConfirmActionType("toggle");
+                                setConfirmActionOpen(true);
+                            }}
+                            sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                        >
+                            Tạm dừng
+                        </Button>
+                    ) : null}
+                    {canMutate && detailRow && canPublishOrCloseOffering(detailRow) ? (
+                        <Button
+                            variant="outlined"
+                            color="primary"
+                            disabled={confirmActionLoading}
+                            onClick={() => {
+                                setConfirmRow(detailRow);
+                                setConfirmTargetStatus("OPEN");
+                                setConfirmActionType("toggle");
+                                setConfirmActionOpen(true);
+                            }}
+                            sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                        >
+                            Công bố
+                        </Button>
+                    ) : null}
+                    {canMutate && detailRow && (canPauseOrCloseOffering(detailRow) || canPublishOrCloseOffering(detailRow)) ? (
+                        <Button
+                            variant="outlined"
+                            color="error"
+                            disabled={confirmActionLoading}
+                            onClick={() => {
+                                setConfirmRow(detailRow);
+                                setConfirmTargetStatus(null);
+                                setConfirmActionType("close");
+                                setConfirmActionOpen(true);
+                            }}
+                            sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                        >
+                            Đóng
+                        </Button>
+                    ) : null}
+                    {canMutate && detailRow && canEditOfferingRow(detailRow) ? (
                         <Button
                             variant="contained"
                             onClick={() => {
@@ -1027,7 +1324,7 @@ export default function CampaignOfferingsSection({
                         >
                             Sửa chỉ tiêu
                         </Button>
-                    )}
+                    ) : null}
                 </DialogActions>
             </Dialog>
 
@@ -1106,76 +1403,71 @@ export default function CampaignOfferingsSection({
                             </Select>
                         </FormControl>
                         {editingRow ? (
-                            <TextField
-                                label="Chỉ tiêu"
-                                name="quota"
-                                type="number"
-                                fullWidth
-                                size="small"
-                                value={formValues.quota}
-                                onChange={handleChange}
-                                error={!!formErrors.quota}
-                                helperText={formErrors.quota}
-                                disabled={isEditingReadOnly}
-                                inputProps={{ min: 0 }}
-                            />
+                            <Box
+                                sx={{
+                                    borderRadius: 2,
+                                    border: "1px solid #e2e8f0",
+                                    bgcolor: "#f8fafc",
+                                    px: 1.5,
+                                    py: 1.25,
+                                }}
+                            >
+                                <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
+                                    Chỉ tiêu / học phí hiện tại (chỉ xem)
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700, mt: 0.5 }}>
+                                    Chỉ tiêu: {editingRow.quota ?? "—"} · Còn lại: {editingRow.remainingQuota ?? "—"}
+                                </Typography>
+                                <Typography variant="body2" sx={{ mt: 0.5 }}>
+                                    Học phí áp dụng: {formatCurrency(editingRow.tuitionFee)}
+                                    {editingRow.baseTuitionFee != null || editingRow.programBaseTuitionFee != null
+                                        ? ` · Học phí gốc: ${formatCurrency(editingRow.baseTuitionFee ?? editingRow.programBaseTuitionFee)}`
+                                        : ""}
+                                </Typography>
+                            </Box>
                         ) : null}
-                        {editingRow ? (
-                            <TextField
-                                label="Học phí (VNĐ)"
-                                name="tuitionFee"
-                                type="number"
-                                fullWidth
-                                size="small"
-                                value={formValues.tuitionFee}
-                                onChange={handleChange}
-                                disabled={isEditingReadOnly}
-                                inputProps={{ min: 0 }}
-                                helperText={
-                                    editingRow.baseTuitionFee != null
-                                        ? `Học phí gốc chương trình: ${formatCurrency(editingRow.baseTuitionFee)}`
-                                        : undefined
-                                }
-                            />
-                        ) : (
-                            <TextField
-                                label="Điều chỉnh học phí (%)"
-                                name="priceAdjustmentPercentage"
-                                type="number"
-                                fullWidth
-                                size="small"
-                                value={formValues.priceAdjustmentPercentage}
-                                onChange={handleChange}
-                                inputProps={{ min: 0, max: 100 }}
-                                helperText="Áp dụng trên học phí gốc của chương trình (API tạo chỉ tiêu)"
-                            />
-                        )}
-                        {editingRow ? (
-                            <TextField
-                                label="Ngày mở"
-                                name="openDate"
-                                type="date"
-                                fullWidth
-                                size="small"
-                                value={formValues.openDate}
-                                onChange={handleChange}
-                                InputLabelProps={{ shrink: true }}
-                                disabled={isEditingReadOnly}
-                            />
-                        ) : null}
-                        {editingRow ? (
-                            <TextField
-                                label="Ngày đóng"
-                                name="closeDate"
-                                type="date"
-                                fullWidth
-                                size="small"
-                                value={formValues.closeDate}
-                                onChange={handleChange}
-                                InputLabelProps={{ shrink: true }}
-                                disabled={isEditingReadOnly}
-                            />
-                        ) : null}
+                        <TextField
+                            label="Điều chỉnh học phí (%)"
+                            name="priceAdjustmentPercentage"
+                            type="number"
+                            fullWidth
+                            size="small"
+                            value={formValues.priceAdjustmentPercentage}
+                            onChange={handleChange}
+                            disabled={isEditingReadOnly}
+                            inputProps={{ min: 0, max: 100, step: 0.1 }}
+                            helperText={
+                                editingRow
+                                    ? "Chỉnh khi chỉ tiêu đang tạm dừng; áp dụng trên học phí gốc (API PUT /campus/offering)"
+                                    : "Áp dụng trên học phí gốc của chương trình khi tạo chỉ tiêu"
+                            }
+                        />
+                        <TextField
+                            label="Ngày mở nhận hồ sơ"
+                            name="openDate"
+                            type="date"
+                            fullWidth
+                            size="small"
+                            value={formValues.openDate}
+                            onChange={handleChange}
+                            InputLabelProps={{ shrink: true }}
+                            disabled={isEditingReadOnly}
+                            error={!!formErrors.openDate}
+                            helperText={formErrors.openDate}
+                        />
+                        <TextField
+                            label="Ngày đóng nhận hồ sơ"
+                            name="closeDate"
+                            type="date"
+                            fullWidth
+                            size="small"
+                            value={formValues.closeDate}
+                            onChange={handleChange}
+                            InputLabelProps={{ shrink: true }}
+                            disabled={isEditingReadOnly}
+                            error={!!formErrors.closeDate}
+                            helperText={formErrors.closeDate}
+                        />
                     </Stack>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, py: 2, borderTop: "1px solid #e2e8f0" }}>
@@ -1203,12 +1495,11 @@ export default function CampaignOfferingsSection({
                     paper: { sx: { borderRadius: 2, minWidth: 220 } },
                 }}
             >
-                {actionMenuRow &&
-                    getLifecycleStatus(actionMenuRow) === "OPEN" && (
+                {actionMenuRow && canPauseOrCloseOffering(actionMenuRow) && (
                         <MenuItem
                             onClick={() => {
                                 closeActionMenu();
-                                openConfirmToggle(actionMenuRow, "PAUSED");
+                                openConfirmToggle(actionMenuRow, "PAUSE");
                             }}
                             disabled={confirmActionLoading}
                         >
@@ -1216,8 +1507,7 @@ export default function CampaignOfferingsSection({
                         </MenuItem>
                     )}
 
-                {actionMenuRow &&
-                    getLifecycleStatus(actionMenuRow) === "PAUSED" && (
+                {actionMenuRow && canPublishOrCloseOffering(actionMenuRow) && (
                         <MenuItem
                             onClick={() => {
                                 closeActionMenu();
@@ -1225,13 +1515,11 @@ export default function CampaignOfferingsSection({
                             }}
                             disabled={confirmActionLoading}
                         >
-                            Xuất bản
+                            Công bố
                         </MenuItem>
                     )}
 
-                {actionMenuRow &&
-                    ["OPEN", "PAUSED"].includes(getLifecycleStatus(actionMenuRow)) &&
-                    !["CLOSED", "FULL"].includes(String(actionMenuRow.status || "").toUpperCase()) && (
+                {actionMenuRow && (canPauseOrCloseOffering(actionMenuRow) || canPublishOrCloseOffering(actionMenuRow)) && (
                         <MenuItem
                             onClick={() => {
                                 closeActionMenu();
@@ -1263,14 +1551,14 @@ export default function CampaignOfferingsSection({
                 <DialogContent sx={{ pt: 2 }}>
                     <Typography variant="body2" color="text.secondary" component="div">
                         {confirmActionType === "toggle" &&
-                            (confirmTargetStatus === "PAUSED" ? (
+                            (confirmTargetStatus === "PAUSE" ? (
                                 <>
                                     Bạn có chắc chắn muốn <ConfirmHighlight>tạm dừng nhận hồ sơ</ConfirmHighlight>? Khi tạm dừng, chương trình sẽ{" "}
                                     <ConfirmHighlight>không còn nhận hồ sơ mới</ConfirmHighlight>.
                                 </>
                             ) : (
                                 <>
-                                    Bạn có chắc chắn muốn <ConfirmHighlight>xuất bản chỉ tiêu</ConfirmHighlight>?
+                                    Bạn có chắc chắn muốn <ConfirmHighlight>công bố chỉ tiêu</ConfirmHighlight> (mở lại nhận hồ sơ)?
                                 </>
                             ))}
                         {confirmActionType === "close" && (
