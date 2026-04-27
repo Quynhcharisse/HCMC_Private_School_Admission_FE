@@ -1,10 +1,5 @@
 import axiosClient from "../configs/APIConfig.jsx";
 
-/**
- * GET /api/v1/parent/slots/:campusId?startDate=&endDate=
- * @param {string|number} campusId
- * @param {{ startDate: string, endDate: string }} range
- */
 export async function getParentConsultSlots(campusId, { startDate, endDate }, axiosConfig = {}) {
   const id = Number(campusId);
   if (!Number.isFinite(id)) {
@@ -21,4 +16,8 @@ export function parseParentConsultSlotsBody(response) {
   if (Array.isArray(raw)) return raw;
   if (Array.isArray(raw?.body)) return raw.body;
   return [];
+}
+
+export async function bookParentOfflineConsultation(payload, axiosConfig = {}) {
+  return axiosClient.post("/parent/book/consultation/offline", payload, axiosConfig);
 }
