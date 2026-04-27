@@ -44,6 +44,7 @@ import {
     importSystemConfigPreview,
     updateSystemConfig,
     validateSystemConfigSingleRow,
+    validateSystemConfigRows,
 } from "../../../services/SystemConfigService.jsx";
 import { autoFillAdminSchoolQuotas } from "../../../services/AdminService.jsx";
 import { getPublicSchoolList } from "../../../services/SchoolPublicService.jsx";
@@ -136,6 +137,12 @@ const IMPORT_TYPE_OPTIONS = Object.keys(IMPORT_TYPE_LABEL);
 const normalizeImportErrorText = (error) => {
     if (!error) return "";
     if (typeof error === "string") return error.trim();
+    if (Array.isArray(error?.fields)) {
+        return error.fields
+            .map((field) => String(field?.message ?? "").trim())
+            .filter(Boolean)
+            .join("; ");
+    }
     if (Array.isArray(error)) return error.map((item) => normalizeImportErrorText(item)).filter(Boolean).join("; ");
     if (typeof error === "object") {
         const values = Object.values(error).map((item) => normalizeImportErrorText(item)).filter(Boolean);
@@ -494,6 +501,47 @@ export default function AdminPlatformSettings() {
               : Array.isArray(adm.byMethod)
                 ? adm.byMethod
                 : [];
+        const normalizedProcessSource = processSource.some((group) => Array.isArray(group?.steps))
+            ? processSource
+            : (() => {
+                  const grouped = {};
+                  processSource.forEach((row) => {
+                      const methodCode = String(row?.methodCode ?? "").trim();
+                      if (!methodCode) return;
+                      if (!Array.isArray(grouped[methodCode])) grouped[methodCode] = [];
+                      grouped[methodCode].push({
+                          stepOrder:
+                              row?.stepOrder != null && !Number.isNaN(Number(row.stepOrder))
+                                  ? Number(row.stepOrder)
+                                  : grouped[methodCode].length + 1,
+                          stepName: row?.stepName != null ? String(row.stepName) : "",
+                          description: row?.description != null ? String(row.description) : "",
+                      });
+                  });
+                  return Object.entries(grouped).map(([methodCode, steps]) => ({
+                      methodCode,
+                      steps: [...steps].sort((a, b) => Number(a?.stepOrder || 0) - Number(b?.stepOrder || 0)),
+                  }));
+              })();
+        const normalizedMethodDocsSource = methodDocsSource.some((group) => Array.isArray(group?.documents))
+            ? methodDocsSource
+            : (() => {
+                  const grouped = {};
+                  methodDocsSource.forEach((row) => {
+                      const methodCode = String(row?.methodCode ?? "").trim();
+                      if (!methodCode) return;
+                      if (!Array.isArray(grouped[methodCode])) grouped[methodCode] = [];
+                      grouped[methodCode].push({
+                          code: row?.code != null ? String(row.code) : "",
+                          name: row?.name != null ? String(row.name) : "",
+                          required: row?.required === true,
+                      });
+                  });
+                  return Object.entries(grouped).map(([methodCode, documents]) => ({
+                      methodCode,
+                      documents,
+                  }));
+              })();
         return {
             allowedMethods: Array.isArray(adm.allowedMethods)
                 ? adm.allowedMethods.map((m) => ({
@@ -502,7 +550,7 @@ export default function AdminPlatformSettings() {
                       description: m?.description != null ? String(m.description) : "",
                   }))
                 : [],
-            methodAdmissionProcess: processSource.map((group) => ({
+            methodAdmissionProcess: normalizedProcessSource.map((group) => ({
                       methodCode: group?.methodCode != null ? String(group.methodCode) : "",
                       steps: Array.isArray(group?.steps)
                           ? group.steps.map((step, idx) => ({
@@ -515,7 +563,7 @@ export default function AdminPlatformSettings() {
                             }))
                           : [],
                   })),
-            methodDocumentRequirements: methodDocsSource.map((group) => ({
+            methodDocumentRequirements: normalizedMethodDocsSource.map((group) => ({
                       methodCode: group?.methodCode != null ? String(group.methodCode) : "",
                       documents: Array.isArray(group?.documents)
                           ? group.documents.map((doc) => ({
@@ -1233,8 +1281,30 @@ export default function AdminPlatformSettings() {
         setConfirmingAdmissionImport(true);
         setStatus({ type: "", message: "" });
         try {
-            const payloadRows = rows.map((item) => item.rowData || {});
-            const res = await confirmSystemConfigImport({ type: importType, rows: payloadRows });
+            const payloadRows = rows.map((item) => ({
+                rowData: item?.rowData || {},
+                error: item?.error ?? null,
+                isError: Boolean(item?.isError),
+            }));
+            const validateRes = await validateSystemConfigRows({ type: importType, rows: payloadRows });
+            const validatedRows = Array.isArray(validateRes?.rows) ? validateRes.rows.map((item) => normalizeImportRow(item)) : [];
+            if (validatedRows.length) {
+                setAdmissionImportRows(validatedRows);
+            }
+            const hasValidateError = validatedRows.some((item) => item?.isError);
+            if (hasValidateError) {
+                enqueueSnackbar("Dữ liệu còn lỗi sau khi kiểm tra lại. Vui lòng sửa trước khi xác nhận nhập.", { variant: "warning" });
+                setAdmissionImportPreviewOpen(true);
+                return;
+            }
+            const rowsForConfirm = validatedRows.length
+                ? validatedRows.map((item) => ({
+                    rowData: item?.rowData || {},
+                    error: item?.error ?? null,
+                    isError: Boolean(item?.isError),
+                }))
+                : payloadRows;
+            const res = await confirmSystemConfigImport({ type: importType, rows: rowsForConfirm });
             const successMsg = String(res?.data?.message || "Xác nhận nhập dữ liệu thành công").trim();
             enqueueSnackbar(successMsg, { variant: "success" });
             setStatus({ type: "success", message: successMsg });
