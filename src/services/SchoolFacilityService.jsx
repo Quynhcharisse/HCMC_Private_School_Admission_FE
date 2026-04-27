@@ -117,17 +117,37 @@ export const getSchoolCampusConfigList = async () => {
 };
 
 /**
- * POST /api/v1/school/config/import/mandatory/docs
+ * POST /api/v1/school/config/import/mandatory/docs/preview
  * Request body: multipart/form-data { file }
  */
-export const importMandatoryDocsConfig = async (file) => {
+export const previewMandatoryDocsImport = async (file) => {
   const formData = new FormData();
   formData.append("file", file);
-  const response = await axiosClient.post("/school/config/import/mandatory/docs", formData, {
+  const response = await axiosClient.post("/school/config/import/mandatory/docs/preview", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
   });
+  return response;
+};
+
+/**
+ * POST /api/v1/school/config/validate-row
+ * Request body: { rows: [{ rowData, error, isError }] }
+ */
+export const validateMandatoryDocImportRow = async (rows) => {
+  const payload = {rows: Array.isArray(rows) ? rows : []};
+  const response = await axiosClient.post("/school/config/validate-row", payload);
+  return response;
+};
+
+/**
+ * POST /api/v1/school/config/confirm
+ * Request body: { rows: [{ rowData, error, isError }] }
+ */
+export const confirmMandatoryDocImportRows = async (rows) => {
+  const payload = {rows: Array.isArray(rows) ? rows : []};
+  const response = await axiosClient.post("/school/config/confirm", payload);
   return response;
 };
 
