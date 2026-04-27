@@ -977,17 +977,17 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
             <Typography sx={mainDetailSectionTitleSx}>Chiến dịch tuyển sinh</Typography>
 
             {campaignLoading ? (
-                <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.6}}>
+                <Typography sx={{fontSize: "1.06rem", color: CONTACT_BODY, lineHeight: 1.65}}>
                     Đang tải chiến dịch tuyển sinh...
                 </Typography>
             ) : null}
             {!campaignLoading && campaignError ? (
-                <Typography sx={{fontSize: "0.9rem", color: "#b45309", lineHeight: 1.6}}>
+                <Typography sx={{fontSize: "1.06rem", color: "#b45309", lineHeight: 1.65}}>
                     {campaignError}
                 </Typography>
             ) : null}
             {!campaignLoading && !campaignError && list.length === 0 ? (
-                <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.6}}>
+                <Typography sx={{fontSize: "1.06rem", color: CONTACT_BODY, lineHeight: 1.65}}>
                     Chưa có thông tin chiến dịch tuyển sinh.
                 </Typography>
             ) : null}
@@ -1013,7 +1013,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                 sx={{
                                     fontWeight: 900,
                                     color: "#0f172a",
-                                    fontSize: {xs: "1.2rem", sm: "1.45rem"},
+                                    fontSize: {xs: "1.36rem", sm: "1.68rem"},
                                     letterSpacing: "-0.02em",
                                     mb: 1,
                                     lineHeight: 1.25
@@ -1031,7 +1031,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                     bgcolor: "rgba(239,246,255,0.75)"
                                 }}
                             >
-                                <Typography sx={{fontSize: "0.88rem", fontWeight: 800, color: BRAND_NAVY, mb: 0.7}}>
+                                <Typography sx={{fontSize: "1.04rem", fontWeight: 800, color: BRAND_NAVY, mb: 0.7}}>
                                     Thông tin chiến dịch
                                 </Typography>
                                 <Stack direction="row" flexWrap="wrap" useFlexGap sx={{gap: 0.8, mb: campaignDesc ? 0.75 : 0}}>
@@ -1048,7 +1048,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                     />
                                 </Stack>
                                 {campaignDesc ? (
-                                    <Typography sx={{fontSize: "0.9rem", color: CURRICULUM_DESCRIPTION_TEXT, lineHeight: 1.6}}>
+                                    <Typography sx={{fontSize: "1.06rem", color: CURRICULUM_DESCRIPTION_TEXT, lineHeight: 1.65}}>
                                         {campaignDesc.replace(/<[^>]+>/g, "")}
                                     </Typography>
                                 ) : null}
@@ -1064,7 +1064,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                         bgcolor: "rgba(255,255,255,0.78)"
                                     }}
                                 >
-                                    <Typography sx={{fontSize: "0.98rem", fontWeight: 800, color: BRAND_NAVY, mb: 1.1}}>
+                                    <Typography sx={{fontSize: "1.16rem", fontWeight: 800, color: BRAND_NAVY, mb: 1.1}}>
                                         Gói tuyển sinh theo cơ sở
                                     </Typography>
                                     <Box
@@ -1108,7 +1108,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                                         </Typography>
                                                         <Stack direction="row" alignItems="center" spacing={0.5} sx={{color: "#64748b"}}>
                                                             <LocationOnIcon sx={{fontSize: 14, color: "#94a3b8"}}/>
-                                                            <Typography sx={{fontSize: "0.85rem", color: "#6b7280"}}>
+                                                            <Typography sx={{fontSize: "1rem", color: "#6b7280"}}>
                                                                 {String(offering?.district || "").trim() || "—"},{" "}
                                                                 {String(offering?.city || "").trim() || "—"}
                                                             </Typography>
@@ -1154,7 +1154,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                                             <Typography sx={{fontSize: "0.78rem", color: "#6b7280", fontWeight: 600}}>
                                                                 Chương trình
                                                             </Typography>
-                                                            <Typography sx={{fontSize: "0.93rem", color: "#111827", fontWeight: 700, lineHeight: 1.4}}>
+                                                            <Typography sx={{fontSize: "1.08rem", color: "#111827", fontWeight: 700, lineHeight: 1.45}}>
                                                                 {program?.name || "—"}
                                                             </Typography>
                                                             <Typography sx={{fontSize: "0.78rem", color: "#6b7280", fontStyle: "italic", mt: 0.2}}>
@@ -1243,7 +1243,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                         boxShadow: "0 10px 22px rgba(15,23,42,0.07)"
                                     }}
                                 >
-                                    <Typography sx={{fontSize: "0.98rem", fontWeight: 800, color: BRAND_NAVY, mb: 1}}>
+                                    <Typography sx={{fontSize: "1.16rem", fontWeight: 800, color: BRAND_NAVY, mb: 1}}>
                                         Phương thức xét tuyển
                                     </Typography>
                                     <Stack spacing={1}>
@@ -1263,7 +1263,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                                     <Typography sx={{fontSize: "1.02rem", fontWeight: 900, color: BRAND_NAVY, textTransform: "uppercase", letterSpacing: "0.01em"}}>
                                                         {method?.displayName || method?.methodCode || `Phương thức ${methodIdx + 1}`}
                                                     </Typography>
-                                                    <Typography sx={{fontSize: "0.86rem", color: "#475569", lineHeight: 1.6, mt: 0.2}}>
+                                                    <Typography sx={{fontSize: "1rem", color: "#475569", lineHeight: 1.65, mt: 0.2}}>
                                                         {String(method?.description || "").trim() || "—"}
                                                     </Typography>
 
@@ -1303,7 +1303,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                                                 {method.methodDocumentRequirements.map((doc, reqIdx) => (
                                                                     <Stack key={`${doc?.code || reqIdx}-${reqIdx}`} direction="row" alignItems="center" spacing={0.55} sx={{minWidth: 0}}>
                                                                         <CheckCircleIcon sx={{fontSize: 15, color: "#16a34a", flexShrink: 0}}/>
-                                                                        <Typography sx={{fontSize: "0.81rem", color: "#334155", lineHeight: 1.55}}>
+                                                                        <Typography sx={{fontSize: "0.96rem", color: "#334155", lineHeight: 1.62}}>
                                                                             {doc?.name || doc?.code || `Hồ sơ ${reqIdx + 1}`}
                                                                             {doc?.required ? (
                                                                                 <Box component="span" sx={{color: "#dc2626", fontWeight: 800, fontSize: "0.72rem", ml: 0.28}}>
@@ -1368,11 +1368,11 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                                                             <Box sx={{pt: 0.02, minWidth: 0}}>
                                                                                 <Stack direction="row" alignItems="center" spacing={0.5}>
                                                                                     {stepIcon}
-                                                                                    <Typography sx={{fontSize: "0.84rem", color: "#0f172a", fontWeight: 800, lineHeight: 1.45}}>
+                                                                                    <Typography sx={{fontSize: "1rem", color: "#0f172a", fontWeight: 800, lineHeight: 1.5}}>
                                                                                         {stepName}
                                                                                     </Typography>
                                                                                 </Stack>
-                                                                                <Typography sx={{fontSize: "0.8rem", color: "#475569", lineHeight: 1.6}}>
+                                                                                <Typography sx={{fontSize: "0.96rem", color: "#475569", lineHeight: 1.65}}>
                                                                                     {String(step?.description || "").trim()}
                                                                                 </Typography>
                                                                             </Box>
@@ -1431,9 +1431,9 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                             <Stack spacing={1.8}>
                                                 {orderedGroups.map((group) => (
                                                     <Box key={group.title}>
-                                                        <Typography
-                                                            sx={{
-                                                                fontSize: "0.9rem",
+                                                            <Typography
+                                                                sx={{
+                                                                    fontSize: "1.06rem",
                                                                 fontWeight: 800,
                                                                 color: "#111827",
                                                                 mb: 0.75
@@ -1561,7 +1561,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
             <Typography sx={mainDetailSectionTitleSx}>Chương trình đào tạo</Typography>
 
             {curriculumDataList.length === 0 ? (
-                <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.6}}>
+                <Typography sx={{fontSize: "1.06rem", color: CONTACT_BODY, lineHeight: 1.65}}>
                     Chưa có thông tin chương trình đào tạo.
                 </Typography>
             ) : null}
@@ -1602,7 +1602,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                 sx={{
                                     fontWeight: 900,
                                     color: "#0f172a",
-                                    fontSize: {xs: "1.05rem", sm: "1.2rem"},
+                                    fontSize: {xs: "1.24rem", sm: "1.42rem"},
                                     lineHeight: 1.35
                                 }}
                             >
@@ -1632,14 +1632,14 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                         </Stack>
 
                         {curriculumDescription ? (
-                            <Typography sx={{fontSize: "0.88rem", color: CURRICULUM_DESCRIPTION_TEXT, lineHeight: 1.65, mb: 1.2}}>
+                            <Typography sx={{fontSize: "1.04rem", color: CURRICULUM_DESCRIPTION_TEXT, lineHeight: 1.7, mb: 1.2}}>
                                 {curriculumDescription}
                             </Typography>
                         ) : null}
 
                         {methodLearningList.length > 0 ? (
                             <Box sx={{mb: 1.15}}>
-                                <Typography sx={{fontSize: "0.8rem", color: "#64748b", fontWeight: 700, mb: 0.6}}>
+                                <Typography sx={{fontSize: "0.96rem", color: "#64748b", fontWeight: 700, mb: 0.6}}>
                                     Phương pháp học tập
                                 </Typography>
                                 <Stack direction="row" flexWrap="wrap" useFlexGap sx={{gap: 0.55}}>
@@ -1664,7 +1664,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                             }}
                         >
                             <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{mb: 0.7}}>
-                                <Typography sx={{fontSize: "0.85rem", color: "#1e3a8a", fontWeight: 800}}>
+                                <Typography sx={{fontSize: "1rem", color: "#1e3a8a", fontWeight: 800}}>
                                     Danh mục môn học
                                 </Typography>
                                 <Typography sx={{fontSize: "0.76rem", color: "#334155", fontWeight: 700}}>
@@ -1672,7 +1672,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                 </Typography>
                             </Stack>
                             {subjects.length === 0 ? (
-                                <Typography sx={{fontSize: "0.82rem", color: "#475569"}}>
+                                <Typography sx={{fontSize: "0.98rem", color: "#475569"}}>
                                     Chưa có dữ liệu môn học.
                                 </Typography>
                             ) : (
@@ -1701,11 +1701,11 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                                         flexShrink: 0
                                                     }}
                                                 />
-                                                <Typography sx={{fontSize: "0.82rem", color: "#0f172a", fontWeight: 700}}>
+                                                <Typography sx={{fontSize: "0.98rem", color: "#0f172a", fontWeight: 700}}>
                                                     {String(subject?.name || "").trim() || `Môn ${subjectIdx + 1}`}
                                                 </Typography>
                                             </Stack>
-                                            <Typography sx={{fontSize: "0.76rem", color: "#475569", lineHeight: 1.5}}>
+                                            <Typography sx={{fontSize: "0.92rem", color: "#475569", lineHeight: 1.58}}>
                                                 {String(subject?.description || "").trim() || "Đang cập nhật mô tả."}
                                             </Typography>
                                         </Box>
@@ -1715,11 +1715,11 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                         </Box>
 
                         <Box sx={{mt: 1.25}}>
-                            <Typography sx={{fontSize: "0.85rem", color: BRAND_NAVY, fontWeight: 800, mb: 0.65}}>
+                            <Typography sx={{fontSize: "1rem", color: BRAND_NAVY, fontWeight: 800, mb: 0.65}}>
                                 Chương trình thành phần
                             </Typography>
                             {programList.length === 0 ? (
-                                <Typography sx={{fontSize: "0.82rem", color: "#475569"}}>
+                                <Typography sx={{fontSize: "0.98rem", color: "#475569"}}>
                                     Chưa có chương trình thành phần.
                                 </Typography>
                             ) : (
@@ -1741,7 +1741,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                                 justifyContent="space-between"
                                                 sx={{mb: 0.45}}
                                             >
-                                                <Typography sx={{fontSize: "0.88rem", color: "#0f172a", fontWeight: 800}}>
+                                                <Typography sx={{fontSize: "1.04rem", color: "#0f172a", fontWeight: 800}}>
                                                     {String(program?.name || "").trim() || `Chương trình ${programIdx + 1}`}
                                                 </Typography>
                                                 <Stack direction="row" spacing={0.55} alignItems="center">
@@ -1757,11 +1757,11 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                                     />
                                                 </Stack>
                                             </Stack>
-                                            <Typography sx={{fontSize: "0.76rem", color: "#334155", lineHeight: 1.55, mb: 0.35}}>
+                                            <Typography sx={{fontSize: "0.92rem", color: "#334155", lineHeight: 1.62, mb: 0.35}}>
                                                 <b>Đối tượng học sinh:</b>{" "}
                                                 {stripHtmlToPlainText(program?.targetStudentDescription) || "Đang cập nhật"}
                                             </Typography>
-                                            <Typography sx={{fontSize: "0.76rem", color: "#334155", lineHeight: 1.55}}>
+                                            <Typography sx={{fontSize: "0.92rem", color: "#334155", lineHeight: 1.62}}>
                                                 <b>Chuẩn đầu ra:</b>{" "}
                                                 {stripHtmlToPlainText(program?.graduationStandard) || "Đang cập nhật"}
                                             </Typography>
