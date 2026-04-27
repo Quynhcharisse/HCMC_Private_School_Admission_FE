@@ -2042,7 +2042,18 @@ export default function SchoolSearchDetailView({
             .filter(Boolean);
     }, [nearbyCampuses]);
 
-    const mapCampuses = normalizedNearbyCampuses.length > 0 ? normalizedNearbyCampuses : schoolCampusMarkers;
+    const nearbyCampusesOfCurrentSchool = React.useMemo(() => {
+        const currentSchoolId = Number(school?.id);
+        return normalizedNearbyCampuses.filter((campus) => {
+            const campusSchoolId = Number(campus?.schoolId);
+            if (Number.isFinite(currentSchoolId) && Number.isFinite(campusSchoolId)) {
+                return campusSchoolId === currentSchoolId;
+            }
+            return String(campus?.schoolId ?? "").trim() === String(school?.id ?? "").trim();
+        });
+    }, [normalizedNearbyCampuses, school?.id]);
+
+    const mapCampuses = nearbyCampusesOfCurrentSchool.length > 0 ? nearbyCampusesOfCurrentSchool : schoolCampusMarkers;
 
     React.useEffect(() => {
         requestUserLocation();
@@ -3468,7 +3479,7 @@ export default function SchoolSearchDetailView({
                                             Thử định vị lại
                                         </Button>
                                     )}
-                                    {!nearbyLoading && !nearbyError && normalizedNearbyCampuses.length === 0 && userLocation ? (
+                                    {!nearbyLoading && !nearbyError && nearbyCampusesOfCurrentSchool.length === 0 && userLocation ? (
                                         <Typography sx={{mt: 1, color: "#0f172a", fontSize: "0.9rem"}}>
                                             Không có campus nào trong bán kính {NEARBY_SEARCH_RADIUS_KM}km.
                                         </Typography>
