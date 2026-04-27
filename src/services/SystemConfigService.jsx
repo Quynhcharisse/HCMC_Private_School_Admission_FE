@@ -39,7 +39,8 @@ export const fetchSystemMediaConfig = async ({force = false, staleTimeMs = 10 * 
                 MEDIA_CONFIG_CACHE.fetchedAt = Date.now();
                 return byKeyMedia;
             }
-        } catch {
+        } catch (error) {
+            void error;
         }
 
         const fullRes = await getSystemConfig();
@@ -77,14 +78,16 @@ export const fetchSystemAdmissionSettingsData = async () => {
                 return body;
             }
         }
-    } catch {
+    } catch (error) {
+        void error;
     }
     try {
         const res = await getSystemConfig();
         const cfg = res?.data?.body ?? res?.data;
         const ad = cfg?.admissionSettingsData;
         return ad && typeof ad === "object" ? ad : null;
-    } catch {
+    } catch (error) {
+        void error;
         return null;
     }
 };
@@ -97,6 +100,47 @@ export const importSystemAdmissionTemplate = async (file) => {
             "Content-Type": "multipart/form-data",
         },
     });
+    return res || null;
+};
+
+const parseImportRowsPayload = (res) => {
+    const root = res?.data;
+    const payload = root?.body ?? root?.data ?? root;
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.rows)) return payload.rows;
+    return [];
+};
+
+export const importSystemConfigPreview = async ({ type, file }) => {
+    const importType = String(type ?? "").trim();
+    if (!importType) throw new Error("Thiếu loại dữ liệu import");
+    if (!file) throw new Error("Không có file để tải lên");
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await axiosClient.post(`/system/config/preview`, formData, {
+        params: { type: importType },
+        headers: { "Content-Type": "multipart/form-data" },
+    });
+    return {
+        response: res,
+        rows: parseImportRowsPayload(res),
+        message: String(res?.data?.message ?? "").trim(),
+    };
+};
+
+export const validateSystemConfigSingleRow = async ({ type, row }) => {
+    const importType = String(type ?? "").trim();
+    if (!importType) throw new Error("Thiếu loại dữ liệu import");
+    const res = await axiosClient.post(`/system/config/validate-row`, { rows: [row] }, { params: { type: importType } });
+    const rows = parseImportRowsPayload(res);
+    return rows[0] ?? null;
+};
+
+export const confirmSystemConfigImport = async ({ type, rows }) => {
+    const importType = String(type ?? "").trim();
+    if (!importType) throw new Error("Thiếu loại dữ liệu import");
+    const safeRows = Array.isArray(rows) ? rows : [];
+    const res = await axiosClient.post(`/system/config/confirm`, { rows: safeRows }, { params: { type: importType } });
     return res || null;
 };
 
