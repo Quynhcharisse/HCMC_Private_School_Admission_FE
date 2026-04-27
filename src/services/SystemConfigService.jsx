@@ -111,6 +111,21 @@ const parseImportRowsPayload = (res) => {
     return [];
 };
 
+const normalizeImportRowRequest = (row) => {
+    if (row && typeof row === "object" && row.rowData && typeof row.rowData === "object") {
+        return {
+            rowData: row.rowData,
+            error: row.error ?? null,
+            isError: Boolean(row.isError),
+        };
+    }
+    return {
+        rowData: row && typeof row === "object" ? row : null,
+        error: null,
+        isError: false,
+    };
+};
+
 export const importSystemConfigPreview = async ({ type, file }) => {
     const importType = String(type ?? "").trim();
     if (!importType) throw new Error("Thiếu loại dữ liệu import");
@@ -131,15 +146,31 @@ export const importSystemConfigPreview = async ({ type, file }) => {
 export const validateSystemConfigSingleRow = async ({ type, row }) => {
     const importType = String(type ?? "").trim();
     if (!importType) throw new Error("Thiếu loại dữ liệu import");
-    const res = await axiosClient.post(`/system/config/validate-row`, { rows: [row] }, { params: { type: importType } });
+    const res = await axiosClient.post(
+        `/system/config/validate-row`,
+        { rows: [normalizeImportRowRequest(row)] },
+        { params: { type: importType } }
+    );
     const rows = parseImportRowsPayload(res);
     return rows[0] ?? null;
+};
+
+export const validateSystemConfigRows = async ({ type, rows }) => {
+    const importType = String(type ?? "").trim();
+    if (!importType) throw new Error("Thiếu loại dữ liệu import");
+    const safeRows = Array.isArray(rows) ? rows.map((item) => normalizeImportRowRequest(item)) : [];
+    const res = await axiosClient.post(`/system/config/validate-row`, { rows: safeRows }, { params: { type: importType } });
+    return {
+        response: res,
+        rows: parseImportRowsPayload(res),
+        message: String(res?.data?.message ?? "").trim(),
+    };
 };
 
 export const confirmSystemConfigImport = async ({ type, rows }) => {
     const importType = String(type ?? "").trim();
     if (!importType) throw new Error("Thiếu loại dữ liệu import");
-    const safeRows = Array.isArray(rows) ? rows : [];
+    const safeRows = Array.isArray(rows) ? rows.map((item) => normalizeImportRowRequest(item)) : [];
     const res = await axiosClient.post(`/system/config/confirm`, { rows: safeRows }, { params: { type: importType } });
     return res || null;
 };
