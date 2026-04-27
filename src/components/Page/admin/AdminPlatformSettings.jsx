@@ -12,6 +12,7 @@ import {
     IconButton,
     InputAdornment,
     Link,
+    MenuItem,
     Dialog,
     DialogActions,
     DialogContent,
@@ -30,13 +31,21 @@ import {
     Tooltip,
     Typography,
 } from "@mui/material";
+import debounce from "debounce";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import AddIcon from "@mui/icons-material/Add";
 import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import { getSystemConfig, importSystemAdmissionTemplate, updateSystemConfig } from "../../../services/SystemConfigService.jsx";
+import {
+    confirmSystemConfigImport,
+    getSystemConfig,
+    importSystemConfigPreview,
+    updateSystemConfig,
+    validateSystemConfigSingleRow,
+    validateSystemConfigRows,
+} from "../../../services/SystemConfigService.jsx";
 import { autoFillAdminSchoolQuotas } from "../../../services/AdminService.jsx";
 import { getPublicSchoolList } from "../../../services/SchoolPublicService.jsx";
 import { enqueueSnackbar } from "notistack";
@@ -116,6 +125,42 @@ function assertSystemConfigUpdateSuccess(response, fallbackMessage = "Cập nh�
         throw new Error(message);
     }
 }
+
+const IMPORT_TYPE_LABEL = {
+    ALLOWED_METHODS: "Phương thức xét tuyển",
+    ADMISSION_PROCESSES: "Quy trình tuyển sinh",
+    METHOD_DOCUMENTS: "Hồ sơ theo phương thức",
+};
+
+const IMPORT_TYPE_OPTIONS = Object.keys(IMPORT_TYPE_LABEL);
+
+const normalizeImportErrorText = (error) => {
+    if (!error) return "";
+    if (typeof error === "string") return error.trim();
+    if (Array.isArray(error?.fields)) {
+        return error.fields
+            .map((field) => String(field?.message ?? "").trim())
+            .filter(Boolean)
+            .join("; ");
+    }
+    if (Array.isArray(error)) return error.map((item) => normalizeImportErrorText(item)).filter(Boolean).join("; ");
+    if (typeof error === "object") {
+        const values = Object.values(error).map((item) => normalizeImportErrorText(item)).filter(Boolean);
+        return values.join("; ");
+    }
+    return String(error).trim();
+};
+
+const normalizeImportRow = (item) => {
+    const rowData = item?.rowData && typeof item.rowData === "object" ? { ...item.rowData } : {};
+    const errorText = normalizeImportErrorText(item?.error);
+    return {
+        rowData,
+        error: item?.error ?? null,
+        errorText,
+        isError: Boolean(item?.isError || errorText),
+    };
+};
 
 export default function AdminPlatformSettings() {
     const tabs = useMemo(
@@ -227,10 +272,18 @@ export default function AdminPlatformSettings() {
         methodAdmissionProcess: [],
         methodDocumentRequirements: [],
     });
+    const [importType, setImportType] = useState("ALLOWED_METHODS");
+    const [admissionImportRows, setAdmissionImportRows] = useState([]);
+    const [confirmingAdmissionImport, setConfirmingAdmissionImport] = useState(false);
+    const [admissionImportConfirmOpen, setAdmissionImportConfirmOpen] = useState(false);
+    const [admissionImportPreviewOpen, setAdmissionImportPreviewOpen] = useState(false);
+    const [validatingImportRow, setValidatingImportRow] = useState(false);
     const [admissionTemplateEditing, setAdmissionTemplateEditing] = useState(false);
     const [admissionImportPreview, setAdmissionImportPreview] = useState(null);
     const [importingAdmissionTemplate, setImportingAdmissionTemplate] = useState(false);
     const admissionImportInputRef = useRef(null);
+    const rowValidationVersionRef = useRef({});
+    const validateRowDebouncedRef = useRef(null);
 
     const [mediaFormatsTab, setMediaFormatsTab] = useState(0);
     const [imgFormatsDraft, setImgFormatsDraft] = useState([]);
@@ -448,6 +501,47 @@ export default function AdminPlatformSettings() {
               : Array.isArray(adm.byMethod)
                 ? adm.byMethod
                 : [];
+        const normalizedProcessSource = processSource.some((group) => Array.isArray(group?.steps))
+            ? processSource
+            : (() => {
+                  const grouped = {};
+                  processSource.forEach((row) => {
+                      const methodCode = String(row?.methodCode ?? "").trim();
+                      if (!methodCode) return;
+                      if (!Array.isArray(grouped[methodCode])) grouped[methodCode] = [];
+                      grouped[methodCode].push({
+                          stepOrder:
+                              row?.stepOrder != null && !Number.isNaN(Number(row.stepOrder))
+                                  ? Number(row.stepOrder)
+                                  : grouped[methodCode].length + 1,
+                          stepName: row?.stepName != null ? String(row.stepName) : "",
+                          description: row?.description != null ? String(row.description) : "",
+                      });
+                  });
+                  return Object.entries(grouped).map(([methodCode, steps]) => ({
+                      methodCode,
+                      steps: [...steps].sort((a, b) => Number(a?.stepOrder || 0) - Number(b?.stepOrder || 0)),
+                  }));
+              })();
+        const normalizedMethodDocsSource = methodDocsSource.some((group) => Array.isArray(group?.documents))
+            ? methodDocsSource
+            : (() => {
+                  const grouped = {};
+                  methodDocsSource.forEach((row) => {
+                      const methodCode = String(row?.methodCode ?? "").trim();
+                      if (!methodCode) return;
+                      if (!Array.isArray(grouped[methodCode])) grouped[methodCode] = [];
+                      grouped[methodCode].push({
+                          code: row?.code != null ? String(row.code) : "",
+                          name: row?.name != null ? String(row.name) : "",
+                          required: row?.required === true,
+                      });
+                  });
+                  return Object.entries(grouped).map(([methodCode, documents]) => ({
+                      methodCode,
+                      documents,
+                  }));
+              })();
         return {
             allowedMethods: Array.isArray(adm.allowedMethods)
                 ? adm.allowedMethods.map((m) => ({
@@ -456,7 +550,7 @@ export default function AdminPlatformSettings() {
                       description: m?.description != null ? String(m.description) : "",
                   }))
                 : [],
-            methodAdmissionProcess: processSource.map((group) => ({
+            methodAdmissionProcess: normalizedProcessSource.map((group) => ({
                       methodCode: group?.methodCode != null ? String(group.methodCode) : "",
                       steps: Array.isArray(group?.steps)
                           ? group.steps.map((step, idx) => ({
@@ -469,7 +563,7 @@ export default function AdminPlatformSettings() {
                             }))
                           : [],
                   })),
-            methodDocumentRequirements: methodDocsSource.map((group) => ({
+            methodDocumentRequirements: normalizedMethodDocsSource.map((group) => ({
                       methodCode: group?.methodCode != null ? String(group.methodCode) : "",
                       documents: Array.isArray(group?.documents)
                           ? group.documents.map((doc) => ({
@@ -579,6 +673,8 @@ export default function AdminPlatformSettings() {
             },
             admissionProcesses: admInit.methodAdmissionProcess,
         });
+        setAdmissionImportRows([]);
+        rowValidationVersionRef.current = {};
         setAdmissionTemplateEditing(false);
     }, [configBody]);
 
@@ -588,6 +684,31 @@ export default function AdminPlatformSettings() {
         if (activeTabKey !== "limits") setQuotaEditing(false);
         if (activeTabKey !== "admission") setAdmissionTemplateEditing(false);
     }, [activeTabKey]);
+
+    useEffect(() => {
+        const debounced = debounce(async ({ row, rowIndex, type, version }) => {
+            try {
+                const validatedRow = await validateSystemConfigSingleRow({ type, row });
+                if (!validatedRow) return;
+                const latest = rowValidationVersionRef.current?.[rowIndex];
+                if (latest !== version) return;
+                setAdmissionImportRows((prev) => {
+                    if (!Array.isArray(prev) || !prev[rowIndex]) return prev;
+                    const next = [...prev];
+                    next[rowIndex] = normalizeImportRow(validatedRow);
+                    return next;
+                });
+            } catch (error) {
+                void error;
+            } finally {
+                setValidatingImportRow(false);
+            }
+        }, 500);
+        validateRowDebouncedRef.current = debounced;
+        return () => {
+            if (typeof debounced.clear === "function") debounced.clear();
+        };
+    }, []);
 
     useEffect(() => {
         if (mediaFormatsTab > 1) setMediaFormatsTab(0);
@@ -1088,7 +1209,7 @@ export default function AdminPlatformSettings() {
     };
 
     const handleSelectAdmissionTemplateFile = () => {
-        if (saving || importingAdmissionTemplate) return;
+        if (saving || importingAdmissionTemplate || confirmingAdmissionImport) return;
         admissionImportInputRef.current?.click();
     };
 
@@ -1098,21 +1219,115 @@ export default function AdminPlatformSettings() {
         setImportingAdmissionTemplate(true);
         setStatus({ type: "", message: "" });
         try {
-            const res = await importSystemAdmissionTemplate(file);
-            const successMsg = String(res?.data?.message || "Import template tuyển sinh thành công").trim();
-            await fetchConfig();
-            enqueueSnackbar(successMsg, { variant: "success" });
+            const previewRes = await importSystemConfigPreview({ type: importType, file });
+            const rows = Array.isArray(previewRes?.rows) ? previewRes.rows.map((item) => normalizeImportRow(item)) : [];
+            setAdmissionImportRows(rows);
+            const errorCount = rows.filter((row) => row.isError).length;
+            if (rows.length === 0) {
+                enqueueSnackbar("File không có dữ liệu để import.", { variant: "warning" });
+            } else if (errorCount === 0) {
+                enqueueSnackbar("Dữ liệu hợp lệ, bạn có thể xác nhận nhập ngay.", { variant: "success" });
+                setAdmissionImportPreviewOpen(true);
+            } else {
+                enqueueSnackbar(`Đã tải preview: ${errorCount}/${rows.length} dòng có lỗi.`, { variant: "warning" });
+                setAdmissionImportPreviewOpen(true);
+            }
             setStatus({ type: "", message: "" });
-            setAdmissionTemplateEditing(false);
         } catch (e) {
             console.error("import admission template failed", e);
-            const msg = apiErrorMessage(e, "Import template thất bại. Vui lòng kiểm tra file mẫu.");
+            const msg = apiErrorMessage(e, "Import preview thất bại. Vui lòng kiểm tra file mẫu.");
             enqueueSnackbar(msg, { variant: "error" });
             setStatus({ type: "error", message: msg });
         } finally {
             setImportingAdmissionTemplate(false);
             if (event?.target) event.target.value = "";
         }
+    };
+
+    const handleImportCellChange = (rowIndex, field, value) => {
+        let rowPayload = null;
+        setAdmissionImportRows((prev) => {
+            const next = [...(Array.isArray(prev) ? prev : [])];
+            const cur = next[rowIndex];
+            if (!cur) return prev;
+            const nextRow = {
+                ...cur,
+                rowData: { ...(cur.rowData || {}), [field]: value },
+            };
+            rowPayload = nextRow.rowData;
+            next[rowIndex] = nextRow;
+            return next;
+        });
+        if (!rowPayload) return;
+        const version = (rowValidationVersionRef.current[rowIndex] || 0) + 1;
+        rowValidationVersionRef.current[rowIndex] = version;
+        setValidatingImportRow(true);
+        validateRowDebouncedRef.current?.({
+            row: rowPayload,
+            rowIndex,
+            type: importType,
+            version,
+        });
+    };
+
+    const handleConfirmAdmissionImport = async () => {
+        const rows = Array.isArray(admissionImportRows) ? admissionImportRows : [];
+        if (!rows.length) return;
+        if (rows.some((item) => item.isError)) {
+            enqueueSnackbar("Vui lòng sửa hết các dòng lỗi trước khi xác nhận nhập.", { variant: "warning" });
+            return;
+        }
+        setAdmissionImportConfirmOpen(false);
+        setConfirmingAdmissionImport(true);
+        setStatus({ type: "", message: "" });
+        try {
+            const payloadRows = rows.map((item) => ({
+                rowData: item?.rowData || {},
+                error: item?.error ?? null,
+                isError: Boolean(item?.isError),
+            }));
+            const validateRes = await validateSystemConfigRows({ type: importType, rows: payloadRows });
+            const validatedRows = Array.isArray(validateRes?.rows) ? validateRes.rows.map((item) => normalizeImportRow(item)) : [];
+            if (validatedRows.length) {
+                setAdmissionImportRows(validatedRows);
+            }
+            const hasValidateError = validatedRows.some((item) => item?.isError);
+            if (hasValidateError) {
+                enqueueSnackbar("Dữ liệu còn lỗi sau khi kiểm tra lại. Vui lòng sửa trước khi xác nhận nhập.", { variant: "warning" });
+                setAdmissionImportPreviewOpen(true);
+                return;
+            }
+            const rowsForConfirm = validatedRows.length
+                ? validatedRows.map((item) => ({
+                    rowData: item?.rowData || {},
+                    error: item?.error ?? null,
+                    isError: Boolean(item?.isError),
+                }))
+                : payloadRows;
+            const res = await confirmSystemConfigImport({ type: importType, rows: rowsForConfirm });
+            const successMsg = String(res?.data?.message || "Xác nhận nhập dữ liệu thành công").trim();
+            enqueueSnackbar(successMsg, { variant: "success" });
+            setStatus({ type: "success", message: successMsg });
+            await fetchConfig();
+            setAdmissionImportRows([]);
+            setAdmissionImportPreviewOpen(false);
+        } catch (e) {
+            const msg = apiErrorMessage(e, "Xác nhận nhập dữ liệu thất bại. Vui lòng thử lại.");
+            enqueueSnackbar(msg, { variant: "error" });
+            setStatus({ type: "error", message: msg });
+        } finally {
+            setConfirmingAdmissionImport(false);
+        }
+    };
+
+    const openAdmissionImportConfirmModal = () => {
+        const rows = Array.isArray(admissionImportRows) ? admissionImportRows : [];
+        if (!rows.length) return;
+        if (rows.some((item) => item.isError)) {
+            enqueueSnackbar("Vui lòng sửa hết các dòng lỗi trước khi xác nhận nhập.", { variant: "warning" });
+            return;
+        }
+        setAdmissionImportConfirmOpen(true);
     };
 
     const renderAdmissionTab = () => {
@@ -1137,6 +1352,14 @@ export default function AdminPlatformSettings() {
             acc[code] = String(method?.displayName || code).trim();
             return acc;
         }, {});
+        const importRows = Array.isArray(admissionImportRows) ? admissionImportRows : [];
+        const importErrorCount = importRows.filter((row) => row?.isError).length;
+        const importValidCount = Math.max(0, importRows.length - importErrorCount);
+        const hasImportError = importErrorCount > 0;
+        const canConfirmImport = importRows.length > 0 && !hasImportError && !confirmingAdmissionImport && !saving;
+        const importColumns = importRows.length
+            ? Object.keys(importRows.reduce((acc, row) => ({ ...acc, ...(row?.rowData || {}) }), {}))
+            : [];
         const admissionInputSx = {
             "& .MuiOutlinedInput-root": {
                 borderRadius: 1.75,
@@ -1211,11 +1434,26 @@ export default function AdminPlatformSettings() {
                         }}
                     >
                         <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
+                            <TextField
+                                select
+                                size="small"
+                                label="Loại import"
+                                value={importType}
+                                disabled={saving || importingAdmissionTemplate || confirmingAdmissionImport}
+                                onChange={(e) => setImportType(String(e.target.value || "ALLOWED_METHODS"))}
+                                sx={{ minWidth: 240 }}
+                            >
+                                {IMPORT_TYPE_OPTIONS.map((typeKey) => (
+                                    <MenuItem key={typeKey} value={typeKey}>
+                                        {IMPORT_TYPE_LABEL[typeKey]}
+                                    </MenuItem>
+                                ))}
+                            </TextField>
                             <Button
                                 variant="outlined"
                                 size="small"
                                 startIcon={importingAdmissionTemplate ? <CircularProgress size={14} /> : <FileUploadOutlinedIcon />}
-                                disabled={saving || importingAdmissionTemplate}
+                                disabled={saving || importingAdmissionTemplate || confirmingAdmissionImport}
                                 onClick={handleSelectAdmissionTemplateFile}
                                 sx={{
                                     textTransform: "none",
@@ -1224,6 +1462,37 @@ export default function AdminPlatformSettings() {
                                 }}
                             >
                                 {importingAdmissionTemplate ? "Đang tải lên..." : "Tải lên"}
+                            </Button>
+                            <Button
+                                variant="contained"
+                                size="small"
+                                startIcon={confirmingAdmissionImport ? <CircularProgress size={14} /> : <AssignmentOutlinedIcon />}
+                                disabled={!canConfirmImport}
+                                autoFocus={canConfirmImport}
+                                onClick={openAdmissionImportConfirmModal}
+                                sx={{
+                                    textTransform: "none",
+                                    fontWeight: 700,
+                                    borderRadius: 2,
+                                    boxShadow: "none",
+                                    bgcolor: "#16a34a",
+                                    "&:hover": { bgcolor: "#15803d" },
+                                }}
+                            >
+                                {confirmingAdmissionImport ? "Đang xác nhận..." : "Xác nhận nhập"}
+                            </Button>
+                            <Button
+                                variant="outlined"
+                                size="small"
+                                disabled={importRows.length === 0}
+                                onClick={() => setAdmissionImportPreviewOpen(true)}
+                                sx={{
+                                    textTransform: "none",
+                                    fontWeight: 700,
+                                    borderRadius: 2,
+                                }}
+                            >
+                                Xem preview
                             </Button>
                             <Button
                                 variant="contained"
@@ -1256,6 +1525,91 @@ export default function AdminPlatformSettings() {
                         hidden
                         onChange={handleAdmissionTemplateImport}
                     />
+                    <Dialog
+                        open={admissionImportPreviewOpen}
+                        onClose={() => setAdmissionImportPreviewOpen(false)}
+                        fullWidth
+                        maxWidth="lg"
+                        PaperProps={{ sx: { borderRadius: 3, border: "1px solid #dbeafe" } }}
+                    >
+                        <DialogTitle sx={{ fontWeight: 800, color: "#0f172a" }}>
+                            Review dữ liệu trước khi nhập - {IMPORT_TYPE_LABEL[importType]}
+                        </DialogTitle>
+                        <DialogContent sx={{ pt: "8px !important" }}>
+                            <Typography variant="body2" sx={{ color: "#475569", mb: 1 }}>
+                                Tổng: {importRows.length} | Hợp lệ: {importValidCount} | Lỗi: {importErrorCount}
+                                {validatingImportRow ? " | Đang kiểm tra..." : ""}
+                            </Typography>
+                            {importRows.length > 0 ? (
+                                <TableContainer
+                                    sx={{
+                                        borderRadius: 1.5,
+                                        border: "1px solid #dbeafe",
+                                        bgcolor: "#ffffff",
+                                        maxHeight: 420,
+                                    }}
+                                >
+                                    <Table stickyHeader size="small">
+                                        <TableHead>
+                                            <TableRow>
+                                                <TableCell sx={{ fontWeight: 800 }}>STT</TableCell>
+                                                {importColumns.map((key) => (
+                                                    <TableCell key={`modal-col-${key}`} sx={{ fontWeight: 800 }}>
+                                                        {key}
+                                                    </TableCell>
+                                                ))}
+                                                <TableCell sx={{ fontWeight: 800 }}>Trạng thái</TableCell>
+                                            </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                            {importRows.map((row, rowIdx) => (
+                                                <TableRow key={`modal-import-row-${rowIdx}`} hover>
+                                                    <TableCell>{row?.rowData?.index ?? rowIdx + 1}</TableCell>
+                                                    {importColumns.map((key) => (
+                                                        <TableCell key={`modal-import-row-${rowIdx}-cell-${key}`}>
+                                                            <TextField
+                                                                fullWidth
+                                                                size="small"
+                                                                value={row?.rowData?.[key] ?? ""}
+                                                                disabled={key === "index"}
+                                                                onChange={(e) => handleImportCellChange(rowIdx, key, e.target.value)}
+                                                                error={Boolean(row?.isError)}
+                                                                sx={{ minWidth: 120 }}
+                                                            />
+                                                        </TableCell>
+                                                    ))}
+                                                    <TableCell>
+                                                        <Chip
+                                                            size="small"
+                                                            color={row?.isError ? "error" : "success"}
+                                                            label={row?.isError ? (row?.errorText || "Lỗi dữ liệu") : "Hợp lệ"}
+                                                        />
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </TableContainer>
+                            ) : (
+                                <Typography variant="body2" sx={{ color: "#64748b" }}>
+                                    Chưa có dữ liệu preview.
+                                </Typography>
+                            )}
+                        </DialogContent>
+                        <DialogActions sx={{ px: 2, pb: 2 }}>
+                            <Button variant="outlined" onClick={() => setAdmissionImportPreviewOpen(false)} sx={cancelButtonSx}>
+                                Đóng
+                            </Button>
+                            <Button
+                                variant="contained"
+                                disabled={!canConfirmImport}
+                                onClick={openAdmissionImportConfirmModal}
+                                sx={saveButtonSx}
+                            >
+                                Xác nhận nhập
+                            </Button>
+                        </DialogActions>
+                    </Dialog>
                     <Box
                         sx={{
                             p: 1.5,
@@ -2914,6 +3268,47 @@ export default function AdminPlatformSettings() {
                     )}
                 </Box>
             </Paper>
+
+            <Dialog
+                open={admissionImportConfirmOpen}
+                onClose={() => {
+                    if (!confirmingAdmissionImport) setAdmissionImportConfirmOpen(false);
+                }}
+                fullWidth
+                maxWidth="xs"
+                PaperProps={{
+                    sx: {
+                        borderRadius: 3,
+                        border: "1px solid #dbeafe",
+                    },
+                }}
+            >
+                <DialogTitle sx={{ fontWeight: 800, color: "#0f172a" }}>Xác nhận nhập dữ liệu</DialogTitle>
+                <DialogContent sx={{ pt: "8px !important" }}>
+                    <Typography variant="body2" sx={{ color: "#334155" }}>
+                        Bạn có chắc muốn nhập dữ liệu cho loại{" "}
+                        <strong>{IMPORT_TYPE_LABEL[importType] || importType}</strong>?
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ px: 2, pb: 2 }}>
+                    <Button
+                        variant="outlined"
+                        disabled={confirmingAdmissionImport}
+                        onClick={() => setAdmissionImportConfirmOpen(false)}
+                        sx={cancelButtonSx}
+                    >
+                        Không
+                    </Button>
+                    <Button
+                        variant="contained"
+                        disabled={confirmingAdmissionImport}
+                        onClick={() => void handleConfirmAdmissionImport()}
+                        sx={saveButtonSx}
+                    >
+                        {confirmingAdmissionImport ? "Đang xử lý..." : "Có, xác nhận nhập"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

@@ -7,6 +7,10 @@ import {
     Chip,
     CircularProgress,
     Divider,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
     IconButton,
     Link,
     MenuItem,
@@ -14,6 +18,7 @@ import {
     Select,
     Stack,
     Tab,
+    TextField,
     Tabs,
     Typography
 } from "@mui/material";
@@ -44,10 +49,14 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {APP_PRIMARY_DARK, BRAND_NAVY, landingSectionShadow} from "../../constants/homeLandingTheme";
 import {OPEN_PARENT_CHAT_EVENT} from "../../constants/parentChatEvents";
-import {showSuccessSnackbar} from "../ui/AppSnackbar.jsx";
+import {showErrorSnackbar, showSuccessSnackbar, showWarningSnackbar} from "../ui/AppSnackbar.jsx";
 import {DEFAULT_SCHOOL_IMAGE} from "../../utils/schoolPublicMapper.js";
 import {getPublicSchoolCampaignTemplates} from "../../services/SchoolPublicService.jsx";
-import {getParentConsultSlots, parseParentConsultSlotsBody} from "../../services/ParentConsultSlotsService.jsx";
+import {
+    bookParentOfflineConsultation,
+    getParentConsultSlots,
+    parseParentConsultSlotsBody
+} from "../../services/ParentConsultSlotsService.jsx";
 
 const MAP_CONTAINER_STYLE = {width: "100%", height: "260px"};
 const NEARBY_SEARCH_RADIUS_KM = 10;
@@ -97,7 +106,15 @@ function consultSlotLooksCompleted(status, statusLabel) {
         .includes("đã qua");
 }
 
-/** Chip theo trạng thái — COMPLETED / «Đã qua»: phẳng, không shadow */
+function consultSlotLooksUpcoming(status, statusLabel) {
+    const s = String(status || "").toUpperCase();
+    if (s === "UPCOMING") return true;
+    return String(statusLabel || "")
+        .trim()
+        .toLowerCase()
+        .includes("sắp diễn ra");
+}
+
 function consultCalendarSlotChipSx(status, statusLabel) {
     const s = String(status || "").toUpperCase();
     const label = {
@@ -135,7 +152,7 @@ function consultCalendarSlotChipSx(status, statusLabel) {
         fontWeight: 700,
         borderRadius: "8px",
         boxShadow: "0 3px 10px rgba(15,23,42,0.12)",
-        cursor: "pointer"
+        cursor: consultSlotLooksUpcoming(s, statusLabel) ? "pointer" : "default"
     };
 }
 
@@ -359,6 +376,36 @@ function curriculumHeaderStatusChipSx(status) {
         flexShrink: 0,
         "& .MuiChip-label": {px: 1.125}
     };
+}
+
+function mapCurriculumTypeLabel(type) {
+    const value = String(type || "").trim().toUpperCase();
+    if (value === "NATIONAL") return "Khung chương trình Bộ GD&ĐT";
+    if (value === "INTERNATIONAL") return "Chương trình quốc tế";
+    if (value === "BILINGUAL") return "Chương trình song ngữ";
+    return value || "Đang cập nhật";
+}
+
+function mapLearningMethodLabel(method) {
+    const value = String(method || "").trim().toUpperCase();
+    if (!value) return "";
+    if (value === "COOPERATIVE") return "Học tập hợp tác";
+    if (value === "VISUAL_PRACTICE") return "Thị giác & thực hành";
+    if (value === "PROJECT_BASED") return "Học theo dự án";
+    if (value === "EXPERIENTIAL") return "Học qua trải nghiệm";
+    return value
+        .split("_")
+        .filter(Boolean)
+        .map((s) => s[0] + s.slice(1).toLowerCase())
+        .join(" ");
+}
+
+function stripHtmlToPlainText(value) {
+    return String(value || "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
 }
 
 function resolveCampusImageUrl(imageJson) {
@@ -938,25 +985,26 @@ function SchoolCampusInfoCard({school, isParent, onMessageCampus, activeCampusIn
     );
 }
 
-function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignError}) {
+function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignError, curriculumList}) {
     const list = Array.isArray(campaignTemplates) ? campaignTemplates : [];
+    const curriculumDataList = Array.isArray(curriculumList) ? curriculumList : [];
 
     return (
         <Box sx={detailMainColumnCardSx}>
-            <Typography sx={mainDetailSectionTitleSx}>Chương trình đào tạo & tuyển sinh</Typography>
+            <Typography sx={mainDetailSectionTitleSx}>Chiến dịch tuyển sinh</Typography>
 
             {campaignLoading ? (
-                <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.6}}>
+                <Typography sx={{fontSize: "1.06rem", color: CONTACT_BODY, lineHeight: 1.65}}>
                     Đang tải chiến dịch tuyển sinh...
                 </Typography>
             ) : null}
             {!campaignLoading && campaignError ? (
-                <Typography sx={{fontSize: "0.9rem", color: "#b45309", lineHeight: 1.6}}>
+                <Typography sx={{fontSize: "1.06rem", color: "#b45309", lineHeight: 1.65}}>
                     {campaignError}
                 </Typography>
             ) : null}
             {!campaignLoading && !campaignError && list.length === 0 ? (
-                <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.6}}>
+                <Typography sx={{fontSize: "1.06rem", color: CONTACT_BODY, lineHeight: 1.65}}>
                     Chưa có thông tin chiến dịch tuyển sinh.
                 </Typography>
             ) : null}
@@ -982,7 +1030,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                 sx={{
                                     fontWeight: 900,
                                     color: "#0f172a",
-                                    fontSize: {xs: "1.2rem", sm: "1.45rem"},
+                                    fontSize: {xs: "1.36rem", sm: "1.68rem"},
                                     letterSpacing: "-0.02em",
                                     mb: 1,
                                     lineHeight: 1.25
@@ -1000,7 +1048,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                     bgcolor: "rgba(239,246,255,0.75)"
                                 }}
                             >
-                                <Typography sx={{fontSize: "0.88rem", fontWeight: 800, color: BRAND_NAVY, mb: 0.7}}>
+                                <Typography sx={{fontSize: "1.04rem", fontWeight: 800, color: BRAND_NAVY, mb: 0.7}}>
                                     Thông tin chiến dịch
                                 </Typography>
                                 <Stack direction="row" flexWrap="wrap" useFlexGap sx={{gap: 0.8, mb: campaignDesc ? 0.75 : 0}}>
@@ -1017,7 +1065,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                     />
                                 </Stack>
                                 {campaignDesc ? (
-                                    <Typography sx={{fontSize: "0.9rem", color: CURRICULUM_DESCRIPTION_TEXT, lineHeight: 1.6}}>
+                                    <Typography sx={{fontSize: "1.06rem", color: CURRICULUM_DESCRIPTION_TEXT, lineHeight: 1.65}}>
                                         {campaignDesc.replace(/<[^>]+>/g, "")}
                                     </Typography>
                                 ) : null}
@@ -1033,7 +1081,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                         bgcolor: "rgba(255,255,255,0.78)"
                                     }}
                                 >
-                                    <Typography sx={{fontSize: "0.98rem", fontWeight: 800, color: BRAND_NAVY, mb: 1.1}}>
+                                    <Typography sx={{fontSize: "1.16rem", fontWeight: 800, color: BRAND_NAVY, mb: 1.1}}>
                                         Gói tuyển sinh theo cơ sở
                                     </Typography>
                                     <Box
@@ -1077,7 +1125,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                                         </Typography>
                                                         <Stack direction="row" alignItems="center" spacing={0.5} sx={{color: "#64748b"}}>
                                                             <LocationOnIcon sx={{fontSize: 14, color: "#94a3b8"}}/>
-                                                            <Typography sx={{fontSize: "0.85rem", color: "#6b7280"}}>
+                                                            <Typography sx={{fontSize: "1rem", color: "#6b7280"}}>
                                                                 {String(offering?.district || "").trim() || "—"},{" "}
                                                                 {String(offering?.city || "").trim() || "—"}
                                                             </Typography>
@@ -1123,7 +1171,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                                             <Typography sx={{fontSize: "0.78rem", color: "#6b7280", fontWeight: 600}}>
                                                                 Chương trình
                                                             </Typography>
-                                                            <Typography sx={{fontSize: "0.93rem", color: "#111827", fontWeight: 700, lineHeight: 1.4}}>
+                                                            <Typography sx={{fontSize: "1.08rem", color: "#111827", fontWeight: 700, lineHeight: 1.45}}>
                                                                 {program?.name || "—"}
                                                             </Typography>
                                                             <Typography sx={{fontSize: "0.78rem", color: "#6b7280", fontStyle: "italic", mt: 0.2}}>
@@ -1212,7 +1260,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                         boxShadow: "0 10px 22px rgba(15,23,42,0.07)"
                                     }}
                                 >
-                                    <Typography sx={{fontSize: "0.98rem", fontWeight: 800, color: BRAND_NAVY, mb: 1}}>
+                                    <Typography sx={{fontSize: "1.16rem", fontWeight: 800, color: BRAND_NAVY, mb: 1}}>
                                         Phương thức xét tuyển
                                     </Typography>
                                     <Stack spacing={1}>
@@ -1232,7 +1280,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                                     <Typography sx={{fontSize: "1.02rem", fontWeight: 900, color: BRAND_NAVY, textTransform: "uppercase", letterSpacing: "0.01em"}}>
                                                         {method?.displayName || method?.methodCode || `Phương thức ${methodIdx + 1}`}
                                                     </Typography>
-                                                    <Typography sx={{fontSize: "0.86rem", color: "#475569", lineHeight: 1.6, mt: 0.2}}>
+                                                    <Typography sx={{fontSize: "1rem", color: "#475569", lineHeight: 1.65, mt: 0.2}}>
                                                         {String(method?.description || "").trim() || "—"}
                                                     </Typography>
 
@@ -1272,7 +1320,7 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                                                 {method.methodDocumentRequirements.map((doc, reqIdx) => (
                                                                     <Stack key={`${doc?.code || reqIdx}-${reqIdx}`} direction="row" alignItems="center" spacing={0.55} sx={{minWidth: 0}}>
                                                                         <CheckCircleIcon sx={{fontSize: 15, color: "#16a34a", flexShrink: 0}}/>
-                                                                        <Typography sx={{fontSize: "0.81rem", color: "#334155", lineHeight: 1.55}}>
+                                                                        <Typography sx={{fontSize: "0.96rem", color: "#334155", lineHeight: 1.62}}>
                                                                             {doc?.name || doc?.code || `Hồ sơ ${reqIdx + 1}`}
                                                                             {doc?.required ? (
                                                                                 <Box component="span" sx={{color: "#dc2626", fontWeight: 800, fontSize: "0.72rem", ml: 0.28}}>
@@ -1337,11 +1385,11 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                                                             <Box sx={{pt: 0.02, minWidth: 0}}>
                                                                                 <Stack direction="row" alignItems="center" spacing={0.5}>
                                                                                     {stepIcon}
-                                                                                    <Typography sx={{fontSize: "0.84rem", color: "#0f172a", fontWeight: 800, lineHeight: 1.45}}>
+                                                                                    <Typography sx={{fontSize: "1rem", color: "#0f172a", fontWeight: 800, lineHeight: 1.5}}>
                                                                                         {stepName}
                                                                                     </Typography>
                                                                                 </Stack>
-                                                                                <Typography sx={{fontSize: "0.8rem", color: "#475569", lineHeight: 1.6}}>
+                                                                                <Typography sx={{fontSize: "0.96rem", color: "#475569", lineHeight: 1.65}}>
                                                                                     {String(step?.description || "").trim()}
                                                                                 </Typography>
                                                                             </Box>
@@ -1400,9 +1448,9 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                             <Stack spacing={1.8}>
                                                 {orderedGroups.map((group) => (
                                                     <Box key={group.title}>
-                                                        <Typography
-                                                            sx={{
-                                                                fontSize: "0.9rem",
+                                                            <Typography
+                                                                sx={{
+                                                                    fontSize: "1.06rem",
                                                                 fontWeight: 800,
                                                                 color: "#111827",
                                                                 mb: 0.75
@@ -1525,6 +1573,223 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                         </Box>
                     );
                 })}
+
+            <Divider sx={{...contactDividerSx, mt: list.length > 0 ? 3 : 2, mb: 2.5}}/>
+            <Typography sx={mainDetailSectionTitleSx}>Chương trình đào tạo</Typography>
+
+            {curriculumDataList.length === 0 ? (
+                <Typography sx={{fontSize: "1.06rem", color: CONTACT_BODY, lineHeight: 1.65}}>
+                    Chưa có thông tin chương trình đào tạo.
+                </Typography>
+            ) : null}
+
+            {curriculumDataList.map((curriculum, curriculumIdx) => {
+                const curriculumName = String(curriculum?.name || "").trim() || `Chương trình ${curriculumIdx + 1}`;
+                const methodLearningList = Array.isArray(curriculum?.methodLearningList)
+                    ? curriculum.methodLearningList
+                    : [];
+                const subjects = Array.isArray(curriculum?.subjectsJsonb) ? curriculum.subjectsJsonb : [];
+                const programList = Array.isArray(curriculum?.programList) ? curriculum.programList : [];
+                const curriculumDescription = stripHtmlToPlainText(curriculum?.description);
+                const yearLabel = Number.isFinite(Number(curriculum?.applicationYear))
+                    ? String(curriculum?.applicationYear)
+                    : "—";
+                const mandatorySubjects = subjects.filter((item) => item?.isMandatory).length;
+                return (
+                    <Box
+                        key={`${curriculum?.groupCode || curriculumName}-${curriculumIdx}`}
+                        sx={{
+                            mt: curriculumIdx === 0 ? 1.2 : 2.1,
+                            p: {xs: 1.4, sm: 1.75},
+                            borderRadius: "16px",
+                            border: "1px solid rgba(148,163,184,0.24)",
+                            background:
+                                "linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(248,250,252,0.98) 100%)",
+                            boxShadow: "0 12px 28px rgba(15,23,42,0.08)"
+                        }}
+                    >
+                        <Stack
+                            direction={{xs: "column", md: "row"}}
+                            spacing={1}
+                            alignItems={{xs: "flex-start", md: "center"}}
+                            justifyContent="space-between"
+                            sx={{mb: 1}}
+                        >
+                            <Typography
+                                sx={{
+                                    fontWeight: 900,
+                                    color: "#0f172a",
+                                    fontSize: {xs: "1.24rem", sm: "1.42rem"},
+                                    lineHeight: 1.35
+                                }}
+                            >
+                                {curriculumName}
+                            </Typography>
+                            <Chip
+                                size="small"
+                                label={curriculumStatusLabel(curriculum?.curriculumStatus)}
+                                sx={curriculumHeaderStatusChipSx(curriculum?.curriculumStatus)}
+                            />
+                        </Stack>
+
+                        <Stack direction="row" flexWrap="wrap" useFlexGap sx={{gap: 0.7, mb: curriculumDescription ? 0.9 : 1.1}}>
+                            <Chip size="small" label={`Năm áp dụng ${yearLabel}`} sx={curriculumClassificationChipSx("year")}/>
+                            <Chip
+                                size="small"
+                                label={mapCurriculumTypeLabel(curriculum?.curriculumType)}
+                                sx={curriculumClassificationChipSx("method")}
+                            />
+                            {curriculum?.groupCode ? (
+                                <Chip
+                                    size="small"
+                                    label={`Mã nhóm: ${String(curriculum.groupCode).trim()}`}
+                                    sx={curriculumClassificationChipSx("default")}
+                                />
+                            ) : null}
+                        </Stack>
+
+                        {curriculumDescription ? (
+                            <Typography sx={{fontSize: "1.04rem", color: CURRICULUM_DESCRIPTION_TEXT, lineHeight: 1.7, mb: 1.2}}>
+                                {curriculumDescription}
+                            </Typography>
+                        ) : null}
+
+                        {methodLearningList.length > 0 ? (
+                            <Box sx={{mb: 1.15}}>
+                                <Typography sx={{fontSize: "0.96rem", color: "#64748b", fontWeight: 700, mb: 0.6}}>
+                                    Phương pháp học tập
+                                </Typography>
+                                <Stack direction="row" flexWrap="wrap" useFlexGap sx={{gap: 0.55}}>
+                                    {methodLearningList.map((method, methodIdx) => (
+                                        <Chip
+                                            key={`${method}-${methodIdx}`}
+                                            size="small"
+                                            label={mapLearningMethodLabel(method)}
+                                            sx={curriculumClassificationChipSx("method")}
+                                        />
+                                    ))}
+                                </Stack>
+                            </Box>
+                        ) : null}
+
+                        <Box
+                            sx={{
+                                p: {xs: 1.1, sm: 1.25},
+                                borderRadius: 2,
+                                border: "1px solid rgba(191,219,254,0.72)",
+                                bgcolor: "rgba(239,246,255,0.68)"
+                            }}
+                        >
+                            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{mb: 0.7}}>
+                                <Typography sx={{fontSize: "1rem", color: "#1e3a8a", fontWeight: 800}}>
+                                    Danh mục môn học
+                                </Typography>
+                                <Typography sx={{fontSize: "0.76rem", color: "#334155", fontWeight: 700}}>
+                                    {mandatorySubjects}/{subjects.length} môn bắt buộc
+                                </Typography>
+                            </Stack>
+                            {subjects.length === 0 ? (
+                                <Typography sx={{fontSize: "0.98rem", color: "#475569"}}>
+                                    Chưa có dữ liệu môn học.
+                                </Typography>
+                            ) : (
+                                <Box
+                                    sx={{
+                                        display: "grid",
+                                        gridTemplateColumns: {xs: "1fr", sm: "repeat(2, minmax(0, 1fr))"},
+                                        gap: 0.8
+                                    }}
+                                >
+                                    {subjects.map((subject, subjectIdx) => (
+                                        <Box
+                                            key={`${subject?.name || subjectIdx}-${subjectIdx}`}
+                                            sx={{
+                                                p: 0.85,
+                                                borderRadius: 1.5,
+                                                border: "1px solid rgba(148,163,184,0.28)",
+                                                bgcolor: "#ffffff"
+                                            }}
+                                        >
+                                            <Stack direction="row" spacing={0.55} alignItems="center" sx={{mb: 0.32}}>
+                                                <CheckCircleIcon
+                                                    sx={{
+                                                        fontSize: 14,
+                                                        color: subject?.isMandatory ? "#16a34a" : "#94a3b8",
+                                                        flexShrink: 0
+                                                    }}
+                                                />
+                                                <Typography sx={{fontSize: "0.98rem", color: "#0f172a", fontWeight: 700}}>
+                                                    {String(subject?.name || "").trim() || `Môn ${subjectIdx + 1}`}
+                                                </Typography>
+                                            </Stack>
+                                            <Typography sx={{fontSize: "0.92rem", color: "#475569", lineHeight: 1.58}}>
+                                                {String(subject?.description || "").trim() || "Đang cập nhật mô tả."}
+                                            </Typography>
+                                        </Box>
+                                    ))}
+                                </Box>
+                            )}
+                        </Box>
+
+                        <Box sx={{mt: 1.25}}>
+                            <Typography sx={{fontSize: "1rem", color: BRAND_NAVY, fontWeight: 800, mb: 0.65}}>
+                                Chương trình thành phần
+                            </Typography>
+                            {programList.length === 0 ? (
+                                <Typography sx={{fontSize: "0.98rem", color: "#475569"}}>
+                                    Chưa có chương trình thành phần.
+                                </Typography>
+                            ) : (
+                                <Stack spacing={0.8}>
+                                    {programList.map((program, programIdx) => (
+                                        <Box
+                                            key={`${program?.name || programIdx}-${programIdx}`}
+                                            sx={{
+                                                p: 1,
+                                                borderRadius: 1.7,
+                                                border: "1px solid rgba(148,163,184,0.28)",
+                                                bgcolor: "rgba(255,255,255,0.96)"
+                                            }}
+                                        >
+                                            <Stack
+                                                direction={{xs: "column", sm: "row"}}
+                                                spacing={0.7}
+                                                alignItems={{xs: "flex-start", sm: "center"}}
+                                                justifyContent="space-between"
+                                                sx={{mb: 0.45}}
+                                            >
+                                                <Typography sx={{fontSize: "1.04rem", color: "#0f172a", fontWeight: 800}}>
+                                                    {String(program?.name || "").trim() || `Chương trình ${programIdx + 1}`}
+                                                </Typography>
+                                                <Stack direction="row" spacing={0.55} alignItems="center">
+                                                    <Chip
+                                                        size="small"
+                                                        label={String(program?.isActive || "—").trim()}
+                                                        sx={curriculumHeaderStatusChipSx(program?.isActive)}
+                                                    />
+                                                    <Chip
+                                                        size="small"
+                                                        label={`Học phí gốc: ${formatVnd(program?.baseTuitionFee)}`}
+                                                        sx={curriculumClassificationChipSx("year")}
+                                                    />
+                                                </Stack>
+                                            </Stack>
+                                            <Typography sx={{fontSize: "0.92rem", color: "#334155", lineHeight: 1.62, mb: 0.35}}>
+                                                <b>Đối tượng học sinh:</b>{" "}
+                                                {stripHtmlToPlainText(program?.targetStudentDescription) || "Đang cập nhật"}
+                                            </Typography>
+                                            <Typography sx={{fontSize: "0.92rem", color: "#334155", lineHeight: 1.62}}>
+                                                <b>Chuẩn đầu ra:</b>{" "}
+                                                {stripHtmlToPlainText(program?.graduationStandard) || "Đang cập nhật"}
+                                            </Typography>
+                                        </Box>
+                                    ))}
+                                </Stack>
+                            )}
+                        </Box>
+                    </Box>
+                );
+            })}
         </Box>
     );
 }
@@ -1699,6 +1964,11 @@ export default function SchoolSearchDetailView({
     const [parentSlotsRaw, setParentSlotsRaw] = React.useState([]);
     const [parentSlotsLoading, setParentSlotsLoading] = React.useState(false);
     const [parentSlotsError, setParentSlotsError] = React.useState("");
+    const [consultBookingDialogOpen, setConsultBookingDialogOpen] = React.useState(false);
+    const [selectedConsultBookingSlot, setSelectedConsultBookingSlot] = React.useState(null);
+    const [bookingPhone, setBookingPhone] = React.useState("");
+    const [bookingQuestion, setBookingQuestion] = React.useState("");
+    const [bookingSubmitting, setBookingSubmitting] = React.useState(false);
 
     React.useEffect(() => {
         setCampusDetailTabIndex(0);
@@ -1794,7 +2064,18 @@ export default function SchoolSearchDetailView({
             .filter(Boolean);
     }, [nearbyCampuses]);
 
-    const mapCampuses = normalizedNearbyCampuses.length > 0 ? normalizedNearbyCampuses : schoolCampusMarkers;
+    const nearbyCampusesOfCurrentSchool = React.useMemo(() => {
+        const currentSchoolId = Number(school?.id);
+        return normalizedNearbyCampuses.filter((campus) => {
+            const campusSchoolId = Number(campus?.schoolId);
+            if (Number.isFinite(currentSchoolId) && Number.isFinite(campusSchoolId)) {
+                return campusSchoolId === currentSchoolId;
+            }
+            return String(campus?.schoolId ?? "").trim() === String(school?.id ?? "").trim();
+        });
+    }, [normalizedNearbyCampuses, school?.id]);
+
+    const mapCampuses = nearbyCampusesOfCurrentSchool.length > 0 ? nearbyCampusesOfCurrentSchool : schoolCampusMarkers;
 
     React.useEffect(() => {
         requestUserLocation();
@@ -2066,23 +2347,96 @@ export default function SchoolSearchDetailView({
         [school]
     );
 
-    const openConsultMailto = React.useCallback((selectedSlot) => {
-        if (!school) return;
-        const email = (school.email || "").trim();
-        if (!email) {
-            navigate("/home");
-            showSuccessSnackbar("Đến trang chủ để xem các hình thức hỗ trợ và đặt lịch tư vấn.");
+    const openConsultBookingDialog = React.useCallback(
+        (slot) => {
+            if (!isParent || !slot) return;
+            if (!consultSlotLooksUpcoming(slot.status, slot.statusLabel)) return;
+            const cachedUser = (() => {
+                try {
+                    if (typeof window === "undefined") return null;
+                    const raw = window.localStorage.getItem("user");
+                    return raw ? JSON.parse(raw) : null;
+                } catch {
+                    return null;
+                }
+            })();
+            setSelectedConsultBookingSlot({
+                appointmentDate: String(slot.date || "").slice(0, 10),
+                appointmentTime: normalizeConsultSlotTime(slot.startTime)
+            });
+            setBookingPhone(
+                String(
+                    cachedUser?.phone ??
+                        cachedUser?.phoneNumber ??
+                        cachedUser?.mobile ??
+                        cachedUser?.phoneNo ??
+                        ""
+                ).trim()
+            );
+            setBookingQuestion("");
+            setConsultBookingDialogOpen(true);
+        },
+        [isParent]
+    );
+    const closeConsultBookingDialog = React.useCallback(() => {
+        if (bookingSubmitting) return;
+        setConsultBookingDialogOpen(false);
+        setSelectedConsultBookingSlot(null);
+        setBookingPhone("");
+        setBookingQuestion("");
+    }, [bookingSubmitting]);
+    const submitConsultBooking = React.useCallback(async () => {
+        if (!selectedConsultBookingSlot) return;
+        const phone = bookingPhone.trim();
+        const question = bookingQuestion.trim();
+        if (!phone) {
+            showWarningSnackbar("Vui lòng nhập số điện thoại.");
             return;
         }
-        const slotText = String(selectedSlot || "").trim();
-        const subject = encodeURIComponent(`Đặt lịch tư vấn — ${school.school}`);
-        const body = encodeURIComponent(
-            `Kính gửi ${school.school},\n\nTôi muốn đặt lịch tư vấn / tham quan trường${
-                slotText ? ` vào khung giờ ${slotText}` : ""
-            }.\n\nTrân trọng,`
-        );
-        window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
-    }, [school, navigate]);
+        if (!question) {
+            showWarningSnackbar("Vui lòng nhập nội dung câu hỏi.");
+            return;
+        }
+        const appointmentTime = String(selectedConsultBookingSlot.appointmentTime || "").trim();
+        const appointmentDate = String(selectedConsultBookingSlot.appointmentDate || "").slice(0, 10);
+        if (!appointmentTime || !appointmentDate) {
+            showErrorSnackbar("Không lấy được thông tin khung giờ đã chọn. Vui lòng chọn lại.");
+            return;
+        }
+        setBookingSubmitting(true);
+        try {
+            await bookParentOfflineConsultation({
+                phone,
+                question,
+                appointmentTime,
+                appointmentDate
+            });
+            showSuccessSnackbar("Đặt lịch tư vấn thành công.");
+            setConsultBookingDialogOpen(false);
+            setSelectedConsultBookingSlot(null);
+            setBookingPhone("");
+            setBookingQuestion("");
+        } catch (error) {
+            const apiMessage =
+                error?.response?.data?.message ||
+                error?.response?.data?.body?.message ||
+                error?.response?.data?.error;
+            showErrorSnackbar(apiMessage || "Không thể đặt lịch tư vấn. Vui lòng thử lại.");
+        } finally {
+            setBookingSubmitting(false);
+        }
+    }, [bookingPhone, bookingQuestion, selectedConsultBookingSlot]);
+    const consultBookingDisplayDate = React.useMemo(() => {
+        const raw = String(selectedConsultBookingSlot?.appointmentDate || "").slice(0, 10);
+        if (!raw) return "";
+        const dt = parseYmdLocal(raw);
+        if (Number.isNaN(dt.getTime())) return raw;
+        return dt.toLocaleDateString("vi-VN");
+    }, [selectedConsultBookingSlot]);
+    const consultBookingDisplayTime = React.useMemo(() => {
+        const raw = String(selectedConsultBookingSlot?.appointmentTime || "").trim();
+        return raw ? `${raw}` : "";
+    }, [selectedConsultBookingSlot]);
     const [consultCalendarYear, setConsultCalendarYear] = React.useState(String(new Date().getFullYear()));
     const consultWeekOptions = React.useMemo(
         () => buildWeeksOfYear(consultCalendarYear),
@@ -2266,6 +2620,135 @@ export default function SchoolSearchDetailView({
             >
                 <ArrowBackIcon/>
             </IconButton>
+            <Dialog
+                open={consultBookingDialogOpen}
+                onClose={closeConsultBookingDialog}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{
+                    sx: {
+                        borderRadius: 3,
+                        border: "1px solid rgba(148,163,184,0.28)",
+                        boxShadow: "0 24px 50px rgba(15,23,42,0.24)",
+                        overflow: "hidden"
+                    }
+                }}
+            >
+                <DialogTitle
+                    sx={{
+                        fontWeight: 800,
+                        fontSize: "1.35rem",
+                        color: "#0f172a",
+                        pb: 1,
+                        background:
+                            "linear-gradient(180deg, rgba(59,130,246,0.14) 0%, rgba(59,130,246,0.06) 100%)"
+                    }}
+                >
+                    Đặt lịch tư vấn offline
+                    <Typography sx={{mt: 0.5, fontSize: "0.84rem", color: "#475569", fontWeight: 500}}>
+                        Vui lòng để lại số điện thoại và câu hỏi để nhà trường liên hệ lại.
+                    </Typography>
+                </DialogTitle>
+                <DialogContent sx={{pt: "16px !important", pb: 1.5, bgcolor: "#f8fafc"}}>
+                    <Stack spacing={1.5}>
+                        <TextField
+                            label="Số điện thoại"
+                            value={bookingPhone}
+                            onChange={(e) => setBookingPhone(e.target.value)}
+                            disabled={bookingSubmitting}
+                            fullWidth
+                            required
+                            placeholder="Ví dụ: 09xxxxxxxx"
+                            sx={{
+                                "& .MuiOutlinedInput-root": {
+                                    borderRadius: 2,
+                                    bgcolor: "#fff"
+                                }
+                            }}
+                        />
+                        <TextField
+                            label="Nội dung câu hỏi"
+                            value={bookingQuestion}
+                            onChange={(e) => setBookingQuestion(e.target.value)}
+                            disabled={bookingSubmitting}
+                            multiline
+                            minRows={3}
+                            fullWidth
+                            required
+                            placeholder="Nhập nội dung bạn cần tư vấn..."
+                            sx={{
+                                "& .MuiOutlinedInput-root": {
+                                    borderRadius: 2,
+                                    bgcolor: "#fff"
+                                }
+                            }}
+                        />
+                        <Box
+                            sx={{
+                                mt: 0.5,
+                                borderRadius: 2,
+                                border: "1px dashed rgba(59,130,246,0.45)",
+                                bgcolor: "rgba(239,246,255,0.95)",
+                                px: 1.25,
+                                py: 1
+                            }}
+                        >
+                            <Typography sx={{fontSize: "0.75rem", color: "#475569", fontWeight: 700, mb: 0.6}}>
+                                LỊCH HẸN ĐÃ CHỌN
+                            </Typography>
+                            <Stack direction={{xs: "column", sm: "row"}} spacing={1}>
+                                <TextField
+                                    label="Ngày hẹn"
+                                    value={consultBookingDisplayDate}
+                                    fullWidth
+                                    InputProps={{readOnly: true}}
+                                    disabled
+                                    size="small"
+                                />
+                                <TextField
+                                    label="Giờ hẹn"
+                                    value={consultBookingDisplayTime}
+                                    fullWidth
+                                    InputProps={{readOnly: true}}
+                                    disabled
+                                    size="small"
+                                />
+                            </Stack>
+                        </Box>
+                    </Stack>
+                </DialogContent>
+                <DialogActions
+                    sx={{
+                        px: 2.5,
+                        py: 1.75,
+                        borderTop: "1px solid rgba(148,163,184,0.22)",
+                        bgcolor: "#fff"
+                    }}
+                >
+                    <Button
+                        onClick={closeConsultBookingDialog}
+                        disabled={bookingSubmitting}
+                        sx={{textTransform: "none", fontWeight: 700, px: 2}}
+                    >
+                        Hủy
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={submitConsultBooking}
+                        disabled={bookingSubmitting}
+                        sx={{
+                            textTransform: "none",
+                            fontWeight: 800,
+                            px: 2.5,
+                            py: 0.9,
+                            borderRadius: 2,
+                            boxShadow: "0 8px 18px rgba(37,99,235,0.3)"
+                        }}
+                    >
+                        {bookingSubmitting ? "Đang gửi..." : "Đặt lịch"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
             <IconButton
                 aria-label="Cuộn lên đầu trang"
                 onClick={scrollToDetailTop}
@@ -2716,6 +3199,7 @@ export default function SchoolSearchDetailView({
                                     campaignTemplates={campaignTemplates}
                                     campaignLoading={campaignLoading}
                                     campaignError={campaignError}
+                                    curriculumList={school?.curriculumList}
                                 />
                             </Box>
 
@@ -3008,11 +3492,6 @@ export default function SchoolSearchDetailView({
                                                               </Box>
                                                               {consultWeekColumns.map((col) => {
                                                                   const slot = consultSlotByCell.get(`${col.ymd}|${row.key}`);
-                                                                  const mailBits = [
-                                                                      col.label,
-                                                                      formatDayMonth(parseYmdLocal(col.ymd)),
-                                                                      `${row.startTime}–${row.endTime}`
-                                                                  ];
                                                                   return (
                                                                       <Box
                                                                           key={`${row.key}-${col.key}`}
@@ -3035,36 +3514,15 @@ export default function SchoolSearchDetailView({
                                                                                           : CONSULT_SLOT_STATUS_CHIP[slot.status] || "default"
                                                                                   }
                                                                                   size="small"
-                                                                                  onClick={() =>
-                                                                                      openConsultMailto(mailBits.join(" — "))
+                                                                                  onClick={
+                                                                                      consultSlotLooksUpcoming(slot.status, slot.statusLabel)
+                                                                                          ? () => openConsultBookingDialog(slot)
+                                                                                          : undefined
                                                                                   }
                                                                                   sx={consultCalendarSlotChipSx(slot.status, slot.statusLabel)}
                                                                               />
                                                                           ) : (
-                                                                              <Box
-                                                                                  component="button"
-                                                                                  type="button"
-                                                                                  onClick={() =>
-                                                                                      openConsultMailto(mailBits.join(" — "))
-                                                                                  }
-                                                                                  aria-label="Đặt lịch tư vấn"
-                                                                                  sx={{
-                                                                                      border: "none",
-                                                                                      background: "transparent",
-                                                                                      cursor: "pointer",
-                                                                                      minWidth: 0,
-                                                                                      minHeight: 32,
-                                                                                      width: "100%",
-                                                                                      p: 0.5,
-                                                                                      opacity: 0,
-                                                                                      "&:hover": {opacity: 0.12},
-                                                                                      "&:focus-visible": {
-                                                                                          outline: `1px solid rgba(100,116,139,0.55)`,
-                                                                                          borderRadius: "4px",
-                                                                                          opacity: 1
-                                                                                      }
-                                                                                  }}
-                                                                              />
+                                                                              <Box sx={{width: "100%", minHeight: 32}} />
                                                                           )}
                                                                       </Box>
                                                                   );
@@ -3137,9 +3595,7 @@ export default function SchoolSearchDetailView({
                                                                       <Button
                                                                           variant="text"
                                                                           size="small"
-                                                                          onClick={() =>
-                                                                              openConsultMailto(`${day.label} — ${shift.mailLabel}`)
-                                                                          }
+                                                                          disabled
                                                                           sx={{
                                                                               minWidth: 0,
                                                                               minHeight: 32,
@@ -3148,7 +3604,8 @@ export default function SchoolSearchDetailView({
                                                                               color: "#64748b",
                                                                               textTransform: "none",
                                                                               fontSize: "0.8rem",
-                                                                              lineHeight: 1
+                                                                              lineHeight: 1,
+                                                                              cursor: "default"
                                                                           }}
                                                                       >
                                                                           Đặt lịch
@@ -3160,11 +3617,6 @@ export default function SchoolSearchDetailView({
                                                     : null}
                                             </Box>
                                             </Box>
-                                            {!(school?.email || "").trim() && (
-                                                <Typography sx={{color: "#b45309", fontSize: "0.84rem", mt: 1}}>
-                                                    Trường chưa công bố email. Khi chọn ô trên lịch, hệ thống sẽ chuyển bạn tới trang hỗ trợ.
-                                                </Typography>
-                                            )}
                                         </Box>
                                     </Stack>
                                 </Box>
@@ -3219,7 +3671,7 @@ export default function SchoolSearchDetailView({
                                             Thử định vị lại
                                         </Button>
                                     )}
-                                    {!nearbyLoading && !nearbyError && normalizedNearbyCampuses.length === 0 && userLocation ? (
+                                    {!nearbyLoading && !nearbyError && nearbyCampusesOfCurrentSchool.length === 0 && userLocation ? (
                                         <Typography sx={{mt: 1, color: "#0f172a", fontSize: "0.9rem"}}>
                                             Không có campus nào trong bán kính {NEARBY_SEARCH_RADIUS_KM}km.
                                         </Typography>
