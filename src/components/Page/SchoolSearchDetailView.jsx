@@ -361,6 +361,36 @@ function curriculumHeaderStatusChipSx(status) {
     };
 }
 
+function mapCurriculumTypeLabel(type) {
+    const value = String(type || "").trim().toUpperCase();
+    if (value === "NATIONAL") return "Khung chương trình Bộ GD&ĐT";
+    if (value === "INTERNATIONAL") return "Chương trình quốc tế";
+    if (value === "BILINGUAL") return "Chương trình song ngữ";
+    return value || "Đang cập nhật";
+}
+
+function mapLearningMethodLabel(method) {
+    const value = String(method || "").trim().toUpperCase();
+    if (!value) return "";
+    if (value === "COOPERATIVE") return "Học tập hợp tác";
+    if (value === "VISUAL_PRACTICE") return "Thị giác & thực hành";
+    if (value === "PROJECT_BASED") return "Học theo dự án";
+    if (value === "EXPERIENTIAL") return "Học qua trải nghiệm";
+    return value
+        .split("_")
+        .filter(Boolean)
+        .map((s) => s[0] + s.slice(1).toLowerCase())
+        .join(" ");
+}
+
+function stripHtmlToPlainText(value) {
+    return String(value || "")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
 function resolveCampusImageUrl(imageJson) {
     if (imageJson == null || imageJson === "") return null;
     if (typeof imageJson === "string") {
@@ -938,12 +968,13 @@ function SchoolCampusInfoCard({school, isParent, onMessageCampus, activeCampusIn
     );
 }
 
-function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignError}) {
+function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignError, curriculumList}) {
     const list = Array.isArray(campaignTemplates) ? campaignTemplates : [];
+    const curriculumDataList = Array.isArray(curriculumList) ? curriculumList : [];
 
     return (
         <Box sx={detailMainColumnCardSx}>
-            <Typography sx={mainDetailSectionTitleSx}>Chương trình đào tạo & tuyển sinh</Typography>
+            <Typography sx={mainDetailSectionTitleSx}>Chiến dịch tuyển sinh</Typography>
 
             {campaignLoading ? (
                 <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.6}}>
@@ -1525,6 +1556,223 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                         </Box>
                     );
                 })}
+
+            <Divider sx={{...contactDividerSx, mt: list.length > 0 ? 3 : 2, mb: 2.5}}/>
+            <Typography sx={mainDetailSectionTitleSx}>Chương trình đào tạo</Typography>
+
+            {curriculumDataList.length === 0 ? (
+                <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.6}}>
+                    Chưa có thông tin chương trình đào tạo.
+                </Typography>
+            ) : null}
+
+            {curriculumDataList.map((curriculum, curriculumIdx) => {
+                const curriculumName = String(curriculum?.name || "").trim() || `Chương trình ${curriculumIdx + 1}`;
+                const methodLearningList = Array.isArray(curriculum?.methodLearningList)
+                    ? curriculum.methodLearningList
+                    : [];
+                const subjects = Array.isArray(curriculum?.subjectsJsonb) ? curriculum.subjectsJsonb : [];
+                const programList = Array.isArray(curriculum?.programList) ? curriculum.programList : [];
+                const curriculumDescription = stripHtmlToPlainText(curriculum?.description);
+                const yearLabel = Number.isFinite(Number(curriculum?.applicationYear))
+                    ? String(curriculum?.applicationYear)
+                    : "—";
+                const mandatorySubjects = subjects.filter((item) => item?.isMandatory).length;
+                return (
+                    <Box
+                        key={`${curriculum?.groupCode || curriculumName}-${curriculumIdx}`}
+                        sx={{
+                            mt: curriculumIdx === 0 ? 1.2 : 2.1,
+                            p: {xs: 1.4, sm: 1.75},
+                            borderRadius: "16px",
+                            border: "1px solid rgba(148,163,184,0.24)",
+                            background:
+                                "linear-gradient(180deg, rgba(255,255,255,0.99) 0%, rgba(248,250,252,0.98) 100%)",
+                            boxShadow: "0 12px 28px rgba(15,23,42,0.08)"
+                        }}
+                    >
+                        <Stack
+                            direction={{xs: "column", md: "row"}}
+                            spacing={1}
+                            alignItems={{xs: "flex-start", md: "center"}}
+                            justifyContent="space-between"
+                            sx={{mb: 1}}
+                        >
+                            <Typography
+                                sx={{
+                                    fontWeight: 900,
+                                    color: "#0f172a",
+                                    fontSize: {xs: "1.05rem", sm: "1.2rem"},
+                                    lineHeight: 1.35
+                                }}
+                            >
+                                {curriculumName}
+                            </Typography>
+                            <Chip
+                                size="small"
+                                label={curriculumStatusLabel(curriculum?.curriculumStatus)}
+                                sx={curriculumHeaderStatusChipSx(curriculum?.curriculumStatus)}
+                            />
+                        </Stack>
+
+                        <Stack direction="row" flexWrap="wrap" useFlexGap sx={{gap: 0.7, mb: curriculumDescription ? 0.9 : 1.1}}>
+                            <Chip size="small" label={`Năm áp dụng ${yearLabel}`} sx={curriculumClassificationChipSx("year")}/>
+                            <Chip
+                                size="small"
+                                label={mapCurriculumTypeLabel(curriculum?.curriculumType)}
+                                sx={curriculumClassificationChipSx("method")}
+                            />
+                            {curriculum?.groupCode ? (
+                                <Chip
+                                    size="small"
+                                    label={`Mã nhóm: ${String(curriculum.groupCode).trim()}`}
+                                    sx={curriculumClassificationChipSx("default")}
+                                />
+                            ) : null}
+                        </Stack>
+
+                        {curriculumDescription ? (
+                            <Typography sx={{fontSize: "0.88rem", color: CURRICULUM_DESCRIPTION_TEXT, lineHeight: 1.65, mb: 1.2}}>
+                                {curriculumDescription}
+                            </Typography>
+                        ) : null}
+
+                        {methodLearningList.length > 0 ? (
+                            <Box sx={{mb: 1.15}}>
+                                <Typography sx={{fontSize: "0.8rem", color: "#64748b", fontWeight: 700, mb: 0.6}}>
+                                    Phương pháp học tập
+                                </Typography>
+                                <Stack direction="row" flexWrap="wrap" useFlexGap sx={{gap: 0.55}}>
+                                    {methodLearningList.map((method, methodIdx) => (
+                                        <Chip
+                                            key={`${method}-${methodIdx}`}
+                                            size="small"
+                                            label={mapLearningMethodLabel(method)}
+                                            sx={curriculumClassificationChipSx("method")}
+                                        />
+                                    ))}
+                                </Stack>
+                            </Box>
+                        ) : null}
+
+                        <Box
+                            sx={{
+                                p: {xs: 1.1, sm: 1.25},
+                                borderRadius: 2,
+                                border: "1px solid rgba(191,219,254,0.72)",
+                                bgcolor: "rgba(239,246,255,0.68)"
+                            }}
+                        >
+                            <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{mb: 0.7}}>
+                                <Typography sx={{fontSize: "0.85rem", color: "#1e3a8a", fontWeight: 800}}>
+                                    Danh mục môn học
+                                </Typography>
+                                <Typography sx={{fontSize: "0.76rem", color: "#334155", fontWeight: 700}}>
+                                    {mandatorySubjects}/{subjects.length} môn bắt buộc
+                                </Typography>
+                            </Stack>
+                            {subjects.length === 0 ? (
+                                <Typography sx={{fontSize: "0.82rem", color: "#475569"}}>
+                                    Chưa có dữ liệu môn học.
+                                </Typography>
+                            ) : (
+                                <Box
+                                    sx={{
+                                        display: "grid",
+                                        gridTemplateColumns: {xs: "1fr", sm: "repeat(2, minmax(0, 1fr))"},
+                                        gap: 0.8
+                                    }}
+                                >
+                                    {subjects.map((subject, subjectIdx) => (
+                                        <Box
+                                            key={`${subject?.name || subjectIdx}-${subjectIdx}`}
+                                            sx={{
+                                                p: 0.85,
+                                                borderRadius: 1.5,
+                                                border: "1px solid rgba(148,163,184,0.28)",
+                                                bgcolor: "#ffffff"
+                                            }}
+                                        >
+                                            <Stack direction="row" spacing={0.55} alignItems="center" sx={{mb: 0.32}}>
+                                                <CheckCircleIcon
+                                                    sx={{
+                                                        fontSize: 14,
+                                                        color: subject?.isMandatory ? "#16a34a" : "#94a3b8",
+                                                        flexShrink: 0
+                                                    }}
+                                                />
+                                                <Typography sx={{fontSize: "0.82rem", color: "#0f172a", fontWeight: 700}}>
+                                                    {String(subject?.name || "").trim() || `Môn ${subjectIdx + 1}`}
+                                                </Typography>
+                                            </Stack>
+                                            <Typography sx={{fontSize: "0.76rem", color: "#475569", lineHeight: 1.5}}>
+                                                {String(subject?.description || "").trim() || "Đang cập nhật mô tả."}
+                                            </Typography>
+                                        </Box>
+                                    ))}
+                                </Box>
+                            )}
+                        </Box>
+
+                        <Box sx={{mt: 1.25}}>
+                            <Typography sx={{fontSize: "0.85rem", color: BRAND_NAVY, fontWeight: 800, mb: 0.65}}>
+                                Chương trình thành phần
+                            </Typography>
+                            {programList.length === 0 ? (
+                                <Typography sx={{fontSize: "0.82rem", color: "#475569"}}>
+                                    Chưa có chương trình thành phần.
+                                </Typography>
+                            ) : (
+                                <Stack spacing={0.8}>
+                                    {programList.map((program, programIdx) => (
+                                        <Box
+                                            key={`${program?.name || programIdx}-${programIdx}`}
+                                            sx={{
+                                                p: 1,
+                                                borderRadius: 1.7,
+                                                border: "1px solid rgba(148,163,184,0.28)",
+                                                bgcolor: "rgba(255,255,255,0.96)"
+                                            }}
+                                        >
+                                            <Stack
+                                                direction={{xs: "column", sm: "row"}}
+                                                spacing={0.7}
+                                                alignItems={{xs: "flex-start", sm: "center"}}
+                                                justifyContent="space-between"
+                                                sx={{mb: 0.45}}
+                                            >
+                                                <Typography sx={{fontSize: "0.88rem", color: "#0f172a", fontWeight: 800}}>
+                                                    {String(program?.name || "").trim() || `Chương trình ${programIdx + 1}`}
+                                                </Typography>
+                                                <Stack direction="row" spacing={0.55} alignItems="center">
+                                                    <Chip
+                                                        size="small"
+                                                        label={String(program?.isActive || "—").trim()}
+                                                        sx={curriculumHeaderStatusChipSx(program?.isActive)}
+                                                    />
+                                                    <Chip
+                                                        size="small"
+                                                        label={`Học phí gốc: ${formatVnd(program?.baseTuitionFee)}`}
+                                                        sx={curriculumClassificationChipSx("year")}
+                                                    />
+                                                </Stack>
+                                            </Stack>
+                                            <Typography sx={{fontSize: "0.76rem", color: "#334155", lineHeight: 1.55, mb: 0.35}}>
+                                                <b>Đối tượng học sinh:</b>{" "}
+                                                {stripHtmlToPlainText(program?.targetStudentDescription) || "Đang cập nhật"}
+                                            </Typography>
+                                            <Typography sx={{fontSize: "0.76rem", color: "#334155", lineHeight: 1.55}}>
+                                                <b>Chuẩn đầu ra:</b>{" "}
+                                                {stripHtmlToPlainText(program?.graduationStandard) || "Đang cập nhật"}
+                                            </Typography>
+                                        </Box>
+                                    ))}
+                                </Stack>
+                            )}
+                        </Box>
+                    </Box>
+                );
+            })}
         </Box>
     );
 }
@@ -2716,6 +2964,7 @@ export default function SchoolSearchDetailView({
                                     campaignTemplates={campaignTemplates}
                                     campaignLoading={campaignLoading}
                                     campaignError={campaignError}
+                                    curriculumList={school?.curriculumList}
                                 />
                             </Box>
 
