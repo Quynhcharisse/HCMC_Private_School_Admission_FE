@@ -466,6 +466,42 @@ function normalizeMethodAdmissionProcessGroup(g) {
   return {methodCode, steps};
 }
 
+function groupFlatMethodDocuments(rows) {
+  const grouped = new Map();
+  for (const row of rows || []) {
+    if (!row || typeof row !== "object") continue;
+    const methodCode = String(row?.methodCode ?? row?.method_code ?? "").trim();
+    if (!methodCode) continue;
+    const doc = normalizeDocItem(row);
+    if (!doc.code.trim() && !doc.name.trim()) continue;
+    const prev = grouped.get(methodCode) || [];
+    prev.push({...doc, required: true});
+    grouped.set(methodCode, prev);
+  }
+  return Array.from(grouped.entries()).map(([methodCode, documents]) => ({
+    methodCode,
+    documents,
+  }));
+}
+
+function groupFlatAdmissionProcesses(rows) {
+  const grouped = new Map();
+  for (const row of rows || []) {
+    if (!row || typeof row !== "object") continue;
+    const methodCode = String(row?.methodCode ?? row?.method_code ?? "").trim();
+    if (!methodCode) continue;
+    const prev = grouped.get(methodCode) || [];
+    prev.push(row);
+    grouped.set(methodCode, prev);
+  }
+  return Array.from(grouped.entries()).map(([methodCode, stepsRaw]) => ({
+    methodCode,
+    steps: stepsRaw
+      .map((step, idx) => normalizeAdmissionProcessStep(step, idx))
+      .sort((a, b) => Number(a.stepOrder || 0) - Number(b.stepOrder || 0)),
+  }));
+}
+
 function normalizeAcademicDate(value) {
   if (value == null) return "";
   if (Array.isArray(value) && value.length >= 3) {
@@ -2350,7 +2386,9 @@ export default function SchoolConfig({variant = "platform"} = {}) {
         : Array.isArray(tmpl.admissionProcesses)
           ? tmpl.admissionProcesses
           : [];
-      const processGroups = processesRaw.map(normalizeMethodAdmissionProcessGroup);
+      const processGroups = processesRaw.some((item) => Array.isArray(item?.steps))
+        ? processesRaw.map(normalizeMethodAdmissionProcessGroup)
+        : groupFlatAdmissionProcesses(processesRaw);
       const mapped = am.map((m) => ({
         code: m?.code != null ? String(m.code) : "",
         displayName: m?.displayName != null ? String(m.displayName) : "",
@@ -2392,7 +2430,10 @@ export default function SchoolConfig({variant = "platform"} = {}) {
           : Array.isArray(tmpl.byMethod)
             ? tmpl.byMethod
             : [];
-      const byMethod = byMethodRaw.map(normalizeByMethodGroup).map((g) => ({
+      const groupedByMethod = byMethodRaw.some((item) => Array.isArray(item?.documents))
+        ? byMethodRaw.map(normalizeByMethodGroup)
+        : groupFlatMethodDocuments(byMethodRaw);
+      const byMethod = groupedByMethod.map((g) => ({
         ...g,
         documents: (g.documents || []).map((d) => ({...normalizeDocItem(d), required: true})),
       }));

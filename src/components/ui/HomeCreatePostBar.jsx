@@ -223,6 +223,7 @@ export default function HomeCreatePostBar({
             hashTagsRaw,
             categoryPost,
             imageUrlList,
+            documentItems,
             thumbnail,
             typeFile,
             publishedDate
@@ -342,6 +343,10 @@ export default function HomeCreatePostBar({
                 if (prev.some((d) => documentItemKey(d) === key)) return prev;
                 return [...prev, item];
             });
+            const uploadedFileUrl = String(item?.fileUrl || "").trim();
+            if (uploadedFileUrl) {
+                setTypeFile(uploadedFileUrl);
+            }
             enqueueSnackbar("Đã tải tài liệu lên.", {variant: "success"});
         } catch (err) {
             enqueueSnackbar(getApiErrorMessage(err, "Tải tài liệu không thành công."), {variant: "error"});
