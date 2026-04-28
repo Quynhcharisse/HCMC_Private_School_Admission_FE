@@ -1050,6 +1050,35 @@ export default function SchoolCounselorSchedule() {
         });
     }, [selectedFrameKeys, scheduleByDay]);
 
+    const selectableGridFrameKeys = useMemo(() => {
+        const keys = [];
+        for (const day of DAYS) {
+            const slots = scheduleByDay[day] || [];
+            for (const slot of slots) {
+                if (!slotIsActive(slot)) continue;
+                if (sessionFilter !== "ALL" && String(slot.sessionType || "").toUpperCase() !== sessionFilter) continue;
+                const selKey = slotGridSelectionKey(slot, day);
+                if (selKey) keys.push(selKey);
+            }
+        }
+        return keys;
+    }, [scheduleByDay, sessionFilter]);
+
+    const allGridSlotsSelected = selectableGridFrameKeys.length > 0 && selectedFrameKeys.size === selectableGridFrameKeys.length;
+    const partialGridSlotsSelected = selectedFrameKeys.size > 0 && !allGridSlotsSelected;
+
+    const onToggleSelectAllGridSlots = useCallback(
+        (_, checked) => {
+            if (!checked) {
+                setSelectedFrameKeys(new Set());
+                return;
+            }
+            setMultiSelectMode(true);
+            setSelectedFrameKeys(new Set(selectableGridFrameKeys));
+        },
+        [selectableGridFrameKeys]
+    );
+
     const scheduleDetailAssigns = useMemo(() => {
         const {open, slot, day} = scheduleDetail;
         if (!open || !slot || !day) return [];
@@ -1303,7 +1332,6 @@ export default function SchoolCounselorSchedule() {
             const showCounsellorUi = Boolean(counsellor && counsellor.map && !readOnly);
             const emptyStaff = slotIsActive(slot) && assigns.length === 0;
             const maxCap = counsellor?.maxCounsellorsPerSlot ?? 0;
-            const minStaff = counsellor?.minCounsellorsPerSlot ?? 1;
             const selKey = slotGridSelectionKey(slot, day);
             const isSlotSelected = Boolean(multiSelectMode && selKey && selectedFrameKeys.has(selKey));
             const cellAssignSummary = assigns.length > 0 ? summarizeGridCellAssignments(assigns) : null;
@@ -1511,21 +1539,6 @@ export default function SchoolCounselorSchedule() {
                                     </Typography>
                                 ))}
                             </Stack>
-                        ) : null}
-                        {emptyStaff && slotIsActive(slot) ? (
-                            <Typography
-                                variant="caption"
-                                sx={{
-                                    display: "block",
-                                    textAlign: "center",
-                                    color: "#94A3B8",
-                                    fontSize: "0.65rem",
-                                    mt: 0.2,
-                                }}
-                            >
-                                Tối thiểu {minStaff} · trần {maxCap > 0 ? maxCap : "không giới hạn (0)"} tư vấn viên /
-                                khung
-                            </Typography>
                         ) : null}
                         {slotIsActive(slot) && maxCap > 0 && showCounsellorUi ? (
                             <Stack direction="row" justifyContent="center" flexWrap="wrap" gap={0.5} sx={{mt: 0.35}}>
@@ -2205,7 +2218,7 @@ export default function SchoolCounselorSchedule() {
                                             display: "flex",
                                             flexWrap: "wrap",
                                             alignItems: "center",
-                                            justifyContent: "space-between",
+                                            justifyContent: "flex-start",
                                             gap: 1,
                                             minHeight: {sm: 62},
                                         }}
@@ -2225,6 +2238,23 @@ export default function SchoolCounselorSchedule() {
                                                 </Typography>
                                             }
                                         />
+                                        <FormControlLabel
+                                            control={
+                                                <Checkbox
+                                                    size="small"
+                                                    checked={allGridSlotsSelected}
+                                                    indeterminate={partialGridSlotsSelected}
+                                                    onChange={onToggleSelectAllGridSlots}
+                                                    disabled={selectableGridFrameKeys.length === 0}
+                                                    sx={{py: 0}}
+                                                />
+                                            }
+                                            label={
+                                                <Typography sx={{fontSize: "0.8125rem", fontWeight: 600, color: "#475569"}}>
+                                                    Chọn tất cả
+                                                </Typography>
+                                            }
+                                        />
                                         <Stack
                                             direction="row"
                                             spacing={1}
@@ -2232,7 +2262,8 @@ export default function SchoolCounselorSchedule() {
                                             flexWrap="wrap"
                                             useFlexGap
                                             sx={{
-                                                minWidth: {xs: "100%", md: 330},
+                                                ml: {xs: 0, md: "auto"},
+                                                minWidth: {xs: "100%", md: "auto"},
                                                 justifyContent: {xs: "flex-start", md: "flex-end"},
                                                 visibility: multiSelectMode && selectedFrameKeys.size > 0 ? "visible" : "hidden",
                                             }}
