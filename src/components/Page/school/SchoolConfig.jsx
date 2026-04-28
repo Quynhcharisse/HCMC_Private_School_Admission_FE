@@ -37,24 +37,30 @@ import {
   TextField,
   ToggleButton,
   ToggleButtonGroup,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import AddIcon from "@mui/icons-material/Add";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import {useNavigate, useSearchParams} from "react-router-dom";
 import {closeSnackbar, enqueueSnackbar} from "notistack";
 
 import {extractCampusListBody, listCampuses} from "../../../services/CampusService.jsx";
 import {useSchool} from "../../../contexts/SchoolContext.jsx";
 import {
+  confirmMandatoryDocImportRows,
   getCampusConfig,
   getSchoolConfig,
-  importMandatoryDocsConfig,
   parseSchoolConfigResponseBody,
+  previewMandatoryDocsImport,
   updateCampusConfig,
   updateSchoolConfig,
+  validateMandatoryDocImportRow,
 } from "../../../services/SchoolFacilityService.jsx";
 import {fetchSystemAdmissionSettingsData, getSystemConfigByKey} from "../../../services/SystemConfigService.jsx";
 import {getCurrentSchoolSubscription} from "../../../services/SchoolSubscriptionService.jsx";
@@ -384,6 +390,42 @@ function normalizeDocItem(d) {
   };
 }
 
+function normalizeMandatoryImportRow(item, fallbackIndex = 1) {
+  const raw = item && typeof item === "object" ? item : {};
+  const sourceRowData = raw.rowData && typeof raw.rowData === "object" ? raw.rowData : raw;
+  const normalizedDoc = normalizeDocItem(sourceRowData);
+  const resolvedIndex = sourceRowData.index != null && !Number.isNaN(Number(sourceRowData.index))
+    ? Number(sourceRowData.index)
+    : fallbackIndex;
+  return {
+    rowData: {
+      index: resolvedIndex,
+      code: normalizedDoc.code,
+      name: normalizedDoc.name,
+      required: true,
+    },
+    error: raw.error && typeof raw.error === "object" ? raw.error : null,
+    isError: Boolean(raw.isError),
+  };
+}
+
+function mandatoryImportRowErrorText(row) {
+  const fields = Array.isArray(row?.error?.fields) ? row.error.fields : [];
+  if (!fields.length) return "";
+  return fields
+    .map((f) => String(f?.message ?? "").trim())
+    .filter(Boolean)
+    .join(". ");
+}
+
+function mandatoryImportFieldErrorText(row, fieldName) {
+  const fields = Array.isArray(row?.error?.fields) ? row.error.fields : [];
+  const normalizedField = String(fieldName ?? "").trim();
+  if (!normalizedField) return "";
+  const hit = fields.find((f) => String(f?.name ?? "").trim() === normalizedField);
+  return hit?.message != null ? String(hit.message) : "";
+}
+
 /**
  * Một nhóm theo phương thức (contract BE):
  * { "methodCode": "ACADEMIC_RECORD", "documents": [{ "code", "name", "required" }] }
@@ -422,6 +464,42 @@ function normalizeMethodAdmissionProcessGroup(g) {
         : "";
   const steps = Array.isArray(g.steps) ? g.steps.map((s, idx) => normalizeAdmissionProcessStep(s, idx)) : [];
   return {methodCode, steps};
+}
+
+function groupFlatMethodDocuments(rows) {
+  const grouped = new Map();
+  for (const row of rows || []) {
+    if (!row || typeof row !== "object") continue;
+    const methodCode = String(row?.methodCode ?? row?.method_code ?? "").trim();
+    if (!methodCode) continue;
+    const doc = normalizeDocItem(row);
+    if (!doc.code.trim() && !doc.name.trim()) continue;
+    const prev = grouped.get(methodCode) || [];
+    prev.push({...doc, required: true});
+    grouped.set(methodCode, prev);
+  }
+  return Array.from(grouped.entries()).map(([methodCode, documents]) => ({
+    methodCode,
+    documents,
+  }));
+}
+
+function groupFlatAdmissionProcesses(rows) {
+  const grouped = new Map();
+  for (const row of rows || []) {
+    if (!row || typeof row !== "object") continue;
+    const methodCode = String(row?.methodCode ?? row?.method_code ?? "").trim();
+    if (!methodCode) continue;
+    const prev = grouped.get(methodCode) || [];
+    prev.push(row);
+    grouped.set(methodCode, prev);
+  }
+  return Array.from(grouped.entries()).map(([methodCode, stepsRaw]) => ({
+    methodCode,
+    steps: stepsRaw
+      .map((step, idx) => normalizeAdmissionProcessStep(step, idx))
+      .sort((a, b) => Number(a.stepOrder || 0) - Number(b.stepOrder || 0)),
+  }));
 }
 
 function normalizeAcademicDate(value) {
@@ -1687,6 +1765,8 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   const facilityFormRef = useRef(null);
   const methodAdmissionProcessGroupRefs = useRef({});
   const mandatoryDocsImportInputRef = useRef(null);
+  const mandatoryImportValidateTimersRef = useRef({});
+  const mandatoryImportValidateSeqRef = useRef({});
   const [pendingScrollToProcessIdx, setPendingScrollToProcessIdx] = useState(null);
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
   const [admissionMethodExpanded, setAdmissionMethodExpanded] = useState({});
@@ -1700,6 +1780,10 @@ export default function SchoolConfig({variant = "platform"} = {}) {
   const [loadingSystemAdmission, setLoadingSystemAdmission] = useState(false);
   const [resourceSummaryReport, setResourceSummaryReport] = useState(null);
   const [resourceSummaryLoading, setResourceSummaryLoading] = useState(false);
+  const [mandatoryImportDialogOpen, setMandatoryImportDialogOpen] = useState(false);
+  const [mandatoryImportLoading, setMandatoryImportLoading] = useState(false);
+  const [mandatoryImportConfirming, setMandatoryImportConfirming] = useState(false);
+  const [mandatoryImportRows, setMandatoryImportRows] = useState([]);
   /** Pattern A: bật mới hiện form HK; tắt = không giới hạn (xóa ngày trong form). Đồng bộ sau load. */
   const [academicSemesterLimitEnabled, setAcademicSemesterLimitEnabled] = useState(false);
 
@@ -1753,6 +1837,21 @@ export default function SchoolConfig({variant = "platform"} = {}) {
     config.documentRequirementsData?.byMethod,
     config.admissionSettingsData?.methodAdmissionProcess,
   ]);
+
+  useEffect(() => () => {
+    Object.values(mandatoryImportValidateTimersRef.current).forEach((timerId) => window.clearTimeout(timerId));
+    mandatoryImportValidateTimersRef.current = {};
+  }, []);
+
+  const mandatoryImportErrorCount = useMemo(
+    () => (mandatoryImportRows || []).reduce((total, row) => total + (row?.isError ? 1 : 0), 0),
+    [mandatoryImportRows]
+  );
+  const mandatoryImportValidatingCount = useMemo(
+    () => (mandatoryImportRows || []).reduce((total, row) => total + (row?._isValidating ? 1 : 0), 0),
+    [mandatoryImportRows]
+  );
+  const mandatoryImportHasAnyError = mandatoryImportErrorCount > 0 || mandatoryImportValidatingCount > 0;
 
   const schoolAdmissionComparable = useMemo(
     () => admissionSettingsComparableJson(config.admissionSettingsData),
@@ -2287,7 +2386,9 @@ export default function SchoolConfig({variant = "platform"} = {}) {
         : Array.isArray(tmpl.admissionProcesses)
           ? tmpl.admissionProcesses
           : [];
-      const processGroups = processesRaw.map(normalizeMethodAdmissionProcessGroup);
+      const processGroups = processesRaw.some((item) => Array.isArray(item?.steps))
+        ? processesRaw.map(normalizeMethodAdmissionProcessGroup)
+        : groupFlatAdmissionProcesses(processesRaw);
       const mapped = am.map((m) => ({
         code: m?.code != null ? String(m.code) : "",
         displayName: m?.displayName != null ? String(m.displayName) : "",
@@ -2329,7 +2430,10 @@ export default function SchoolConfig({variant = "platform"} = {}) {
           : Array.isArray(tmpl.byMethod)
             ? tmpl.byMethod
             : [];
-      const byMethod = byMethodRaw.map(normalizeByMethodGroup).map((g) => ({
+      const groupedByMethod = byMethodRaw.some((item) => Array.isArray(item?.documents))
+        ? byMethodRaw.map(normalizeByMethodGroup)
+        : groupFlatMethodDocuments(byMethodRaw);
+      const byMethod = groupedByMethod.map((g) => ({
         ...g,
         documents: (g.documents || []).map((d) => ({...normalizeDocItem(d), required: true})),
       }));
@@ -2660,24 +2764,140 @@ export default function SchoolConfig({variant = "platform"} = {}) {
       if (!file) return;
       if (fieldDisabled) return;
       try {
-        const res = await importMandatoryDocsConfig(file);
-        const imported = Array.isArray(res?.data?.body) ? res.data.body.map((item) => ({...normalizeDocItem(item), required: true})) : [];
-        setConfig((c) => ({
-          ...c,
-          documentRequirementsData: {
-            ...c.documentRequirementsData,
-            mandatoryAll: imported,
-          },
-        }));
-        enqueueSnackbar(res?.data?.message || "Import hồ sơ thành công", {variant: "success"});
+        setMandatoryImportLoading(true);
+        const res = await previewMandatoryDocsImport(file);
+        const rows = Array.isArray(res?.data?.body)
+          ? res.data.body.map((item, idx) => ({
+            ...normalizeMandatoryImportRow(item, idx + 1),
+            _key: `import-row-${idx + 1}-${Date.now()}`,
+            _isValidating: false,
+          }))
+          : [];
+        setMandatoryImportRows(rows);
+        setMandatoryImportDialogOpen(true);
+        enqueueSnackbar(res?.data?.message || "Đọc file hồ sơ thành công", {variant: "success"});
       } catch (err) {
         enqueueSnackbar(err?.response?.data?.message || err?.message || "Không thể import file hồ sơ bắt buộc chung", {
           variant: "error",
         });
+      } finally {
+        setMandatoryImportLoading(false);
       }
     },
     [fieldDisabled]
   );
+
+  const closeMandatoryImportDialog = useCallback(() => {
+    if (mandatoryImportConfirming) return;
+    Object.values(mandatoryImportValidateTimersRef.current).forEach((timerId) => window.clearTimeout(timerId));
+    mandatoryImportValidateTimersRef.current = {};
+    setMandatoryImportDialogOpen(false);
+  }, [mandatoryImportConfirming]);
+
+  const validateMandatoryImportRowAt = useCallback(async (rowKey, rowPayload) => {
+    try {
+      const res = await validateMandatoryDocImportRow([rowPayload]);
+      const validated = normalizeMandatoryImportRow(res?.data?.body ?? rowPayload, rowPayload?.rowData?.index ?? 1);
+      setMandatoryImportRows((prev) =>
+        prev.map((r) => {
+          if (r._key !== rowKey) return r;
+          const latestSeq = mandatoryImportValidateSeqRef.current[rowKey] ?? 0;
+          if (latestSeq !== rowPayload._seq) return r;
+          return {...r, ...validated, _isValidating: false};
+        })
+      );
+    } catch (err) {
+      const fallbackMessage = err?.response?.data?.message || "Không thể validate dòng";
+      setMandatoryImportRows((prev) =>
+        prev.map((r) => {
+          if (r._key !== rowKey) return r;
+          const latestSeq = mandatoryImportValidateSeqRef.current[rowKey] ?? 0;
+          if (latestSeq !== rowPayload._seq) return r;
+          return {
+            ...r,
+            isError: true,
+            _isValidating: false,
+            error: {
+              fields: [{name: "row", message: fallbackMessage}],
+            },
+          };
+        })
+      );
+    }
+  }, []);
+
+  const updateMandatoryImportRowCell = useCallback((rowKey, field, value) => {
+    setMandatoryImportRows((prev) =>
+      prev.map((r) => {
+        if (r._key !== rowKey) return r;
+        return {
+          ...r,
+          rowData: {
+            ...r.rowData,
+            [field]: value,
+            required: true,
+          },
+          _isValidating: true,
+        };
+      })
+    );
+
+    const oldTimer = mandatoryImportValidateTimersRef.current[rowKey];
+    if (oldTimer) window.clearTimeout(oldTimer);
+
+    const nextSeq = (mandatoryImportValidateSeqRef.current[rowKey] ?? 0) + 1;
+    mandatoryImportValidateSeqRef.current[rowKey] = nextSeq;
+
+    mandatoryImportValidateTimersRef.current[rowKey] = window.setTimeout(() => {
+      setMandatoryImportRows((currentRows) => {
+        const latest = currentRows.find((r) => r._key === rowKey);
+        if (!latest) return currentRows;
+        const payload = {
+          rowData: {
+            index: latest.rowData?.index,
+            code: String(latest.rowData?.code ?? ""),
+            name: String(latest.rowData?.name ?? ""),
+            required: true,
+          },
+          error: latest.error ?? null,
+          isError: Boolean(latest.isError),
+          _seq: nextSeq,
+        };
+        void validateMandatoryImportRowAt(rowKey, payload);
+        return currentRows;
+      });
+    }, 400);
+  }, [validateMandatoryImportRowAt]);
+
+  const confirmMandatoryImportRows = useCallback(async () => {
+    if (mandatoryImportHasAnyError || mandatoryImportLoading || mandatoryImportConfirming) return;
+    try {
+      setMandatoryImportConfirming(true);
+      const payloadRows = (mandatoryImportRows || []).map((row, idx) => {
+        const normalized = normalizeMandatoryImportRow(row, idx + 1);
+        return {
+          rowData: normalized.rowData,
+          error: normalized.error,
+          isError: normalized.isError,
+        };
+      });
+      const res = await confirmMandatoryDocImportRows(payloadRows);
+      const importedDocs = payloadRows.map((row) => ({...normalizeDocItem(row.rowData), required: true}));
+      setConfig((c) => ({
+        ...c,
+        documentRequirementsData: {
+          ...c.documentRequirementsData,
+          mandatoryAll: importedDocs,
+        },
+      }));
+      setMandatoryImportDialogOpen(false);
+      enqueueSnackbar(res?.data?.message || "Import hồ sơ bắt buộc thành công", {variant: "success"});
+    } catch (err) {
+      enqueueSnackbar(err?.response?.data?.message || err?.message || "Không thể lưu dữ liệu import", {variant: "error"});
+    } finally {
+      setMandatoryImportConfirming(false);
+    }
+  }, [mandatoryImportConfirming, mandatoryImportHasAnyError, mandatoryImportLoading, mandatoryImportRows]);
 
   const removeMandatoryDocumentAt = useCallback((idx) => {
     setConfig((c) => {
@@ -3800,7 +4020,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                       <Button
                         variant="outlined"
                         size="small"
-                        startIcon={<AddIcon/>}
+                        startIcon={<CloudUploadOutlinedIcon/>}
                         onClick={onImportMandatoryDocsClick}
                         disabled={fieldDisabled}
                         sx={{textTransform: "none", fontWeight: 700, borderRadius: 2, ...blockPointerSx}}
@@ -5345,6 +5565,147 @@ export default function SchoolConfig({variant = "platform"} = {}) {
             </Button>
             <Button variant="contained" color="error" onClick={confirmRemoveAdmissionRow} sx={{textTransform: "none", fontWeight: 700}}>
               Xoá
+            </Button>
+          </DialogActions>
+        </Dialog>
+
+        <Dialog
+          open={mandatoryImportDialogOpen}
+          onClose={closeMandatoryImportDialog}
+          maxWidth="lg"
+          fullWidth
+          PaperProps={{
+            sx: {
+              borderRadius: 3,
+            },
+          }}
+        >
+          <DialogTitle sx={{fontWeight: 800}}>Import hồ sơ bắt buộc</DialogTitle>
+          <DialogContent dividers sx={{p: 0}}>
+            {mandatoryImportLoading ? (
+              <Stack alignItems="center" justifyContent="center" spacing={2} sx={{minHeight: 280}}>
+                <CircularProgress/>
+                <Typography variant="body2" color="text.secondary">Đang đọc file...</Typography>
+              </Stack>
+            ) : (
+              <Stack spacing={2} sx={{p: 2.5}}>
+                <Typography variant="body2" color="text.secondary">
+                  Tải file Excel để hệ thống kiểm tra và nhập dữ liệu. Bạn có thể chỉnh sửa trực tiếp trên bảng nếu có lỗi.
+                </Typography>
+
+                <Box
+                  sx={{
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 2,
+                    maxHeight: 480,
+                    overflow: "auto",
+                  }}
+                >
+                  <Table size="small" stickyHeader>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell sx={{minWidth: 64}}>STT</TableCell>
+                        <TableCell sx={{minWidth: 170}}>Mã hồ sơ</TableCell>
+                        <TableCell>Tên hồ sơ</TableCell>
+                        <TableCell sx={{minWidth: 120}}>Bắt buộc</TableCell>
+                        <TableCell sx={{minWidth: 120}}>Trạng thái</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {mandatoryImportRows.map((row) => {
+                        const rowErrorText = mandatoryImportRowErrorText(row);
+                        const codeError = mandatoryImportFieldErrorText(row, "code");
+                        const nameError = mandatoryImportFieldErrorText(row, "name");
+                        return (
+                          <TableRow
+                            key={row._key}
+                            sx={{
+                              bgcolor: row.isError ? "#FFF1F0" : "#fff",
+                              "& td:first-of-type": {
+                                borderLeft: row.isError ? "3px solid #FF4D4F" : "3px solid transparent",
+                              },
+                              transition: "background-color 0.2s ease",
+                            }}
+                          >
+                            <TableCell>{row.rowData?.index ?? "-"}</TableCell>
+                            <TableCell>
+                              <TextField
+                                size="small"
+                                value={row.rowData?.code ?? ""}
+                                onChange={(e) => updateMandatoryImportRowCell(row._key, "code", e.target.value)}
+                                error={Boolean(codeError)}
+                                helperText={codeError || " "}
+                                fullWidth
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <TextField
+                                size="small"
+                                value={row.rowData?.name ?? ""}
+                                onChange={(e) => updateMandatoryImportRowCell(row._key, "name", e.target.value)}
+                                error={Boolean(nameError)}
+                                helperText={nameError || " "}
+                                fullWidth
+                              />
+                            </TableCell>
+                            <TableCell>
+                              <Checkbox checked disabled/>
+                            </TableCell>
+                            <TableCell>
+                              {row._isValidating ? (
+                                <Stack direction="row" spacing={1} alignItems="center">
+                                  <CircularProgress size={14}/>
+                                  <Typography variant="caption" color="text.secondary">Đang kiểm tra</Typography>
+                                </Stack>
+                              ) : row.isError ? (
+                                <Tooltip title={rowErrorText || "Dòng dữ liệu chưa hợp lệ"}>
+                                  <Stack direction="row" spacing={0.75} alignItems="center" sx={{color: "#FF4D4F"}}>
+                                    <ErrorOutlineIcon fontSize="small"/>
+                                    <Typography variant="caption" sx={{fontWeight: 700}}>Lỗi</Typography>
+                                  </Stack>
+                                </Tooltip>
+                              ) : (
+                                <Stack direction="row" spacing={0.75} alignItems="center" sx={{color: "#52C41A"}}>
+                                  <CheckCircleOutlineIcon fontSize="small"/>
+                                  <Typography variant="caption" sx={{fontWeight: 700}}>Hợp lệ</Typography>
+                                </Stack>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </Box>
+
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="body2" color="text.secondary">
+                    Tổng số dòng: <strong>{mandatoryImportRows.length}</strong> | Dòng lỗi:{" "}
+                    <Box component="span" sx={{color: mandatoryImportErrorCount > 0 ? "#FF4D4F" : "inherit", fontWeight: 700}}>
+                      {mandatoryImportErrorCount}
+                    </Box>
+                  </Typography>
+                  {mandatoryImportValidatingCount > 0 ? (
+                    <Typography variant="caption" color="text.secondary">
+                      Đang validate {mandatoryImportValidatingCount} dòng...
+                    </Typography>
+                  ) : null}
+                </Stack>
+              </Stack>
+            )}
+          </DialogContent>
+          <DialogActions sx={{px: 3, py: 2}}>
+            <Button onClick={closeMandatoryImportDialog} disabled={mandatoryImportConfirming} sx={{textTransform: "none", fontWeight: 700}}>
+              Huỷ
+            </Button>
+            <Button
+              variant="contained"
+              onClick={confirmMandatoryImportRows}
+              disabled={mandatoryImportHasAnyError || mandatoryImportLoading || mandatoryImportConfirming || !mandatoryImportRows.length}
+              sx={{textTransform: "none", fontWeight: 700}}
+            >
+              {mandatoryImportConfirming ? <CircularProgress size={16} sx={{mr: 1, color: "#fff"}}/> : null}
+              Lưu dữ liệu
             </Button>
           </DialogActions>
         </Dialog>

@@ -23,6 +23,7 @@
     "@tiptap/react": "^3.22.3",
     "@tiptap/starter-kit": "^3.22.3",
     "axios": "^1.13.6",
+    "debounce": "^3.0.0",
     "jwt-decode": "^4.0.0",
     "leaflet": "^1.9.4",
     "notistack": "^3.0.2",
