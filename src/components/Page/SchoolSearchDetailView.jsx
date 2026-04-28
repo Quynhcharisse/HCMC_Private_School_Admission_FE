@@ -7,6 +7,10 @@ import {
     Chip,
     CircularProgress,
     Divider,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
     IconButton,
     Link,
     MenuItem,
@@ -14,6 +18,7 @@ import {
     Select,
     Stack,
     Tab,
+    TextField,
     Tabs,
     Typography
 } from "@mui/material";
@@ -44,10 +49,14 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {APP_PRIMARY_DARK, BRAND_NAVY, landingSectionShadow} from "../../constants/homeLandingTheme";
 import {OPEN_PARENT_CHAT_EVENT} from "../../constants/parentChatEvents";
-import {showSuccessSnackbar} from "../ui/AppSnackbar.jsx";
+import {showErrorSnackbar, showSuccessSnackbar, showWarningSnackbar} from "../ui/AppSnackbar.jsx";
 import {DEFAULT_SCHOOL_IMAGE} from "../../utils/schoolPublicMapper.js";
 import {getPublicSchoolCampaignTemplates} from "../../services/SchoolPublicService.jsx";
-import {getParentConsultSlots, parseParentConsultSlotsBody} from "../../services/ParentConsultSlotsService.jsx";
+import {
+    bookParentOfflineConsultation,
+    getParentConsultSlots,
+    parseParentConsultSlotsBody
+} from "../../services/ParentConsultSlotsService.jsx";
 
 const MAP_CONTAINER_STYLE = {width: "100%", height: "260px"};
 const NEARBY_SEARCH_RADIUS_KM = 10;
@@ -97,7 +106,15 @@ function consultSlotLooksCompleted(status, statusLabel) {
         .includes("đã qua");
 }
 
-/** Chip theo trạng thái — COMPLETED / «Đã qua»: phẳng, không shadow */
+function consultSlotLooksUpcoming(status, statusLabel) {
+    const s = String(status || "").toUpperCase();
+    if (s === "UPCOMING") return true;
+    return String(statusLabel || "")
+        .trim()
+        .toLowerCase()
+        .includes("sắp diễn ra");
+}
+
 function consultCalendarSlotChipSx(status, statusLabel) {
     const s = String(status || "").toUpperCase();
     const label = {
@@ -135,7 +152,7 @@ function consultCalendarSlotChipSx(status, statusLabel) {
         fontWeight: 700,
         borderRadius: "8px",
         boxShadow: "0 3px 10px rgba(15,23,42,0.12)",
-        cursor: "pointer"
+        cursor: consultSlotLooksUpcoming(s, statusLabel) ? "pointer" : "default"
     };
 }
 
@@ -1947,6 +1964,11 @@ export default function SchoolSearchDetailView({
     const [parentSlotsRaw, setParentSlotsRaw] = React.useState([]);
     const [parentSlotsLoading, setParentSlotsLoading] = React.useState(false);
     const [parentSlotsError, setParentSlotsError] = React.useState("");
+    const [consultBookingDialogOpen, setConsultBookingDialogOpen] = React.useState(false);
+    const [selectedConsultBookingSlot, setSelectedConsultBookingSlot] = React.useState(null);
+    const [bookingPhone, setBookingPhone] = React.useState("");
+    const [bookingQuestion, setBookingQuestion] = React.useState("");
+    const [bookingSubmitting, setBookingSubmitting] = React.useState(false);
 
     React.useEffect(() => {
         setCampusDetailTabIndex(0);
@@ -2042,7 +2064,18 @@ export default function SchoolSearchDetailView({
             .filter(Boolean);
     }, [nearbyCampuses]);
 
-    const mapCampuses = normalizedNearbyCampuses.length > 0 ? normalizedNearbyCampuses : schoolCampusMarkers;
+    const nearbyCampusesOfCurrentSchool = React.useMemo(() => {
+        const currentSchoolId = Number(school?.id);
+        return normalizedNearbyCampuses.filter((campus) => {
+            const campusSchoolId = Number(campus?.schoolId);
+            if (Number.isFinite(currentSchoolId) && Number.isFinite(campusSchoolId)) {
+                return campusSchoolId === currentSchoolId;
+            }
+            return String(campus?.schoolId ?? "").trim() === String(school?.id ?? "").trim();
+        });
+    }, [normalizedNearbyCampuses, school?.id]);
+
+    const mapCampuses = nearbyCampusesOfCurrentSchool.length > 0 ? nearbyCampusesOfCurrentSchool : schoolCampusMarkers;
 
     React.useEffect(() => {
         requestUserLocation();
@@ -2314,23 +2347,96 @@ export default function SchoolSearchDetailView({
         [school]
     );
 
-    const openConsultMailto = React.useCallback((selectedSlot) => {
-        if (!school) return;
-        const email = (school.email || "").trim();
-        if (!email) {
-            navigate("/home");
-            showSuccessSnackbar("Đến trang chủ để xem các hình thức hỗ trợ và đặt lịch tư vấn.");
+    const openConsultBookingDialog = React.useCallback(
+        (slot) => {
+            if (!isParent || !slot) return;
+            if (!consultSlotLooksUpcoming(slot.status, slot.statusLabel)) return;
+            const cachedUser = (() => {
+                try {
+                    if (typeof window === "undefined") return null;
+                    const raw = window.localStorage.getItem("user");
+                    return raw ? JSON.parse(raw) : null;
+                } catch {
+                    return null;
+                }
+            })();
+            setSelectedConsultBookingSlot({
+                appointmentDate: String(slot.date || "").slice(0, 10),
+                appointmentTime: normalizeConsultSlotTime(slot.startTime)
+            });
+            setBookingPhone(
+                String(
+                    cachedUser?.phone ??
+                        cachedUser?.phoneNumber ??
+                        cachedUser?.mobile ??
+                        cachedUser?.phoneNo ??
+                        ""
+                ).trim()
+            );
+            setBookingQuestion("");
+            setConsultBookingDialogOpen(true);
+        },
+        [isParent]
+    );
+    const closeConsultBookingDialog = React.useCallback(() => {
+        if (bookingSubmitting) return;
+        setConsultBookingDialogOpen(false);
+        setSelectedConsultBookingSlot(null);
+        setBookingPhone("");
+        setBookingQuestion("");
+    }, [bookingSubmitting]);
+    const submitConsultBooking = React.useCallback(async () => {
+        if (!selectedConsultBookingSlot) return;
+        const phone = bookingPhone.trim();
+        const question = bookingQuestion.trim();
+        if (!phone) {
+            showWarningSnackbar("Vui lòng nhập số điện thoại.");
             return;
         }
-        const slotText = String(selectedSlot || "").trim();
-        const subject = encodeURIComponent(`Đặt lịch tư vấn — ${school.school}`);
-        const body = encodeURIComponent(
-            `Kính gửi ${school.school},\n\nTôi muốn đặt lịch tư vấn / tham quan trường${
-                slotText ? ` vào khung giờ ${slotText}` : ""
-            }.\n\nTrân trọng,`
-        );
-        window.location.href = `mailto:${email}?subject=${subject}&body=${body}`;
-    }, [school, navigate]);
+        if (!question) {
+            showWarningSnackbar("Vui lòng nhập nội dung câu hỏi.");
+            return;
+        }
+        const appointmentTime = String(selectedConsultBookingSlot.appointmentTime || "").trim();
+        const appointmentDate = String(selectedConsultBookingSlot.appointmentDate || "").slice(0, 10);
+        if (!appointmentTime || !appointmentDate) {
+            showErrorSnackbar("Không lấy được thông tin khung giờ đã chọn. Vui lòng chọn lại.");
+            return;
+        }
+        setBookingSubmitting(true);
+        try {
+            await bookParentOfflineConsultation({
+                phone,
+                question,
+                appointmentTime,
+                appointmentDate
+            });
+            showSuccessSnackbar("Đặt lịch tư vấn thành công.");
+            setConsultBookingDialogOpen(false);
+            setSelectedConsultBookingSlot(null);
+            setBookingPhone("");
+            setBookingQuestion("");
+        } catch (error) {
+            const apiMessage =
+                error?.response?.data?.message ||
+                error?.response?.data?.body?.message ||
+                error?.response?.data?.error;
+            showErrorSnackbar(apiMessage || "Không thể đặt lịch tư vấn. Vui lòng thử lại.");
+        } finally {
+            setBookingSubmitting(false);
+        }
+    }, [bookingPhone, bookingQuestion, selectedConsultBookingSlot]);
+    const consultBookingDisplayDate = React.useMemo(() => {
+        const raw = String(selectedConsultBookingSlot?.appointmentDate || "").slice(0, 10);
+        if (!raw) return "";
+        const dt = parseYmdLocal(raw);
+        if (Number.isNaN(dt.getTime())) return raw;
+        return dt.toLocaleDateString("vi-VN");
+    }, [selectedConsultBookingSlot]);
+    const consultBookingDisplayTime = React.useMemo(() => {
+        const raw = String(selectedConsultBookingSlot?.appointmentTime || "").trim();
+        return raw ? `${raw}` : "";
+    }, [selectedConsultBookingSlot]);
     const [consultCalendarYear, setConsultCalendarYear] = React.useState(String(new Date().getFullYear()));
     const consultWeekOptions = React.useMemo(
         () => buildWeeksOfYear(consultCalendarYear),
@@ -2514,6 +2620,135 @@ export default function SchoolSearchDetailView({
             >
                 <ArrowBackIcon/>
             </IconButton>
+            <Dialog
+                open={consultBookingDialogOpen}
+                onClose={closeConsultBookingDialog}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{
+                    sx: {
+                        borderRadius: 3,
+                        border: "1px solid rgba(148,163,184,0.28)",
+                        boxShadow: "0 24px 50px rgba(15,23,42,0.24)",
+                        overflow: "hidden"
+                    }
+                }}
+            >
+                <DialogTitle
+                    sx={{
+                        fontWeight: 800,
+                        fontSize: "1.35rem",
+                        color: "#0f172a",
+                        pb: 1,
+                        background:
+                            "linear-gradient(180deg, rgba(59,130,246,0.14) 0%, rgba(59,130,246,0.06) 100%)"
+                    }}
+                >
+                    Đặt lịch tư vấn offline
+                    <Typography sx={{mt: 0.5, fontSize: "0.84rem", color: "#475569", fontWeight: 500}}>
+                        Vui lòng để lại số điện thoại và câu hỏi để nhà trường liên hệ lại.
+                    </Typography>
+                </DialogTitle>
+                <DialogContent sx={{pt: "16px !important", pb: 1.5, bgcolor: "#f8fafc"}}>
+                    <Stack spacing={1.5}>
+                        <TextField
+                            label="Số điện thoại"
+                            value={bookingPhone}
+                            onChange={(e) => setBookingPhone(e.target.value)}
+                            disabled={bookingSubmitting}
+                            fullWidth
+                            required
+                            placeholder="Ví dụ: 09xxxxxxxx"
+                            sx={{
+                                "& .MuiOutlinedInput-root": {
+                                    borderRadius: 2,
+                                    bgcolor: "#fff"
+                                }
+                            }}
+                        />
+                        <TextField
+                            label="Nội dung câu hỏi"
+                            value={bookingQuestion}
+                            onChange={(e) => setBookingQuestion(e.target.value)}
+                            disabled={bookingSubmitting}
+                            multiline
+                            minRows={3}
+                            fullWidth
+                            required
+                            placeholder="Nhập nội dung bạn cần tư vấn..."
+                            sx={{
+                                "& .MuiOutlinedInput-root": {
+                                    borderRadius: 2,
+                                    bgcolor: "#fff"
+                                }
+                            }}
+                        />
+                        <Box
+                            sx={{
+                                mt: 0.5,
+                                borderRadius: 2,
+                                border: "1px dashed rgba(59,130,246,0.45)",
+                                bgcolor: "rgba(239,246,255,0.95)",
+                                px: 1.25,
+                                py: 1
+                            }}
+                        >
+                            <Typography sx={{fontSize: "0.75rem", color: "#475569", fontWeight: 700, mb: 0.6}}>
+                                LỊCH HẸN ĐÃ CHỌN
+                            </Typography>
+                            <Stack direction={{xs: "column", sm: "row"}} spacing={1}>
+                                <TextField
+                                    label="Ngày hẹn"
+                                    value={consultBookingDisplayDate}
+                                    fullWidth
+                                    InputProps={{readOnly: true}}
+                                    disabled
+                                    size="small"
+                                />
+                                <TextField
+                                    label="Giờ hẹn"
+                                    value={consultBookingDisplayTime}
+                                    fullWidth
+                                    InputProps={{readOnly: true}}
+                                    disabled
+                                    size="small"
+                                />
+                            </Stack>
+                        </Box>
+                    </Stack>
+                </DialogContent>
+                <DialogActions
+                    sx={{
+                        px: 2.5,
+                        py: 1.75,
+                        borderTop: "1px solid rgba(148,163,184,0.22)",
+                        bgcolor: "#fff"
+                    }}
+                >
+                    <Button
+                        onClick={closeConsultBookingDialog}
+                        disabled={bookingSubmitting}
+                        sx={{textTransform: "none", fontWeight: 700, px: 2}}
+                    >
+                        Hủy
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={submitConsultBooking}
+                        disabled={bookingSubmitting}
+                        sx={{
+                            textTransform: "none",
+                            fontWeight: 800,
+                            px: 2.5,
+                            py: 0.9,
+                            borderRadius: 2,
+                            boxShadow: "0 8px 18px rgba(37,99,235,0.3)"
+                        }}
+                    >
+                        {bookingSubmitting ? "Đang gửi..." : "Đặt lịch"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
             <IconButton
                 aria-label="Cuộn lên đầu trang"
                 onClick={scrollToDetailTop}
@@ -3257,11 +3492,6 @@ export default function SchoolSearchDetailView({
                                                               </Box>
                                                               {consultWeekColumns.map((col) => {
                                                                   const slot = consultSlotByCell.get(`${col.ymd}|${row.key}`);
-                                                                  const mailBits = [
-                                                                      col.label,
-                                                                      formatDayMonth(parseYmdLocal(col.ymd)),
-                                                                      `${row.startTime}–${row.endTime}`
-                                                                  ];
                                                                   return (
                                                                       <Box
                                                                           key={`${row.key}-${col.key}`}
@@ -3284,36 +3514,15 @@ export default function SchoolSearchDetailView({
                                                                                           : CONSULT_SLOT_STATUS_CHIP[slot.status] || "default"
                                                                                   }
                                                                                   size="small"
-                                                                                  onClick={() =>
-                                                                                      openConsultMailto(mailBits.join(" — "))
+                                                                                  onClick={
+                                                                                      consultSlotLooksUpcoming(slot.status, slot.statusLabel)
+                                                                                          ? () => openConsultBookingDialog(slot)
+                                                                                          : undefined
                                                                                   }
                                                                                   sx={consultCalendarSlotChipSx(slot.status, slot.statusLabel)}
                                                                               />
                                                                           ) : (
-                                                                              <Box
-                                                                                  component="button"
-                                                                                  type="button"
-                                                                                  onClick={() =>
-                                                                                      openConsultMailto(mailBits.join(" — "))
-                                                                                  }
-                                                                                  aria-label="Đặt lịch tư vấn"
-                                                                                  sx={{
-                                                                                      border: "none",
-                                                                                      background: "transparent",
-                                                                                      cursor: "pointer",
-                                                                                      minWidth: 0,
-                                                                                      minHeight: 32,
-                                                                                      width: "100%",
-                                                                                      p: 0.5,
-                                                                                      opacity: 0,
-                                                                                      "&:hover": {opacity: 0.12},
-                                                                                      "&:focus-visible": {
-                                                                                          outline: `1px solid rgba(100,116,139,0.55)`,
-                                                                                          borderRadius: "4px",
-                                                                                          opacity: 1
-                                                                                      }
-                                                                                  }}
-                                                                              />
+                                                                              <Box sx={{width: "100%", minHeight: 32}} />
                                                                           )}
                                                                       </Box>
                                                                   );
@@ -3386,9 +3595,7 @@ export default function SchoolSearchDetailView({
                                                                       <Button
                                                                           variant="text"
                                                                           size="small"
-                                                                          onClick={() =>
-                                                                              openConsultMailto(`${day.label} — ${shift.mailLabel}`)
-                                                                          }
+                                                                          disabled
                                                                           sx={{
                                                                               minWidth: 0,
                                                                               minHeight: 32,
@@ -3397,7 +3604,8 @@ export default function SchoolSearchDetailView({
                                                                               color: "#64748b",
                                                                               textTransform: "none",
                                                                               fontSize: "0.8rem",
-                                                                              lineHeight: 1
+                                                                              lineHeight: 1,
+                                                                              cursor: "default"
                                                                           }}
                                                                       >
                                                                           Đặt lịch
@@ -3409,11 +3617,6 @@ export default function SchoolSearchDetailView({
                                                     : null}
                                             </Box>
                                             </Box>
-                                            {!(school?.email || "").trim() && (
-                                                <Typography sx={{color: "#b45309", fontSize: "0.84rem", mt: 1}}>
-                                                    Trường chưa công bố email. Khi chọn ô trên lịch, hệ thống sẽ chuyển bạn tới trang hỗ trợ.
-                                                </Typography>
-                                            )}
                                         </Box>
                                     </Stack>
                                 </Box>
@@ -3468,7 +3671,7 @@ export default function SchoolSearchDetailView({
                                             Thử định vị lại
                                         </Button>
                                     )}
-                                    {!nearbyLoading && !nearbyError && normalizedNearbyCampuses.length === 0 && userLocation ? (
+                                    {!nearbyLoading && !nearbyError && nearbyCampusesOfCurrentSchool.length === 0 && userLocation ? (
                                         <Typography sx={{mt: 1, color: "#0f172a", fontSize: "0.9rem"}}>
                                             Không có campus nào trong bán kính {NEARBY_SEARCH_RADIUS_KM}km.
                                         </Typography>
