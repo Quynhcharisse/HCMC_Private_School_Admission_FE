@@ -922,12 +922,6 @@ export default function AdminPlatformSettings() {
         if (year.length > 50) errors.year = "Năm học quá dài.";
         const sourceName = String(form?.sourceName ?? "").trim();
         if (sourceName.length > 255) errors.sourceName = "Tên nguồn quá dài.";
-        if (quotaMode === "add" && year) {
-            const quotaMap = getAdmissionQuotaMap(configBody);
-            if (Object.prototype.hasOwnProperty.call(quotaMap, year)) {
-                errors.year = "Năm học này đã tồn tại.";
-            }
-        }
         const sourceUrl = String(form?.sourceUrl ?? "").trim();
         if (strict && !sourceUrl) {
             errors.sourceUrl = "Vui lòng nhập nguồn dữ liệu.";
