@@ -2436,6 +2436,9 @@ function MainHeader() {
         setMobileMenuOpen(false);
     };
 
+    const countUnreadNotifications = (items = []) =>
+        items.reduce((acc, row) => acc + (row?.read ? 0 : 1), 0);
+
     const handleNotificationClick = (event) => {
         setNotificationAnchorEl(event.currentTarget);
         refreshNotificationInboxForUser(userInfo).catch(() => {});
@@ -2446,17 +2449,39 @@ function MainHeader() {
     };
 
     const handleMarkAllNotificationsRead = () => {
-        markAllNotificationsAsRead(userInfo);
+        setNotificationItems((prev) => prev.map((item) => ({...item, read: true})));
+        setNotificationUnreadCount(0);
         clearNotificationUnreadCount();
+        markAllNotificationsAsRead(userInfo)
+            .finally(() => refreshNotificationInboxForUser(userInfo).catch(() => {}));
     };
 
     const handleNotificationItemClick = (item) => {
-        if (item?.id) {
-            markNotificationAsRead({notificationId: item.id, user: userInfo});
-        }
-        clearNotificationUnreadCount();
-        handleNotificationClose();
         const route = String(item?.route || '/posts').trim();
+        if (item?.id) {
+            setNotificationItems((prev) => {
+                let changed = false;
+                const next = prev.map((row) => {
+                    if (row?.id !== item.id) return row;
+                    if (row?.read) return row;
+                    changed = true;
+                    return {...row, read: true};
+                });
+                if (changed) {
+                    const unreadCount = Math.min(99, countUnreadNotifications(next));
+                    setNotificationUnreadCount(unreadCount);
+                    if (unreadCount === 0) {
+                        clearNotificationUnreadCount();
+                    }
+                }
+                return next;
+            });
+        }
+        if (item?.id) {
+            markNotificationAsRead({notificationId: item.id, user: userInfo})
+                .finally(() => refreshNotificationInboxForUser(userInfo).catch(() => {}));
+        }
+        handleNotificationClose();
         goTo(route.startsWith('/') ? route : '/posts');
     };
 

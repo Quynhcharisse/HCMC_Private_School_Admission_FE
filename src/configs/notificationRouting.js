@@ -2,9 +2,9 @@ import {ROLES} from "../constants/roles.js";
 
 export const NOTIFICATION_EVENTS = {
     NEW_USER_REGISTERED: "NEW_USER_REGISTERED",
-    SCHOOL_REGISTER_SUBMITTED: "SCHOOL_REGISTER_SUBMITTED",
     SCHOOL_POST_PUBLISHED: "SCHOOL_POST_PUBLISHED",
-    SCHOOL_VERIFIED: "SCHOOL_VERIFIED",
+    ADMIN_POST_PUBLISHED: "ADMIN_POST_PUBLISHED",
+
     COUNSELLOR_ASSIGNED: "COUNSELLOR_ASSIGNED",
     CONSULTATION_BOOKED: "CONSULTATION_BOOKED",
     CONSULTATION_CANCELLED: "CONSULTATION_CANCELLED",
@@ -13,24 +13,22 @@ export const NOTIFICATION_EVENTS = {
 
 const EVENT_ROLE_MATRIX = {
     [NOTIFICATION_EVENTS.NEW_USER_REGISTERED]: [ROLES.ADMIN],
-    [NOTIFICATION_EVENTS.SCHOOL_REGISTER_SUBMITTED]: [ROLES.ADMIN],
     [NOTIFICATION_EVENTS.SCHOOL_POST_PUBLISHED]: [ROLES.ADMIN, ROLES.PARENT],
-    [NOTIFICATION_EVENTS.SCHOOL_VERIFIED]: [ROLES.SCHOOL],
+    [NOTIFICATION_EVENTS.ADMIN_POST_PUBLISHED]: [ROLES.SCHOOL, ROLES.PARENT],
     [NOTIFICATION_EVENTS.COUNSELLOR_ASSIGNED]: [ROLES.PARENT, ROLES.COUNSELLOR],
     [NOTIFICATION_EVENTS.CONSULTATION_BOOKED]: [ROLES.PARENT, ROLES.COUNSELLOR, ROLES.SCHOOL],
     [NOTIFICATION_EVENTS.CONSULTATION_CANCELLED]: [ROLES.PARENT, ROLES.COUNSELLOR, ROLES.SCHOOL],
     [NOTIFICATION_EVENTS.SYSTEM_ANNOUNCEMENT]: [ROLES.ADMIN, ROLES.SCHOOL, ROLES.PARENT, ROLES.COUNSELLOR],
 };
 
-export const normalizeNotificationEventType = (payload) =>
-    {
-        const raw = String(payload?.data?.eventType || payload?.data?.type || "").trim().toUpperCase();
-        const aliasMap = {
-            USER_REGISTERED: NOTIFICATION_EVENTS.NEW_USER_REGISTERED,
-            NEW_REGISTER: NOTIFICATION_EVENTS.NEW_USER_REGISTERED,
-        };
-        return aliasMap[raw] || raw;
+export const normalizeNotificationEventType = (payload) => {
+    const raw = String(payload?.data?.eventType || payload?.data?.type || "").trim().toUpperCase();
+    const aliasMap = {
+        USER_REGISTERED: NOTIFICATION_EVENTS.NEW_USER_REGISTERED,
+        NEW_REGISTER: NOTIFICATION_EVENTS.NEW_USER_REGISTERED,
     };
+    return aliasMap[raw] || raw;
+};
 
 export const canRoleReceiveEvent = (role, eventType) => {
     if (!role) return false;
@@ -51,17 +49,13 @@ export const getNotificationMessage = (payload) => {
             title: "Đăng ký mới",
             body: "Có người dùng mới vừa đăng ký tài khoản.",
         },
-        [NOTIFICATION_EVENTS.SCHOOL_REGISTER_SUBMITTED]: {
-            title: "Trường mới đăng ký",
-            body: "Có hồ sơ trường mới chờ Admin duyệt.",
-        },
-        [NOTIFICATION_EVENTS.SCHOOL_VERIFIED]: {
-            title: "Trường đã được duyệt",
-            body: "Hồ sơ trường của bạn đã được xác thực.",
-        },
         [NOTIFICATION_EVENTS.SCHOOL_POST_PUBLISHED]: {
             title: "Bài viết mới từ trường",
             body: "Có bài viết mới vừa được đăng từ trường học.",
+        },
+        [NOTIFICATION_EVENTS.ADMIN_POST_PUBLISHED]: {
+            title: "Bài viết mới từ quản trị viên",
+            body: "Có bài viết mới vừa được đăng từ quản trị viên.",
         },
         [NOTIFICATION_EVENTS.CONSULTATION_BOOKED]: {
             title: "Lịch tư vấn mới",

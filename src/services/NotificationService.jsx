@@ -73,20 +73,6 @@ export const registerNotificationToken = async ({token, user}) => {
     return true;
 };
 
-export const unregisterNotificationToken = async ({token, user}) => {
-    if (!TOKEN_SYNC_ENABLED) return false;
-    if (!token || !user) return false;
-    const payload = buildTokenPayload({token, user});
-    try {
-        await axiosClient.post(TOKEN_UNREGISTER_ENDPOINT, payload, {
-            headers: {"X-Device-Type": "web"},
-        });
-    } finally {
-        clearTokenSyncCache();
-    }
-    return true;
-};
-
 export const watchAuthUserChanges = (onChanged) => {
     if (typeof onChanged !== "function") return () => {};
     const handleCustom = () => onChanged(getCurrentAuthUser());
@@ -109,10 +95,11 @@ export const resolveNotificationRoute = ({eventType, data = {}, role}) => {
 
     switch (normalizedType) {
         case NOTIFICATION_EVENTS.NEW_USER_REGISTERED:
-        case NOTIFICATION_EVENTS.SCHOOL_REGISTER_SUBMITTED:
             return "/admin/users";
-        case NOTIFICATION_EVENTS.SCHOOL_VERIFIED:
-            return "/school/profile";
+        case NOTIFICATION_EVENTS.SCHOOL_POST_PUBLISHED:
+            return "/posts";
+        case NOTIFICATION_EVENTS.ADMIN_POST_PUBLISHED:
+            return "/posts";
         case NOTIFICATION_EVENTS.COUNSELLOR_ASSIGNED:
         case NOTIFICATION_EVENTS.CONSULTATION_BOOKED:
         case NOTIFICATION_EVENTS.CONSULTATION_CANCELLED:

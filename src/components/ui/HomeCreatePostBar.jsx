@@ -66,39 +66,6 @@ function formatUploadedFileNameForDisplay(raw) {
     return s;
 }
 
-function validateClientPayload(body) {
-    if (!body.hashTagList?.length) return "Vui lòng nhập ít nhất một nhãn từ khóa (cách nhau bằng dấu phẩy hoặc khoảng trắng).";
-    if (body.totalPosition <= 0) return "Nội dung chưa hợp lệ, vui lòng kiểm tra lại.";
-    if (!body.content?.shortDescription) return "Vui lòng nhập mô tả ngắn.";
-    if (!body.content?.contentDataList?.length) return "Vui lòng nhập nội dung chi tiết (có ít nhất một đoạn).";
-    if (!body.image?.imageItemList?.length) return "Cần ít nhất một ảnh trong bài — hãy tải ảnh bìa hoặc dùng nút thêm ảnh.";
-    if (!body.thumbnail?.trim()) return "Vui lòng chọn ảnh đại diện cho bài viết.";
-    if (!isHttpUrl(body.thumbnail)) return "Ảnh đại diện phải là đường dẫn liên kết hợp lệ.";
-    if (!body.categoryPost?.trim()) return "Vui lòng chọn danh mục bài.";
-    if (!body.publishedDate?.trim()) return "Vui lòng chọn ngày giờ đăng.";
-    for (let i = 0; i < body.image.imageItemList.length; i++) {
-        const u = body.image.imageItemList[i].url;
-        if (!isHttpUrl(u)) return `Đường dẫn ảnh thứ ${i + 1} chưa hợp lệ.`;
-    }
-    const docItems = body.document?.documentItemList;
-    if (Array.isArray(docItems) && docItems.length) {
-        for (let i = 0; i < docItems.length; i++) {
-            const d = docItems[i];
-            if (!String(d?.fileName ?? "").trim()) {
-                return `Tài liệu thứ ${i + 1} thiếu tên file (fileName).`;
-            }
-            if (!String(d?.storagePath ?? "").trim()) {
-                return `Tài liệu thứ ${i + 1} thiếu đường dẫn lưu (storagePath).`;
-            }
-            const fu = d?.fileUrl;
-            if (fu != null && String(fu).trim() && !isHttpUrl(fu)) {
-                return `Đường dẫn fileUrl tài liệu thứ ${i + 1} chưa hợp lệ.`;
-            }
-        }
-    }
-    return null;
-}
-
 const LM = {
     bg: "#ffffff",
     bgElev: "#f4f8ff",
@@ -237,13 +204,6 @@ export default function HomeCreatePostBar({
             console.warn("⚠️ Lỗi lấy profile:", err.message);
         }
     
-        const err = validateClientPayload(body);
-        if (err) {
-            console.warn("⚠️ Validation Error:", err);
-            enqueueSnackbar(err, {variant: "warning"});
-            return;
-        }
-
         setSubmitting(true);
         console.log("⏳ Đang gửi request...");
 
@@ -340,10 +300,6 @@ export default function HomeCreatePostBar({
                 if (prev.some((d) => documentItemKey(d) === key)) return prev;
                 return [...prev, item];
             });
-            const uploadedFileUrl = String(item?.fileUrl || "").trim();
-            if (uploadedFileUrl) {
-                setTypeFile(uploadedFileUrl);
-            }
             enqueueSnackbar("Đã tải tài liệu lên.", {variant: "success"});
         } catch (err) {
             enqueueSnackbar(getApiErrorMessage(err, "Tải tài liệu không thành công."), {variant: "error"});
