@@ -17,6 +17,7 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import InsertDriveFileOutlinedIcon from "@mui/icons-material/InsertDriveFileOutlined";
+import InsertPhotoOutlinedIcon from "@mui/icons-material/InsertPhotoOutlined";
 import UploadFileOutlinedIcon from "@mui/icons-material/UploadFileOutlined";
 import CloudUploadOutlinedIcon from "@mui/icons-material/CloudUploadOutlined";
 import {enqueueSnackbar} from "notistack";
@@ -113,6 +114,7 @@ export default function HomeCreatePostBar({
     visible,
     embedded = false,
     belowHero = false,
+    maxBarWidth = 720,
     onPostCreated
 }) {
     const [open, setOpen] = React.useState(false);
@@ -533,7 +535,7 @@ export default function HomeCreatePostBar({
                         ? {
                               mt: 0,
                               mb: 0,
-                              maxWidth: 720,
+                              maxWidth: maxBarWidth,
                               width: "100%",
                               mx: "auto"
                           }
@@ -541,7 +543,7 @@ export default function HomeCreatePostBar({
                           ? {
                                 mt: 0,
                                 mb: 0,
-                                maxWidth: 720,
+                                maxWidth: maxBarWidth,
                                 width: "100%",
                                 mx: "auto"
                             }
@@ -612,6 +614,15 @@ export default function HomeCreatePostBar({
                         sx={{...iconBtnSx, flexShrink: 0}}
                     >
                         <UploadFileOutlinedIcon />
+                    </IconButton>
+                    <IconButton
+                        size="medium"
+                        aria-label="Tải hình ảnh"
+                        onClick={() => bannerInputRef.current?.click()}
+                        disabled={uploadingAnyImage || uploadingDocument || submitting}
+                        sx={{...iconBtnSx, flexShrink: 0}}
+                    >
+                        <InsertPhotoOutlinedIcon />
                     </IconButton>
                 </Box>
             </Box>
