@@ -18,12 +18,19 @@ import {
     Button,
     TextField
 } from "@mui/material";
-import {ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon, Close as CloseIcon} from "@mui/icons-material";
+import {
+    ChevronLeft as ChevronLeftIcon,
+    ChevronRight as ChevronRightIcon,
+    Close as CloseIcon,
+    ZoomIn as ZoomInIcon,
+    ZoomOut as ZoomOutIcon
+} from "@mui/icons-material";
 import {disablePostStatus, getPostList} from "../../services/PostService.jsx";
 import {APP_PRIMARY_MAIN, BRAND_NAVY} from "../../constants/homeLandingTheme";
 import {enqueueSnackbar} from "notistack";
 import {ConfirmHighlight} from "../ui/ConfirmDialog.jsx";
 import {normalizeUserRole} from "../../utils/userRole.js";
+import HomeCreatePostBar from "../ui/HomeCreatePostBar.jsx";
 
 const DEFAULT_SCHOOL_IMAGE =
     "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=900&q=80";
@@ -210,7 +217,12 @@ function mapApiPostToFeedItem(raw) {
 
 function FeedPostCard({post, onOpen, onDisable, disableLoading = false, canDisable = false}) {
     const firstTagLine = post.tags.length ? post.tags.map((tag) => (tag.startsWith("#") ? tag : `#${tag}`)).join(" ") : "#edubridge";
-    const previewImages = [post.heroImage, ...post.detailImages].filter(Boolean).slice(0, 4);
+    const allImages = [post.heroImage, ...post.detailImages].filter(Boolean);
+    const heroImage = allImages[0];
+    const belowImages = allImages.slice(1);
+    const maxBelowVisible = 3;
+    const visibleBelowImages = belowImages.slice(0, maxBelowVisible);
+    const hiddenBelowCount = Math.max(0, belowImages.length - maxBelowVisible);
     const initials = String(post.authorName || "ED")
         .split(/\s+/)
         .filter(Boolean)
@@ -284,26 +296,71 @@ function FeedPostCard({post, onOpen, onDisable, disableLoading = false, canDisab
                 />
                 <Typography sx={{fontSize: "0.86rem", color: APP_PRIMARY_MAIN, fontWeight: 700, mb: 1.25}}>{firstTagLine}</Typography>
 
-                <Grid container spacing={1}>
-                    {previewImages.map((img, idx) => (
-                        <Grid key={`${post.id || "post"}-${idx}`} size={{xs: 6}}>
-                            <Box
-                                component="img"
-                                src={img}
-                                alt={post.title}
-                                onClick={() => onOpen(post, idx)}
-                                sx={{
-                                    width: "100%",
-                                    aspectRatio: "1 / 1",
-                                    borderRadius: 2,
-                                    objectFit: "cover",
-                                    border: "1px solid rgba(148,163,184,0.25)",
-                                    cursor: "zoom-in"
-                                }}
-                            />
-                        </Grid>
-                    ))}
-                </Grid>
+                {heroImage ? (
+                    <Box
+                        component="img"
+                        src={heroImage}
+                        alt={post.title}
+                        onClick={() => onOpen(post, 0)}
+                        sx={{
+                            width: "100%",
+                            height: {xs: 170, md: 220},
+                            borderRadius: 2,
+                            objectFit: "contain",
+                            backgroundColor: "#dbe7f6",
+                            cursor: "pointer",
+                            display: "block",
+                            mb: belowImages.length ? 0.75 : 0
+                        }}
+                    />
+                ) : null}
+
+                {visibleBelowImages.length ? (
+                    <Grid container spacing={0.75}>
+                        {visibleBelowImages.map((img, idx) => {
+                            const isLastVisible = idx === visibleBelowImages.length - 1;
+                            const showMoreOverlay = isLastVisible && hiddenBelowCount > 0;
+                            return (
+                                <Grid key={`${post.id || "post"}-sub-${idx}`} size={{xs: 4}}>
+                                    <Box
+                                        onClick={() => onOpen(post, idx + 1)}
+                                        sx={{
+                                            position: "relative",
+                                            width: "100%",
+                                            aspectRatio: "1 / 1",
+                                            borderRadius: 2,
+                                            overflow: "hidden",
+                                            cursor: "pointer"
+                                        }}
+                                    >
+                                        <Box
+                                            component="img"
+                                            src={img}
+                                            alt={post.title}
+                                            sx={{width: "100%", height: "100%", objectFit: "cover", display: "block"}}
+                                        />
+                                        {showMoreOverlay ? (
+                                            <Box
+                                                sx={{
+                                                    position: "absolute",
+                                                    inset: 0,
+                                                    bgcolor: "rgba(15,23,42,0.5)",
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center"
+                                                }}
+                                            >
+                                                <Typography sx={{color: "#fff", fontWeight: 800, fontSize: "1.1rem"}}>
+                                                    +{hiddenBelowCount}
+                                                </Typography>
+                                            </Box>
+                                        ) : null}
+                                    </Box>
+                                </Grid>
+                            );
+                        })}
+                    </Grid>
+                ) : null}
             </CardContent>
         </Card>
     );
@@ -318,6 +375,12 @@ export default function PostFeedPage() {
     const [disableNote, setDisableNote] = React.useState("");
     const [isDisabling, setIsDisabling] = React.useState(false);
     const [canDisablePost, setCanDisablePost] = React.useState(false);
+    const [previewZoom, setPreviewZoom] = React.useState(1);
+    const [previewPan, setPreviewPan] = React.useState({x: 0, y: 0});
+    const [isPreviewDragging, setIsPreviewDragging] = React.useState(false);
+    const previewDragRef = React.useRef({dragging: false, startX: 0, startY: 0, baseX: 0, baseY: 0});
+    const previewFrameRef = React.useRef(null);
+    const previewImageRef = React.useRef(null);
 
     const reloadPosts = React.useCallback(async () => {
         setLoading(true);
@@ -359,6 +422,77 @@ export default function PostFeedPage() {
         }
     }, []);
 
+    React.useEffect(() => {
+        setPreviewZoom(1);
+        setPreviewPan({x: 0, y: 0});
+        setIsPreviewDragging(false);
+        previewDragRef.current.dragging = false;
+    }, [imagePreview.open, imagePreview.index]);
+
+    React.useEffect(() => {
+        if (previewZoom <= 1) {
+            setPreviewPan({x: 0, y: 0});
+            setIsPreviewDragging(false);
+            previewDragRef.current.dragging = false;
+        }
+    }, [previewZoom]);
+
+    const clampPreviewPan = React.useCallback(
+        (panX, panY) => {
+            const frameEl = previewFrameRef.current;
+            if (!frameEl) return {x: 0, y: 0};
+
+            const frameRect = frameEl.getBoundingClientRect();
+            const frameWidth = frameRect.width;
+            const frameHeight = frameRect.height;
+            if (!frameWidth || !frameHeight) return {x: 0, y: 0};
+
+            // Clamp by frame bounds so dragging never reveals outside background.
+            const maxOffsetX = Math.max(0, ((previewZoom - 1) * frameWidth) / 2);
+            const maxOffsetY = Math.max(0, ((previewZoom - 1) * frameHeight) / 2);
+            const x = Math.min(maxOffsetX, Math.max(-maxOffsetX, panX));
+            const y = Math.min(maxOffsetY, Math.max(-maxOffsetY, panY));
+
+            return {x, y};
+        },
+        [previewZoom]
+    );
+
+    React.useEffect(() => {
+        setPreviewPan((prev) => clampPreviewPan(prev.x, prev.y));
+    }, [previewZoom, imagePreview.index, clampPreviewPan]);
+
+    const handlePreviewMouseDown = React.useCallback(
+        (event) => {
+            if (previewZoom <= 1) return;
+            event.preventDefault();
+            previewDragRef.current = {
+                dragging: true,
+                startX: event.clientX,
+                startY: event.clientY,
+                baseX: previewPan.x,
+                baseY: previewPan.y
+            };
+            setIsPreviewDragging(true);
+        },
+        [previewZoom, previewPan.x, previewPan.y]
+    );
+
+    const handlePreviewMouseMove = React.useCallback((event) => {
+        const drag = previewDragRef.current;
+        if (!drag.dragging) return;
+        const deltaX = event.clientX - drag.startX;
+        const deltaY = event.clientY - drag.startY;
+        const nextPan = clampPreviewPan(drag.baseX + deltaX, drag.baseY + deltaY);
+        setPreviewPan(nextPan);
+    }, [clampPreviewPan]);
+
+    const handlePreviewMouseUp = React.useCallback(() => {
+        if (!previewDragRef.current.dragging) return;
+        previewDragRef.current.dragging = false;
+        setIsPreviewDragging(false);
+    }, []);
+
     const handleConfirmDisable = async () => {
         const postId = Number(disableTarget?.id);
         if (!Number.isFinite(postId) || postId <= 0) {
@@ -388,15 +522,17 @@ export default function PostFeedPage() {
         <Box
             sx={{
                 minHeight: "100vh",
-                pt: {xs: 12, md: 14},
+                pt: {xs: 10.5, md: 12},
                 pb: {xs: 3, md: 5},
                 background: "linear-gradient(180deg, #e7edf6 0%, #d4deec 100%)"
             }}
         >
             <Container maxWidth="md">
-                <Typography sx={{fontSize: {xs: "1.5rem", md: "2rem"}, fontWeight: 900, color: "#0f172a", mb: 0.75}}>
-                    Bảng tin EduBridge
-                </Typography>
+                {canDisablePost ? (
+                    <Box sx={{mt: {xs: -0.5, md: -1}, mb: 2}}>
+                        <HomeCreatePostBar visible belowHero maxBarWidth="100%" onPostCreated={reloadPosts} />
+                    </Box>
+                ) : null}
 
                 {loading ? (
                     <Box sx={{display: "flex", justifyContent: "center", py: 10}}>
@@ -430,74 +566,206 @@ export default function PostFeedPage() {
             <Dialog
                 open={Boolean(imagePreview.open)}
                 onClose={() => setImagePreview({open: false, post: null, index: 0})}
-                fullWidth
-                maxWidth="md"
+                fullScreen
+                sx={{
+                    "& .MuiDialog-paper.MuiDialog-paperFullScreen": {
+                        margin: 0,
+                        width: {xs: "calc(100% - 6px)", md: "calc(100% - 18px)"},
+                        height: {xs: "calc(100% - 10px)", md: "calc(100% - 22px)"},
+                        maxWidth: "none",
+                        maxHeight: "none",
+                        display: "flex",
+                        flexDirection: "column",
+                        borderRadius: {xs: 2, md: 3},
+                        overflow: "hidden",
+                        backgroundColor: "transparent",
+                        backgroundImage: "none",
+                        boxShadow: "none",
+                        border: "none"
+                    }
+                }}
             >
-                <DialogTitle sx={{fontWeight: 800, pr: 6}}>
-                    {imagePreview.post?.title || "Xem ảnh"}
-                    <IconButton
-                        onClick={() => setImagePreview({open: false, post: null, index: 0})}
-                        sx={{position: "absolute", right: 8, top: 8}}
-                    >
-                        <CloseIcon />
-                    </IconButton>
-                </DialogTitle>
-                <DialogContent dividers>
+                <DialogContent
+                    sx={{
+                        px: {xs: 1, md: 1.5},
+                        py: {xs: 1.5, md: 2},
+                        overflow: "hidden",
+                        bgcolor: "transparent",
+                        display: "flex",
+                        flex: 1,
+                        minHeight: 0,
+                        height: "100%"
+                    }}
+                >
                     {(() => {
                         const images = imagePreview.post
                             ? [imagePreview.post.heroImage, ...imagePreview.post.detailImages].filter(Boolean)
                             : [];
                         const currentImg = images[imagePreview.index] || images[0];
+                        const isThumbnailImage = imagePreview.index === 0;
                         return currentImg ? (
-                            <Box sx={{position: "relative"}}>
+                            <Box
+                                sx={{
+                                    height: "100%",
+                                    flex: 1,
+                                    display: "grid",
+                                    gridTemplateColumns: {xs: "1fr", md: "380px 1fr"},
+                                    borderRadius: {xs: 2, md: 3},
+                                    overflow: "hidden",
+                                    minHeight: 0
+                                }}
+                            >
                                 <Box
-                                    component="img"
-                                    src={currentImg}
-                                    alt={imagePreview.post?.title || "preview"}
-                                    sx={{width: "100%", maxHeight: "70vh", objectFit: "contain", borderRadius: 2}}
-                                />
-                                {images.length > 1 ? (
-                                    <>
+                                    sx={{
+                                        p: {xs: 2, md: 2.5},
+                                        borderRight: {xs: "none", md: "1px solid rgba(148,163,184,0.24)"},
+                                        borderBottom: {xs: "1px solid rgba(148,163,184,0.24)", md: "none"},
+                                        overflowY: "auto",
+                                        bgcolor: "#ffffff"
+                                    }}
+                                >
+                                    <Typography sx={{fontWeight: 800, color: "#0f172a", mb: 1}}>
+                                        {imagePreview.post?.title || "Bài viết"}
+                                    </Typography>
+                                    <Typography sx={{fontSize: "0.9rem", color: "#64748b", mb: 1}}>
+                                        {imagePreview.post?.authorName || "EduBridge"} • {imagePreview.post?.date || "Vừa đăng"}
+                                    </Typography>
+                                    <Typography
+                                        component="div"
+                                        sx={{
+                                            color: "#334155",
+                                            fontSize: "0.94rem",
+                                            lineHeight: 1.65,
+                                            "& p": {my: 0.6},
+                                            "& ul, & ol": {pl: 2.25, my: 0.6},
+                                            "& li": {my: 0.2},
+                                            "& a": {color: APP_PRIMARY_MAIN}
+                                        }}
+                                        dangerouslySetInnerHTML={{
+                                            __html:
+                                                imagePreview.post?.captionHtml ||
+                                                imagePreview.post?.caption ||
+                                                "Bài viết chưa có mô tả."
+                                        }}
+                                    />
+                                </Box>
+                                <Box
+                                    sx={{
+                                        position: "relative",
+                                        bgcolor: isThumbnailImage ? "#eaf3ff" : "#111827",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        p: 0,
+                                        minHeight: 0,
+                                        overflow: "hidden",
+                                        cursor: previewZoom > 1 ? (isPreviewDragging ? "grabbing" : "grab") : "default"
+                                    }}
+                                    ref={previewFrameRef}
+                                    onMouseDown={handlePreviewMouseDown}
+                                    onMouseMove={handlePreviewMouseMove}
+                                    onMouseUp={handlePreviewMouseUp}
+                                    onMouseLeave={handlePreviewMouseUp}
+                                >
+                                    <Box
+                                        component="img"
+                                        src={currentImg}
+                                        alt={imagePreview.post?.title || "preview"}
+                                        draggable={false}
+                                        ref={previewImageRef}
+                                        onLoad={() => setPreviewPan((prev) => clampPreviewPan(prev.x, prev.y))}
+                                        sx={{
+                                            width: "100%",
+                                            height: "100%",
+                                            objectFit: isThumbnailImage ? "contain" : "cover",
+                                            transform: `translate(${previewPan.x}px, ${previewPan.y}px) scale(${previewZoom})`,
+                                            transformOrigin: "center center",
+                                            transition: isPreviewDragging ? "none" : "transform 140ms ease",
+                                            userSelect: "none",
+                                            pointerEvents: "none"
+                                        }}
+                                    />
+                                    <Stack direction="row" spacing={0.75} sx={{position: "absolute", right: 58, top: 10, zIndex: 3}}>
                                         <IconButton
-                                            onClick={() =>
-                                                setImagePreview((prev) => ({
-                                                    ...prev,
-                                                    index: (prev.index - 1 + images.length) % images.length
-                                                }))
-                                            }
+                                            onClick={() => setPreviewZoom((z) => Math.max(1, Number((z - 0.2).toFixed(1))))}
+                                            disabled={previewZoom <= 1}
                                             sx={{
-                                                position: "absolute",
-                                                left: 8,
-                                                top: "50%",
-                                                transform: "translateY(-50%)",
-                                                bgcolor: "rgba(15,23,42,0.42)",
+                                                bgcolor: "rgba(15,23,42,0.44)",
                                                 color: "#fff",
                                                 "&:hover": {bgcolor: "rgba(15,23,42,0.62)"}
                                             }}
                                         >
-                                            <ChevronLeftIcon />
+                                            <ZoomOutIcon />
                                         </IconButton>
                                         <IconButton
-                                            onClick={() =>
-                                                setImagePreview((prev) => ({
-                                                    ...prev,
-                                                    index: (prev.index + 1) % images.length
-                                                }))
-                                            }
+                                            onClick={() => setPreviewZoom((z) => Math.min(3, Number((z + 0.2).toFixed(1))))}
+                                            disabled={previewZoom >= 3}
                                             sx={{
-                                                position: "absolute",
-                                                right: 8,
-                                                top: "50%",
-                                                transform: "translateY(-50%)",
-                                                bgcolor: "rgba(15,23,42,0.42)",
+                                                bgcolor: "rgba(15,23,42,0.44)",
                                                 color: "#fff",
                                                 "&:hover": {bgcolor: "rgba(15,23,42,0.62)"}
                                             }}
                                         >
-                                            <ChevronRightIcon />
+                                            <ZoomInIcon />
                                         </IconButton>
-                                    </>
-                                ) : null}
+                                    </Stack>
+                                    <IconButton
+                                        onClick={() => setImagePreview({open: false, post: null, index: 0})}
+                                        sx={{
+                                            position: "absolute",
+                                            right: 10,
+                                            top: 10,
+                                            zIndex: 3,
+                                            bgcolor: "rgba(15,23,42,0.44)",
+                                            color: "#fff",
+                                            "&:hover": {bgcolor: "rgba(15,23,42,0.62)"}
+                                        }}
+                                    >
+                                        <CloseIcon />
+                                    </IconButton>
+                                    {images.length > 1 ? (
+                                        <>
+                                            <IconButton
+                                                onClick={() =>
+                                                    setImagePreview((prev) => ({
+                                                        ...prev,
+                                                        index: (prev.index - 1 + images.length) % images.length
+                                                    }))
+                                                }
+                                                sx={{
+                                                    position: "absolute",
+                                                    left: 10,
+                                                    top: "50%",
+                                                    transform: "translateY(-50%)",
+                                                    bgcolor: "rgba(15,23,42,0.42)",
+                                                    color: "#fff",
+                                                    "&:hover": {bgcolor: "rgba(15,23,42,0.62)"}
+                                                }}
+                                            >
+                                                <ChevronLeftIcon />
+                                            </IconButton>
+                                            <IconButton
+                                                onClick={() =>
+                                                    setImagePreview((prev) => ({
+                                                        ...prev,
+                                                        index: (prev.index + 1) % images.length
+                                                    }))
+                                                }
+                                                sx={{
+                                                    position: "absolute",
+                                                    right: 10,
+                                                    top: "50%",
+                                                    transform: "translateY(-50%)",
+                                                    bgcolor: "rgba(15,23,42,0.42)",
+                                                    color: "#fff",
+                                                    "&:hover": {bgcolor: "rgba(15,23,42,0.62)"}
+                                                }}
+                                            >
+                                                <ChevronRightIcon />
+                                            </IconButton>
+                                        </>
+                                    ) : null}
+                                </Box>
                             </Box>
                         ) : (
                             <Typography sx={{color: "#64748b"}}>Không có ảnh để xem.</Typography>
