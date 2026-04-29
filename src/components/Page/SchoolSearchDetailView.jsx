@@ -2351,6 +2351,13 @@ export default function SchoolSearchDetailView({
         (slot) => {
             if (!isParent || !slot) return;
             if (!consultSlotLooksUpcoming(slot.status, slot.statusLabel)) return;
+            const selectedCampus = campusListForDetail[campusDetailTabIndex];
+            const rawCampusId = selectedCampus?.id ?? selectedCampus?.campusId ?? selectedCampus?.campusID;
+            const campusId = Number(rawCampusId);
+            if (!Number.isFinite(campusId) || campusId <= 0) {
+                showWarningSnackbar("Không lấy được thông tin cơ sở. Vui lòng chọn lại cơ sở.");
+                return;
+            }
             const cachedUser = (() => {
                 try {
                     if (typeof window === "undefined") return null;
@@ -2362,7 +2369,8 @@ export default function SchoolSearchDetailView({
             })();
             setSelectedConsultBookingSlot({
                 appointmentDate: String(slot.date || "").slice(0, 10),
-                appointmentTime: normalizeConsultSlotTime(slot.startTime)
+                appointmentTime: normalizeConsultSlotTime(slot.startTime),
+                campusId
             });
             setBookingPhone(
                 String(
@@ -2376,7 +2384,7 @@ export default function SchoolSearchDetailView({
             setBookingQuestion("");
             setConsultBookingDialogOpen(true);
         },
-        [isParent]
+        [isParent, campusListForDetail, campusDetailTabIndex]
     );
     const closeConsultBookingDialog = React.useCallback(() => {
         if (bookingSubmitting) return;
@@ -2387,8 +2395,13 @@ export default function SchoolSearchDetailView({
     }, [bookingSubmitting]);
     const submitConsultBooking = React.useCallback(async () => {
         if (!selectedConsultBookingSlot) return;
+        const campusId = Number(selectedConsultBookingSlot.campusId);
         const phone = bookingPhone.trim();
         const question = bookingQuestion.trim();
+        if (!Number.isFinite(campusId) || campusId <= 0) {
+            showWarningSnackbar("Không lấy được campusId hợp lệ.");
+            return;
+        }
         if (!phone) {
             showWarningSnackbar("Vui lòng nhập số điện thoại.");
             return;
@@ -2406,6 +2419,7 @@ export default function SchoolSearchDetailView({
         setBookingSubmitting(true);
         try {
             await bookParentOfflineConsultation({
+                campusId,
                 phone,
                 question,
                 appointmentTime,
