@@ -219,7 +219,21 @@ function FeedPostCard({post, onOpen, onDisable, disableLoading = false, canDisab
         .join("") || "ED";
 
     return (
-        <Card sx={{position: "relative", borderRadius: 3, border: "1px solid rgba(148,163,184,0.25)", boxShadow: "0 14px 32px rgba(15,23,42,0.08)"}}>
+        <Card
+            sx={{
+                position: "relative",
+                borderRadius: 3,
+                border: "none",
+                background: "linear-gradient(180deg, #ffffff 0%, #f8fbff 100%)",
+                boxShadow: "0 16px 34px rgba(15,23,42,0.14)",
+                transition: "background-color 180ms ease, transform 180ms ease, box-shadow 180ms ease",
+                "&:hover": {
+                    backgroundColor: "#f1f7ff",
+                    transform: "translateY(-2px)",
+                    boxShadow: "0 20px 40px rgba(15,23,42,0.18)"
+                }
+            }}
+        >
             {canDisable ? (
                 <IconButton
                     onClick={() => onDisable(post)}
@@ -376,7 +390,7 @@ export default function PostFeedPage() {
                 minHeight: "100vh",
                 pt: {xs: 12, md: 14},
                 pb: {xs: 3, md: 5},
-                background: "linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%)"
+                background: "linear-gradient(180deg, #e7edf6 0%, #d4deec 100%)"
             }}
         >
             <Container maxWidth="md">
