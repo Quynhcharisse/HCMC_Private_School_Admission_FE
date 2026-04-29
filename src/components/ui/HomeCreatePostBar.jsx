@@ -236,10 +236,7 @@ export default function HomeCreatePostBar({
         } catch (err) {
             console.warn("⚠️ Lỗi lấy profile:", err.message);
         }
-        console.log("📦 Post Payload:", body);
-        console.log("👤 Full Profile:", profile);
-        console.log("🏫 isPrimaryBranch:", profile?.campus?.isPrimaryBranch);
-
+    
         const err = validateClientPayload(body);
         if (err) {
             console.warn("⚠️ Validation Error:", err);

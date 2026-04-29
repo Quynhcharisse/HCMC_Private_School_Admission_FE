@@ -32,6 +32,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import PersonIcon from '@mui/icons-material/Person';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import ChatBubbleRoundedIcon from "@mui/icons-material/ChatBubbleRounded";
+import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import SearchIcon from "@mui/icons-material/Search";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import CloseIcon from "@mui/icons-material/Close";
@@ -73,6 +74,16 @@ import ParentStudentInfoPanel, {
     parseMessagesHistoryPayloadRoot,
     extractSubjectsInSystemFromPayload,
 } from "../chat/ParentStudentInfoPanel.jsx";
+import {
+    clearNotificationUnreadCount,
+    getNotificationsForUser,
+    markAllNotificationsAsRead,
+    markNotificationAsRead,
+    readNotificationUnreadCount,
+    refreshNotificationInboxForUser,
+    watchNotificationList,
+    watchNotificationUnread,
+} from "../../services/NotificationService.jsx";
 
 /** Khi bật poll: khoảng cách tối thiểu giữa các lần GET lịch sử tin (chỉ khi ENABLE_PARENT_CHAT_POLLING). */
 const PARENT_CHAT_POLL_INTERVAL_MS = 30000;
@@ -590,6 +601,7 @@ function MainHeader() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
     const [messageAnchorEl, setMessageAnchorEl] = useState(null);
+    const [notificationAnchorEl, setNotificationAnchorEl] = useState(null);
     const [profileData, setProfileData] = useState(null);
     const [_loadingProfile, setLoadingProfile] = useState(false);
     const [conversationItems, setConversationItems] = useState([]);
@@ -620,6 +632,8 @@ function MainHeader() {
     const [pendingChatTarget, setPendingChatTarget] = useState(null);
     /** Badge khi BE không gửi conversationId trên WS nhưng tin đã vào queue phụ huynh. */
     const [parentWsUnreadBump, setParentWsUnreadBump] = useState(0);
+    const [notificationUnreadCount, setNotificationUnreadCount] = useState(() => readNotificationUnreadCount());
+    const [notificationItems, setNotificationItems] = useState([]);
 
     const chatListRef = React.useRef(null);
     const loadingMoreRef = React.useRef(false);
@@ -675,6 +689,27 @@ function MainHeader() {
     const isParent = normalizedRole === 'PARENT';
     const isSchool = normalizedRole === 'SCHOOL';
     const isAdmin = normalizedRole === 'ADMIN';
+
+    useEffect(() => {
+        if (!isSignedIn) {
+            setNotificationUnreadCount(0);
+            setNotificationItems([]);
+            return undefined;
+        }
+        setNotificationUnreadCount(readNotificationUnreadCount());
+        const stopUnreadWatch = watchNotificationUnread((count) => {
+            setNotificationUnreadCount(count);
+        });
+        const stopListWatch = watchNotificationList((items) => {
+            setNotificationItems(items);
+        }, userInfo);
+        setNotificationItems(getNotificationsForUser(userInfo));
+        refreshNotificationInboxForUser(userInfo).catch(() => {});
+        return () => {
+            stopUnreadWatch?.();
+            stopListWatch?.();
+        };
+    }, [isSignedIn, userInfo?.email]);
     const userIdentitySet = React.useMemo(() => {
         return new Set(
             [
@@ -2401,6 +2436,30 @@ function MainHeader() {
         setMobileMenuOpen(false);
     };
 
+    const handleNotificationClick = (event) => {
+        setNotificationAnchorEl(event.currentTarget);
+        refreshNotificationInboxForUser(userInfo).catch(() => {});
+    };
+
+    const handleNotificationClose = () => {
+        setNotificationAnchorEl(null);
+    };
+
+    const handleMarkAllNotificationsRead = () => {
+        markAllNotificationsAsRead(userInfo);
+        clearNotificationUnreadCount();
+    };
+
+    const handleNotificationItemClick = (item) => {
+        if (item?.id) {
+            markNotificationAsRead({notificationId: item.id, user: userInfo});
+        }
+        clearNotificationUnreadCount();
+        handleNotificationClose();
+        const route = String(item?.route || '/posts').trim();
+        goTo(route.startsWith('/') ? route : '/posts');
+    };
+
     const profileBody = React.useMemo(() => {
         if (!profileData?.body) return null;
         if (typeof profileData.body !== 'string') return profileData.body;
@@ -2670,6 +2729,135 @@ function MainHeader() {
                     <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', gap: 1}}>
                         {isSignedIn ? (
                             <>
+                                <Badge
+                                    badgeContent={Math.min(99, notificationUnreadCount)}
+                                    color="error"
+                                    overlap="circular"
+                                    invisible={notificationUnreadCount === 0}
+                                    sx={{
+                                        mr: 0.5,
+                                        '& .MuiBadge-badge': {
+                                            fontSize: 11,
+                                            fontWeight: 700,
+                                            minWidth: 18,
+                                            height: 18,
+                                            borderRadius: 9
+                                        }
+                                    }}
+                                >
+                                    <IconButton
+                                        onClick={handleNotificationClick}
+                                        aria-label="Thông báo"
+                                        sx={{
+                                            width: 42,
+                                            height: 42,
+                                            bgcolor: 'rgba(37,99,235,0.08)',
+                                            color: BRAND_NAVY,
+                                            border: '1px solid rgba(59,130,246,0.35)',
+                                            '&:hover': {
+                                                bgcolor: 'rgba(37,99,235,0.12)',
+                                                color: APP_PRIMARY_DARK,
+                                                transform: 'translateY(-1px)',
+                                                boxShadow: '0 4px 14px rgba(37,99,235,0.18)'
+                                            },
+                                            transition: 'all 0.2s ease'
+                                        }}
+                                    >
+                                        <NotificationsNoneRoundedIcon sx={{fontSize: 22}}/>
+                                    </IconButton>
+                                </Badge>
+                                <Menu
+                                    anchorEl={notificationAnchorEl}
+                                    open={Boolean(notificationAnchorEl)}
+                                    onClose={handleNotificationClose}
+                                    anchorOrigin={{vertical: 'bottom', horizontal: 'right'}}
+                                    transformOrigin={{vertical: 'top', horizontal: 'right'}}
+                                    disableScrollLock={true}
+                                    slotProps={{
+                                        paper: {
+                                            sx: {
+                                                borderRadius: 3,
+                                                border: '1px solid rgba(59,130,246,0.18)',
+                                                boxShadow: '0 18px 40px rgba(51,65,85,0.18)',
+                                                width: 380,
+                                                maxWidth: 'calc(100vw - 24px)',
+                                                mt: 1.2,
+                                                p: 0,
+                                                overflow: 'hidden',
+                                                bgcolor: 'rgba(255,255,255,0.98)'
+                                            }
+                                        }
+                                    }}
+                                >
+                                    <Box sx={{px: 2, py: 1.5, borderBottom: '1px solid rgba(59,130,246,0.1)'}}>
+                                        <Box sx={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                                            <Typography sx={{fontSize: 24, fontWeight: 800, color: '#1e293b'}}>
+                                                Notifications
+                                            </Typography>
+                                            <Button
+                                                size="small"
+                                                onClick={handleMarkAllNotificationsRead}
+                                                sx={{textTransform: 'none', fontWeight: 700}}
+                                            >
+                                                Mark all read
+                                            </Button>
+                                        </Box>
+                                    </Box>
+                                    <List sx={{p: 0, maxHeight: 420, overflowY: 'auto'}}>
+                                        {notificationItems.length === 0 ? (
+                                            <ListItem>
+                                                <ListItemText
+                                                    primary="Chưa có thông báo"
+                                                    secondary="Thông báo mới sẽ hiện tại đây."
+                                                />
+                                            </ListItem>
+                                        ) : notificationItems.map((item) => (
+                                            <ListItemButton
+                                                key={item.id}
+                                                onClick={() => handleNotificationItemClick(item)}
+                                                sx={{
+                                                    alignItems: 'flex-start',
+                                                    gap: 1.25,
+                                                    py: 1.25,
+                                                    px: 2,
+                                                    borderBottom: '1px solid rgba(226,232,240,0.8)',
+                                                    bgcolor: item.read ? 'transparent' : 'rgba(59,130,246,0.06)'
+                                                }}
+                                            >
+                                                <Avatar
+                                                    sx={{
+                                                        width: 40,
+                                                        height: 40,
+                                                        bgcolor: 'rgba(37,99,235,0.12)',
+                                                        color: '#1d4ed8',
+                                                        fontWeight: 800
+                                                    }}
+                                                >
+                                                    <NotificationsNoneRoundedIcon fontSize="small"/>
+                                                </Avatar>
+                                                <Box sx={{minWidth: 0, flex: 1}}>
+                                                    <Typography sx={{fontWeight: 700, color: '#0f172a', lineHeight: 1.3}}>
+                                                        {item.title}
+                                                    </Typography>
+                                                    <Typography sx={{fontSize: 14, color: '#334155', lineHeight: 1.35}}>
+                                                        {item.body}
+                                                    </Typography>
+                                                </Box>
+                                                {!item.read && (
+                                                    <Box
+                                                        sx={{
+                                                            width: 10,
+                                                            height: 10,
+                                                            borderRadius: '50%',
+                                                            bgcolor: '#3b82f6',
+                                                            mt: 1
+                                                        }}
+                                                    />
+                                                )}
+                                            </ListItemButton>
+                                        ))}
+                                    </List>
+                                </Menu>
                                 {isParent && (
                                     <Badge
                                         badgeContent={parentHeaderUnreadDisplay}

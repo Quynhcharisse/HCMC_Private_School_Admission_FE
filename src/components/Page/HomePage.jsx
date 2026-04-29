@@ -6,52 +6,50 @@ import {
     Card,
     CardContent,
     CardMedia,
+    Chip,
+    CircularProgress,
     Container,
-    Typography,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
+    FormControl,
+    IconButton,
+    InputLabel,
+    Link,
+    MenuItem,
+    Select,
     Stack,
     TextField,
-    Chip,
-    MenuItem,
-    Dialog,
-    DialogTitle,
-    DialogContent,
-    DialogActions,
-    FormControl,
-    InputLabel,
-    Select,
-    CircularProgress,
-    IconButton,
-    useMediaQuery,
-    Link
+    Typography,
+    useMediaQuery
 } from "@mui/material";
 import {useTheme} from "@mui/material/styles";
 import {syncLocalUserWithAccess, updateProfile} from "../../services/AccountService";
 import {normalizeUserRole, notifyAuthUserStorageChanged, sanitizeUserForLocalStorage} from "../../utils/userRole.js";
 import {enqueueSnackbar} from "notistack";
 import {
+    Add as AddIcon,
     ArrowForward as ArrowForwardIcon,
-    LocationOn as LocationIcon,
+    CalendarMonthOutlined as CalendarMonthIcon,
+    CheckCircle as CheckCircleIcon,
     ChevronLeft as ChevronLeftIcon,
     ChevronRight as ChevronRightIcon,
-    Search as SearchIcon,
-    AutoAwesome as SparkleIcon,
-    FormatQuote as FormatQuoteIcon,
-    HeadsetMicOutlined as HeadsetMicIcon,
-    CalendarMonthOutlined as CalendarMonthIcon,
-    SmartToyOutlined as SmartToyIcon,
-    Add as AddIcon,
-    CheckCircle as CheckCircleIcon,
     Favorite as FavoriteIcon,
     FavoriteBorder as FavoriteBorderIcon,
+    FormatQuote as FormatQuoteIcon,
+    HeadsetMicOutlined as HeadsetMicIcon,
     Language as LanguageIcon,
-    Phone as PhoneIcon
+    LocationOn as LocationIcon,
+    Phone as PhoneIcon,
+    Search as SearchIcon,
+    SmartToyOutlined as SmartToyIcon
 } from "@mui/icons-material";
 import {useLocation, useNavigate} from "react-router-dom";
 import {
     APP_PRIMARY_DARK,
     APP_PRIMARY_MAIN,
     APP_PRIMARY_SOFT_BG,
-    APP_PRIMARY_SOFT_BORDER,
     BRAND_NAVY,
     BRAND_SKY,
     BRAND_SKY_LIGHT,
@@ -67,13 +65,9 @@ import {createSchoolSubscriptionPayment} from "../../services/SchoolSubscription
 import {getPostList} from "../../services/PostService.jsx";
 import SchoolServicePackagesGrid from "../ui/SchoolServicePackagesGrid.jsx";
 import SchoolSearchDetailView from "./SchoolSearchDetailView.jsx";
-import {mapPublicSchoolDetailToRow, DEFAULT_SCHOOL_IMAGE} from "../../utils/schoolPublicMapper.js";
+import {DEFAULT_SCHOOL_IMAGE, mapPublicSchoolDetailToRow} from "../../utils/schoolPublicMapper.js";
 import {showSuccessSnackbar, showWarningSnackbar} from "../ui/AppSnackbar.jsx";
-import {
-    getCompareSchools,
-    MAX_COMPARE_SCHOOLS,
-    setCompareSchools
-} from "../../utils/compareSchoolsStorage";
+import {getCompareSchools, MAX_COMPARE_SCHOOLS, setCompareSchools} from "../../utils/compareSchoolsStorage";
 import {getSchoolStorageKey, getUserIdentity} from "../../utils/savedSchoolsStorage";
 import {
     deleteParentFavouriteSchool,
@@ -394,7 +388,17 @@ function mapApiPostToBlogCard(raw) {
     return {title, description, descriptionHtml, contentBlocks, image, detailImages, date, tags, url, id};
 }
 
-function BlogCard({title, description, descriptionHtml, image, date, tags = [], url, variant = 'featured', onOpenDetail}) {
+function BlogCard({
+                      title,
+                      description,
+                      descriptionHtml,
+                      image,
+                      date,
+                      tags = [],
+                      url,
+                      variant = 'featured',
+                      onOpenDetail
+                  }) {
     const isFeatured = variant === 'featured';
     const isExternal = typeof url === "string" && /^https?:\/\//i.test(url);
     return (
@@ -433,12 +437,10 @@ function BlogCard({title, description, descriptionHtml, image, date, tags = [], 
                     height={isFeatured ? 240 : 168}
                     image={image}
                     alt={title}
-                    imgProps={{
-                        referrerPolicy: "no-referrer",
-                        onError: (e) => {
-                            if (e?.currentTarget?.src !== DEFAULT_SCHOOL_IMAGE) {
-                                e.currentTarget.src = DEFAULT_SCHOOL_IMAGE;
-                            }
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                        if (e?.currentTarget?.src !== DEFAULT_SCHOOL_IMAGE) {
+                            e.currentTarget.src = DEFAULT_SCHOOL_IMAGE;
                         }
                     }}
                     sx={{
@@ -561,8 +563,8 @@ function SchoolCard({school, onOpenDetail, onToggleCompare, onToggleSave, compar
     const address = school.address?.trim?.()
         ? String(school.address).trim()
         : school.location?.trim?.()
-          ? String(school.location).trim()
-          : "";
+            ? String(school.location).trim()
+            : "";
     const website = school.website?.trim?.() ? String(school.website).trim() : "";
     const phone = school.phone?.trim?.() ? String(school.phone).trim() : "";
 
@@ -611,22 +613,20 @@ function SchoolCard({school, onOpenDetail, onToggleCompare, onToggleSave, compar
                     component="img"
                     image={logoSrc}
                     alt={`${displayName} logo`}
-                    imgProps={{
-                        referrerPolicy: 'no-referrer',
-                        onError: (e) => {
-                            if (e?.currentTarget?.src !== DEFAULT_SCHOOL_IMAGE) {
-                                e.currentTarget.src = DEFAULT_SCHOOL_IMAGE;
-                            }
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                        if (e?.currentTarget?.src !== DEFAULT_SCHOOL_IMAGE) {
+                            e.currentTarget.src = DEFAULT_SCHOOL_IMAGE;
                         }
                     }}
-                        sx={{
+                    sx={{
                         height: {xs: 92, sm: 96},
                         width: {xs: 92, sm: 96},
                         flexShrink: 0,
                         borderRadius: '50%',
                         objectFit: 'contain',
                         objectPosition: 'center',
-                        bgcolor: 'rgba(248,250,252,0.95)',
+                        backgroundColor: 'rgba(248,250,252,0.95)',
                         p: 0.65,
                         border: '1px solid rgba(226,232,240,0.9)'
                     }}
@@ -648,7 +648,7 @@ function SchoolCard({school, onOpenDetail, onToggleCompare, onToggleSave, compar
                 >
                     {displayName}
                 </Typography>
-                </Box>
+            </Box>
 
             <CardContent
                 sx={{
@@ -700,13 +700,13 @@ function SchoolCard({school, onOpenDetail, onToggleCompare, onToggleSave, compar
                                 }}
                             >
                                 Đang cập nhật giới thiệu trường.
-                        </Typography>
+                            </Typography>
                         )}
                     </Box>
 
                     <Stack spacing={1.35} sx={{width: '100%'}}>
                         <Box sx={{display: 'flex', alignItems: 'flex-start', gap: 0.75, minWidth: 0}}>
-                            <LocationIcon sx={{fontSize: 17, color: '#0f172a', flexShrink: 0, mt: '3px'}} />
+                            <LocationIcon sx={{fontSize: 17, color: '#0f172a', flexShrink: 0, mt: '3px'}}/>
                             <Typography
                                 sx={{
                                     fontSize: {xs: '0.8125rem', sm: '0.875rem'},
@@ -717,10 +717,10 @@ function SchoolCard({school, onOpenDetail, onToggleCompare, onToggleSave, compar
                                 }}
                             >
                                 {address || 'Đang cập nhật'}
-                        </Typography>
-                    </Box>
+                            </Typography>
+                        </Box>
                         <Box sx={{display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0}}>
-                            <LanguageIcon sx={{fontSize: 17, color: '#0f172a', flexShrink: 0}} />
+                            <LanguageIcon sx={{fontSize: 17, color: '#0f172a', flexShrink: 0}}/>
                             {website ? (
                                 <Link
                                     href={website.startsWith('http') ? website : `https://${website}`}
@@ -743,11 +743,12 @@ function SchoolCard({school, onOpenDetail, onToggleCompare, onToggleSave, compar
                                     {website.replace(/^https?:\/\//i, '')}
                                 </Link>
                             ) : (
-                                <Typography sx={{fontSize: {xs: '0.8125rem', sm: '0.875rem'}, color: '#0f172a'}}>—</Typography>
+                                <Typography
+                                    sx={{fontSize: {xs: '0.8125rem', sm: '0.875rem'}, color: '#0f172a'}}>—</Typography>
                             )}
                         </Box>
                         <Box sx={{display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0}}>
-                            <PhoneIcon sx={{fontSize: 17, color: '#0f172a', flexShrink: 0}} />
+                            <PhoneIcon sx={{fontSize: 17, color: '#0f172a', flexShrink: 0}}/>
                             <Typography
                                 sx={{
                                     fontSize: {xs: '0.8125rem', sm: '0.875rem'},
@@ -802,9 +803,9 @@ function SchoolCard({school, onOpenDetail, onToggleCompare, onToggleSave, compar
                         }}
                     >
                         {inCompare ? (
-                            <CheckCircleIcon sx={{fontSize: 16, color: BRAND_NAVY}} />
+                            <CheckCircleIcon sx={{fontSize: 16, color: BRAND_NAVY}}/>
                         ) : (
-                            <AddIcon sx={{fontSize: 16, color: '#64748b'}} />
+                            <AddIcon sx={{fontSize: 16, color: '#64748b'}}/>
                         )}
                         So sánh
                     </ButtonBase>
@@ -831,16 +832,16 @@ function SchoolCard({school, onOpenDetail, onToggleCompare, onToggleSave, compar
                         }}
                     >
                         {isSaved ? (
-                            <FavoriteIcon sx={{fontSize: 16, color: '#e11d48'}} />
+                            <FavoriteIcon sx={{fontSize: 16, color: '#e11d48'}}/>
                         ) : (
-                            <FavoriteBorderIcon sx={{fontSize: 16, color: '#64748b'}} />
+                            <FavoriteBorderIcon sx={{fontSize: 16, color: '#64748b'}}/>
                         )}
                         {isSaved ? 'Đã yêu thích' : 'Yêu thích'}
                     </ButtonBase>
                     <Button
                         size="small"
                         variant="outlined"
-                        endIcon={<ArrowForwardIcon sx={{fontSize: 16}} />}
+                        endIcon={<ArrowForwardIcon sx={{fontSize: 16}}/>}
                         onClick={() => onOpenDetail?.(school)}
                         sx={{
                             textTransform: 'none',
@@ -1000,278 +1001,278 @@ function LatestAdmissionNewsSection({refreshTrigger = 0}) {
                         boxShadow: 'none'
                     }}
                 >
-                <Box sx={{textAlign: 'center', mb: {xs: 5, md: 7}}}>
-                    <Typography
-                        variant="h3"
-                        sx={{
-                            fontWeight: 700,
-                            mb: 2,
-                            color: '#1e293b',
-                            fontSize: {xs: '1.85rem', md: '2.45rem'},
-                            letterSpacing: '-0.02em'
-                        }}
-                    >
-                        Bảng Tin
-                    </Typography>
-                </Box>
-
-                {loading ? (
-                    <Box sx={{display: 'flex', justifyContent: 'center', py: 6}}>
-                        <CircularProgress sx={{color: APP_PRIMARY_MAIN}} />
-                    </Box>
-                ) : fetchError ? (
-                    <Typography align="center" sx={{color: '#64748b', py: 4}}>
-                        Không tải được danh sách thông báo. Vui lòng thử lại sau.
-                    </Typography>
-                ) : n === 0 ? (
-                    <Typography align="center" sx={{color: '#64748b', py: 4}}>
-                        Chưa có thông báo nào.
-                    </Typography>
-                ) : n < 3 || isMobile ? (
-                    <Box
-                        sx={{
-                            position: 'relative',
-                            maxWidth: {xs: 400, md: 520},
-                            mx: 'auto'
-                        }}
-                    >
-                        <Box
+                    <Box sx={{textAlign: 'center', mb: {xs: 5, md: 7}}}>
+                        <Typography
+                            variant="h3"
                             sx={{
-                                transition: `opacity ${ADMISSION_ANIM_MS}ms ${admissionEase}, transform ${ADMISSION_ANIM_MS}ms ${admissionEase}`,
-                                opacity: 1,
-                                transform: 'translateY(0) scale(1)'
-                            }}
-                            key={posts[active]?.id ?? active}
-                        >
-                            <BlogCard
-                                {...posts[active]}
-                                variant="featured"
-                                onOpenDetail={() => setDetailPost(posts[active])}
-                            />
-                        </Box>
-                        {n > 1 ? (
-                            <>
-                                <IconButton
-                                    onClick={() => goToSlide(active - 1)}
-                                    sx={{
-                                        position: 'absolute',
-                                        left: -8,
-                                        top: '42%',
-                                        bgcolor: 'rgba(255,255,255,0.92)',
-                                        boxShadow: landingSectionShadow(3),
-                                        '&:hover': {bgcolor: '#fff'}
-                                    }}
-                                    aria-label="Tin trước"
-                                >
-                                    <ChevronLeftIcon />
-                                </IconButton>
-                                <IconButton
-                                    onClick={() => goToSlide(active + 1)}
-                                    sx={{
-                                        position: 'absolute',
-                                        right: -8,
-                                        top: '42%',
-                                        bgcolor: 'rgba(255,255,255,0.92)',
-                                        boxShadow: landingSectionShadow(3),
-                                        '&:hover': {bgcolor: '#fff'}
-                                    }}
-                                    aria-label="Tin sau"
-                                >
-                                    <ChevronRightIcon />
-                                </IconButton>
-                            </>
-                        ) : null}
-                    </Box>
-                ) : (
-                    <Box
-                        sx={{
-                            position: 'relative',
-                            display: 'flex',
-                            alignItems: 'stretch',
-                            justifyContent: 'center',
-                            gap: {md: 2, lg: 3},
-                            minHeight: 420,
-                            perspective: '1200px'
-                        }}
-                    >
-                        <Box
-                            onClick={() => goToSlide(prevIndex)}
-                            sx={{
-                                flex: '0 1 26%',
-                                maxWidth: 300,
-                                cursor: 'pointer',
-                                alignSelf: 'center',
-                                transition: `transform ${ADMISSION_ANIM_MS}ms ${admissionEase}, opacity ${ADMISSION_ANIM_MS}ms ${admissionEase}`,
-                                transform: 'translateX(0) scale(0.88)',
-                                opacity: 0.55,
-                                zIndex: 1,
-                                '&:hover': {opacity: 0.75}
+                                fontWeight: 700,
+                                mb: 2,
+                                color: '#1e293b',
+                                fontSize: {xs: '1.85rem', md: '2.45rem'},
+                                letterSpacing: '-0.02em'
                             }}
                         >
-                            <BlogCard
-                                {...posts[prevIndex]}
-                                variant="side"
-                                onOpenDetail={() => setDetailPost(posts[prevIndex])}
-                            />
-                        </Box>
-                        <Box
-                            key={posts[active]?.id ?? active}
-                            sx={{
-                                flex: '0 1 43%',
-                                maxWidth: 390,
-                                zIndex: 3,
-                                transform: 'translateY(-8px) scale(1)',
-                                opacity: 1,
-                                '@keyframes admissionCenterIn': {
-                                    from: {
-                                        opacity: 0.5,
-                                        transform: 'translateY(28px) scale(0.94)'
-                                    },
-                                    to: {
-                                        opacity: 1,
-                                        transform: 'translateY(-8px) scale(1)'
-                                    }
-                                },
-                                animation: `admissionCenterIn ${ADMISSION_ANIM_MS}ms ${admissionEase} both`
-                            }}
-                        >
-                            <BlogCard
-                                {...posts[active]}
-                                variant="featured"
-                                onOpenDetail={() => setDetailPost(posts[active])}
-                            />
-                        </Box>
-                        <Box
-                            onClick={() => goToSlide(nextIndex)}
-                            sx={{
-                                flex: '0 1 26%',
-                                maxWidth: 300,
-                                cursor: 'pointer',
-                                alignSelf: 'center',
-                                transition: `transform ${ADMISSION_ANIM_MS}ms ${admissionEase}, opacity ${ADMISSION_ANIM_MS}ms ${admissionEase}`,
-                                transform: 'translateX(0) scale(0.88)',
-                                opacity: 0.55,
-                                zIndex: 1,
-                                '&:hover': {opacity: 0.75}
-                            }}
-                        >
-                            <BlogCard
-                                {...posts[nextIndex]}
-                                variant="side"
-                                onOpenDetail={() => setDetailPost(posts[nextIndex])}
-                            />
-                        </Box>
-                    </Box>
-                )}
-
-                {!loading && !fetchError && n > 0 ? (
-                    <Stack direction="row" spacing={1} justifyContent="center" sx={{mt: {xs: 3, md: 3.5}}}>
-                        {posts.map((p, i) => (
-                            <Box
-                                key={p.id ?? i}
-                                onClick={() => goToSlide(i)}
-                                sx={{
-                                    width: i === active ? 28 : 9,
-                                    height: 9,
-                                    borderRadius: 999,
-                                    bgcolor: i === active ? APP_PRIMARY_MAIN : 'rgba(51,65,85,0.18)',
-                                    cursor: 'pointer',
-                                    transition: `all ${ADMISSION_ANIM_MS * 0.5}ms ${admissionEase}`
-                                }}
-                            />
-                        ))}
-                    </Stack>
-                ) : null}
-                <Dialog
-                    open={Boolean(detailPost)}
-                    onClose={() => setDetailPost(null)}
-                    fullWidth
-                    maxWidth="md"
-                >
-                    <DialogTitle sx={{fontWeight: 800}}>
-                        {detailPost?.title || "Chi tiết bài viết"}
-                    </DialogTitle>
-                    <DialogContent dividers sx={{pt: 2}}>
-                        {detailPost?.image ? (
-                            <Box
-                                component="img"
-                                src={detailPost.image}
-                                alt={detailPost.title || ""}
-                                referrerPolicy="no-referrer"
-                                sx={{
-                                    width: "100%",
-                                    maxHeight: 320,
-                                    objectFit: "cover",
-                                    borderRadius: 2,
-                                    mb: 2
-                                }}
-                            />
-                        ) : null}
-                        <Typography sx={{fontSize: "0.85rem", color: "#64748b", mb: 1.5}}>
-                            {detailPost?.date}
+                            Bảng Tin
                         </Typography>
-                        {Array.isArray(detailPost?.contentBlocks) && detailPost.contentBlocks.length > 0 ? (
-                            detailPost.contentBlocks.map((block, idx) => (
-                                <Box
-                                    key={`${detailPost?.id ?? "post"}-${idx}`}
-                                    sx={{
-                                        color: "#334155",
-                                        fontSize: "1rem",
-                                        lineHeight: 1.75,
-                                        mb: 1.5,
-                                        "& p": {my: 1},
-                                        "& ul, & ol": {pl: 2.5, my: 1},
-                                        "& li": {my: 0.35}
-                                    }}
-                                    dangerouslySetInnerHTML={{__html: block}}
-                                />
-                            ))
-                        ) : (
-                            <Typography sx={{color: "#64748b"}}>
-                                {detailPost?.description || "Bài viết chưa có nội dung chi tiết."}
-                            </Typography>
-                        )}
-                        {Array.isArray(detailPost?.detailImages) && detailPost.detailImages.length > 0 ? (
+                    </Box>
+
+                    {loading ? (
+                        <Box sx={{display: 'flex', justifyContent: 'center', py: 6}}>
+                            <CircularProgress sx={{color: APP_PRIMARY_MAIN}}/>
+                        </Box>
+                    ) : fetchError ? (
+                        <Typography align="center" sx={{color: '#64748b', py: 4}}>
+                            Không tải được danh sách thông báo. Vui lòng thử lại sau.
+                        </Typography>
+                    ) : n === 0 ? (
+                        <Typography align="center" sx={{color: '#64748b', py: 4}}>
+                            Chưa có thông báo nào.
+                        </Typography>
+                    ) : n < 3 || isMobile ? (
+                        <Box
+                            sx={{
+                                position: 'relative',
+                                maxWidth: {xs: 400, md: 520},
+                                mx: 'auto'
+                            }}
+                        >
                             <Box
                                 sx={{
-                                    mt: 1,
-                                    display: "grid",
-                                    gridTemplateColumns: {xs: "1fr", sm: "repeat(2, minmax(0, 1fr))"},
-                                    gap: 1.25
+                                    transition: `opacity ${ADMISSION_ANIM_MS}ms ${admissionEase}, transform ${ADMISSION_ANIM_MS}ms ${admissionEase}`,
+                                    opacity: 1,
+                                    transform: 'translateY(0) scale(1)'
+                                }}
+                                key={posts[active]?.id ?? active}
+                            >
+                                <BlogCard
+                                    {...posts[active]}
+                                    variant="featured"
+                                    onOpenDetail={() => setDetailPost(posts[active])}
+                                />
+                            </Box>
+                            {n > 1 ? (
+                                <>
+                                    <IconButton
+                                        onClick={() => goToSlide(active - 1)}
+                                        sx={{
+                                            position: 'absolute',
+                                            left: -8,
+                                            top: '42%',
+                                            bgcolor: 'rgba(255,255,255,0.92)',
+                                            boxShadow: landingSectionShadow(3),
+                                            '&:hover': {bgcolor: '#fff'}
+                                        }}
+                                        aria-label="Tin trước"
+                                    >
+                                        <ChevronLeftIcon/>
+                                    </IconButton>
+                                    <IconButton
+                                        onClick={() => goToSlide(active + 1)}
+                                        sx={{
+                                            position: 'absolute',
+                                            right: -8,
+                                            top: '42%',
+                                            bgcolor: 'rgba(255,255,255,0.92)',
+                                            boxShadow: landingSectionShadow(3),
+                                            '&:hover': {bgcolor: '#fff'}
+                                        }}
+                                        aria-label="Tin sau"
+                                    >
+                                        <ChevronRightIcon/>
+                                    </IconButton>
+                                </>
+                            ) : null}
+                        </Box>
+                    ) : (
+                        <Box
+                            sx={{
+                                position: 'relative',
+                                display: 'flex',
+                                alignItems: 'stretch',
+                                justifyContent: 'center',
+                                gap: {md: 2, lg: 3},
+                                minHeight: 420,
+                                perspective: '1200px'
+                            }}
+                        >
+                            <Box
+                                onClick={() => goToSlide(prevIndex)}
+                                sx={{
+                                    flex: '0 1 26%',
+                                    maxWidth: 300,
+                                    cursor: 'pointer',
+                                    alignSelf: 'center',
+                                    transition: `transform ${ADMISSION_ANIM_MS}ms ${admissionEase}, opacity ${ADMISSION_ANIM_MS}ms ${admissionEase}`,
+                                    transform: 'translateX(0) scale(0.88)',
+                                    opacity: 0.55,
+                                    zIndex: 1,
+                                    '&:hover': {opacity: 0.75}
                                 }}
                             >
-                                {detailPost.detailImages.map((imgUrl, idx) => (
+                                <BlogCard
+                                    {...posts[prevIndex]}
+                                    variant="side"
+                                    onOpenDetail={() => setDetailPost(posts[prevIndex])}
+                                />
+                            </Box>
+                            <Box
+                                key={posts[active]?.id ?? active}
+                                sx={{
+                                    flex: '0 1 43%',
+                                    maxWidth: 390,
+                                    zIndex: 3,
+                                    transform: 'translateY(-8px) scale(1)',
+                                    opacity: 1,
+                                    '@keyframes admissionCenterIn': {
+                                        from: {
+                                            opacity: 0.5,
+                                            transform: 'translateY(28px) scale(0.94)'
+                                        },
+                                        to: {
+                                            opacity: 1,
+                                            transform: 'translateY(-8px) scale(1)'
+                                        }
+                                    },
+                                    animation: `admissionCenterIn ${ADMISSION_ANIM_MS}ms ${admissionEase} both`
+                                }}
+                            >
+                                <BlogCard
+                                    {...posts[active]}
+                                    variant="featured"
+                                    onOpenDetail={() => setDetailPost(posts[active])}
+                                />
+                            </Box>
+                            <Box
+                                onClick={() => goToSlide(nextIndex)}
+                                sx={{
+                                    flex: '0 1 26%',
+                                    maxWidth: 300,
+                                    cursor: 'pointer',
+                                    alignSelf: 'center',
+                                    transition: `transform ${ADMISSION_ANIM_MS}ms ${admissionEase}, opacity ${ADMISSION_ANIM_MS}ms ${admissionEase}`,
+                                    transform: 'translateX(0) scale(0.88)',
+                                    opacity: 0.55,
+                                    zIndex: 1,
+                                    '&:hover': {opacity: 0.75}
+                                }}
+                            >
+                                <BlogCard
+                                    {...posts[nextIndex]}
+                                    variant="side"
+                                    onOpenDetail={() => setDetailPost(posts[nextIndex])}
+                                />
+                            </Box>
+                        </Box>
+                    )}
+
+                    {!loading && !fetchError && n > 0 ? (
+                        <Stack direction="row" spacing={1} justifyContent="center" sx={{mt: {xs: 3, md: 3.5}}}>
+                            {posts.map((p, i) => (
+                                <Box
+                                    key={p.id ?? i}
+                                    onClick={() => goToSlide(i)}
+                                    sx={{
+                                        width: i === active ? 28 : 9,
+                                        height: 9,
+                                        borderRadius: 999,
+                                        bgcolor: i === active ? APP_PRIMARY_MAIN : 'rgba(51,65,85,0.18)',
+                                        cursor: 'pointer',
+                                        transition: `all ${ADMISSION_ANIM_MS * 0.5}ms ${admissionEase}`
+                                    }}
+                                />
+                            ))}
+                        </Stack>
+                    ) : null}
+                    <Dialog
+                        open={Boolean(detailPost)}
+                        onClose={() => setDetailPost(null)}
+                        fullWidth
+                        maxWidth="md"
+                    >
+                        <DialogTitle sx={{fontWeight: 800}}>
+                            {detailPost?.title || "Chi tiết bài viết"}
+                        </DialogTitle>
+                        <DialogContent dividers sx={{pt: 2}}>
+                            {detailPost?.image ? (
+                                <Box
+                                    component="img"
+                                    src={detailPost.image}
+                                    alt={detailPost.title || ""}
+                                    referrerPolicy="no-referrer"
+                                    sx={{
+                                        width: "100%",
+                                        maxHeight: 320,
+                                        objectFit: "cover",
+                                        borderRadius: 2,
+                                        mb: 2
+                                    }}
+                                />
+                            ) : null}
+                            <Typography sx={{fontSize: "0.85rem", color: "#64748b", mb: 1.5}}>
+                                {detailPost?.date}
+                            </Typography>
+                            {Array.isArray(detailPost?.contentBlocks) && detailPost.contentBlocks.length > 0 ? (
+                                detailPost.contentBlocks.map((block, idx) => (
                                     <Box
-                                        key={`${detailPost?.id ?? "post"}-detail-image-${idx}`}
-                                        component="img"
-                                        src={imgUrl}
-                                        alt=""
-                                        referrerPolicy="no-referrer"
+                                        key={`${detailPost?.id ?? "post"}-${idx}`}
                                         sx={{
-                                            width: "100%",
-                                            borderRadius: 2,
-                                            maxHeight: 300,
-                                            objectFit: "cover",
-                                            border: "1px solid rgba(148, 163, 184, 0.3)"
+                                            color: "#334155",
+                                            fontSize: "1rem",
+                                            lineHeight: 1.75,
+                                            mb: 1.5,
+                                            "& p": {my: 1},
+                                            "& ul, & ol": {pl: 2.5, my: 1},
+                                            "& li": {my: 0.35}
                                         }}
+                                        dangerouslySetInnerHTML={{__html: block}}
                                     />
-                                ))}
-                            </Box>
-                        ) : null}
-                        {Array.isArray(detailPost?.tags) && detailPost.tags.length > 0 ? (
-                            <Box sx={{display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1}}>
-                                {detailPost.tags.map((tag) => (
-                                    <Chip key={tag} size="small" label={tag} />
-                                ))}
-                            </Box>
-                        ) : null}
-                    </DialogContent>
-                    <DialogActions>
-                        <Button onClick={() => setDetailPost(null)} sx={{textTransform: "none", fontWeight: 700}}>
-                            Đóng
-                        </Button>
-                    </DialogActions>
-                </Dialog>
+                                ))
+                            ) : (
+                                <Typography sx={{color: "#64748b"}}>
+                                    {detailPost?.description || "Bài viết chưa có nội dung chi tiết."}
+                                </Typography>
+                            )}
+                            {Array.isArray(detailPost?.detailImages) && detailPost.detailImages.length > 0 ? (
+                                <Box
+                                    sx={{
+                                        mt: 1,
+                                        display: "grid",
+                                        gridTemplateColumns: {xs: "1fr", sm: "repeat(2, minmax(0, 1fr))"},
+                                        gap: 1.25
+                                    }}
+                                >
+                                    {detailPost.detailImages.map((imgUrl, idx) => (
+                                        <Box
+                                            key={`${detailPost?.id ?? "post"}-detail-image-${idx}`}
+                                            component="img"
+                                            src={imgUrl}
+                                            alt=""
+                                            referrerPolicy="no-referrer"
+                                            sx={{
+                                                width: "100%",
+                                                borderRadius: 2,
+                                                maxHeight: 300,
+                                                objectFit: "cover",
+                                                border: "1px solid rgba(148, 163, 184, 0.3)"
+                                            }}
+                                        />
+                                    ))}
+                                </Box>
+                            ) : null}
+                            {Array.isArray(detailPost?.tags) && detailPost.tags.length > 0 ? (
+                                <Box sx={{display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1}}>
+                                    {detailPost.tags.map((tag) => (
+                                        <Chip key={tag} size="small" label={tag}/>
+                                    ))}
+                                </Box>
+                            ) : null}
+                        </DialogContent>
+                        <DialogActions>
+                            <Button onClick={() => setDetailPost(null)} sx={{textTransform: "none", fontWeight: 700}}>
+                                Đóng
+                            </Button>
+                        </DialogActions>
+                    </Dialog>
                 </Box>
             </Container>
         </Box>
@@ -1665,9 +1666,9 @@ export default function HomePage() {
             let favouriteId = Number(favouriteIdBySchool[schoolId]);
             const exists = Boolean(
                 (Number(selectedSchoolDetail?.id) === schoolId ? selectedSchoolDetail?.isFavourite : undefined) ??
-                    homeSchools.find((s) => Number(s?.id) === schoolId)?.isFavourite ??
-                    schoolRecord?.isFavourite ??
-                    Number.isFinite(favouriteId)
+                homeSchools.find((s) => Number(s?.id) === schoolId)?.isFavourite ??
+                schoolRecord?.isFavourite ??
+                Number.isFinite(favouriteId)
             );
             try {
                 if (exists) {
@@ -1695,9 +1696,9 @@ export default function HomePage() {
                 prev.map((item) =>
                     Number(item?.id) === schoolId
                         ? {
-                              ...item,
-                              isFavourite: !exists
-                          }
+                            ...item,
+                            isFavourite: !exists
+                        }
                         : item
                 )
             );
@@ -2135,7 +2136,7 @@ export default function HomePage() {
         if (isSubmittingParentForm || submitRef.current) {
             return;
         }
-        
+
         submitRef.current = true;
 
         if (!parentFormData.idCardNumber || !parentFormData.idCardNumber.trim()) {
@@ -2189,7 +2190,7 @@ export default function HomePage() {
             };
 
             const response = await updateProfile(profilePayload);
-            
+
             if (response && response.status === 200) {
                 enqueueSnackbar('Cập nhật thông tin thành công!', {variant: 'success'});
                 const userData = localStorage.getItem('user');
@@ -2386,7 +2387,7 @@ export default function HomePage() {
                         }}
                     >
                         {isSubmittingParentForm ? (
-                            <CircularProgress size={20} color="inherit" />
+                            <CircularProgress size={20} color="inherit"/>
                         ) : (
                             'Lưu thông tin'
                         )}
@@ -2431,7 +2432,7 @@ export default function HomePage() {
                             >
                                 Về chúng tôi
                             </Typography>
-                            <Box sx={{width: 64, height: 2, bgcolor: 'rgba(15,23,42,0.18)', my: 2.2}} />
+                            <Box sx={{width: 64, height: 2, bgcolor: 'rgba(15,23,42,0.18)', my: 2.2}}/>
                             <Typography
                                 sx={{
                                     color: '#1e293b',
@@ -2441,9 +2442,18 @@ export default function HomePage() {
                                     maxWidth: 460
                                 }}
                             >
-                                <Box component="span" sx={{fontWeight: 800}}>EduBridgeHCM</Box> kết nối phụ huynh với các trường học phù hợp thông qua thông tin minh bạch và quy trình tư vấn dễ tiếp cận. Chúng tôi tập trung vào trải nghiệm rõ ràng, tiết kiệm thời gian và hỗ trợ ra quyết định hiệu quả cho từng gia đình.
+                                <Box component="span" sx={{fontWeight: 800}}>EduBridgeHCM</Box> kết nối phụ huynh với
+                                các trường học phù hợp thông qua thông tin minh bạch và quy trình tư vấn dễ tiếp cận.
+                                Chúng tôi tập trung vào trải nghiệm rõ ràng, tiết kiệm thời gian và hỗ trợ ra quyết định
+                                hiệu quả cho từng gia đình.
                             </Typography>
-                            <Typography sx={{mt: 1.4, color: '#475569', fontSize: '0.94rem', fontStyle: 'italic', fontWeight: 700}}>
+                            <Typography sx={{
+                                mt: 1.4,
+                                color: '#475569',
+                                fontSize: '0.94rem',
+                                fontStyle: 'italic',
+                                fontWeight: 700
+                            }}>
                                 "Lựa chọn đúng trường, bắt đầu từ thông tin đúng."
                             </Typography>
                             <Box sx={{mt: 2.6}}>
@@ -2497,7 +2507,10 @@ export default function HomePage() {
                                         objectFit: 'cover',
                                         borderRadius: 2,
                                         boxShadow: '0 14px 30px rgba(15,23,42,0.1)',
-                                        transform: aboutVisible ? {xs: 'translateY(0)', md: 'translateY(22px)'} : 'translateY(34px)',
+                                        transform: aboutVisible ? {
+                                            xs: 'translateY(0)',
+                                            md: 'translateY(22px)'
+                                        } : 'translateY(34px)',
                                         opacity: aboutVisible ? 1 : 0,
                                         transition: `opacity 680ms ${admissionEase}, transform 680ms ${admissionEase}`,
                                         transitionDelay: aboutVisible ? '80ms' : '0ms'
@@ -2514,7 +2527,10 @@ export default function HomePage() {
                                         objectFit: 'cover',
                                         borderRadius: 2,
                                         boxShadow: '0 18px 38px rgba(15,23,42,0.12)',
-                                        transform: aboutVisible ? {xs: 'translateY(0)', md: 'translateY(-10px)'} : 'translateY(28px)',
+                                        transform: aboutVisible ? {
+                                            xs: 'translateY(0)',
+                                            md: 'translateY(-10px)'
+                                        } : 'translateY(28px)',
                                         opacity: aboutVisible ? 1 : 0,
                                         transition: `opacity 740ms ${admissionEase}, transform 740ms ${admissionEase}`,
                                         transitionDelay: aboutVisible ? '170ms' : '0ms'
@@ -2531,7 +2547,10 @@ export default function HomePage() {
                                         objectFit: 'cover',
                                         borderRadius: 2,
                                         boxShadow: '0 10px 24px rgba(15,23,42,0.1)',
-                                        transform: aboutVisible ? {xs: 'translateY(0)', md: 'translateY(18px)'} : 'translateY(30px)',
+                                        transform: aboutVisible ? {
+                                            xs: 'translateY(0)',
+                                            md: 'translateY(18px)'
+                                        } : 'translateY(30px)',
                                         opacity: aboutVisible ? 1 : 0,
                                         transition: `opacity 700ms ${admissionEase}, transform 700ms ${admissionEase}`,
                                         transitionDelay: aboutVisible ? '250ms' : '0ms'
@@ -2554,7 +2573,7 @@ export default function HomePage() {
                     }}
                 >
                     <Container maxWidth="xl" sx={{px: {xs: 2, sm: 3, md: 4}}}>
-                        <HomeCreatePostBar belowHero visible />
+                        <HomeCreatePostBar belowHero visible/>
                     </Container>
                 </Box>
             )}
@@ -2573,62 +2592,64 @@ export default function HomePage() {
                 }}
             >
                 <Container maxWidth="lg" sx={{px: {xs: 2.5, md: 4}, position: 'relative', zIndex: 3}}>
-                        <Box
-                            sx={{
+                    <Box
+                        sx={{
                             textAlign: 'center',
                             mb: {xs: 3.5, md: 4.5}
                         }}
                     >
-                            <Typography
+                        <Typography
                             component="h2"
-                                sx={{
-                                    fontWeight: 700,
+                            sx={{
+                                fontWeight: 700,
                                 fontSize: {xs: '1.8rem', md: '2.5rem'},
                                 lineHeight: 1.14,
-                                    color: '#0f172a',
+                                color: '#0f172a',
                                 letterSpacing: '-0.02em'
-                                }}
-                            >
-                                Danh sách trường tư thục
-                            </Typography>
-                            <Typography
-                                sx={{
+                            }}
+                        >
+                            Danh sách trường tư thục
+                        </Typography>
+                        <Typography
+                            sx={{
                                 color: '#64748b',
                                 fontSize: {xs: '0.93rem', md: '1rem'},
                                 lineHeight: 1.75,
                                 maxWidth: 620,
-                                    mx: 'auto',
+                                mx: 'auto',
                                 mt: 1.5
-                                }}
-                            >
-                                Khám phá nhanh các trường đang được quan tâm để bắt đầu hành trình chọn trường phù hợp.
-                            </Typography>
-                        </Box>
+                            }}
+                        >
+                            Khám phá nhanh các trường đang được quan tâm để bắt đầu hành trình chọn trường phù hợp.
+                        </Typography>
+                    </Box>
                     <Box sx={{position: 'relative', zIndex: 3}}>
                         {schoolLoading ? (
                             <Box sx={{display: "flex", alignItems: "center", gap: 1}}>
-                                <CircularProgress size={18} sx={{color: BRAND_NAVY}} />
-                                <Typography sx={{color: '#64748b', fontSize: '0.9rem'}}>Đang tải danh sách trường...</Typography>
+                                <CircularProgress size={18} sx={{color: BRAND_NAVY}}/>
+                                <Typography sx={{color: '#64748b', fontSize: '0.9rem'}}>Đang tải danh sách
+                                    trường...</Typography>
                             </Box>
                         ) : showcaseSchools.length === 0 ? (
-                            <Typography sx={{color: '#64748b', fontSize: '0.9rem'}}>Hiện chưa có dữ liệu trường.</Typography>
+                            <Typography sx={{color: '#64748b', fontSize: '0.9rem'}}>Hiện chưa có dữ liệu
+                                trường.</Typography>
                         ) : (
                             <>
-                            <Box
-                                sx={{
-                                    display: 'grid',
+                                <Box
+                                    sx={{
+                                        display: 'grid',
                                         width: '100%',
                                         maxWidth: {xs: '100%', md: 1140},
                                         mx: 'auto',
-                                    gridTemplateColumns: {
+                                        gridTemplateColumns: {
                                             xs: 'minmax(0, 1fr)',
-                                        md: 'repeat(3, minmax(0, 1fr))'
-                                    },
+                                            md: 'repeat(3, minmax(0, 1fr))'
+                                        },
                                         gap: {xs: 2.5, md: 3},
                                         alignItems: 'stretch'
-                                }}
-                            >
-                                {showcaseSchools.map((school) => (
+                                    }}
+                                >
+                                    {showcaseSchools.map((school) => (
                                         <SchoolCard
                                             key={school.id || school.name}
                                             school={school}
@@ -2643,7 +2664,7 @@ export default function HomePage() {
                                     <Box sx={{display: 'flex', justifyContent: 'center', mt: {xs: 3, md: 3.5}}}>
                                         <Button
                                             variant="contained"
-                                            endIcon={<ArrowForwardIcon sx={{fontSize: 18}} />}
+                                            endIcon={<ArrowForwardIcon sx={{fontSize: 18}}/>}
                                             onClick={() => navigate('/search-schools')}
                                             sx={{
                                                 borderRadius: 999,
@@ -2665,7 +2686,7 @@ export default function HomePage() {
                                         >
                                             Xem thêm trường
                                         </Button>
-                            </Box>
+                                    </Box>
                                 )}
                             </>
                         )}
@@ -2736,7 +2757,10 @@ export default function HomePage() {
                                             px: {xs: 2.5, md: 3.6},
                                             py: {xs: 3.3, md: 4.25},
                                             borderRight: {md: i < CONSULT_STEPS.length - 1 ? '1px solid rgba(148,163,184,0.2)' : 'none'},
-                                            borderBottom: {xs: i < CONSULT_STEPS.length - 1 ? '1px solid rgba(148,163,184,0.2)' : 'none', md: 'none'},
+                                            borderBottom: {
+                                                xs: i < CONSULT_STEPS.length - 1 ? '1px solid rgba(148,163,184,0.2)' : 'none',
+                                                md: 'none'
+                                            },
                                             transition: `transform 0.7s ${consultMotionEase}, background-color 0.35s ease, opacity 0.7s ${consultMotionEase}, filter 0.7s ${consultMotionEase}`,
                                             transitionDelay: consultVisible ? `${i * consultStaggerMs}ms` : '0ms',
                                             opacity: consultVisible ? 1 : 0,
@@ -2886,7 +2910,7 @@ export default function HomePage() {
                             }}
                         >
                             Không chỉ là lời giới thiệu.
-                            <br />
+                            <br/>
                             Phụ huynh thật sự tin tưởng <Box component="span" sx={{fontWeight: 800}}>EduBridgeHCM</Box>.
                         </Typography>
                     </Box>
@@ -2953,8 +2977,17 @@ export default function HomePage() {
                                         zIndex: 1
                                     }}
                                 >
-                                    <Box sx={{display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: '50%', bgcolor: 'rgba(37,99,235,0.12)', color: '#1d4ed8'}}>
-                                        <FormatQuoteIcon sx={{fontSize: 20}} />
+                                    <Box sx={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        width: 34,
+                                        height: 34,
+                                        borderRadius: '50%',
+                                        bgcolor: 'rgba(37,99,235,0.12)',
+                                        color: '#1d4ed8'
+                                    }}>
+                                        <FormatQuoteIcon sx={{fontSize: 20}}/>
                                     </Box>
                                     <Typography
                                         sx={{
@@ -2968,7 +3001,14 @@ export default function HomePage() {
                                     </Typography>
 
                                     <Box sx={{mt: 'auto'}}>
-                                        <Typography sx={{color: '#64748b', fontSize: '0.75rem', mt: 0.15, letterSpacing: '0.04em', textTransform: 'uppercase', fontWeight: 600}}>
+                                        <Typography sx={{
+                                            color: '#64748b',
+                                            fontSize: '0.75rem',
+                                            mt: 0.15,
+                                            letterSpacing: '0.04em',
+                                            textTransform: 'uppercase',
+                                            fontWeight: 600
+                                        }}>
                                             Cảm nhận từ phụ huynh
                                         </Typography>
                                     </Box>
@@ -2984,10 +3024,16 @@ export default function HomePage() {
                                         }}
                                     >
                                         <Box sx={{minWidth: 0}}>
-                                            <Typography sx={{fontWeight: 600, color: '#020617', fontSize: '0.95rem', lineHeight: 1.25}}>
+                                            <Typography sx={{
+                                                fontWeight: 600,
+                                                color: '#020617',
+                                                fontSize: '0.95rem',
+                                                lineHeight: 1.25
+                                            }}>
                                                 {item.name}
                                             </Typography>
-                                            <Typography sx={{color: '#334155', fontSize: '0.82rem', mt: 0.25, fontWeight: 500}}>
+                                            <Typography
+                                                sx={{color: '#334155', fontSize: '0.82rem', mt: 0.25, fontWeight: 500}}>
                                                 {item.role}
                                             </Typography>
                                         </Box>

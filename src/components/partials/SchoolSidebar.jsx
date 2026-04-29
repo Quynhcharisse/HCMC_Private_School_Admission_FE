@@ -31,6 +31,7 @@ import EventBusyOutlinedIcon from "@mui/icons-material/EventBusyOutlined";
 import CorporateFareOutlinedIcon from "@mui/icons-material/CorporateFareOutlined";
 import CardMembershipIcon from "@mui/icons-material/CardMembership";
 import ContactSupportOutlinedIcon from "@mui/icons-material/ContactSupportOutlined";
+import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
@@ -39,6 +40,11 @@ import { useSchool } from "../../contexts/SchoolContext.jsx";
 import { getCampusConversation } from "../../services/ConversationService.jsx";
 import { markCampusMessagesRead } from "../../services/MessageService.jsx";
 import { connectPrivateMessageSocket, removePrivateMessageListener } from "../../services/WebSocketService.jsx";
+import {
+    clearNotificationUnreadCount,
+    readNotificationUnreadCount,
+    watchNotificationUnread
+} from "../../services/NotificationService.jsx";
 
 const SCHOOL_CONTACT_UNREAD_KEY = "school_contact_admin_unread_count";
 
@@ -257,6 +263,7 @@ export default function SchoolSidebar({ currentPath, collapsed = false, onToggle
     }, [isPrimaryBranch, schoolCtxLoading]);
     const [userAnchorEl, setUserAnchorEl] = useState(null);
     const [contactUnreadCount, setContactUnreadCount] = useState(() => readSchoolContactUnreadCount());
+    const [notificationUnreadCount, setNotificationUnreadCount] = useState(() => readNotificationUnreadCount());
 
     const userInfo = useMemo(() => {
         try {
@@ -338,6 +345,8 @@ export default function SchoolSidebar({ currentPath, collapsed = false, onToggle
         window.addEventListener("school-contact-unread-updated", onUnreadUpdated);
         return () => window.removeEventListener("school-contact-unread-updated", onUnreadUpdated);
     }, []);
+
+    useEffect(() => watchNotificationUnread((count) => setNotificationUnreadCount(count)), []);
 
     useEffect(() => {
         const onPrivateMessage = (payload) => {
@@ -463,6 +472,35 @@ export default function SchoolSidebar({ currentPath, collapsed = false, onToggle
                         </Box>
                     ) : null}
                 </Box>
+                {onToggleCollapse && (
+                    <Badge
+                        badgeContent={Math.min(99, notificationUnreadCount)}
+                        color="error"
+                        overlap="circular"
+                        invisible={notificationUnreadCount === 0}
+                        sx={{mr: 0.5}}
+                    >
+                        <IconButton
+                            size="small"
+                            aria-label="Thông báo"
+                            onClick={() => {
+                                clearNotificationUnreadCount();
+                                navigate("/posts");
+                            }}
+                            sx={{
+                                flexShrink: 0,
+                                color: "#64748b",
+                                bgcolor: "rgba(100, 116, 139, 0.08)",
+                                "&:hover": {
+                                    bgcolor: "rgba(100, 116, 139, 0.14)",
+                                    color: "#1e293b",
+                                },
+                            }}
+                        >
+                            <NotificationsNoneRoundedIcon fontSize="small" />
+                        </IconButton>
+                    </Badge>
+                )}
                 {onToggleCollapse && (
                     <Tooltip title={collapsed ? "Mở rộng" : "Thu gọn"} placement="right">
                         <IconButton
