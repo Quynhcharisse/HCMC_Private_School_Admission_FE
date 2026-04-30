@@ -24,6 +24,7 @@ const AdminPlatformSettings = lazy(() => import("./components/Page/admin/AdminPl
 const AdminPersonalityTypes = lazy(() => import("./components/Page/admin/AdminPersonalityTypes.jsx"));
 const AdminSubjectsManagement = lazy(() => import("./components/Page/admin/AdminSubjectsManagement.jsx"));
 const AdminPackageFeeManagement = lazy(() => import("./components/Page/admin/AdminPackageFeeManagement.jsx"));
+const AdminPurchasedSchools = lazy(() => import("./components/Page/admin/AdminPurchasedSchools.jsx"));
 const AdminDocumentTemplateManagement = lazy(() => import("./components/Page/admin/AdminDocumentTemplateManagement.jsx"));
 const AdminContactPage = lazy(() => import("./components/Page/admin/AdminContactPage.jsx"));
 const SchoolLayout = lazy(() => import("./components/layouts/SchoolLayout.jsx"));
@@ -563,6 +564,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <AdminPackageFeeManagement/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'active-schools',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminPurchasedSchools/>
                     </Suspense>
                 )
             },
