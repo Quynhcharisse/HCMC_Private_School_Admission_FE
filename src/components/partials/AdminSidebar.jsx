@@ -29,6 +29,7 @@ import MonetizationOnOutlinedIcon from "@mui/icons-material/MonetizationOnOutlin
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import ContactSupportOutlinedIcon from "@mui/icons-material/ContactSupportOutlined";
 import WorkspacePremiumOutlinedIcon from "@mui/icons-material/WorkspacePremiumOutlined";
+import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
@@ -123,7 +124,14 @@ const unwrapWsPayloadAdmin = (p) => {
 const menuGroups = [
     {
         title: "TỔNG QUAN",
-        items: [{ text: "Bảng thống kê", icon: <DashboardIcon />, path: "/admin/dashboard" }],
+        items: [
+            { text: "Bảng thống kê", icon: <DashboardIcon />, path: "/admin/dashboard" },
+            {
+                text: "Thống kê giao dịch",
+                icon: <PaymentsOutlinedIcon />,
+                path: "/admin/transaction-statistics",
+            },
+        ],
     },
     {
         title: "NGƯỜI DÙNG",

@@ -25,6 +25,7 @@ const AdminPersonalityTypes = lazy(() => import("./components/Page/admin/AdminPe
 const AdminSubjectsManagement = lazy(() => import("./components/Page/admin/AdminSubjectsManagement.jsx"));
 const AdminPackageFeeManagement = lazy(() => import("./components/Page/admin/AdminPackageFeeManagement.jsx"));
 const AdminPurchasedSchools = lazy(() => import("./components/Page/admin/AdminPurchasedSchools.jsx"));
+const AdminTransactionManagement = lazy(() => import("./components/Page/admin/AdminTransactionManagement.jsx"));
 const AdminDocumentTemplateManagement = lazy(() => import("./components/Page/admin/AdminDocumentTemplateManagement.jsx"));
 const AdminContactPage = lazy(() => import("./components/Page/admin/AdminContactPage.jsx"));
 const SchoolLayout = lazy(() => import("./components/layouts/SchoolLayout.jsx"));
@@ -588,6 +589,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <AdminPurchasedSchools/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'transaction-statistics',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminTransactionManagement/>
                     </Suspense>
                 )
             },
