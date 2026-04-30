@@ -64,6 +64,12 @@ import {DEFAULT_SCHOOL_IMAGE, mapPublicSchoolDetailToRow, normalizeProvinceName}
 const LOCATION_FALLBACK_PROVINCE = "Tất cả";
 const LOCATION_FALLBACK_WARD = "Tất cả";
 const FAVOURITE_SYNC_PAGE_SIZE = 200;
+const SEARCH_SCHOOLS_LIST_PATH = "/search-schools";
+const SEARCH_SCHOOLS_DETAIL_PATH = "/search-schools/detail";
+
+function getSchoolUrlName(school) {
+    return String(school?.school ?? school?.name ?? "").trim();
+}
 
 function parseFavouriteListPayload(res) {
     const raw = res?.data?.body ?? res?.body ?? res?.data ?? res;
@@ -287,15 +293,28 @@ export default function SchoolSearchPage() {
     const paginationCount = Math.max(1, Math.ceil(totalCount / 20));
     const maptilerApiKey = import.meta.env.VITE_MAPTILER_API_KEY ?? "";
 
+    const detailRouteActive = location.pathname === SEARCH_SCHOOLS_DETAIL_PATH;
+    const detailSchoolNameRaw = React.useMemo(() => {
+        const p = new URLSearchParams(location.search);
+        return p.get("school");
+    }, [location.search]);
     const detailKeyRaw = React.useMemo(() => {
         const p = new URLSearchParams(location.search);
         return p.get("detail");
     }, [location.search]);
 
     const detailSchool = React.useMemo(() => {
+        if (!detailRouteActive) return null;
+        if (detailSchoolNameRaw) {
+            const normalizedName = detailSchoolNameRaw.trim().toLowerCase();
+            const byName = schools.find(
+                (s) => getSchoolUrlName(s).toLowerCase() === normalizedName
+            );
+            if (byName) return byName;
+        }
         if (!detailKeyRaw) return null;
         return schools.find((s) => getSchoolStorageKey(s) === detailKeyRaw) ?? null;
-    }, [detailKeyRaw, schools]);
+    }, [detailKeyRaw, detailRouteActive, detailSchoolNameRaw, schools]);
 
     React.useEffect(() => {
         if (!detailSchool?.id || detailSchool?.hasDetailLoaded) {
@@ -342,47 +361,65 @@ export default function SchoolSearchPage() {
     const openSchoolDetail = React.useCallback(
         (school) => {
             const key = getSchoolStorageKey(school);
+            const schoolUrlName = getSchoolUrlName(school);
             const next = new URLSearchParams(location.search);
+            if (schoolUrlName) {
+                next.set("school", schoolUrlName);
+            }
             next.set("detail", key);
             next.delete("consult");
             const qs = next.toString();
-            const url = `${location.pathname}${qs ? `?${qs}` : ""}`;
+            const url = `${SEARCH_SCHOOLS_DETAIL_PATH}${qs ? `?${qs}` : ""}`;
             if (isParent) {
                 window.location.assign(url);
                 return;
             }
-            navigate({pathname: location.pathname, search: qs ? `?${qs}` : ""}, {replace: false});
+            navigate({pathname: SEARCH_SCHOOLS_DETAIL_PATH, search: qs ? `?${qs}` : ""}, {replace: false});
         },
-        [isParent, location.pathname, location.search, navigate]
+        [isParent, location.search, navigate]
     );
 
     const closeSchoolDetail = React.useCallback(() => {
         const next = new URLSearchParams(location.search);
+        next.delete("school");
         next.delete("detail");
         next.delete("consult");
         const qs = next.toString();
-        const url = `${location.pathname}${qs ? `?${qs}` : ""}`;
+        const url = `${SEARCH_SCHOOLS_LIST_PATH}${qs ? `?${qs}` : ""}`;
         if (isParent) {
             window.location.replace(url);
             return;
         }
-        navigate({pathname: location.pathname, search: qs ? `?${qs}` : ""}, {replace: true});
-    }, [isParent, location.pathname, location.search, navigate]);
+        navigate({pathname: SEARCH_SCHOOLS_LIST_PATH, search: qs ? `?${qs}` : ""}, {replace: true});
+    }, [isParent, location.search, navigate]);
 
     React.useEffect(() => {
-        if (!listLoading && detailKeyRaw && !detailSchool) {
+        if (detailRouteActive) return;
+        const next = new URLSearchParams(location.search);
+        const hasDetailParams = next.has("school") || next.has("detail") || next.has("consult");
+        if (!hasDetailParams) return;
+        next.delete("school");
+        next.delete("detail");
+        next.delete("consult");
+        const qs = next.toString();
+        navigate({pathname: SEARCH_SCHOOLS_LIST_PATH, search: qs ? `?${qs}` : ""}, {replace: true});
+    }, [detailRouteActive, location.search, navigate]);
+
+    React.useEffect(() => {
+        if (!listLoading && detailRouteActive && !detailSchool) {
             const next = new URLSearchParams(location.search);
+            next.delete("school");
             next.delete("detail");
             next.delete("consult");
             const qs = next.toString();
-            const url = `${location.pathname}${qs ? `?${qs}` : ""}`;
+            const url = `${SEARCH_SCHOOLS_LIST_PATH}${qs ? `?${qs}` : ""}`;
             if (isParent) {
                 window.location.replace(url);
                 return;
             }
-            navigate({pathname: location.pathname, search: qs ? `?${qs}` : ""}, {replace: true});
+            navigate({pathname: SEARCH_SCHOOLS_LIST_PATH, search: qs ? `?${qs}` : ""}, {replace: true});
         }
-    }, [detailKeyRaw, detailSchool, isParent, listLoading, location.pathname, location.search, navigate]);
+    }, [detailRouteActive, detailSchool, isParent, listLoading, location.search, navigate]);
 
     React.useEffect(() => {
         if (detailSchool) {
