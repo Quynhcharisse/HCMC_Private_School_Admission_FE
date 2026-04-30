@@ -28,6 +28,7 @@ import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
 import MonetizationOnOutlinedIcon from "@mui/icons-material/MonetizationOnOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import ContactSupportOutlinedIcon from "@mui/icons-material/ContactSupportOutlined";
+import WorkspacePremiumOutlinedIcon from "@mui/icons-material/WorkspacePremiumOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
@@ -139,6 +140,11 @@ const menuGroups = [
         title: "TRƯỜNG HỌC",
         items: [
             { text: "Xác thực trường học", icon: <SchoolIcon />, path: "/admin/schools/verification" },
+            {
+                text: "Trường đã mua gói",
+                icon: <WorkspacePremiumOutlinedIcon />,
+                path: "/admin/active-schools",
+            },
             {
                 text: "Quản lý môn học",
                 icon: <MenuBookOutlinedIcon />,

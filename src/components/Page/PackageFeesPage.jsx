@@ -34,6 +34,30 @@ import SchoolServicePackagesGrid from "../ui/SchoolServicePackagesGrid.jsx";
 
 const LAYOUT_HEADER_TOP_PX = { xs: "calc(72px + 24px)", md: "calc(80px + 32px)" };
 
+function normalizeSupportLevelForView(level) {
+    const key = String(level || "").trim().toUpperCase();
+    if (key === "BASIC_SUPPORT") return "BASIC";
+    if (key === "STANDARD_SUPPORT") return "STANDARD";
+    if (key === "PREMIUM_SUPPORT") return "PREMIUM";
+    return key;
+}
+
+function normalizePackageForView(item) {
+    const features = item?.features && typeof item.features === "object" ? item.features : {};
+    return {
+        ...item,
+        price: Number.isFinite(Number(item?.finalPrice)) ? Number(item.finalPrice) : Number(item?.price ?? 0),
+        features: {
+            ...features,
+            supportLevel: normalizeSupportLevelForView(features?.supportLevel),
+            allowChat:
+                typeof features?.allowChat === "boolean"
+                    ? features.allowChat
+                    : features?.hasAiAssistant === true,
+        },
+    };
+}
+
 function readSchoolRoleFromStorage() {
     try {
         if (typeof window === "undefined") return false;
@@ -384,7 +408,7 @@ export default function PackageFeesPage() {
                 const activePackages = raw.filter(
                     (item) => String(item?.status || "").trim().toUpperCase() === "PACKAGE_ACTIVE"
                 );
-                if (!cancelled) setSchoolServicePackages(activePackages);
+                if (!cancelled) setSchoolServicePackages(activePackages.map(normalizePackageForView));
             } catch (error) {
                 console.error(error);
                 if (!cancelled) {
