@@ -1,6 +1,6 @@
 import axiosClient from "../configs/APIConfig.jsx";
 import {AUTH_USER_STORAGE_CHANGED_EVENT, normalizeUserRole} from "../utils/userRole.js";
-import {NOTIFICATION_EVENTS, normalizeNotificationEventType} from "../configs/notificationRouting.js";
+import {normalizeNotificationEventType, NOTIFICATION_EVENTS} from "../configs/notificationRouting.js";
 
 const TOKEN_SYNC_CACHE_KEY = "edubridge_fcm_token_sync_v1";
 const NOTIFICATION_UNREAD_KEY = "edubridge_notification_unread_count";
@@ -10,7 +10,6 @@ const NOTIFICATION_LIST_EVENT = "edubridge-notification-list-updated";
 const NOTIFICATION_PAGE_DEFAULT_SIZE = 20;
 const TOKEN_SYNC_ENABLED = String(import.meta.env.VITE_NOTIFICATION_TOKEN_SYNC_ENABLED || "false").trim().toLowerCase() === "true";
 const TOKEN_REGISTER_ENDPOINT = "/notifications/device-tokens";
-const TOKEN_UNREGISTER_ENDPOINT = "/notifications/device-tokens/remove";
 const NOTIFICATION_LIST_ENDPOINT = "/notifications";
 const NOTIFICATION_UNREAD_COUNT_ENDPOINT = "/notifications/unread-count";
 const TOKEN_SYNC_IGNORED_STATUSES = new Set([401, 403, 404]);
@@ -35,7 +34,6 @@ export const getCurrentAuthUser = () => {
 
 const readTokenSyncCache = () => safeJsonParse(localStorage.getItem(TOKEN_SYNC_CACHE_KEY));
 const writeTokenSyncCache = (value) => localStorage.setItem(TOKEN_SYNC_CACHE_KEY, JSON.stringify(value || null));
-const clearTokenSyncCache = () => localStorage.removeItem(TOKEN_SYNC_CACHE_KEY);
 
 const buildTokenPayload = ({token, user}) => ({
     token,
@@ -74,7 +72,8 @@ export const registerNotificationToken = async ({token, user}) => {
 };
 
 export const watchAuthUserChanges = (onChanged) => {
-    if (typeof onChanged !== "function") return () => {};
+    if (typeof onChanged !== "function") return () => {
+    };
     const handleCustom = () => onChanged(getCurrentAuthUser());
     const handleStorage = (event) => {
         if (event?.key && event.key !== "user") return;
@@ -91,27 +90,32 @@ export const watchAuthUserChanges = (onChanged) => {
 export const resolveNotificationRoute = ({eventType, data = {}, role}) => {
     const normalizedType = String(eventType || "").trim().toUpperCase();
     const dataRoute = String(data.route || data.path || data.url || "").trim();
-    if (dataRoute.startsWith("/")) return dataRoute;
+    if (dataRoute.startsWith("/")) {
+        if (role === "SCHOOL" && dataRoute === "/admin/package-fees") return "/package-fees";
+        return dataRoute;
+    }
+    const subjectType = String(data.subjectType || data.actorType || "").trim().toUpperCase();
 
     switch (normalizedType) {
         case NOTIFICATION_EVENTS.NEW_USER_REGISTERED:
+            if (subjectType === "SCHOOL") return "/admin/schools/verification";
+            if (subjectType === "PARENT") return "/admin/users";
             return "/admin/users";
         case NOTIFICATION_EVENTS.SCHOOL_POST_PUBLISHED:
             return "/posts";
         case NOTIFICATION_EVENTS.ADMIN_POST_PUBLISHED:
             return "/posts";
+        case NOTIFICATION_EVENTS.BUY_PACKAGE_FEE:
+            return "/admin/transaction-statistics";
+        case NOTIFICATION_EVENTS.CREATE_PACKAGE_FEE:
+            return role === "SCHOOL" ? "/package-fees" : "/admin/package-fees";
+
         case NOTIFICATION_EVENTS.COUNSELLOR_ASSIGNED:
         case NOTIFICATION_EVENTS.CONSULTATION_BOOKED:
         case NOTIFICATION_EVENTS.CONSULTATION_CANCELLED:
             if (role === "PARENT") return "/parent/profile";
             if (role === "COUNSELLOR") return "/counsellor/parent-consultation";
             if (role === "SCHOOL") return "/school/counselor-schedule";
-            return "/home";
-        case NOTIFICATION_EVENTS.SYSTEM_ANNOUNCEMENT:
-            if (role === "ADMIN") return "/admin/dashboard";
-            if (role === "SCHOOL") return "/school/dashboard";
-            if (role === "COUNSELLOR") return "/counsellor/dashboard";
-            if (role === "PARENT") return "/parent/profile";
             return "/home";
         default:
             if (role === "ADMIN") return "/admin/dashboard";
@@ -163,7 +167,8 @@ export const bumpNotificationUnreadCount = () => {
 export const clearNotificationUnreadCount = () => writeNotificationUnreadCount(0);
 
 export const watchNotificationUnread = (onChanged) => {
-    if (typeof onChanged !== "function") return () => {};
+    if (typeof onChanged !== "function") return () => {
+    };
     const onEvent = (event) => {
         const count = Number(event?.detail?.count);
         if (Number.isFinite(count) && count >= 0) onChanged(Math.trunc(count));
@@ -267,7 +272,10 @@ export const getUnreadCount = async () => {
     return response || null;
 };
 
-export const refreshNotificationInboxForUser = async (user, {page = 0, pageSize = NOTIFICATION_PAGE_DEFAULT_SIZE} = {}) => {
+export const refreshNotificationInboxForUser = async (user, {
+    page = 0,
+    pageSize = NOTIFICATION_PAGE_DEFAULT_SIZE
+} = {}) => {
     if (!user?.email) return {items: [], unreadCount: 0};
     const [listRes, unreadRes] = await Promise.all([
         getNotificationPage({page, pageSize}),
@@ -334,11 +342,13 @@ export const markAllNotificationsAsRead = (user) => {
     }
     return Promise.allSettled(
         unreadRows.map((row) => axiosClient.put(`/notifications/${encodeURIComponent(String(row.recipientId))}/read`))
-    ).finally(() => refreshNotificationInboxForUser(user).catch(() => {}));
+    ).finally(() => refreshNotificationInboxForUser(user).catch(() => {
+    }));
 };
 
 export const watchNotificationList = (onChanged, user) => {
-    if (typeof onChanged !== "function") return () => {};
+    if (typeof onChanged !== "function") return () => {
+    };
     const push = () => onChanged(getNotificationsForUser(user));
     const onEvent = () => push();
     const onStorage = (event) => {

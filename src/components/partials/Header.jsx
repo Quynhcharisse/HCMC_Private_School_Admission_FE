@@ -705,7 +705,11 @@ function MainHeader() {
         }, userInfo);
         setNotificationItems(getNotificationsForUser(userInfo));
         refreshNotificationInboxForUser(userInfo).catch(() => {});
+        const notificationPollTimer = window.setInterval(() => {
+            refreshNotificationInboxForUser(userInfo).catch(() => {});
+        }, 20000);
         return () => {
+            window.clearInterval(notificationPollTimer);
             stopUnreadWatch?.();
             stopListWatch?.();
         };

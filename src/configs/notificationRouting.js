@@ -4,6 +4,8 @@ export const NOTIFICATION_EVENTS = {
     NEW_USER_REGISTERED: "NEW_USER_REGISTERED",
     SCHOOL_POST_PUBLISHED: "SCHOOL_POST_PUBLISHED",
     ADMIN_POST_PUBLISHED: "ADMIN_POST_PUBLISHED",
+    BUY_PACKAGE_FEE: "BUY_PACKAGE_FEE",
+    CREATE_PACKAGE_FEE: "CREATE_PACKAGE_FEE",
 
     COUNSELLOR_ASSIGNED: "COUNSELLOR_ASSIGNED",
     CONSULTATION_BOOKED: "CONSULTATION_BOOKED",
@@ -15,6 +17,9 @@ const EVENT_ROLE_MATRIX = {
     [NOTIFICATION_EVENTS.NEW_USER_REGISTERED]: [ROLES.ADMIN],
     [NOTIFICATION_EVENTS.SCHOOL_POST_PUBLISHED]: [ROLES.ADMIN, ROLES.PARENT],
     [NOTIFICATION_EVENTS.ADMIN_POST_PUBLISHED]: [ROLES.SCHOOL, ROLES.PARENT],
+    [NOTIFICATION_EVENTS.BUY_PACKAGE_FEE]: [ROLES.ADMIN],
+    [NOTIFICATION_EVENTS.CREATE_PACKAGE_FEE]: [ROLES.SCHOOL],
+
     [NOTIFICATION_EVENTS.COUNSELLOR_ASSIGNED]: [ROLES.PARENT, ROLES.COUNSELLOR],
     [NOTIFICATION_EVENTS.CONSULTATION_BOOKED]: [ROLES.PARENT, ROLES.COUNSELLOR, ROLES.SCHOOL],
     [NOTIFICATION_EVENTS.CONSULTATION_CANCELLED]: [ROLES.PARENT, ROLES.COUNSELLOR, ROLES.SCHOOL],
@@ -24,8 +29,11 @@ const EVENT_ROLE_MATRIX = {
 export const normalizeNotificationEventType = (payload) => {
     const raw = String(payload?.data?.eventType || payload?.data?.type || "").trim().toUpperCase();
     const aliasMap = {
+        SCHOOL_POST_PUBLISHED: NOTIFICATION_EVENTS.SCHOOL_POST_PUBLISHED,
+        ADMIN_POST_PUBLISHED: NOTIFICATION_EVENTS.ADMIN_POST_PUBLISHED,
         USER_REGISTERED: NOTIFICATION_EVENTS.NEW_USER_REGISTERED,
         NEW_REGISTER: NOTIFICATION_EVENTS.NEW_USER_REGISTERED,
+        PACKAGE_FEE_CREATED: NOTIFICATION_EVENTS.CREATE_PACKAGE_FEE,
     };
     return aliasMap[raw] || raw;
 };
@@ -43,6 +51,8 @@ export const getNotificationMessage = (payload) => {
     const title = payload?.notification?.title;
     const body = payload?.notification?.body;
     if (title || body) return {title: title || "Thông báo", body: body || "Bạn có thông báo mới."};
+    const actorName = String(payload?.data?.actorName || "").trim();
+    const packageName = String(payload?.data?.packageName || "").trim();
 
     const fallbackByEvent = {
         [NOTIFICATION_EVENTS.NEW_USER_REGISTERED]: {
@@ -57,6 +67,21 @@ export const getNotificationMessage = (payload) => {
             title: "Bài viết mới từ quản trị viên",
             body: "Có bài viết mới vừa được đăng từ quản trị viên.",
         },
+        [NOTIFICATION_EVENTS.BUY_PACKAGE_FEE]: {
+            title: actorName ? `Giao dịch mới từ ${actorName}` : "Giao dịch gói dịch vụ mới",
+            body: packageName
+                ? `${actorName || "Trường học"} vừa thanh toán gói ${packageName}.`
+                : `${actorName || "Trường học"} vừa thanh toán đăng ký gói dịch vụ.`,
+        },
+        [NOTIFICATION_EVENTS.CREATE_PACKAGE_FEE]: {
+            title: actorName ? `${actorName} vừa phát hành gói mới` : "Gói dịch vụ mới đã phát hành",
+            body: packageName
+                ? `Gói ${packageName} đã sẵn sàng để đăng ký.`
+                : "Có gói dịch vụ mới vừa được phát hành.",
+        },
+
+
+
         [NOTIFICATION_EVENTS.CONSULTATION_BOOKED]: {
             title: "Lịch tư vấn mới",
             body: "Bạn có một lịch tư vấn mới.",
@@ -64,11 +89,7 @@ export const getNotificationMessage = (payload) => {
         [NOTIFICATION_EVENTS.CONSULTATION_CANCELLED]: {
             title: "Lịch tư vấn bị hủy",
             body: "Có cập nhật hủy lịch tư vấn.",
-        },
-        [NOTIFICATION_EVENTS.SYSTEM_ANNOUNCEMENT]: {
-            title: "Thông báo hệ thống",
-            body: "Có thông báo mới từ hệ thống.",
-        },
+        }
     };
     return fallbackByEvent[eventType] || {title: "Thông báo", body: "Bạn có thông báo mới."};
 };
