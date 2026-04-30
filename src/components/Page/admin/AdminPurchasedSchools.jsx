@@ -69,7 +69,7 @@ export default function AdminPurchasedSchools() {
     }, []);
 
     useEffect(() => {
-        if (location.pathname !== "/admin/active-schools") return;
+        if (location.pathname !== "/admin/purchased-schools") return;
         void loadActiveSchools();
     }, [loadActiveSchools, location.pathname, location.key]);
 

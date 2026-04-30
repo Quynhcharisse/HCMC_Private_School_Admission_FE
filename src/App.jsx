@@ -584,7 +584,7 @@ const router = createBrowserRouter([
                 )
             },
             {
-                path: 'active-schools',
+                path: 'purchased-schools',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <AdminPurchasedSchools/>

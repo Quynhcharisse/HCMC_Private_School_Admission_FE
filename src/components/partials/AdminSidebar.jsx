@@ -143,7 +143,7 @@ const menuGroups = [
             {
                 text: "Trường đã mua gói",
                 icon: <WorkspacePremiumOutlinedIcon />,
-                path: "/admin/active-schools",
+                path: "/admin/purchased-schools",
             },
             {
                 text: "Quản lý môn học",
