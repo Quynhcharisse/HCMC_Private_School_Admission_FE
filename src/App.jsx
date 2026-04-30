@@ -35,6 +35,8 @@ const AdminPlatformSettings = lazy(() => import("./components/Page/admin/AdminPl
 const AdminPersonalityTypes = lazy(() => import("./components/Page/admin/AdminPersonalityTypes.jsx"));
 const AdminSubjectsManagement = lazy(() => import("./components/Page/admin/AdminSubjectsManagement.jsx"));
 const AdminPackageFeeManagement = lazy(() => import("./components/Page/admin/AdminPackageFeeManagement.jsx"));
+const AdminPurchasedSchools = lazy(() => import("./components/Page/admin/AdminPurchasedSchools.jsx"));
+const AdminTransactionManagement = lazy(() => import("./components/Page/admin/AdminTransactionManagement.jsx"));
 const AdminDocumentTemplateManagement = lazy(() => import("./components/Page/admin/AdminDocumentTemplateManagement.jsx"));
 const AdminContactPage = lazy(() => import("./components/Page/admin/AdminContactPage.jsx"));
 const SchoolLayout = lazy(() => import("./components/layouts/SchoolLayout.jsx"));
@@ -62,6 +64,9 @@ const CounsellorDashboard = lazy(() => import("./components/Page/counsellor/Coun
 const CounsellorParentConsultation = lazy(() => import("./components/Page/counsellor/CounsellorParentConsultation.jsx"));
 const CounsellorProfile = lazy(() => import("./components/Page/counsellor/CounsellorProfile.jsx"));
 const CounsellorCalendar = lazy(() => import("./components/Page/counsellor/CounsellorCalendar.jsx"));
+const CounsellorOfflineConsultationPage = lazy(() =>
+  import("./components/Page/counsellor/CounsellorOfflineConsultationPage.jsx")
+);
 const SchoolCurriculums = lazy(() => import("./components/Page/school/SchoolCurriculums.jsx"));
 const SchoolPrograms = lazy(() => import("./components/Page/school/SchoolPrograms.jsx"));
 const SchoolPurchasedPackages = lazy(() => import("./components/Page/school/SchoolPurchasedPackages.jsx"));
@@ -147,6 +152,14 @@ const router = createBrowserRouter([
                 )
             },
             {
+                path: 'home/detail',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <HomePage/>
+                    </Suspense>
+                )
+            },
+            {
                 path: 'posts',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
@@ -156,6 +169,14 @@ const router = createBrowserRouter([
             },
             {
                 path: 'search-schools',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolSearchPage/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'search-schools/detail',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <SchoolSearchPage/>
@@ -575,6 +596,22 @@ const router = createBrowserRouter([
                 )
             },
             {
+                path: 'purchased-schools',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminPurchasedSchools/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'transaction-statistics',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminTransactionManagement/>
+                    </Suspense>
+                )
+            },
+            {
                 path: 'document-templates',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
@@ -629,6 +666,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <CounsellorCalendar/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'offline-consultation',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <CounsellorOfflineConsultationPage/>
                     </Suspense>
                 )
             },

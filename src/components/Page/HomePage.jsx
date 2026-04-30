@@ -103,6 +103,12 @@ const HOME_ABOUT_MEDIA = [
 ];
 
 const FAVOURITE_SYNC_PAGE_SIZE = 200;
+const HOME_LIST_PATH = "/home";
+const HOME_DETAIL_PATH = "/home/detail";
+
+function getSchoolUrlName(school) {
+    return String(school?.school ?? school?.name ?? "").trim();
+}
 
 function parseFavouriteListPayload(res) {
     const raw = res?.data?.body ?? res?.body ?? res?.data ?? res;
@@ -1583,6 +1589,15 @@ export default function HomePage() {
     const userIdentity = getUserIdentity(userInfo);
     const [compareSchoolKeys, setCompareSchoolKeys] = React.useState(() => new Set());
     const [favouriteIdBySchool, setFavouriteIdBySchool] = React.useState({});
+    const isHomeDetailRoute = location.pathname === HOME_DETAIL_PATH;
+    const detailSchoolNameFromUrl = React.useMemo(() => {
+        const params = new URLSearchParams(location.search);
+        return params.get("school");
+    }, [location.search]);
+    const detailKeyFromUrl = React.useMemo(() => {
+        const params = new URLSearchParams(location.search);
+        return params.get("detail");
+    }, [location.search]);
 
     React.useEffect(() => {
         const list = getCompareSchools(userInfo);
@@ -1745,14 +1760,90 @@ export default function HomePage() {
 
     const handleOpenSchoolDetail = React.useCallback(async (school) => {
         if (!school?.id) return;
-        await loadSchoolDetailForHome(school.id, school);
-    }, [loadSchoolDetailForHome]);
+        const schoolUrlName = getSchoolUrlName(school);
+        const next = new URLSearchParams(location.search);
+        if (schoolUrlName) {
+            next.set("school", schoolUrlName);
+        }
+        next.set("detail", getSchoolStorageKey(school));
+        next.delete("consult");
+        const qs = next.toString();
+        navigate({pathname: HOME_DETAIL_PATH, search: qs ? `?${qs}` : ""}, {replace: false});
+    }, [location.search, navigate]);
 
     const closeSchoolDetailDialog = React.useCallback(() => {
         setSelectedSchoolDetail(null);
         setSchoolDetailLoading(false);
         setSchoolDetailError("");
-    }, []);
+        const next = new URLSearchParams(location.search);
+        next.delete("school");
+        next.delete("detail");
+        next.delete("consult");
+        const qs = next.toString();
+        navigate({pathname: HOME_LIST_PATH, search: qs ? `?${qs}` : ""}, {replace: true});
+    }, [location.search, navigate]);
+
+    React.useEffect(() => {
+        if (!isHomeDetailRoute) {
+            if (selectedSchoolDetail) {
+                setSelectedSchoolDetail(null);
+                setSchoolDetailLoading(false);
+                setSchoolDetailError("");
+            }
+            return;
+        }
+        const schoolName = String(detailSchoolNameFromUrl || "").trim().toLowerCase();
+        const detailKey = String(detailKeyFromUrl || "").trim();
+        const schoolIdFromDetailKey = detailKey.startsWith("id:")
+            ? Number(detailKey.slice(3))
+            : NaN;
+        if (!schoolName && !Number.isFinite(schoolIdFromDetailKey)) {
+            const next = new URLSearchParams(location.search);
+            next.delete("school");
+            next.delete("detail");
+            next.delete("consult");
+            const qs = next.toString();
+            navigate({pathname: HOME_LIST_PATH, search: qs ? `?${qs}` : ""}, {replace: true});
+            return;
+        }
+        if (
+            (schoolName && getSchoolUrlName(selectedSchoolDetail).toLowerCase() === schoolName && selectedSchoolDetail?.hasDetailLoaded) ||
+            (Number.isFinite(schoolIdFromDetailKey) &&
+                Number(selectedSchoolDetail?.id) === Number(schoolIdFromDetailKey) &&
+                selectedSchoolDetail?.hasDetailLoaded)
+        ) {
+            return;
+        }
+        const fallbackByName = schoolName
+            ? homeSchools.find((s) => getSchoolUrlName(s).toLowerCase() === schoolName) || null
+            : null;
+        const fallbackById = Number.isFinite(schoolIdFromDetailKey)
+            ? homeSchools.find((s) => Number(s?.id) === Number(schoolIdFromDetailKey)) || null
+            : null;
+        const fallback = fallbackByName || fallbackById || null;
+        const resolvedSchoolId = Number(fallback?.id) || (Number.isFinite(schoolIdFromDetailKey) ? Number(schoolIdFromDetailKey) : NaN);
+        if (!Number.isFinite(resolvedSchoolId) || resolvedSchoolId <= 0) {
+            if (schoolLoading) return;
+            const next = new URLSearchParams(location.search);
+            next.delete("school");
+            next.delete("detail");
+            next.delete("consult");
+            const qs = next.toString();
+            navigate({pathname: HOME_LIST_PATH, search: qs ? `?${qs}` : ""}, {replace: true});
+            return;
+        }
+        void loadSchoolDetailForHome(resolvedSchoolId, fallback);
+    }, [
+        detailKeyFromUrl,
+        detailSchoolNameFromUrl,
+        homeSchools,
+        isHomeDetailRoute,
+        loadSchoolDetailForHome,
+        location.search,
+        navigate,
+        schoolLoading,
+        selectedSchoolDetail
+    ]);
 
     const consultSectionRef = React.useRef(null);
     const [consultVisible, setConsultVisible] = React.useState(false);
@@ -2233,7 +2324,26 @@ export default function HomePage() {
                 onSearchNearbyCampuses={searchNearbyCampuses}
                 onOpenSchoolById={async (schoolId) => {
                     const target = homeSchools.find((s) => Number(s?.id) === Number(schoolId)) || null;
-                    await loadSchoolDetailForHome(schoolId, target);
+                    const next = new URLSearchParams(location.search);
+                    let schoolUrlName = getSchoolUrlName(target);
+                    if (!schoolUrlName && Number.isFinite(Number(schoolId))) {
+                        try {
+                            const detailBody = await getPublicSchoolDetail(Number(schoolId));
+                            const mapped = mapPublicSchoolDetailToRow(detailBody);
+                            schoolUrlName = getSchoolUrlName(mapped);
+                        } catch {
+                            schoolUrlName = "";
+                        }
+                    }
+                    if (schoolUrlName) {
+                        next.set("school", schoolUrlName);
+                    }
+                    if (target) {
+                        next.set("detail", getSchoolStorageKey(target));
+                    }
+                    next.delete("consult");
+                    const qs = next.toString();
+                    navigate({pathname: HOME_DETAIL_PATH, search: qs ? `?${qs}` : ""}, {replace: false});
                 }}
                 onClose={closeSchoolDetailDialog}
                 navigate={navigate}

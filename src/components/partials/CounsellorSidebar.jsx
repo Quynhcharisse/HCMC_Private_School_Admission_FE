@@ -24,6 +24,7 @@ import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
@@ -138,6 +139,7 @@ const menuGroups = [
     items: [
       { text: "Tư vấn Phụ Huynh", icon: <GroupsIcon />, path: "/counsellor/parent-consultation" },
       { text: "Lịch tư vấn", icon: <CalendarMonthIcon />, path: "/counsellor/calendar" },
+      { text: "Lịch tư vấn trực tiếp", icon: <EventAvailableIcon />, path: "/counsellor/offline-consultation" },
     ],
   },
 ];

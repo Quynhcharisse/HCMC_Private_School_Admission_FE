@@ -2504,7 +2504,15 @@ function MainHeader() {
         'Người dùng';
     const displayEmail = profileBody?.email || userInfo?.email || '';
     const avatarUrl = profileBody?.picture || userInfo?.picture || null;
-    const isActivePath = (path) => location.pathname === path;
+    const isActivePath = (path) => {
+        if (path === '/home') {
+            return location.pathname === '/' || location.pathname === '/home' || location.pathname.startsWith('/home/');
+        }
+        if (path === '/search-schools') {
+            return location.pathname === '/search-schools' || location.pathname.startsWith('/search-schools/');
+        }
+        return location.pathname === path;
+    };
     const brandIndigo = BRAND_NAVY;
 
     const navButtonSx = (path) => {

@@ -28,6 +28,8 @@ import MenuBookOutlinedIcon from "@mui/icons-material/MenuBookOutlined";
 import MonetizationOnOutlinedIcon from "@mui/icons-material/MonetizationOnOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import ContactSupportOutlinedIcon from "@mui/icons-material/ContactSupportOutlined";
+import WorkspacePremiumOutlinedIcon from "@mui/icons-material/WorkspacePremiumOutlined";
+import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
 import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
@@ -128,7 +130,14 @@ const unwrapWsPayloadAdmin = (p) => {
 const menuGroups = [
     {
         title: "TỔNG QUAN",
-        items: [{ text: "Bảng thống kê", icon: <DashboardIcon />, path: "/admin/dashboard" }],
+        items: [
+            { text: "Bảng thống kê", icon: <DashboardIcon />, path: "/admin/dashboard" },
+            {
+                text: "Thống kê giao dịch",
+                icon: <PaymentsOutlinedIcon />,
+                path: "/admin/transaction-statistics",
+            },
+        ],
     },
     {
         title: "NGƯỜI DÙNG",
@@ -145,6 +154,11 @@ const menuGroups = [
         title: "TRƯỜNG HỌC",
         items: [
             { text: "Xác thực trường học", icon: <SchoolIcon />, path: "/admin/schools/verification" },
+            {
+                text: "Trường đã mua gói",
+                icon: <WorkspacePremiumOutlinedIcon />,
+                path: "/admin/purchased-schools",
+            },
             {
                 text: "Quản lý môn học",
                 icon: <MenuBookOutlinedIcon />,
