@@ -30,18 +30,12 @@ import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import ContactSupportOutlinedIcon from "@mui/icons-material/ContactSupportOutlined";
 import WorkspacePremiumOutlinedIcon from "@mui/icons-material/WorkspacePremiumOutlined";
 import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
-import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
 import { signout } from "../../services/AccountService.jsx";
 import { getCampusConversationsForAdmin } from "../../services/ConversationService.jsx";
 import { connectPrivateMessageSocket, removePrivateMessageListener } from "../../services/WebSocketService.jsx";
-import {
-    clearNotificationUnreadCount,
-    readNotificationUnreadCount,
-    watchNotificationUnread
-} from "../../services/NotificationService.jsx";
 
 const parseBodyObject = (value) => {
     if (value == null) return {};
@@ -198,7 +192,6 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
     /** Đồng bộ từ WS (aggregate) + GET lần đầu; khi không ở /admin/contact, WS bơm +từng tin. */
     const [contactUnreadConversationCount, setContactUnreadConversationCount] = useState(0);
     const [contactUnreadMessageTotal, setContactUnreadMessageTotal] = useState(0);
-    const [notificationUnreadCount, setNotificationUnreadCount] = useState(() => readNotificationUnreadCount());
     const currentPathRef = useRef(currentPath);
     const offPageWsSyncTimerRef = useRef(null);
 
@@ -233,8 +226,6 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
     useEffect(() => {
         currentPathRef.current = currentPath;
     }, [currentPath]);
-
-    useEffect(() => watchNotificationUnread((count) => setNotificationUnreadCount(count)), []);
 
     /** GET danh sách conversation chỉ lần đầu load sidebar; sau đó unread cập nhật qua WS (trang contact tự quản danh sách). */
     useEffect(() => {
@@ -391,35 +382,6 @@ export default function AdminSidebar({ currentPath, collapsed = false, onToggleC
                         </Box>
                     ) : null}
                 </Box>
-                {onToggleCollapse && (
-                    <Badge
-                        badgeContent={Math.min(99, notificationUnreadCount)}
-                        color="error"
-                        overlap="circular"
-                        invisible={notificationUnreadCount === 0}
-                        sx={{mr: 0.5}}
-                    >
-                        <IconButton
-                            size="small"
-                            aria-label="Thông báo"
-                            onClick={() => {
-                                clearNotificationUnreadCount();
-                                navigate("/posts");
-                            }}
-                            sx={{
-                                flexShrink: 0,
-                                color: "#64748b",
-                                bgcolor: "rgba(100, 116, 139, 0.08)",
-                                "&:hover": {
-                                    bgcolor: "rgba(100, 116, 139, 0.14)",
-                                    color: "#1e293b",
-                                },
-                            }}
-                        >
-                            <NotificationsNoneRoundedIcon fontSize="small" />
-                        </IconButton>
-                    </Badge>
-                )}
                 {onToggleCollapse && (
                     <Tooltip title={collapsed ? "Mở rộng" : "Thu gọn"} placement="right">
                         <IconButton

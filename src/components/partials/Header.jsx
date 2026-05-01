@@ -1009,6 +1009,24 @@ function MainHeader() {
         return date.toLocaleTimeString("vi-VN", {hour: "2-digit", minute: "2-digit"});
     };
 
+    const formatNotificationTime = (value) => {
+        if (!value) return "";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "";
+        const now = new Date();
+        const sameDate = date.toDateString() === now.toDateString();
+        if (sameDate) {
+            return `Hôm nay, ${date.toLocaleTimeString("vi-VN", {hour: "2-digit", minute: "2-digit"})}`;
+        }
+        return date.toLocaleString("vi-VN", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+        });
+    };
+
     const groupedParentMessages = useMemo(() => {
         const groups = [];
         let currentKey = "";
@@ -2815,28 +2833,37 @@ function MainHeader() {
                                             sx: {
                                                 borderRadius: 3,
                                                 border: '1px solid rgba(59,130,246,0.18)',
-                                                boxShadow: '0 18px 40px rgba(51,65,85,0.18)',
+                                                boxShadow: '0 22px 48px rgba(51,65,85,0.16), 0 0 0 1px rgba(255,255,255,0.6) inset',
                                                 width: 380,
                                                 maxWidth: 'calc(100vw - 24px)',
                                                 mt: 1.2,
                                                 p: 0,
                                                 overflow: 'hidden',
-                                                bgcolor: 'rgba(255,255,255,0.98)'
+                                                backdropFilter: 'blur(10px)',
+                                                bgcolor: 'rgba(255,255,255,0.97)'
                                             }
                                         }
                                     }}
                                 >
-                                    <Box sx={{px: 2, py: 1.5, borderBottom: '1px solid rgba(59,130,246,0.1)'}}>
+                                    <Box sx={{px: 2, py: 1.5, borderBottom: '1px solid rgba(59,130,246,0.1)', bgcolor: 'rgba(248,250,252,0.95)'}}>
                                         <Box sx={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-                                            <Typography sx={{fontSize: 24, fontWeight: 800, color: '#1e293b'}}>
-                                                Notifications
-                                            </Typography>
+                                            <Box>
+                                                <Typography sx={{fontSize: 24, fontWeight: 800, color: '#1e293b', lineHeight: 1.1}}>
+                                                    Thông báo
+                                                </Typography>
+                                                <Typography sx={{fontSize: 13, color: '#64748b', mt: 0.5}}>
+                                                    {countUnreadNotifications(notificationItems) > 0
+                                                        ? `${countUnreadNotifications(notificationItems)} thông báo chưa đọc`
+                                                        : "Bạn đã đọc hết thông báo"}
+                                                </Typography>
+                                            </Box>
                                             <Button
                                                 size="small"
                                                 onClick={handleMarkAllNotificationsRead}
-                                                sx={{textTransform: 'none', fontWeight: 700}}
+                                                disabled={countUnreadNotifications(notificationItems) === 0}
+                                                sx={{textTransform: 'none', fontWeight: 700, borderRadius: 999}}
                                             >
-                                                Mark all read
+                                                Đánh dấu đã đọc
                                             </Button>
                                         </Box>
                                     </Box>
@@ -2855,10 +2882,14 @@ function MainHeader() {
                                                 sx={{
                                                     alignItems: 'flex-start',
                                                     gap: 1.25,
-                                                    py: 1.25,
+                                                    py: 1.5,
                                                     px: 2,
                                                     borderBottom: '1px solid rgba(226,232,240,0.8)',
-                                                    bgcolor: item.read ? 'transparent' : 'rgba(59,130,246,0.06)'
+                                                    bgcolor: item.read ? 'transparent' : 'rgba(59,130,246,0.06)',
+                                                    borderLeft: item.read ? '3px solid transparent' : '3px solid #2563eb',
+                                                    '&:hover': {
+                                                        bgcolor: item.read ? 'rgba(148,163,184,0.08)' : 'rgba(59,130,246,0.12)'
+                                                    }
                                                 }}
                                             >
                                                 <Avatar
@@ -2873,11 +2904,25 @@ function MainHeader() {
                                                     <NotificationsNoneRoundedIcon fontSize="small"/>
                                                 </Avatar>
                                                 <Box sx={{minWidth: 0, flex: 1}}>
-                                                    <Typography sx={{fontWeight: 700, color: '#0f172a', lineHeight: 1.3}}>
+                                                    <Typography sx={{
+                                                        fontSize: 16,
+                                                        fontWeight: item.read ? 700 : 800,
+                                                        color: '#0b1220',
+                                                        lineHeight: 1.3,
+                                                        mb: 0.35
+                                                    }}>
                                                         {item.title}
                                                     </Typography>
-                                                    <Typography sx={{fontSize: 14, color: '#334155', lineHeight: 1.35}}>
+                                                    <Typography sx={{
+                                                        fontSize: 13.5,
+                                                        fontWeight: 400,
+                                                        color: '#1e293b',
+                                                        lineHeight: 1.45
+                                                    }}>
                                                         {item.body}
+                                                    </Typography>
+                                                    <Typography sx={{fontSize: 12, color: '#64748b', mt: 0.75}}>
+                                                        {formatNotificationTime(item.createdAt)}
                                                     </Typography>
                                                 </Box>
                                                 {!item.read && (

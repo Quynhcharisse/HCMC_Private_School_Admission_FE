@@ -1213,7 +1213,7 @@ export default function AdminPackageFeeManagement() {
                                         inputProps={{ min: 0 }}
                                     />
                                     <TextField
-                                        label="Giới hạn bài đăng (-1 = không giới hạn)"
+                                        label="Giới hạn bài đăng"
                                         type="number"
                                         size="small"
                                         value={form.postLimit}
