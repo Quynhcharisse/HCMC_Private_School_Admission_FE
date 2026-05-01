@@ -27,7 +27,9 @@ export default function WebAppLayout() {
         return (
             path === '/' ||
             path === '/home' ||
+            path.startsWith('/home/detail') ||
             path === '/search-schools' ||
+            path.startsWith('/search-schools/detail') ||
             path === '/posts' ||
             path === '/about' ||
             path === '/policy/privacy' ||

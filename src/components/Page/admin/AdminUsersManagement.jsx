@@ -197,8 +197,14 @@ export default function AdminUsersManagement() {
     };
 
     const handleOpenSchoolDetail = (user) => {
-        if (!user) return;
-        setSelectedSchool(user);
+        const schoolId = Number(user?.schoolId);
+        if (!Number.isFinite(schoolId) || schoolId <= 0) {
+            enqueueSnackbar("Không tìm thấy mã trường để xem chi tiết.", { variant: "warning" });
+            return;
+        }
+        navigate(`/admin/schools/${schoolId}/detail`, {
+            state: { school: user },
+        });
     };
 
     const handleCloseSchoolDetail = () => {

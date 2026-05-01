@@ -1,10 +1,21 @@
 import './styles/index.css'
 import {createBrowserRouter, Navigate, RouterProvider} from "react-router-dom";
-import {lazy, Suspense} from "react";
-import {SnackbarProvider} from 'notistack';
-import {createTheme, CssBaseline, Slide, ThemeProvider} from '@mui/material';
+import {lazy, Suspense, useEffect} from "react";
+import {SnackbarProvider, useSnackbar} from 'notistack';
+import {Button, createTheme, CssBaseline, Slide, ThemeProvider} from '@mui/material';
 import {GlobalLoadingOverlay, LoadingProvider} from './contexts/LoadingContext.jsx';
 import {APP_PRIMARY_DARK, APP_PRIMARY_LIGHT, APP_PRIMARY_MAIN} from './constants/homeLandingTheme';
+import {onMessage} from "firebase/messaging";
+import {messaging, requestForToken} from "./configs/FirebaseConfig.jsx";
+import {canRoleReceiveEvent, getNotificationMessage, normalizeNotificationEventType} from "./configs/notificationRouting.js";
+import {
+    getCurrentAuthUser,
+    navigateFromNotificationPayload,
+    refreshNotificationInboxForUser,
+    registerNotificationToken,
+    saveIncomingNotification,
+    watchAuthUserChanges
+} from "./services/NotificationService.jsx";
 
 const WebAppLayout = lazy(() => import("./components/ui/WebAppLayout.jsx"));
 const HomePage = lazy(() => import("./components/Page/HomePage.jsx"));
@@ -24,6 +35,8 @@ const AdminPlatformSettings = lazy(() => import("./components/Page/admin/AdminPl
 const AdminPersonalityTypes = lazy(() => import("./components/Page/admin/AdminPersonalityTypes.jsx"));
 const AdminSubjectsManagement = lazy(() => import("./components/Page/admin/AdminSubjectsManagement.jsx"));
 const AdminPackageFeeManagement = lazy(() => import("./components/Page/admin/AdminPackageFeeManagement.jsx"));
+const AdminPurchasedSchools = lazy(() => import("./components/Page/admin/AdminPurchasedSchools.jsx"));
+const AdminTransactionManagement = lazy(() => import("./components/Page/admin/AdminTransactionManagement.jsx"));
 const AdminDocumentTemplateManagement = lazy(() => import("./components/Page/admin/AdminDocumentTemplateManagement.jsx"));
 const AdminContactPage = lazy(() => import("./components/Page/admin/AdminContactPage.jsx"));
 const SchoolLayout = lazy(() => import("./components/layouts/SchoolLayout.jsx"));
@@ -34,23 +47,26 @@ const SchoolCounselors = lazy(() => import("./components/Page/school/SchoolCouns
 const SchoolCounselorSchedule = lazy(() => import("./components/Page/school/SchoolCounselorSchedule.jsx"));
 const SchoolCampaigns = lazy(() => import("./components/Page/school/SchoolCampaigns.jsx"));
 const SchoolCampaignOfferings = lazy(() => import("./components/Page/school/SchoolCampaignOfferings.jsx"));
-const SchoolCampaignDetail = lazy(() =>import("./components/Page/school/SchoolCampaignDetail.jsx"));
-const SchoolCampaignViewDetail = lazy(() =>import("./components/Page/school/SchoolCampaignViewDetail.jsx"));
+const SchoolCampaignDetail = lazy(() => import("./components/Page/school/SchoolCampaignDetail.jsx"));
+const SchoolCampaignViewDetail = lazy(() => import("./components/Page/school/SchoolCampaignViewDetail.jsx"));
 const SchoolProfile = lazy(() => import("./components/Page/school/SchoolProfile.jsx"));
 const SchoolConfig = lazy(() => import("./components/Page/school/SchoolConfig.jsx"));
 const SchoolHolidaySettingsPage = lazy(() => import("./components/Page/school/SchoolHolidaySettingsPage.jsx"));
 const CampusConfig = lazy(() => import("./components/Page/school/CampusConfig.jsx"));
-const SchoolFacilityConfiguration = lazy(() =>import("./components/Page/school/SchoolFacilityConfiguration.jsx"));
+const SchoolFacilityConfiguration = lazy(() => import("./components/Page/school/SchoolFacilityConfiguration.jsx"));
 
 const SchoolContactAdmin = lazy(() => import("./components/Page/school/SchoolContactAdmin.jsx"));
 
-const ConfigList = lazy(() =>import("./components/Page/school/ConfigList.jsx"));
+const ConfigList = lazy(() => import("./components/Page/school/ConfigList.jsx"));
 
 const CounsellorLayout = lazy(() => import("./components/layouts/CounsellorLayout.jsx"));
 const CounsellorDashboard = lazy(() => import("./components/Page/counsellor/CounsellorDashboard.jsx"));
 const CounsellorParentConsultation = lazy(() => import("./components/Page/counsellor/CounsellorParentConsultation.jsx"));
 const CounsellorProfile = lazy(() => import("./components/Page/counsellor/CounsellorProfile.jsx"));
 const CounsellorCalendar = lazy(() => import("./components/Page/counsellor/CounsellorCalendar.jsx"));
+const CounsellorOfflineConsultationPage = lazy(() =>
+  import("./components/Page/counsellor/CounsellorOfflineConsultationPage.jsx")
+);
 const SchoolCurriculums = lazy(() => import("./components/Page/school/SchoolCurriculums.jsx"));
 const SchoolPrograms = lazy(() => import("./components/Page/school/SchoolPrograms.jsx"));
 const SchoolPurchasedPackages = lazy(() => import("./components/Page/school/SchoolPurchasedPackages.jsx"));
@@ -136,6 +152,14 @@ const router = createBrowserRouter([
                 )
             },
             {
+                path: 'home/detail',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <HomePage/>
+                    </Suspense>
+                )
+            },
+            {
                 path: 'posts',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
@@ -152,8 +176,16 @@ const router = createBrowserRouter([
                 )
             },
             {
+                path: 'search-schools/detail',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolSearchPage/>
+                    </Suspense>
+                )
+            },
+            {
                 path: 'schools',
-                element: <Navigate to={'/search-schools'} replace />
+                element: <Navigate to={'/search-schools'} replace/>
             },
             {
                 path: 'about',
@@ -249,7 +281,7 @@ const router = createBrowserRouter([
                 path: 'parent-first-login',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
-                        <ParentRegistrationForm isFirstLogin />
+                        <ParentRegistrationForm isFirstLogin/>
                     </Suspense>
                 )
             }
@@ -564,6 +596,22 @@ const router = createBrowserRouter([
                 )
             },
             {
+                path: 'purchased-schools',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminPurchasedSchools/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'transaction-statistics',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <AdminTransactionManagement/>
+                    </Suspense>
+                )
+            },
+            {
                 path: 'document-templates',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
@@ -622,6 +670,14 @@ const router = createBrowserRouter([
                 )
             },
             {
+                path: 'offline-consultation',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <CounsellorOfflineConsultationPage/>
+                    </Suspense>
+                )
+            },
+            {
                 path: 'profile',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
@@ -659,7 +715,63 @@ const router = createBrowserRouter([
     }
 ])
 
+
 function App() {
+
+    const {enqueueSnackbar, closeSnackbar} = useSnackbar();
+    useEffect(() => {
+        let currentUser = getCurrentAuthUser();
+        const syncTokenForCurrentUser = async () => {
+            currentUser = getCurrentAuthUser();
+            if (!currentUser?.role) return;
+            const token = await requestForToken();
+            if (token) {
+                console.log(`${currentUser.role} FCM token thu thập thành công:`, token);
+                try {
+                    await registerNotificationToken({token, user: currentUser});
+                } catch (error) {
+                    console.warn("Không đồng bộ được FCM token lên backend:", error);
+                }
+            }
+        };
+        syncTokenForCurrentUser();
+
+        const stopWatchAuthChanges = watchAuthUserChanges(() => {
+            syncTokenForCurrentUser();
+        });
+
+        const unsubscribe = onMessage(messaging, (payload) => {
+            currentUser = getCurrentAuthUser();
+            const role = currentUser?.role || "";
+            if (!role) return;
+            const eventType = normalizeNotificationEventType(payload);
+            if (!canRoleReceiveEvent(role, eventType)) return;
+            const {title, body} = getNotificationMessage(payload);
+            saveIncomingNotification({payload, user: currentUser});
+            refreshNotificationInboxForUser(currentUser).catch(() => {});
+            enqueueSnackbar(`${title}: ${body}`, {
+                variant: 'info',
+                action: (key) => (
+                    <Button
+                        color="inherit"
+                        size="small"
+                        onClick={() => {
+                            closeSnackbar(key);
+                            navigateFromNotificationPayload({payload, role});
+                        }}
+                    >
+                        Mở
+                    </Button>
+                )
+            });
+        });
+
+        return () => {
+            stopWatchAuthChanges();
+            unsubscribe();
+        };
+    }, [closeSnackbar, enqueueSnackbar]);
+
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline/>

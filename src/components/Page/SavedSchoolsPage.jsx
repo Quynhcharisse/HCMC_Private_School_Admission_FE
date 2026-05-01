@@ -805,7 +805,7 @@ export default function SavedSchoolsPage() {
                         if (target) {
                             openSchoolDetail(target);
                         } else {
-                            navigate(`/search-schools?detail=${encodeURIComponent(`id:${schoolId}`)}`);
+                            navigate(`/search-schools/detail?detail=${encodeURIComponent(`id:${schoolId}`)}`);
                         }
                     }}
                     onClose={closeSchoolDetail}

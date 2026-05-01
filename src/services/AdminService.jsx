@@ -199,3 +199,13 @@ export const autoFillAdminSchoolQuotas = async ({ url }) => {
     });
     return response || null;
 };
+
+export const getAdminActiveSchoolList = async () => {
+    const response = await axiosClient.get("/admin/active/school/list");
+    return response || null;
+};
+
+export const getAdminTransactionList = async () => {
+    const response = await axiosClient.get("/admin/transaction/list");
+    return response || null;
+};
