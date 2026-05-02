@@ -158,62 +158,65 @@ export default function CounsellorAuthHeader({ headerLeftOffset }) {
 
           {isSignedIn && (
             <>
-              <Box
-                onClick={handleUserMenuClick}
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  cursor: "pointer",
-                  padding: "4px",
-                  borderRadius: "50%",
-                  transition: "background 0.2s",
-                  "&:hover": {
-                    bgcolor: "rgba(25,118,210,0.08)",
-                  },
-                }}
-              >
-                <Avatar
-                  src={avatarUrl}
+              {!isHeaderOverContentOnly && (
+                <Box
+                  onClick={handleUserMenuClick}
                   sx={{
-                    width: 40,
-                    height: 40,
-                    bgcolor: "#2563eb",
-                    boxShadow: "0 2px 8px rgba(37, 99, 235, 0.3)",
+                    display: "flex",
+                    alignItems: "center",
+                    cursor: "pointer",
+                    padding: "4px",
+                    borderRadius: "50%",
+                    transition: "background 0.2s",
+                    "&:hover": {
+                      bgcolor: "rgba(25,118,210,0.08)",
+                    },
                   }}
                 >
-                  {!avatarUrl && displayName.charAt(0).toUpperCase()}
-                </Avatar>
-              </Box>
-              <Menu
-                anchorEl={anchorEl}
-                open={Boolean(anchorEl)}
-                onClose={handleUserMenuClose}
-                anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-                transformOrigin={{ vertical: "top", horizontal: "right" }}
-                disableScrollLock
-                slotProps={{
-                  paper: {
-                    style: {
-                      maxHeight: "80vh",
-                      overflow: "visible",
+                  <Avatar
+                    src={avatarUrl}
+                    sx={{
+                      width: 40,
+                      height: 40,
+                      bgcolor: "#2563eb",
+                      boxShadow: "0 2px 8px rgba(37, 99, 235, 0.3)",
+                    }}
+                  >
+                    {!avatarUrl && displayName.charAt(0).toUpperCase()}
+                  </Avatar>
+                </Box>
+              )}
+              {!isHeaderOverContentOnly && (
+                <Menu
+                  anchorEl={anchorEl}
+                  open={Boolean(anchorEl)}
+                  onClose={handleUserMenuClose}
+                  anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+                  transformOrigin={{ vertical: "top", horizontal: "right" }}
+                  disableScrollLock
+                  slotProps={{
+                    paper: {
+                      style: {
+                        maxHeight: "80vh",
+                        overflow: "visible",
+                      },
+                      sx: {
+                        borderRadius: 2,
+                        boxShadow: "0 6px 24px rgba(25, 118, 210, 0.15)",
+                        minWidth: 250,
+                        mt: 1,
+                        p: 1,
+                        bgcolor: "white",
+                      },
                     },
-                    sx: {
-                      borderRadius: 2,
-                      boxShadow: "0 6px 24px rgba(25, 118, 210, 0.15)",
-                      minWidth: 250,
-                      mt: 1,
-                      p: 1,
-                      bgcolor: "white",
+                  }}
+                  sx={{
+                    "& .MuiPopover-paper": {
+                      boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+                      border: "1px solid rgba(0,0,0,0.12)",
                     },
-                  },
-                }}
-                sx={{
-                  "& .MuiPopover-paper": {
-                    boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
-                    border: "1px solid rgba(0,0,0,0.12)",
-                  },
-                }}
-              >
+                  }}
+                >
                 <Box sx={{ px: 2, py: 1.5, borderBottom: "1px solid rgba(0,0,0,0.08)" }}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
                     <Avatar
@@ -295,7 +298,8 @@ export default function CounsellorAuthHeader({ headerLeftOffset }) {
                 >
                   <LogoutIcon sx={{ color: "#dc3545", fontSize: 20 }} /> Đăng Xuất
                 </MenuItem>
-              </Menu>
+                </Menu>
+              )}
             </>
           )}
         </Box>

@@ -25,11 +25,17 @@ import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
+import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
 import { signout } from "../../services/AccountService.jsx";
 import { getCounsellorConversations } from "../../services/ConversationService.jsx";
 import { connectPrivateMessageSocket, removePrivateMessageListener } from "../../services/WebSocketService.jsx";
+import {
+  clearNotificationUnreadCount,
+  readNotificationUnreadCount,
+  watchNotificationUnread,
+} from "../../services/NotificationService.jsx";
 
 const COUNSELLOR_PARENT_UNREAD_CONVERSATIONS_KEY = "counsellor_parent_unread_conversations";
 
@@ -142,6 +148,7 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
   const navigate = useNavigate();
   const [userAnchorEl, setUserAnchorEl] = useState(null);
   const [parentUnreadConversations, setParentUnreadConversations] = useState(() => readCounsellorUnreadConversations());
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState(() => readNotificationUnreadCount());
   /** conversationId đã tính vào badge (đồng bộ với GET lần đầu + tin WS), tránh gọi API mỗi tin parent. */
   const conversationIdsWithUnreadRef = useRef(new Set());
   const eventUnreadSyncTimerRef = useRef(null);
@@ -193,6 +200,8 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
   useEffect(() => {
     void refreshCounsellorUnreadFromApi();
   }, [refreshCounsellorUnreadFromApi]);
+
+  useEffect(() => watchNotificationUnread((count) => setNotificationUnreadCount(count)), []);
 
   useEffect(() => {
     const onUnreadUpdated = (event) => {
@@ -397,6 +406,35 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
             </Box>
           ) : null}
         </Box>
+        {onToggleCollapse && (
+          <Badge
+            badgeContent={Math.min(99, notificationUnreadCount)}
+            color="error"
+            overlap="circular"
+            invisible={notificationUnreadCount === 0}
+            sx={{ mr: 0.5 }}
+          >
+            <IconButton
+              size="small"
+              aria-label="Thông báo"
+              onClick={() => {
+                clearNotificationUnreadCount();
+                navigate("/posts");
+              }}
+              sx={{
+                flexShrink: 0,
+                color: "#64748b",
+                bgcolor: "rgba(100, 116, 139, 0.08)",
+                "&:hover": {
+                  bgcolor: "rgba(100, 116, 139, 0.14)",
+                  color: "#1e293b",
+                },
+              }}
+            >
+              <NotificationsNoneRoundedIcon fontSize="small" />
+            </IconButton>
+          </Badge>
+        )}
         {onToggleCollapse && (
           <Tooltip title={collapsed ? "Mở rộng" : "Thu gọn"} placement="right">
             <IconButton
