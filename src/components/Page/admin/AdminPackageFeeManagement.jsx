@@ -75,7 +75,6 @@ const defaultForm = {
     packageId: null,
     name: "",
     packageType: "STANDARD",
-    description: "",
     durationDays: "",
     maxCounsellors: "",
     postLimit: "",
@@ -134,27 +133,54 @@ function formatVnd(amount) {
     return vndFormatter.format(Math.trunc(n));
 }
 
+function parsePricingAmount(value) {
+    if (value == null) return null;
+    if (typeof value === "object") {
+        const nestedAmount = value.amount;
+        const parsedNested = Number(nestedAmount);
+        if (Number.isFinite(parsedNested)) return parsedNested;
+        return null;
+    }
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function featureContributionLabelVi(key) {
+    const k = String(key || "").trim();
+    if (k === "aiAssistantFee") return "Phí trợ lý AI";
+    return k || "Phí tính năng";
+}
+
 function mapPackageFromApi(item) {
-    const features = item?.features || item?.featureData || {};
+    const features = item?.fullFeatures || item?.features || item?.featureData || {};
+    const pricingBreakdown = item?.pricingBreakdown || {};
+    const featureBreakdown = pricingBreakdown?.features || {};
     return {
         id: item?.id ?? null,
         name: item?.name || "",
         packageType: item?.packageType || "STANDARD",
-        description: item?.description || "",
-        price: item?.price != null ? Number(item.price) : null,
-        serviceFee: item?.serviceFee != null ? Number(item.serviceFee) : null,
-        taxFee: item?.taxFee != null ? Number(item.taxFee) : null,
-        finalPrice: item?.finalPrice != null ? Number(item.finalPrice) : null,
+        price:
+            parsePricingAmount(item?.price) ??
+            parsePricingAmount(item?.netPrice) ??
+            parsePricingAmount(pricingBreakdown?.netPrice),
+        basePrice: parsePricingAmount(item?.basePrice) ?? parsePricingAmount(pricingBreakdown?.basePrice),
+        totalFeatureAmount:
+            parsePricingAmount(item?.totalFeatureAmount) ?? parsePricingAmount(featureBreakdown?.amount),
+        netPrice: parsePricingAmount(item?.netPrice) ?? parsePricingAmount(pricingBreakdown?.netPrice) ?? parsePricingAmount(item?.price),
+        serviceFee: parsePricingAmount(item?.serviceFee) ?? parsePricingAmount(pricingBreakdown?.serviceFee),
+        taxFee: parsePricingAmount(item?.taxFee) ?? parsePricingAmount(pricingBreakdown?.taxFee),
+        finalPrice: parsePricingAmount(item?.finalPrice) ?? parsePricingAmount(pricingBreakdown?.finalPrice),
         durationDays: item?.durationDays != null ? Number(item.durationDays) : null,
         status: item?.status || "",
+        featureContributions: featureBreakdown?.details || item?.featureContributions || {},
         features: {
-            maxCounsellors: Number(features?.maxCounsellors ?? 0),
-            postLimit: Number(features?.postLimit ?? 0),
-            hasAiAssistant: Boolean(features?.hasAiAssistant ?? features?.allowChat),
-            parentPostPermission: String(features?.parentPostPermission || "CREATE_POST"),
+            maxCounsellors: Number(features?.maxCounsellors ?? item?.maxCounsellors ?? 0),
+            postLimit: Number(features?.postLimit ?? item?.postLimit ?? 0),
+            hasAiAssistant: Boolean(features?.hasAiAssistant ?? item?.hasAiAssistant ?? features?.allowChat),
+            parentPostPermission: String(features?.parentPostPermission || item?.parentPostPermission || "CREATE_POST"),
             isFeatured: Boolean(features?.isFeatured),
             topRanking: Number(features?.topRanking ?? 0),
-            supportLevel: String(features?.supportLevel || "STANDARD_SUPPORT"),
+            supportLevel: String(features?.supportLevel || item?.supportLevel || "STANDARD_SUPPORT"),
         },
     };
 }
@@ -167,6 +193,31 @@ function normalizePackageStatus(status) {
     if (raw === "PACKAGE_PENDING_DEACTIVE" || raw === "PENDING_DEACTIVE") return "PENDING_DEACTIVE";
     if (raw === "PACKAGE_DEACTIVATED" || raw === "DEACTIVATED") return "DEACTIVATED";
     return raw || "UNKNOWN";
+}
+
+function mapPricePreviewFromUpsertResponse(response) {
+    const body = response?.data?.body || {};
+    const subscription = body?.subscription || {};
+    const pricing = body?.pricing || {};
+    const pricingFeatures = pricing?.features || {};
+    const featureContributions =
+        (pricingFeatures?.details && typeof pricingFeatures.details === "object" ? pricingFeatures.details : null) ??
+        (body?.featureContributions && typeof body.featureContributions === "object" ? body.featureContributions : {});
+    const packageId = Number(subscription?.id ?? body?.packageId ?? body?.id);
+    return {
+        packageId: Number.isFinite(packageId) ? packageId : null,
+        status: normalizePackageStatus(subscription?.status || "DRAFT"),
+        price: parsePricingAmount(subscription?.netPrice) ?? parsePricingAmount(pricing?.netPrice),
+        basePrice: parsePricingAmount(pricing?.basePrice),
+        totalFeatureAmount:
+            parsePricingAmount(pricing?.totalFeatureAmount) ?? parsePricingAmount(pricingFeatures?.amount),
+        netPrice: parsePricingAmount(pricing?.netPrice) ?? parsePricingAmount(subscription?.netPrice),
+        serviceFee: parsePricingAmount(pricing?.serviceFee) ?? parsePricingAmount(subscription?.serviceFee),
+        taxFee: parsePricingAmount(pricing?.taxFee) ?? parsePricingAmount(subscription?.taxFee),
+        finalPrice: parsePricingAmount(pricing?.finalPrice) ?? parsePricingAmount(subscription?.finalPrice),
+        featureContributions:
+            featureContributions && typeof featureContributions === "object" ? featureContributions : {},
+    };
 }
 
 const packageDetailSectionSx = {
@@ -202,94 +253,163 @@ const featureIconWrapSx = {
     flexShrink: 0,
 };
 
-function PackageDetailPriceDurationSection({ price, serviceFee, taxFee, finalPrice, durationDays, packageType }) {
-    const hasPrice = price != null && !Number.isNaN(Number(price));
-    const hasServiceFee = serviceFee != null && !Number.isNaN(Number(serviceFee));
-    const hasTaxFee = taxFee != null && !Number.isNaN(Number(taxFee));
-    const hasFinalPrice = finalPrice != null && !Number.isNaN(Number(finalPrice));
+const pricingBreakSectionTitleSx = (compact) => ({
+    fontSize: compact ? 11 : 11.5,
+    fontWeight: 800,
+    color: "#64748b",
+    letterSpacing: "0.03em",
+    textTransform: "uppercase",
+    mb: 0.35,
+});
+
+function PackagePricingBreakdownView({
+    basePrice,
+    totalFeatureAmount,
+    netPrice,
+    priceFallback,
+    serviceFee,
+    taxFee,
+    finalPrice,
+    featureContributions = {},
+    variant = "detail",
+}) {
+    const compact = variant === "sidebar";
+    const labelFs = compact ? 12 : 13;
+    const valueFs = compact ? 12 : 13;
+    const contrib = Object.entries(featureContributions || {}).filter(([, v]) => parsePricingAmount(v) != null);
+    const tamTinhRaw =
+        netPrice != null && !Number.isNaN(Number(netPrice))
+            ? Number(netPrice)
+            : priceFallback != null && !Number.isNaN(Number(priceFallback))
+              ? Number(priceFallback)
+              : null;
+
+    const fmt = (n) => (n != null && !Number.isNaN(Number(n)) ? `${formatVnd(n)} VNĐ` : "—");
+
+    const row = (left, right, { pl = 0, leftWeight = 500, rightWeight = 600, leftColor = "#475569", rightColor = "#0f172a" } = {}) => (
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 1.5, pl }}>
+            <Typography sx={{ fontSize: labelFs, color: leftColor, fontWeight: leftWeight, lineHeight: 1.35 }}>{left}</Typography>
+            <Typography
+                sx={{ fontSize: valueFs, color: rightColor, fontWeight: rightWeight, textAlign: "right", whiteSpace: "nowrap" }}
+            >
+                {right}
+            </Typography>
+        </Box>
+    );
+
+    const labelOnlyRow = (left, { pl = 0, leftWeight = 600, leftColor = "#475569" } = {}) => (
+        <Box sx={{ pl }}>
+            <Typography sx={{ fontSize: labelFs, color: leftColor, fontWeight: leftWeight, lineHeight: 1.35 }}>{left}</Typography>
+        </Box>
+    );
+
+    return (
+        <Box
+            sx={{
+                border: "1px solid #e2e8f0",
+                borderRadius: 2.25,
+                bgcolor: "#ffffff",
+                px: compact ? 1.25 : 1.6,
+                py: compact ? 1.2 : 1.45,
+            }}
+        >
+            <Stack spacing={0.35}>
+                <Typography sx={pricingBreakSectionTitleSx(compact)}>Cấu hình giá</Typography>
+                {row("Giá nền", fmt(basePrice), { pl: 1.25 })}
+                {labelOnlyRow("Phí tính năng", { pl: 1.25 })}
+                {contrib.length ? (
+                    <Stack spacing={0.45} sx={{ pl: 2.5, pt: 0.15, pb: 0.35 }}>
+                        {contrib.map(([key, value]) =>
+                            row(featureContributionLabelVi(key), fmt(parsePricingAmount(value)), {
+                                pl: 0,
+                                leftWeight: 500,
+                                rightWeight: 600,
+                                leftColor: "#64748b",
+                            })
+                        )}
+                    </Stack>
+                ) : null}
+
+                <Divider sx={{ my: compact ? 1 : 1.15, borderColor: "#e2e8f0", borderStyle: "dashed" }} />
+
+                {row("Tạm tính", fmt(tamTinhRaw), {
+                    pl: 0,
+                    leftWeight: 700,
+                    rightWeight: 700,
+                    leftColor: "#475569",
+                    rightColor: "#475569",
+                })}
+
+                <Divider sx={{ my: compact ? 1 : 1.15, borderColor: "#e2e8f0", borderStyle: "dashed" }} />
+
+                <Typography sx={pricingBreakSectionTitleSx(compact)}>Các khoản phí khác</Typography>
+                {row("Phí dịch vụ", fmt(serviceFee), { pl: 1.25 })}
+                {row("Thuế (VAT)", fmt(taxFee), { pl: 1.25 })}
+
+                <Divider sx={{ my: compact ? 1 : 1.15, borderColor: "#cbd5e1" }} />
+
+                <Box
+                    sx={{
+                        mt: 0.35,
+                        py: 1,
+                        px: 1.25,
+                        borderRadius: 2,
+                        bgcolor: "#eff6ff",
+                        borderLeft: "4px solid #2563eb",
+                    }}
+                >
+                    {row("Tổng thanh toán", fmt(finalPrice), {
+                        pl: 0,
+                        leftWeight: 800,
+                        rightWeight: 800,
+                        leftColor: "#1d4ed8",
+                        rightColor: "#2563eb",
+                    })}
+                </Box>
+            </Stack>
+        </Box>
+    );
+}
+
+function PackageDetailPriceDurationSection({
+    price,
+    basePrice,
+    totalFeatureAmount,
+    netPrice,
+    serviceFee,
+    taxFee,
+    finalPrice,
+    durationDays,
+    packageType,
+    featureContributions,
+}) {
     const hasDuration = durationDays != null && !Number.isNaN(Number(durationDays));
     return (
         <Box sx={packageDetailSectionSx}>
             <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: 1.5 }}>
                 <PaymentsOutlinedIcon sx={{ fontSize: 17, color: "#2563eb" }} />
-                <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#2563eb" }}>Giá, loại gói & thời hạn</Typography>
+                <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#2563eb" }}>Giá & thời hạn gói</Typography>
             </Stack>
+            <PackagePricingBreakdownView
+                basePrice={basePrice}
+                totalFeatureAmount={totalFeatureAmount}
+                netPrice={netPrice}
+                priceFallback={price}
+                serviceFee={serviceFee}
+                taxFee={taxFee}
+                finalPrice={finalPrice}
+                featureContributions={featureContributions}
+                variant="detail"
+            />
             <Box
                 sx={{
                     display: "grid",
-                    gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0,1fr))" },
-                    gap: 1.4,
+                    gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0,1fr))" },
+                    gap: 1.25,
                     width: "100%",
+                    mt: 1.5,
                 }}
             >
-                <Box
-                    sx={{
-                        border: "1px solid #bfdbfe",
-                        borderRadius: 2.2,
-                        bgcolor: "#ffffff",
-                        px: 1.6,
-                        py: 1.25,
-                    }}
-                >
-                    <Typography sx={{ fontSize: 12, color: "#64748b", fontWeight: 700, mb: 0.7 }}>Giá gói</Typography>
-                    <Stack direction="row" alignItems="center" spacing={1.1} sx={{ minWidth: 0 }}>
-                        <MonetizationOnOutlinedIcon sx={{ fontSize: 22, color: "#2563eb" }} aria-hidden />
-                        <Typography sx={{ fontSize: 13, color: "#0f172a", fontWeight: 600, lineHeight: 1.25 }}>
-                            {hasPrice ? `${formatVnd(price)} VNĐ` : "—"}
-                        </Typography>
-                    </Stack>
-                </Box>
-                <Box
-                    sx={{
-                        border: "1px solid #bfdbfe",
-                        borderRadius: 2.2,
-                        bgcolor: "#ffffff",
-                        px: 1.6,
-                        py: 1.25,
-                    }}
-                >
-                    <Typography sx={{ fontSize: 12, color: "#64748b", fontWeight: 700, mb: 0.7 }}>Phí dịch vụ</Typography>
-                    <Stack direction="row" alignItems="center" spacing={1.1} sx={{ minWidth: 0 }}>
-                        <MonetizationOnOutlinedIcon sx={{ fontSize: 22, color: "#475569" }} aria-hidden />
-                        <Typography sx={{ fontSize: 13, color: "#0f172a", fontWeight: 600, lineHeight: 1.25 }}>
-                            {hasServiceFee ? `${formatVnd(serviceFee)} VNĐ` : "—"}
-                        </Typography>
-                    </Stack>
-                </Box>
-                <Box
-                    sx={{
-                        border: "1px solid #bfdbfe",
-                        borderRadius: 2.2,
-                        bgcolor: "#ffffff",
-                        px: 1.6,
-                        py: 1.25,
-                    }}
-                >
-                    <Typography sx={{ fontSize: 12, color: "#64748b", fontWeight: 700, mb: 0.7 }}>Thuế</Typography>
-                    <Stack direction="row" alignItems="center" spacing={1.1} sx={{ minWidth: 0 }}>
-                        <MonetizationOnOutlinedIcon sx={{ fontSize: 22, color: "#475569" }} aria-hidden />
-                        <Typography sx={{ fontSize: 13, color: "#0f172a", fontWeight: 600, lineHeight: 1.25 }}>
-                            {hasTaxFee ? `${formatVnd(taxFee)} VNĐ` : "—"}
-                        </Typography>
-                    </Stack>
-                </Box>
-                <Box
-                    sx={{
-                        border: "1px solid #93c5fd",
-                        borderRadius: 2.2,
-                        bgcolor: "#eff6ff",
-                        px: 1.6,
-                        py: 1.25,
-                    }}
-                >
-                    <Typography sx={{ fontSize: 12, color: "#1d4ed8", fontWeight: 800, mb: 0.7 }}>Tổng thanh toán</Typography>
-                    <Stack direction="row" alignItems="center" spacing={1.1} sx={{ minWidth: 0 }}>
-                        <MonetizationOnOutlinedIcon sx={{ fontSize: 22, color: "#1d4ed8" }} aria-hidden />
-                        <Typography sx={{ fontSize: 13, color: "#0f172a", fontWeight: 700, lineHeight: 1.25 }}>
-                            {hasFinalPrice ? `${formatVnd(finalPrice)} VNĐ` : "—"}
-                        </Typography>
-                    </Stack>
-                </Box>
                 <Box
                     sx={{
                         border: "1px solid #bfdbfe",
@@ -337,19 +457,6 @@ function PackageDetailInfoSection({ row }) {
                 <Box sx={packageDetailFieldBoxSx}>
                     <Typography sx={detailInfoLabelSx}>Tên gói</Typography>
                     <Typography sx={detailInfoValueSx}>{row.name || "—"}</Typography>
-                </Box>
-                <Box sx={packageDetailFieldBoxSx}>
-                    <Typography sx={detailInfoLabelSx}>Mô tả</Typography>
-                    <Typography
-                        sx={{
-                            ...detailInfoValueSx,
-                            fontWeight: 500,
-                            lineHeight: 1.55,
-                            whiteSpace: "pre-wrap",
-                        }}
-                    >
-                        {row.description || "—"}
-                    </Typography>
                 </Box>
             </Stack>
         </Box>
@@ -465,7 +572,6 @@ function buildPayload(form, isEdit) {
     const body = {
         name: String(form.name).trim(),
         packageType: normalizedPackageType,
-        description: String(form.description).trim(),
         durationDays: Number(form.durationDays),
         featureData: {
             maxCounsellors: Number(form.maxCounsellors),
@@ -505,9 +611,13 @@ export default function AdminPackageFeeManagement() {
         packageId: null,
         status: "DRAFT",
         price: null,
+        basePrice: null,
+        totalFeatureAmount: null,
+        netPrice: null,
         serviceFee: null,
         taxFee: null,
         finalPrice: null,
+        featureContributions: {},
     });
 
     const isEdit = form.packageId != null;
@@ -552,9 +662,13 @@ export default function AdminPackageFeeManagement() {
             packageId: null,
             status: "DRAFT",
             price: null,
+            basePrice: null,
+            totalFeatureAmount: null,
+            netPrice: null,
             serviceFee: null,
             taxFee: null,
             finalPrice: null,
+            featureContributions: {},
         });
         setDialogOpen(true);
     };
@@ -568,7 +682,6 @@ export default function AdminPackageFeeManagement() {
             packageId: row.id,
             name: row.name,
             packageType: PACKAGE_TYPES.includes(row.packageType) ? row.packageType : "STANDARD",
-            description: row.description,
             durationDays: row.durationDays != null && !Number.isNaN(Number(row.durationDays)) ? Number(row.durationDays) : "",
             maxCounsellors: row.features.maxCounsellors,
             postLimit: row.features.postLimit,
@@ -584,10 +697,14 @@ export default function AdminPackageFeeManagement() {
         setPricePreview({
             packageId: row.id ?? null,
             status: normalizePackageStatus(row.status),
-            price: row.price ?? null,
+            price: row.price ?? row.netPrice ?? null,
+            basePrice: row.basePrice ?? null,
+            totalFeatureAmount: row.totalFeatureAmount ?? null,
+            netPrice: row.netPrice ?? row.price ?? null,
             serviceFee: row.serviceFee ?? null,
             taxFee: row.taxFee ?? null,
             finalPrice: row.finalPrice ?? null,
+            featureContributions: row.featureContributions || {},
         });
         setDialogOpen(true);
     };
@@ -601,9 +718,13 @@ export default function AdminPackageFeeManagement() {
             packageId: null,
             status: "DRAFT",
             price: null,
+            basePrice: null,
+            totalFeatureAmount: null,
+            netPrice: null,
             serviceFee: null,
             taxFee: null,
             finalPrice: null,
+            featureContributions: {},
         });
     };
 
@@ -731,7 +852,6 @@ export default function AdminPackageFeeManagement() {
         if (!name) return "Vui lòng nhập tên gói.";
         if (name.length > 100) return "Tên gói không được vượt quá 100 ký tự.";
         if (!PACKAGE_TYPES.includes(form.packageType)) return "Loại gói không hợp lệ.";
-        if (!String(form.description).trim()) return "Vui lòng nhập mô tả gói.";
         const dur = Number(form.durationDays);
         if (form.durationDays === "" || Number.isNaN(dur) || dur < 1 || !Number.isInteger(dur)) {
             return "Thời hạn gói (ngày) phải là số nguyên dương.";
@@ -793,14 +913,19 @@ export default function AdminPackageFeeManagement() {
                     .sort((a, b) => Number(b.id || 0) - Number(a.id || 0))[0] || null;
             const matchedItem = refreshedItems.find((it) => it.id === upsertPackageId) || fallbackMatchedItem;
             if (matchedItem) {
+                const upsertPreview = mapPricePreviewFromUpsertResponse(upsertRes);
                 setForm((prev) => ({ ...prev, packageId: matchedItem.id ?? prev.packageId }));
                 setPricePreview({
-                    packageId: matchedItem.id ?? null,
-                    status: normalizePackageStatus(matchedItem.status),
-                    price: matchedItem.price ?? null,
-                    serviceFee: matchedItem.serviceFee ?? null,
-                    taxFee: matchedItem.taxFee ?? null,
-                    finalPrice: matchedItem.finalPrice ?? null,
+                    packageId: upsertPreview.packageId ?? matchedItem.id ?? null,
+                    status: upsertPreview.status || normalizePackageStatus(matchedItem.status),
+                    price: upsertPreview.price ?? matchedItem.price ?? matchedItem.netPrice ?? null,
+                    basePrice: upsertPreview.basePrice ?? matchedItem.basePrice ?? null,
+                    totalFeatureAmount: upsertPreview.totalFeatureAmount ?? matchedItem.totalFeatureAmount ?? null,
+                    netPrice: upsertPreview.netPrice ?? matchedItem.netPrice ?? matchedItem.price ?? null,
+                    serviceFee: upsertPreview.serviceFee ?? matchedItem.serviceFee ?? null,
+                    taxFee: upsertPreview.taxFee ?? matchedItem.taxFee ?? null,
+                    finalPrice: upsertPreview.finalPrice ?? matchedItem.finalPrice ?? null,
+                    featureContributions: upsertPreview.featureContributions || matchedItem.featureContributions || {},
                 });
             }
             enqueueSnackbar(isEdit ? "Lưu nháp cập nhật thành công." : "Lưu nháp gói mới thành công.", {
@@ -896,9 +1021,6 @@ export default function AdminPackageFeeManagement() {
                                         Tên gói
                                     </TableCell>
                                     <TableCell align="center" sx={{ ...adminTableHeadCellSx, whiteSpace: "normal", lineHeight: 1.2 }}>
-                                        Mô tả
-                                    </TableCell>
-                                    <TableCell align="center" sx={{ ...adminTableHeadCellSx, whiteSpace: "normal", lineHeight: 1.2 }}>
                                         Tổng thanh toán (VNĐ)
                                     </TableCell>
                                     <TableCell align="center" sx={{ ...adminTableHeadCellSx, whiteSpace: "normal", lineHeight: 1.2 }}>
@@ -918,13 +1040,13 @@ export default function AdminPackageFeeManagement() {
                             <TableBody>
                                 {loading ? (
                                     <TableRow>
-                                        <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
+                                        <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
                                             <CircularProgress size={36} sx={{ color: APP_PRIMARY_MAIN }} />
                                         </TableCell>
                                     </TableRow>
                                 ) : sortedItems.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={8} align="center" sx={{ py: 4, color: "#64748b" }}>
+                                        <TableCell colSpan={7} align="center" sx={{ py: 4, color: "#64748b" }}>
                                             Chưa có gói dịch vụ nào.
                                         </TableCell>
                                     </TableRow>
@@ -949,19 +1071,6 @@ export default function AdminPackageFeeManagement() {
                                                         }}
                                                     >
                                                         {row.name}
-                                                    </Typography>
-                                                </TableCell>
-                                                <TableCell
-                                                    align="center"
-                                                    sx={{
-                                                        color: "#475569",
-                                                        lineHeight: 1.35,
-                                                        verticalAlign: "middle",
-                                                        maxWidth: isCompact ? 140 : 360,
-                                                    }}
-                                                >
-                                                    <Typography variant="body2" sx={{ fontSize: isCompact ? 11 : 13, textAlign: "center" }}>
-                                                        {row.description || "—"}
                                                     </Typography>
                                                 </TableCell>
                                                 <TableCell align="center" sx={{ whiteSpace: "nowrap", verticalAlign: "middle", fontWeight: 700 }}>
@@ -1115,11 +1224,15 @@ export default function AdminPackageFeeManagement() {
                             </Stack>
                             <PackageDetailPriceDurationSection
                                 price={detailRow.price}
+                                basePrice={detailRow.basePrice}
+                                totalFeatureAmount={detailRow.totalFeatureAmount}
+                                netPrice={detailRow.netPrice}
                                 serviceFee={detailRow.serviceFee}
                                 taxFee={detailRow.taxFee}
                                 finalPrice={detailRow.finalPrice}
                                 durationDays={detailRow.durationDays}
                                 packageType={detailRow.packageType}
+                                featureContributions={detailRow.featureContributions}
                             />
 
                             <Box sx={{ pt: 0.5 }}>
@@ -1179,15 +1292,6 @@ export default function AdminPackageFeeManagement() {
                                         ))}
                                     </Select>
                                 </FormControl>
-                                <TextField
-                                    label="Mô tả"
-                                    size="small"
-                                    value={form.description}
-                                    onChange={handleChange("description")}
-                                    fullWidth
-                                    multiline
-                                    minRows={2}
-                                />
                                 <TextField
                                     label="Thời hạn gói (ngày)"
                                     type="number"
@@ -1308,40 +1412,18 @@ export default function AdminPackageFeeManagement() {
                                     height: "fit-content",
                                 }}
                             >
-                                <Typography sx={{ fontWeight: 800, color: "#1e40af", mb: 1.2 }}>Giá hệ thống tính tự động</Typography>
-                                <Stack spacing={1}>
-                                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
-                                        <Typography sx={{ color: "#475569", fontSize: 12 }}>Giá gốc</Typography>
-                                        <Typography sx={{ fontWeight: 500, fontSize: 12 }}>
-                                            {pricePreview.price != null ? `${formatVnd(pricePreview.price)} VNĐ` : "—"}
-                                        </Typography>
-                                    </Box>
-                                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
-                                        <Typography sx={{ color: "#475569", fontSize: 12 }}>Phí dịch vụ</Typography>
-                                        <Typography sx={{ fontWeight: 500, fontSize: 12 }}>
-                                            {pricePreview.serviceFee != null ? `${formatVnd(pricePreview.serviceFee)} VNĐ` : "—"}
-                                        </Typography>
-                                    </Box>
-                                    <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
-                                        <Typography sx={{ color: "#475569", fontSize: 12 }}>Thuế</Typography>
-                                        <Typography sx={{ fontWeight: 500, fontSize: 12 }}>
-                                            {pricePreview.taxFee != null ? `${formatVnd(pricePreview.taxFee)} VNĐ` : "—"}
-                                        </Typography>
-                                    </Box>
-                                    <Divider />
-                                    <Box
-                                        sx={{
-                                            display: "flex",
-                                            justifyContent: "space-between",
-                                            gap: 1,
-                                        }}
-                                    >
-                                        <Typography sx={{ color: "#1e3a8a", fontWeight: 700, fontSize: 13 }}>Tổng thanh toán</Typography>
-                                        <Typography sx={{ fontWeight: 700, fontSize: 13, color: "#0f172a" }}>
-                                            {pricePreview.finalPrice != null ? `${formatVnd(pricePreview.finalPrice)} VNĐ` : "—"}
-                                        </Typography>
-                                    </Box>
-                                </Stack>
+                                <Typography sx={{ fontWeight: 800, color: "#1e40af", mb: 1.2 }}>Giá dự kiến</Typography>
+                                <PackagePricingBreakdownView
+                                    basePrice={pricePreview.basePrice}
+                                    totalFeatureAmount={pricePreview.totalFeatureAmount}
+                                    netPrice={pricePreview.netPrice}
+                                    priceFallback={pricePreview.price}
+                                    serviceFee={pricePreview.serviceFee}
+                                    taxFee={pricePreview.taxFee}
+                                    finalPrice={pricePreview.finalPrice}
+                                    featureContributions={pricePreview.featureContributions}
+                                    variant="sidebar"
+                                />
                             </Box>
                         </Box>
                     </Box>
