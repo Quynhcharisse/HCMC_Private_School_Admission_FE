@@ -30,33 +30,10 @@ import {
     previewSchoolSubscriptionChange,
 } from "../../services/SchoolSubscriptionService.jsx";
 import { normalizeUserRole } from "../../utils/userRole.js";
+import { isSchoolPackageListable, normalizeSchoolServicePackageItem } from "../../utils/servicePackageDisplay.js";
 import SchoolServicePackagesGrid from "../ui/SchoolServicePackagesGrid.jsx";
 
 const LAYOUT_HEADER_TOP_PX = { xs: "calc(72px + 24px)", md: "calc(80px + 32px)" };
-
-function normalizeSupportLevelForView(level) {
-    const key = String(level || "").trim().toUpperCase();
-    if (key === "BASIC_SUPPORT") return "BASIC";
-    if (key === "STANDARD_SUPPORT") return "STANDARD";
-    if (key === "PREMIUM_SUPPORT") return "PREMIUM";
-    return key;
-}
-
-function normalizePackageForView(item) {
-    const features = item?.features && typeof item.features === "object" ? item.features : {};
-    return {
-        ...item,
-        price: Number.isFinite(Number(item?.finalPrice)) ? Number(item.finalPrice) : Number(item?.price ?? 0),
-        features: {
-            ...features,
-            supportLevel: normalizeSupportLevelForView(features?.supportLevel),
-            allowChat:
-                typeof features?.allowChat === "boolean"
-                    ? features.allowChat
-                    : features?.hasAiAssistant === true,
-        },
-    };
-}
 
 function readSchoolRoleFromStorage() {
     try {
@@ -405,10 +382,8 @@ export default function PackageFeesPage() {
             try {
                 const res = await getAdminPackageFees();
                 const raw = Array.isArray(res?.data?.body) ? res.data.body : [];
-                const activePackages = raw.filter(
-                    (item) => String(item?.status || "").trim().toUpperCase() === "PACKAGE_ACTIVE"
-                );
-                if (!cancelled) setSchoolServicePackages(activePackages.map(normalizePackageForView));
+                const listable = raw.filter((item) => isSchoolPackageListable(item));
+                if (!cancelled) setSchoolServicePackages(listable.map(normalizeSchoolServicePackageItem));
             } catch (error) {
                 console.error(error);
                 if (!cancelled) {

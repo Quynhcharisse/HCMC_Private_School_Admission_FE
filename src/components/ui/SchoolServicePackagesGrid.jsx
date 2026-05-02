@@ -7,6 +7,8 @@ import {
     formatVndPrice,
     getSupportLevelLabel,
     getSupportLevelRank,
+    isSchoolPackageListable,
+    normalizeSchoolServicePackageItem,
 } from "../../utils/servicePackageDisplay";
 
 export default function SchoolServicePackagesGrid({
@@ -25,6 +27,16 @@ export default function SchoolServicePackagesGrid({
         return "default";
     };
 
+    const normalizedPackages = React.useMemo(
+        () => (Array.isArray(packages) ? packages.map((p) => normalizeSchoolServicePackageItem(p)) : []),
+        [packages]
+    );
+
+    const listablePackages = React.useMemo(
+        () => normalizedPackages.filter((pkg) => isSchoolPackageListable(pkg)),
+        [normalizedPackages]
+    );
+
     if (loading) {
         return (
             <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>
@@ -33,7 +45,7 @@ export default function SchoolServicePackagesGrid({
         );
     }
 
-    if (!packages.length) {
+    if (!listablePackages.length) {
         return (
             <Typography sx={{ textAlign: "center", color: "#64748b", py: 3 }}>
                 Chưa có gói dịch vụ đang hoạt động.
@@ -41,15 +53,13 @@ export default function SchoolServicePackagesGrid({
         );
     }
 
-    const strictlyActivePackages = packages.filter(
-        (pkg) => String(pkg?.status || "").trim().toUpperCase() === "PACKAGE_ACTIVE"
-    );
-    const sortedPackages = [...strictlyActivePackages].sort(
+    const sortedPackages = [...listablePackages].sort(
         (a, b) => getSupportLevelRank(a?.features?.supportLevel) - getSupportLevelRank(b?.features?.supportLevel)
     );
-    const enterpriseIndex = sortedPackages.findIndex(
-        (pkg) => String(pkg?.features?.supportLevel || "").toUpperCase() === "ENTERPRISE"
-    );
+    const enterpriseIndex = sortedPackages.findIndex((pkg) => {
+        const sl = String(pkg?.features?.supportLevel || "").toUpperCase();
+        return sl === "ENTERPRISE" || sl === "PREMIUM";
+    });
     const orderedPackages =
         enterpriseIndex > -1 && sortedPackages.length >= 3
             ? [

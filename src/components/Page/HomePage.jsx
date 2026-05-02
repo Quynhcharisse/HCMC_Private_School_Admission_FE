@@ -64,6 +64,7 @@ import {getAdminPackageFees} from "../../services/AdminService.jsx";
 import {createSchoolSubscriptionPayment} from "../../services/SchoolSubscriptionService.jsx";
 import {getPostList} from "../../services/PostService.jsx";
 import SchoolServicePackagesGrid from "../ui/SchoolServicePackagesGrid.jsx";
+import { isSchoolPackageListable, normalizeSchoolServicePackageItem } from "../../utils/servicePackageDisplay.js";
 import SchoolSearchDetailView from "./SchoolSearchDetailView.jsx";
 import {DEFAULT_SCHOOL_IMAGE, mapPublicSchoolDetailToRow} from "../../utils/schoolPublicMapper.js";
 import {showSuccessSnackbar, showWarningSnackbar} from "../ui/AppSnackbar.jsx";
@@ -2094,10 +2095,8 @@ export default function HomePage() {
             try {
                 const res = await getAdminPackageFees();
                 const raw = Array.isArray(res?.data?.body) ? res.data.body : [];
-                const activePackages = raw.filter(
-                    (item) => String(item?.status || "").trim().toUpperCase() === "PACKAGE_ACTIVE"
-                );
-                if (!cancelled) setSchoolServicePackages(activePackages);
+                const listable = raw.filter((item) => isSchoolPackageListable(item));
+                if (!cancelled) setSchoolServicePackages(listable.map(normalizeSchoolServicePackageItem));
             } catch (error) {
                 console.error(error);
                 if (!cancelled) {
