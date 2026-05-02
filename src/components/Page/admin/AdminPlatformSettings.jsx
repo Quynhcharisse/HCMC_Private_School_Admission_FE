@@ -266,7 +266,6 @@ export default function AdminPlatformSettings() {
             baseEnterprisePrice: basePrices.enterprise == null ? "" : String(basePrices.enterprise),
             aiChatbotMonthlyFee: featureUnitPrices.aiChatbotMonthlyFee == null ? "" : String(featureUnitPrices.aiChatbotMonthlyFee),
             premiumSupportFee: featureUnitPrices.premiumSupportFee == null ? "" : String(featureUnitPrices.premiumSupportFee),
-            topRankingFee: featureUnitPrices.topRankingFee == null ? "" : String(featureUnitPrices.topRankingFee),
             durationDays: packageQuotas.durationDays == null ? "" : String(packageQuotas.durationDays),
             trialCounsellor: packageQuotas.trialCounsellor == null ? "" : String(packageQuotas.trialCounsellor),
             standardCounsellor: packageQuotas.standardCounsellor == null ? "" : String(packageQuotas.standardCounsellor),
@@ -296,7 +295,6 @@ export default function AdminPlatformSettings() {
         baseEnterprisePrice: "",
         aiChatbotMonthlyFee: "",
         premiumSupportFee: "",
-        topRankingFee: "",
         durationDays: "",
         trialCounsellor: "",
         standardCounsellor: "",
@@ -544,7 +542,6 @@ export default function AdminPlatformSettings() {
         getMoney("baseEnterprisePrice", "Giá nền gói Doanh nghiệp");
         getMoney("aiChatbotMonthlyFee", "Phí duy trì Trợ lý AI");
         getMoney("premiumSupportFee", "Phí hỗ trợ cao cấp");
-        getMoney("topRankingFee", "Phí đẩy đầu trang tìm kiếm");
         getPositiveInt("durationDays", "Thời hạn gói mặc định");
         getPositiveInt("trialCounsellor", "Số tư vấn viên gói Dùng thử");
         getPositiveInt("standardCounsellor", "Số tư vấn viên gói Tiêu chuẩn");
@@ -1280,7 +1277,6 @@ export default function AdminPlatformSettings() {
                         featureUnitPrices: {
                             aiChatbotMonthlyFee: Math.trunc(parseFinite(businessForm.aiChatbotMonthlyFee) ?? 0),
                             premiumSupportFee: Math.trunc(parseFinite(businessForm.premiumSupportFee) ?? 0),
-                            topRankingFee: Math.trunc(parseFinite(businessForm.topRankingFee) ?? 0),
                         },
                         packageQuotas: {
                             durationDays: Math.trunc(parseFinite(businessForm.durationDays) ?? 0),
@@ -2347,7 +2343,6 @@ export default function AdminPlatformSettings() {
                                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
                                         {moneyField("Phí Chatbot AI (tháng)", "aiChatbotMonthlyFee")}
                                         {moneyField("Phí hỗ trợ ưu tiên", "premiumSupportFee")}
-                                        {moneyField("Phí đẩy bài (top ranking)", "topRankingFee")}
                                     </Box>
                                 ) : null}
                                 {businessPricingSubTab === 2 ? (

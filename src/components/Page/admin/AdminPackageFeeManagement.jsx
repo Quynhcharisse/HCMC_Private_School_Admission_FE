@@ -41,9 +41,6 @@ import CloseIcon from "@mui/icons-material/Close";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import ExtensionOutlinedIcon from "@mui/icons-material/ExtensionOutlined";
 import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
-import StarOutlineIcon from "@mui/icons-material/StarOutline";
-import StarRoundedIcon from "@mui/icons-material/StarRounded";
-import EmojiEventsOutlinedIcon from "@mui/icons-material/EmojiEventsOutlined";
 import PolicyOutlinedIcon from "@mui/icons-material/PolicyOutlined";
 import SupportAgentOutlinedIcon from "@mui/icons-material/SupportAgentOutlined";
 import PaymentsOutlinedIcon from "@mui/icons-material/PaymentsOutlined";
@@ -81,8 +78,6 @@ const defaultForm = {
     postLimit: "",
     hasAiAssistant: false,
     parentPostPermission: "CREATE_POST",
-    isFeatured: false,
-    topRanking: "",
     supportLevel: "STANDARD_SUPPORT",
 };
 
@@ -90,25 +85,49 @@ const PACKAGE_TYPES = ["TRIAL", "STANDARD", "ENTERPRISE"];
 const SUPPORT_LEVELS = ["BASIC_SUPPORT", "STANDARD_SUPPORT", "PREMIUM_SUPPORT"];
 const PARENT_POST_PERMISSIONS = ["VIEW_ONLY", "CREATE_POST"];
 
-function displayEnum(value) {
+function packageTypeLabelVi(value) {
+    const v = String(value || "").toUpperCase();
+    if (v === "TRIAL") return "Dùng thử";
+    if (v === "STANDARD") return "Tiêu chuẩn";
+    if (v === "ENTERPRISE") return "Doanh nghiệp";
+    if (value === null || value === undefined || value === "") return "—";
+    return String(value);
+}
+
+function parentPostPermissionLabelVi(value) {
+    const v = String(value || "").toUpperCase();
+    if (v === "VIEW_ONLY") return "Chỉ xem bài đăng, không được đăng";
+    if (v === "CREATE_POST") return "Được phép đăng bài";
+    if (value === null || value === undefined || value === "") return "—";
+    return String(value);
+}
+
+function supportLevelLabelVi(value) {
+    const v = String(value || "").toUpperCase();
+    if (v === "BASIC_SUPPORT") return "Cơ bản";
+    if (v === "STANDARD_SUPPORT") return "Tiêu chuẩn";
+    if (v === "PREMIUM_SUPPORT") return "Cao cấp";
     if (value === null || value === undefined || value === "") return "—";
     return String(value);
 }
 
 function packageStatusLabel(status) {
-    if (status === "PACKAGE_DRAFT") return "Bản nháp";
-    if (status === "PACKAGE_PUBLISHED") return "Đã phát hành";
-    if (status === "PACKAGE_ACTIVE") return "Hoạt động";
-    if (status === "PACKAGE_PENDING_DEACTIVE" || status === "PENDING_DEACTIVE") return "Chờ ngừng bán";
-    if (status === "PACKAGE_DEACTIVATED") return "Đã ngừng bán";
-    return status || "Không xác định";
+    const s = String(status || "").toUpperCase();
+    if (s === "PACKAGE_DRAFT" || s === "DRAFT") return "Bản nháp";
+    if (s === "PACKAGE_PUBLISHED" || s === "PUBLISHED") return "Đã phát hành";
+    if (s === "PACKAGE_ACTIVE" || s === "ACTIVE") return "Hoạt động";
+    if (s === "PACKAGE_PENDING_DEACTIVE" || s === "PENDING_DEACTIVE") return "Chờ ngừng bán";
+    if (s === "PACKAGE_DEACTIVATED" || s === "DEACTIVATED") return "Đã ngừng bán";
+    if (!s || s === "UNKNOWN") return "Không xác định";
+    return String(status);
 }
 
 function packageStatusChipProps(status) {
-    if (status === "PACKAGE_DRAFT") return { color: "warning", variant: "filled" };
-    if (status === "PACKAGE_ACTIVE" || status === "PACKAGE_PUBLISHED") return { color: "success", variant: "filled" };
-    if (status === "PACKAGE_PENDING_DEACTIVE" || status === "PENDING_DEACTIVE") return { color: "warning", variant: "outlined" };
-    if (status === "PACKAGE_DEACTIVATED") return { color: "error", variant: "outlined" };
+    const s = String(status || "").toUpperCase();
+    if (s === "PACKAGE_DRAFT" || s === "DRAFT") return { color: "warning", variant: "filled" };
+    if (s === "PACKAGE_ACTIVE" || s === "ACTIVE" || s === "PACKAGE_PUBLISHED" || s === "PUBLISHED") return { color: "success", variant: "filled" };
+    if (s === "PACKAGE_PENDING_DEACTIVE" || s === "PENDING_DEACTIVE") return { color: "warning", variant: "outlined" };
+    if (s === "PACKAGE_DEACTIVATED" || s === "DEACTIVATED") return { color: "error", variant: "outlined" };
     return { color: "default", variant: "outlined" };
 }
 
@@ -301,7 +320,7 @@ function PackageDetailPriceDurationSection({ price, serviceFee, taxFee, finalPri
                 >
                     <Typography sx={{ fontSize: 12, color: "#64748b", fontWeight: 700, mb: 0.7 }}>Loại gói</Typography>
                     <Typography sx={{ fontSize: 13, color: "#0f172a", fontWeight: 600, lineHeight: 1.25 }}>
-                        {displayEnum(packageType)}
+                        {packageTypeLabelVi(packageType)}
                     </Typography>
                 </Box>
                 <Box
@@ -380,7 +399,7 @@ function PackageFeaturesDetailGrid({ features }) {
         <Chip
             size="small"
             icon={<CheckCircleRoundedIcon sx={{ color: "#16a34a !important" }} />}
-            label="AI Assistant"
+            label="Trợ lý AI"
             variant="outlined"
             sx={{ borderColor: "#86efac", bgcolor: "#f0fdf4", color: "#166534", fontWeight: 700 }}
         />
@@ -388,33 +407,16 @@ function PackageFeaturesDetailGrid({ features }) {
         <Chip
             size="small"
             icon={<HighlightOffRoundedIcon sx={{ color: "#dc2626 !important" }} />}
-            label="AI Assistant"
+            label="Trợ lý AI"
             variant="outlined"
             sx={{ borderColor: "#fecaca", bgcolor: "#fef2f2", color: "#991b1b", fontWeight: 700 }}
-        />
-    );
-    const featuredChip = f.isFeatured ? (
-        <Chip
-            size="small"
-            icon={<StarRoundedIcon sx={{ color: "#f59e0b !important" }} />}
-            label="Nổi bật"
-            variant="outlined"
-            sx={{ borderColor: "#fcd34d", bgcolor: "#fffbeb", color: "#92400e", fontWeight: 700 }}
-        />
-    ) : (
-        <Chip
-            size="small"
-            label="Nổi bật"
-            variant="outlined"
-            sx={{ borderColor: "#cbd5e1", bgcolor: "#f8fafc", color: "#475569", fontWeight: 700 }}
         />
     );
     const cells = [
         { Icon: SupportAgentOutlinedIcon, label: "Tư vấn viên", value: String(f.maxCounsellors ?? 0), iconColor: "#2563eb", iconBg: "#dbeafe" },
         { Icon: ExtensionOutlinedIcon, label: "Số bài đăng", value: String(f.postLimit ?? 0), iconColor: "#7c3aed", iconBg: "#ede9fe" },
-        { Icon: PolicyOutlinedIcon, label: "Quyền nhà trường", value: displayEnum(f.parentPostPermission), iconColor: "#0f766e", iconBg: "#ccfbf1" },
-        { Icon: EmojiEventsOutlinedIcon, label: "Xếp hạng", value: `Số ${f.topRanking ?? 0}`, iconColor: "#dc2626", iconBg: "#fee2e2" },
-        { Icon: SupportAgentOutlinedIcon, label: "Mức hỗ trợ", value: displayEnum(f.supportLevel), iconColor: "#4f46e5", iconBg: "#e0e7ff" },
+        { Icon: PolicyOutlinedIcon, label: "Phạm vi đăng bài", value: parentPostPermissionLabelVi(f.parentPostPermission), iconColor: "#0f766e", iconBg: "#ccfbf1" },
+        { Icon: SupportAgentOutlinedIcon, label: "Hạng chăm sóc", value: supportLevelLabelVi(f.supportLevel), iconColor: "#4f46e5", iconBg: "#e0e7ff" },
     ];
     return (
         <Stack spacing={2.6}>
@@ -427,7 +429,6 @@ function PackageFeaturesDetailGrid({ features }) {
                 sx={{ pt: 0.35, pb: 0.35 }}
             >
                 {aiAssistantChip}
-                {featuredChip}
             </Stack>
             <Box
                 sx={{
@@ -472,8 +473,8 @@ function buildPayload(form, isEdit) {
             postLimit: Number(form.postLimit),
             hasAiAssistant: isTrial ? false : Boolean(form.hasAiAssistant),
             parentPostPermission: normalizedParentPostPermission,
-            isFeatured: Boolean(form.isFeatured),
-            topRanking: isTrial ? 0 : Number(form.topRanking),
+            isFeatured: false,
+            topRanking: 0,
             supportLevel,
         },
     };
@@ -576,8 +577,6 @@ export default function AdminPackageFeeManagement() {
             parentPostPermission: PARENT_POST_PERMISSIONS.includes(row.features.parentPostPermission)
                 ? row.features.parentPostPermission
                 : "CREATE_POST",
-            isFeatured: row.features.isFeatured,
-            topRanking: row.features.topRanking,
             supportLevel: SUPPORT_LEVELS.includes(row.features.supportLevel) ? row.features.supportLevel : "STANDARD_SUPPORT",
         });
         setSubmitAttempted(false);
@@ -717,7 +716,6 @@ export default function AdminPackageFeeManagement() {
             const next = { ...prev, [key]: value };
             if (key === "packageType" && value === "TRIAL") {
                 next.hasAiAssistant = false;
-                next.topRanking = 0;
                 if (next.supportLevel === "PREMIUM_SUPPORT") {
                     next.supportLevel = "STANDARD_SUPPORT";
                 }
@@ -748,19 +746,15 @@ export default function AdminPackageFeeManagement() {
         ) {
             return "Giới hạn bài đăng phải là số nguyên >= 0 hoặc -1 (không giới hạn).";
         }
-        const topRanking = Number(form.topRanking);
-        if (form.topRanking === "" || Number.isNaN(topRanking) || !Number.isInteger(topRanking) || topRanking < 0) {
-            return "Thứ hạng ưu tiên phải là số nguyên >= 0.";
-        }
-        if (!PARENT_POST_PERMISSIONS.includes(form.parentPostPermission)) return "Quyền đăng bài của school không hợp lệ.";
-        if (!SUPPORT_LEVELS.includes(form.supportLevel)) return "Mức hỗ trợ không hợp lệ.";
+        if (!PARENT_POST_PERMISSIONS.includes(form.parentPostPermission)) return "Quyền đăng bài của nhà trường không hợp lệ.";
+        if (!SUPPORT_LEVELS.includes(form.supportLevel)) return "Hạng chăm sóc không hợp lệ.";
         if (form.packageType === "TRIAL" && form.supportLevel === "PREMIUM_SUPPORT") {
-            return "Gói TRIAL không được chọn PREMIUM_SUPPORT.";
+            return "Gói dùng thử không được chọn hạng chăm sóc cao cấp.";
         }
         if (form.packageId != null) {
             const pid = Number(form.packageId);
             if (!Number.isFinite(pid) || pid < 1) {
-                return "Cập nhật cần mã gói (packageId) hợp lệ.";
+                return "Cập nhật cần mã gói hợp lệ.";
             }
         }
         return null;
@@ -777,7 +771,7 @@ export default function AdminPackageFeeManagement() {
         setSubmitting(true);
         try {
             if (isEdit && (form.packageId == null || Number.isNaN(Number(form.packageId)))) {
-                enqueueSnackbar("Cập nhật bắt buộc có packageId.", { variant: "warning" });
+                enqueueSnackbar("Cập nhật bắt buộc phải có mã gói hợp lệ.", { variant: "warning" });
                 setSubmitting(false);
                 return;
             }
@@ -1157,9 +1151,11 @@ export default function AdminPackageFeeManagement() {
             <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="md" PaperProps={{ sx: adminDialogPaperSx }}>
                 <DialogTitle sx={{ ...adminDialogTitleSx, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1 }}>
                     <Typography component="span" sx={{ fontWeight: 800, fontSize: "1.12rem" }}>
-                        {isEdit ? "Cập nhật gói nháp" : "Tạo gói nháp"}
+                        {isEdit ? "Cập nhật gói dịch vụ (bản nháp)" : "Tạo gói dịch vụ (bản nháp)"}
                     </Typography>
-                    {isEdit ? <Chip size="small" label={pricePreview.status || "DRAFT"} color="warning" variant="outlined" /> : null}
+                    {isEdit ? (
+                        <Chip size="small" label={packageStatusLabel(pricePreview.status || "DRAFT")} {...packageStatusChipProps(pricePreview.status || "DRAFT")} />
+                    ) : null}
                 </DialogTitle>
                 <DialogContent dividers sx={adminDialogContentSx}>
                     <Box sx={{ mt: 1 }}>
@@ -1171,10 +1167,16 @@ export default function AdminPackageFeeManagement() {
                                 <TextField label="Tên gói" required size="small" value={form.name} onChange={handleChange("name")} fullWidth />
                                 <FormControl fullWidth size="small" required>
                                     <InputLabel id="package-type-label">Loại gói</InputLabel>
-                                    <Select labelId="package-type-label" label="Loại gói" value={form.packageType} onChange={handleChange("packageType")}>
+                                    <Select
+                                        labelId="package-type-label"
+                                        label="Loại gói"
+                                        value={form.packageType}
+                                        onChange={handleChange("packageType")}
+                                        renderValue={(v) => packageTypeLabelVi(v)}
+                                    >
                                         {PACKAGE_TYPES.map((v) => (
                                             <MenuItem key={v} value={v}>
-                                                {v}
+                                                {packageTypeLabelVi(v)}
                                             </MenuItem>
                                         ))}
                                     </Select>
@@ -1223,74 +1225,52 @@ export default function AdminPackageFeeManagement() {
                                 </Stack>
                                 <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2}>
                                     <FormControl fullWidth size="small" required>
-                                        <InputLabel id="parent-post-permission-label">Quyền school đăng bài</InputLabel>
+                                        <InputLabel id="parent-post-permission-label">Quyền đăng bài của nhà trường</InputLabel>
                                         <Select
                                             labelId="parent-post-permission-label"
-                                            label="Quyền school đăng bài"
+                                            label="Quyền đăng bài của nhà trường"
                                             value={form.parentPostPermission}
                                             onChange={handleChange("parentPostPermission")}
-                                            renderValue={(v) => displayEnum(v)}
+                                            renderValue={(v) => parentPostPermissionLabelVi(v)}
                                         >
                                             {PARENT_POST_PERMISSIONS.map((v) => (
                                                 <MenuItem key={v} value={v}>
-                                                    {v}
+                                                    {parentPostPermissionLabelVi(v)}
                                                 </MenuItem>
                                             ))}
                                         </Select>
                                     </FormControl>
                                     <FormControl fullWidth size="small" required>
-                                        <InputLabel id="support-level-label">Mức hỗ trợ</InputLabel>
+                                        <InputLabel id="support-level-label">Hạng chăm sóc khách hàng</InputLabel>
                                         <Select
                                             labelId="support-level-label"
-                                            label="Mức hỗ trợ"
+                                            label="Hạng chăm sóc khách hàng"
                                             value={form.supportLevel}
                                             onChange={handleChange("supportLevel")}
-                                            renderValue={(v) => displayEnum(v)}
+                                            renderValue={(v) => supportLevelLabelVi(v)}
                                         >
                                             {SUPPORT_LEVELS.map((v) => (
                                                 <MenuItem key={v} value={v} disabled={form.packageType === "TRIAL" && v === "PREMIUM_SUPPORT"}>
-                                                    {v}
+                                                    {supportLevelLabelVi(v)}
                                                 </MenuItem>
                                             ))}
                                         </Select>
                                     </FormControl>
                                 </Stack>
-                                <TextField
-                                    label="Top ranking"
-                                    type="number"
-                                    size="small"
-                                    value={form.topRanking}
-                                    onChange={handleChange("topRanking")}
-                                    fullWidth
-                                    inputProps={{ min: 0 }}
-                                    disabled={isTrialPackage}
+                                <FormControlLabel
+                                    control={
+                                        <Switch
+                                            checked={Boolean(form.hasAiAssistant)}
+                                            onChange={(e) => setForm((prev) => ({ ...prev, hasAiAssistant: e.target.checked }))}
+                                            disabled={isTrialPackage}
+                                        />
+                                    }
+                                    label="Trợ lý AI"
+                                    sx={{ width: "100%", m: 0, py: 0.8, px: 1.2, border: "1px solid #e2e8f0", borderRadius: 1.5 }}
                                 />
-                                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2}>
-                                    <FormControlLabel
-                                        control={
-                                            <Switch
-                                                checked={Boolean(form.hasAiAssistant)}
-                                                onChange={(e) => setForm((prev) => ({ ...prev, hasAiAssistant: e.target.checked }))}
-                                                disabled={isTrialPackage}
-                                            />
-                                        }
-                                        label="AI Assistant"
-                                        sx={{ width: "100%", m: 0, py: 0.8, px: 1.2, border: "1px solid #e2e8f0", borderRadius: 1.5 }}
-                                    />
-                                    <FormControlLabel
-                                        control={
-                                            <Switch
-                                                checked={Boolean(form.isFeatured)}
-                                                onChange={(e) => setForm((prev) => ({ ...prev, isFeatured: e.target.checked }))}
-                                            />
-                                        }
-                                        label="Gói nổi bật"
-                                        sx={{ width: "100%", m: 0, py: 0.8, px: 1.2, border: "1px solid #e2e8f0", borderRadius: 1.5 }}
-                                    />
-                                </Stack>
                                 {isTrialPackage && (
                                     <Typography variant="caption" color="#b45309">
-                                        Gói TRIAL tự động áp dụng: hasAiAssistant = false, topRanking = 0 và không cho phép PREMIUM_SUPPORT.
+                                        Gói dùng thử: luôn tắt trợ lý AI và không được chọn hạng chăm sóc cao cấp.
                                     </Typography>
                                 )}
                                 {submitAttempted && formValidationError ? (
@@ -1308,7 +1288,7 @@ export default function AdminPackageFeeManagement() {
                                     height: "fit-content",
                                 }}
                             >
-                                <Typography sx={{ fontWeight: 800, color: "#1e40af", mb: 1.2 }}>Giá hệ thống tính tự động</Typography>
+                                <Typography sx={{ fontWeight: 800, color: "#1e40af", mb: 1.2 }}>Giá dự kiến (hệ thống tự tính)</Typography>
                                 <Stack spacing={1}>
                                     <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
                                         <Typography sx={{ color: "#475569", fontSize: 12 }}>Giá gốc</Typography>
