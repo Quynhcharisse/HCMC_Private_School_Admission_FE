@@ -214,6 +214,74 @@ const IMPORT_TYPE_LABEL = {
 
 const IMPORT_TYPE_OPTIONS = Object.keys(IMPORT_TYPE_LABEL);
 
+const ADMISSION_IMPORT_COLUMN_LABEL = {
+    index: "STT",
+    code: "Mã",
+    displayName: "Tên hiển thị",
+    display_name: "Tên hiển thị",
+    description: "Mô tả",
+    methodCode: "Mã phương thức",
+    method_code: "Mã phương thức",
+    stepName: "Tên bước",
+    step_name: "Tên bước",
+    stepOrder: "Thứ tự bước",
+    step_order: "Thứ tự bước",
+    name: "Tên",
+    required: "Bắt buộc",
+    isRequired: "Bắt buộc",
+    is_required: "Bắt buộc",
+    documentCode: "Mã hồ sơ",
+    document_code: "Mã hồ sơ",
+    documentName: "Tên hồ sơ",
+    document_name: "Tên hồ sơ",
+    stepCode: "Mã bước",
+    step_code: "Mã bước",
+    processName: "Tên quy trình",
+    process_name: "Tên quy trình",
+    processCode: "Mã quy trình",
+    process_code: "Mã quy trình",
+    order: "Thứ tự",
+    sortOrder: "Thứ tự sắp xếp",
+    sort_order: "Thứ tự sắp xếp",
+    title: "Tiêu đề",
+    notes: "Ghi chú",
+    note: "Ghi chú",
+    remark: "Ghi chú",
+    category: "Danh mục",
+    type: "Loại",
+    url: "Liên kết",
+    link: "Liên kết",
+    fileType: "Định dạng tệp",
+    file_type: "Định dạng tệp",
+    fileTypes: "Định dạng tệp",
+    instruction: "Hướng dẫn",
+    instructions: "Hướng dẫn",
+    minFileSize: "Dung lượng tối thiểu",
+    maxFileSize: "Dung lượng tối đa",
+    methodDocumentCode: "Mã hồ sơ theo phương thức",
+    method_document_code: "Mã hồ sơ theo phương thức",
+    documentType: "Loại hồ sơ",
+    document_type: "Loại hồ sơ",
+    optional: "Tùy chọn",
+    active: "Kích hoạt",
+    enabled: "Bật",
+    disabled: "Tắt",
+};
+
+function getAdmissionImportColumnLabel(columnKey) {
+    const key = String(columnKey ?? "").trim();
+    if (!key) return "—";
+    if (ADMISSION_IMPORT_COLUMN_LABEL[key]) return ADMISSION_IMPORT_COLUMN_LABEL[key];
+    const lower = key.toLowerCase();
+    if (ADMISSION_IMPORT_COLUMN_LABEL[lower]) return ADMISSION_IMPORT_COLUMN_LABEL[lower];
+    const snake = key
+        .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+        .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+        .toLowerCase();
+    if (ADMISSION_IMPORT_COLUMN_LABEL[snake]) return ADMISSION_IMPORT_COLUMN_LABEL[snake];
+    return key;
+}
+
 const normalizeImportErrorText = (error) => {
     if (!error) return "";
     if (typeof error === "string") return error.trim();
@@ -1371,18 +1439,18 @@ export default function AdminPlatformSettings() {
             setAdmissionImportRows(rows);
             const errorCount = rows.filter((row) => row.isError).length;
             if (rows.length === 0) {
-                enqueueSnackbar("File không có dữ liệu để import.", { variant: "warning" });
+                enqueueSnackbar("File không có dữ liệu để nhập.", { variant: "warning" });
             } else if (errorCount === 0) {
                 enqueueSnackbar("Dữ liệu hợp lệ, bạn có thể xác nhận nhập ngay.", { variant: "success" });
                 setAdmissionImportPreviewOpen(true);
             } else {
-                enqueueSnackbar(`Đã tải preview: ${errorCount}/${rows.length} dòng có lỗi.`, { variant: "warning" });
+                enqueueSnackbar(`Đã tải xem trước: ${errorCount}/${rows.length} dòng có lỗi.`, { variant: "warning" });
                 setAdmissionImportPreviewOpen(true);
             }
             setStatus({ type: "", message: "" });
         } catch (e) {
             console.error("import admission template failed", e);
-            const msg = apiErrorMessage(e, "Import preview thất bại. Vui lòng kiểm tra file mẫu.");
+            const msg = apiErrorMessage(e, "Xem trước nhập dữ liệu thất bại. Vui lòng kiểm tra file mẫu.");
             enqueueSnackbar(msg, { variant: "error" });
             setStatus({ type: "error", message: msg });
         } finally {
@@ -1584,7 +1652,7 @@ export default function AdminPlatformSettings() {
                             <TextField
                                 select
                                 size="small"
-                                label="Loại import"
+                                label="Loại nhập liệu"
                                 value={importType}
                                 disabled={saving || importingAdmissionTemplate || confirmingAdmissionImport}
                                 onChange={(e) => setImportType(String(e.target.value || "ALLOWED_METHODS"))}
@@ -1639,7 +1707,7 @@ export default function AdminPlatformSettings() {
                                     borderRadius: 2,
                                 }}
                             >
-                                Xem preview
+                                Xem trước
                             </Button>
                             <Button
                                 variant="contained"
@@ -1680,7 +1748,7 @@ export default function AdminPlatformSettings() {
                         PaperProps={{ sx: { borderRadius: 3, border: "1px solid #dbeafe" } }}
                     >
                         <DialogTitle sx={{ fontWeight: 800, color: "#0f172a" }}>
-                            Review dữ liệu trước khi nhập - {IMPORT_TYPE_LABEL[importType]}
+                            Kiểm tra dữ liệu trước khi nhập — {IMPORT_TYPE_LABEL[importType]}
                         </DialogTitle>
                         <DialogContent sx={{ pt: "8px !important" }}>
                             <Typography variant="body2" sx={{ color: "#475569", mb: 1 }}>
@@ -1702,7 +1770,7 @@ export default function AdminPlatformSettings() {
                                                 <TableCell sx={{ fontWeight: 800 }}>STT</TableCell>
                                                 {importColumns.map((key) => (
                                                     <TableCell key={`modal-col-${key}`} sx={{ fontWeight: 800 }}>
-                                                        {key}
+                                                        {getAdmissionImportColumnLabel(key)}
                                                     </TableCell>
                                                 ))}
                                                 <TableCell sx={{ fontWeight: 800 }}>Trạng thái</TableCell>
@@ -1721,6 +1789,9 @@ export default function AdminPlatformSettings() {
                                                                 disabled={key === "index"}
                                                                 onChange={(e) => handleImportCellChange(rowIdx, key, e.target.value)}
                                                                 error={Boolean(row?.isError)}
+                                                                inputProps={{
+                                                                    "aria-label": getAdmissionImportColumnLabel(key),
+                                                                }}
                                                                 sx={{ minWidth: 120 }}
                                                             />
                                                         </TableCell>
@@ -1739,7 +1810,7 @@ export default function AdminPlatformSettings() {
                                 </TableContainer>
                             ) : (
                                 <Typography variant="body2" sx={{ color: "#64748b" }}>
-                                    Chưa có dữ liệu preview.
+                                    Chưa có dữ liệu xem trước.
                                 </Typography>
                             )}
                         </DialogContent>
@@ -3159,7 +3230,7 @@ export default function AdminPlatformSettings() {
                                                     disabled
                                                     multiline
                                                     minRows={2}
-                                                    value={row.schoolName || `School #${row.schoolId}`}
+                                                    value={row.schoolName || `Trường #${row.schoolId}`}
                                                     InputProps={{
                                                         sx: { alignItems: "flex-start" },
                                                     }}

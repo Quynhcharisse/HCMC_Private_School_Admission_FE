@@ -246,7 +246,7 @@ export default function AdminDocumentTemplateManagement() {
 
     const onDelete = async (document) => {
         if (document?.id == null || document?.id === "") {
-            enqueueSnackbar("Không tìm thấy templateId để xóa.", { variant: "warning" });
+            enqueueSnackbar("Không tìm thấy mã mẫu tài liệu để xóa.", { variant: "warning" });
             return;
         }
         setDeletingId(document.id);

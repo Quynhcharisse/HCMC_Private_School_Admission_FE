@@ -1025,7 +1025,7 @@ export default function AdminPackageFeeManagement() {
         if (form.packageId != null) {
             const pid = Number(form.packageId);
             if (!Number.isFinite(pid) || pid < 1) {
-                return "Cập nhật cần mã gói (packageId) hợp lệ.";
+                return "Cập nhật cần mã định danh gói hợp lệ.";
             }
         }
         return null;
@@ -1042,7 +1042,7 @@ export default function AdminPackageFeeManagement() {
         setSubmitting(true);
         try {
             if (isEdit && (form.packageId == null || Number.isNaN(Number(form.packageId)))) {
-                enqueueSnackbar("Cập nhật bắt buộc có packageId.", { variant: "warning" });
+                enqueueSnackbar("Cập nhật cần có mã gói dịch vụ.", { variant: "warning" });
                 setSubmitting(false);
                 return;
             }

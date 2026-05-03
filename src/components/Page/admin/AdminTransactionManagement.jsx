@@ -103,6 +103,15 @@ function normalizeChartPoint(item, index) {
     };
 }
 
+function buildAdminRevenueLineDataset(chartData) {
+    if (!Array.isArray(chartData) || chartData.length === 0) return [];
+    const rows = [{ x: -1, y: 0 }];
+    chartData.forEach((item, i) => {
+        rows.push({ x: i, y: item.value });
+    });
+    return rows;
+}
+
 function StatusBadge({ status }) {
     const success = isSuccessStatus(status);
     return (
@@ -246,8 +255,8 @@ export default function AdminTransactionManagement() {
         },
     ];
 
-    const chartLabels = chartData.map((item) => item.label);
-    const chartValues = chartData.map((item) => item.value);
+    const revenueLineDataset = useMemo(() => buildAdminRevenueLineDataset(chartData), [chartData]);
+    const revenueXTickInterval = useMemo(() => chartData.map((_, i) => i), [chartData]);
 
     return (
         <Box
@@ -369,22 +378,42 @@ export default function AdminTransactionManagement() {
                             ) : (
                                 <LineChart
                                     height={320}
-                                    xAxis={[{ scaleType: "point", data: chartLabels }]}
+                                    dataset={revenueLineDataset}
+                                    xAxis={[
+                                        {
+                                            scaleType: "linear",
+                                            dataKey: "x",
+                                            min: -1,
+                                            max: Math.max(chartData.length - 1 + 0.5, 0.5),
+                                            tickInterval: revenueXTickInterval,
+                                            valueFormatter: (value) => {
+                                                const v = Number(value);
+                                                const i = Math.round(v);
+                                                if (!Number.isFinite(v) || Math.abs(v - i) > 1e-6) return "";
+                                                if (i >= 0 && i < chartData.length) return chartData[i].label;
+                                                return "";
+                                            },
+                                        },
+                                    ]}
                                     yAxis={[
                                         {
+                                            min: 0,
                                             width: 90,
                                             valueFormatter: (value) => `${Number(value || 0).toLocaleString("vi-VN")} VNĐ`,
                                         },
                                     ]}
                                     series={[
                                         {
-                                            data: chartValues,
+                                            dataKey: "y",
                                             area: false,
                                             color: "#2563eb",
-                                            curve: "monotoneX",
-                                            showMark: true,
+                                            curve: "linear",
+                                            showMark: (params) => params.index !== 0,
                                             valueFormatter: (value, context) => {
-                                                const dateLabel = chartLabels[context?.dataIndex ?? 0] || "—";
+                                                const idx = context?.dataIndex ?? 0;
+                                                if (idx <= 0) return null;
+                                                const dataIdx = idx - 1;
+                                                const dateLabel = chartData[dataIdx]?.label ?? "—";
                                                 return `Ngày: ${dateLabel} - Doanh thu: ${formatCurrency(value)}`;
                                             },
                                         },

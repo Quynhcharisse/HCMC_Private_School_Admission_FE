@@ -121,7 +121,7 @@ export default function AdminPurchasedSchools() {
                         <TableRow sx={adminTableHeadRowSx}>
                             <TableCell sx={{ ...adminTableHeadCellSx, width: "44%" }}>Trường học</TableCell>
                             <TableCell sx={{ ...adminTableHeadCellSx, width: "10%" }}>Gói dịch vụ</TableCell>
-                            <TableCell sx={{ ...adminTableHeadCellSx, width: "12%" }}>License</TableCell>
+                            <TableCell sx={{ ...adminTableHeadCellSx, width: "12%" }}>Mã bản quyền</TableCell>
                             <TableCell sx={{ ...adminTableHeadCellSx, width: "11%" }}>Bắt đầu</TableCell>
                             <TableCell sx={{ ...adminTableHeadCellSx, width: "11%" }}>Kết thúc</TableCell>
                             <TableCell sx={{ ...adminTableHeadCellSx, width: "12%" }}>Còn lại (ngày)</TableCell>
