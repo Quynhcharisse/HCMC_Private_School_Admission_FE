@@ -22,6 +22,7 @@ import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import { enqueueSnackbar } from "notistack";
+import { useNavigate } from "react-router-dom";
 import { BRAND_NAVY } from "../../constants/homeLandingTheme";
 import { getAdminPackageFees } from "../../services/AdminService.jsx";
 import {
@@ -339,6 +340,7 @@ function SubscriptionPreviewModal({
 export default function PackageFeesPage() {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+    const navigate = useNavigate();
     const [isSchoolRole, setIsSchoolRole] = React.useState(() => readSchoolRoleFromStorage());
     const [schoolServicePackages, setSchoolServicePackages] = React.useState([]);
     const [servicePackagesLoading, setServicePackagesLoading] = React.useState(false);
@@ -449,6 +451,7 @@ export default function PackageFeesPage() {
             enqueueSnackbar("Không xác định được gói dịch vụ.", { variant: "error" });
             return;
         }
+        const isTrialPackage = String(pkg?.packageType || "").toUpperCase() === "TRIAL";
         const actionLabel =
             actionType === "UPGRADE" ? "nâng cấp" : actionType === "RENEW" ? "gia hạn" : "mua mới";
         const description = pkg?.name?.trim()
@@ -457,6 +460,11 @@ export default function PackageFeesPage() {
         setPaymentLoadingPackageId(packageId);
         try {
             const res = await createSchoolSubscriptionPayment({ packageId, description });
+            if (isTrialPackage) {
+                enqueueSnackbar("Đăng ký gói dùng thử thành công.", { variant: "success" });
+                navigate("/school/purchased-packages");
+                return;
+            }
             const paymentUrl = res?.data?.body;
             if (typeof paymentUrl === "string" && /^https?:\/\//i.test(paymentUrl.trim())) {
                 const url = paymentUrl.trim();
@@ -483,7 +491,7 @@ export default function PackageFeesPage() {
         } finally {
             setPaymentLoadingPackageId(null);
         }
-    }, []);
+    }, [navigate]);
 
     const handleSchoolPackageBuyNow = React.useCallback(async (pkg) => {
         const packageId = Number(pkg?.id);
