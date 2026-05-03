@@ -22,6 +22,7 @@ import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import { enqueueSnackbar } from "notistack";
+import { useNavigate } from "react-router-dom";
 import { BRAND_NAVY } from "../../constants/homeLandingTheme";
 import { getAdminPackageFees } from "../../services/AdminService.jsx";
 import {
@@ -30,33 +31,10 @@ import {
     previewSchoolSubscriptionChange,
 } from "../../services/SchoolSubscriptionService.jsx";
 import { normalizeUserRole } from "../../utils/userRole.js";
+import { isSchoolPackageListable, normalizeSchoolServicePackageItem } from "../../utils/servicePackageDisplay.js";
 import SchoolServicePackagesGrid from "../ui/SchoolServicePackagesGrid.jsx";
 
 const LAYOUT_HEADER_TOP_PX = { xs: "calc(72px + 24px)", md: "calc(80px + 32px)" };
-
-function normalizeSupportLevelForView(level) {
-    const key = String(level || "").trim().toUpperCase();
-    if (key === "BASIC_SUPPORT") return "BASIC";
-    if (key === "STANDARD_SUPPORT") return "STANDARD";
-    if (key === "PREMIUM_SUPPORT") return "PREMIUM";
-    return key;
-}
-
-function normalizePackageForView(item) {
-    const features = item?.features && typeof item.features === "object" ? item.features : {};
-    return {
-        ...item,
-        price: Number.isFinite(Number(item?.finalPrice)) ? Number(item.finalPrice) : Number(item?.price ?? 0),
-        features: {
-            ...features,
-            supportLevel: normalizeSupportLevelForView(features?.supportLevel),
-            allowChat:
-                typeof features?.allowChat === "boolean"
-                    ? features.allowChat
-                    : features?.hasAiAssistant === true,
-        },
-    };
-}
 
 function readSchoolRoleFromStorage() {
     try {
@@ -362,6 +340,7 @@ function SubscriptionPreviewModal({
 export default function PackageFeesPage() {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+    const navigate = useNavigate();
     const [isSchoolRole, setIsSchoolRole] = React.useState(() => readSchoolRoleFromStorage());
     const [schoolServicePackages, setSchoolServicePackages] = React.useState([]);
     const [servicePackagesLoading, setServicePackagesLoading] = React.useState(false);
@@ -405,10 +384,8 @@ export default function PackageFeesPage() {
             try {
                 const res = await getAdminPackageFees();
                 const raw = Array.isArray(res?.data?.body) ? res.data.body : [];
-                const activePackages = raw.filter(
-                    (item) => String(item?.status || "").trim().toUpperCase() === "PACKAGE_ACTIVE"
-                );
-                if (!cancelled) setSchoolServicePackages(activePackages.map(normalizePackageForView));
+                const listable = raw.filter((item) => isSchoolPackageListable(item));
+                if (!cancelled) setSchoolServicePackages(listable.map(normalizeSchoolServicePackageItem));
             } catch (error) {
                 console.error(error);
                 if (!cancelled) {
@@ -474,6 +451,7 @@ export default function PackageFeesPage() {
             enqueueSnackbar("Không xác định được gói dịch vụ.", { variant: "error" });
             return;
         }
+        const isTrialPackage = String(pkg?.packageType || "").toUpperCase() === "TRIAL";
         const actionLabel =
             actionType === "UPGRADE" ? "nâng cấp" : actionType === "RENEW" ? "gia hạn" : "mua mới";
         const description = pkg?.name?.trim()
@@ -482,6 +460,11 @@ export default function PackageFeesPage() {
         setPaymentLoadingPackageId(packageId);
         try {
             const res = await createSchoolSubscriptionPayment({ packageId, description });
+            if (isTrialPackage) {
+                enqueueSnackbar("Đăng ký gói dùng thử thành công.", { variant: "success" });
+                navigate("/school/purchased-packages");
+                return;
+            }
             const paymentUrl = res?.data?.body;
             if (typeof paymentUrl === "string" && /^https?:\/\//i.test(paymentUrl.trim())) {
                 const url = paymentUrl.trim();
@@ -508,7 +491,7 @@ export default function PackageFeesPage() {
         } finally {
             setPaymentLoadingPackageId(null);
         }
-    }, []);
+    }, [navigate]);
 
     const handleSchoolPackageBuyNow = React.useCallback(async (pkg) => {
         const packageId = Number(pkg?.id);

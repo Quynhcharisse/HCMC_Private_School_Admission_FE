@@ -138,6 +138,21 @@ const detectSessionKey = (startTime) => {
 const stripKey = (sessionKey) => sessionColors[sessionKey]?.strip || sessionColors.AFTERNOON.strip;
 const rowBg = (sessionKey) => sessionColors[sessionKey]?.row || sessionColors.AFTERNOON.row;
 
+const CALENDAR_DEFAULT_SHIFTS = [
+  {
+    key: "MORNING",
+    label: "Ca sáng",
+    stripBg: "#fef3c7",
+    rowBg: "rgba(254, 243, 199, 0.35)",
+  },
+  {
+    key: "AFTERNOON",
+    label: "Ca chiều",
+    stripBg: "#dbeafe",
+    rowBg: "rgba(219, 234, 254, 0.35)",
+  },
+];
+
 export default function CounsellorCalendar() {
   const [anchorDate, setAnchorDate] = useState(() => new Date());
   const [loading, setLoading] = useState(false);
@@ -437,21 +452,68 @@ export default function CounsellorCalendar() {
             ))}
           </Box>
 
-          {timeRows.length === 0 ? (
-            <Box
-              sx={{
-                px: 2,
-                py: 2.5,
-                textAlign: "center",
-                bgcolor: "rgba(248,250,252,0.95)",
-                borderTop: CAL_GRID_LINE_ROW,
-              }}
-            >
-              <Typography sx={{ fontSize: "0.88rem", color: "#64748b" }}>
-                Tuần này chưa có khung giờ trên lịch.
-              </Typography>
-            </Box>
-          ) : null}
+          {timeRows.length === 0
+            ? CALENDAR_DEFAULT_SHIFTS.map((shift) => (
+                <Box
+                  key={shift.key}
+                  sx={{
+                    display: "grid",
+                    width: "100%",
+                    minWidth: 0,
+                    gridTemplateColumns: "220px repeat(7, minmax(88px, 1fr))",
+                    borderBottom: CAL_GRID_LINE_ROW,
+                    bgcolor: shift.rowBg,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      minHeight: 36,
+                      bgcolor: shift.stripBg,
+                      borderRight: CAL_GRID_LINE_COL,
+                      px: 1,
+                      py: 0.5,
+                      display: "flex",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Typography sx={{ fontSize: "0.72rem", fontWeight: 700, color: "#334155" }}>{shift.label}</Typography>
+                  </Box>
+                  {weekDays.map((day) => (
+                    <Box
+                      key={`${shift.key}-${day.dateYmd}`}
+                      sx={{
+                        px: 0.75,
+                        py: 0.5,
+                        borderLeft: CAL_GRID_LINE_COL,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        minHeight: 36,
+                      }}
+                    >
+                      <Button
+                        variant="text"
+                        size="small"
+                        disabled
+                        sx={{
+                          minWidth: 0,
+                          minHeight: 32,
+                          px: 0.5,
+                          py: 0,
+                          color: "#64748b",
+                          textTransform: "none",
+                          fontSize: "0.8rem",
+                          lineHeight: 1,
+                          cursor: "default",
+                        }}
+                      >
+                        Đặt lịch
+                      </Button>
+                    </Box>
+                  ))}
+                </Box>
+              ))
+            : null}
           {timeRows.map((row) => (
             <Box
               key={row.key}

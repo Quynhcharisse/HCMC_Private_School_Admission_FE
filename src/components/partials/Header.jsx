@@ -31,7 +31,9 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PersonIcon from '@mui/icons-material/Person';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import ChatBubbleRoundedIcon from "@mui/icons-material/ChatBubbleRounded";
+import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import SearchIcon from "@mui/icons-material/Search";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import CloseIcon from "@mui/icons-material/Close";
@@ -73,6 +75,16 @@ import ParentStudentInfoPanel, {
     parseMessagesHistoryPayloadRoot,
     extractSubjectsInSystemFromPayload,
 } from "../chat/ParentStudentInfoPanel.jsx";
+import {
+    clearNotificationUnreadCount,
+    getNotificationsForUser,
+    markAllNotificationsAsRead,
+    markNotificationAsRead,
+    readNotificationUnreadCount,
+    refreshNotificationInboxForUser,
+    watchNotificationList,
+    watchNotificationUnread,
+} from "../../services/NotificationService.jsx";
 
 /** Khi bật poll: khoảng cách tối thiểu giữa các lần GET lịch sử tin (chỉ khi ENABLE_PARENT_CHAT_POLLING). */
 const PARENT_CHAT_POLL_INTERVAL_MS = 30000;
@@ -590,6 +602,7 @@ function MainHeader() {
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [anchorEl, setAnchorEl] = useState(null);
     const [messageAnchorEl, setMessageAnchorEl] = useState(null);
+    const [notificationAnchorEl, setNotificationAnchorEl] = useState(null);
     const [profileData, setProfileData] = useState(null);
     const [_loadingProfile, setLoadingProfile] = useState(false);
     const [conversationItems, setConversationItems] = useState([]);
@@ -620,6 +633,8 @@ function MainHeader() {
     const [pendingChatTarget, setPendingChatTarget] = useState(null);
     /** Badge khi BE không gửi conversationId trên WS nhưng tin đã vào queue phụ huynh. */
     const [parentWsUnreadBump, setParentWsUnreadBump] = useState(0);
+    const [notificationUnreadCount, setNotificationUnreadCount] = useState(() => readNotificationUnreadCount());
+    const [notificationItems, setNotificationItems] = useState([]);
 
     const chatListRef = React.useRef(null);
     const loadingMoreRef = React.useRef(false);
@@ -675,6 +690,31 @@ function MainHeader() {
     const isParent = normalizedRole === 'PARENT';
     const isSchool = normalizedRole === 'SCHOOL';
     const isAdmin = normalizedRole === 'ADMIN';
+
+    useEffect(() => {
+        if (!isSignedIn) {
+            setNotificationUnreadCount(0);
+            setNotificationItems([]);
+            return undefined;
+        }
+        setNotificationUnreadCount(readNotificationUnreadCount());
+        const stopUnreadWatch = watchNotificationUnread((count) => {
+            setNotificationUnreadCount(count);
+        });
+        const stopListWatch = watchNotificationList((items) => {
+            setNotificationItems(items);
+        }, userInfo);
+        setNotificationItems(getNotificationsForUser(userInfo));
+        refreshNotificationInboxForUser(userInfo).catch(() => {});
+        const notificationPollTimer = window.setInterval(() => {
+            refreshNotificationInboxForUser(userInfo).catch(() => {});
+        }, 20000);
+        return () => {
+            window.clearInterval(notificationPollTimer);
+            stopUnreadWatch?.();
+            stopListWatch?.();
+        };
+    }, [isSignedIn, userInfo?.email]);
     const userIdentitySet = React.useMemo(() => {
         return new Set(
             [
@@ -968,6 +1008,24 @@ function MainHeader() {
         const date = new Date(value);
         if (Number.isNaN(date.getTime())) return "";
         return date.toLocaleTimeString("vi-VN", {hour: "2-digit", minute: "2-digit"});
+    };
+
+    const formatNotificationTime = (value) => {
+        if (!value) return "";
+        const date = new Date(value);
+        if (Number.isNaN(date.getTime())) return "";
+        const now = new Date();
+        const sameDate = date.toDateString() === now.toDateString();
+        if (sameDate) {
+            return `Hôm nay, ${date.toLocaleTimeString("vi-VN", {hour: "2-digit", minute: "2-digit"})}`;
+        }
+        return date.toLocaleString("vi-VN", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+        });
     };
 
     const groupedParentMessages = useMemo(() => {
@@ -2401,6 +2459,55 @@ function MainHeader() {
         setMobileMenuOpen(false);
     };
 
+    const countUnreadNotifications = (items = []) =>
+        items.reduce((acc, row) => acc + (row?.read ? 0 : 1), 0);
+
+    const handleNotificationClick = (event) => {
+        setNotificationAnchorEl(event.currentTarget);
+        refreshNotificationInboxForUser(userInfo).catch(() => {});
+    };
+
+    const handleNotificationClose = () => {
+        setNotificationAnchorEl(null);
+    };
+
+    const handleMarkAllNotificationsRead = () => {
+        setNotificationItems((prev) => prev.map((item) => ({...item, read: true})));
+        setNotificationUnreadCount(0);
+        clearNotificationUnreadCount();
+        markAllNotificationsAsRead(userInfo)
+            .finally(() => refreshNotificationInboxForUser(userInfo).catch(() => {}));
+    };
+
+    const handleNotificationItemClick = (item) => {
+        const route = String(item?.route || '/posts').trim();
+        if (item?.id) {
+            setNotificationItems((prev) => {
+                let changed = false;
+                const next = prev.map((row) => {
+                    if (row?.id !== item.id) return row;
+                    if (row?.read) return row;
+                    changed = true;
+                    return {...row, read: true};
+                });
+                if (changed) {
+                    const unreadCount = Math.min(99, countUnreadNotifications(next));
+                    setNotificationUnreadCount(unreadCount);
+                    if (unreadCount === 0) {
+                        clearNotificationUnreadCount();
+                    }
+                }
+                return next;
+            });
+        }
+        if (item?.id) {
+            markNotificationAsRead({notificationId: item.id, user: userInfo})
+                .finally(() => refreshNotificationInboxForUser(userInfo).catch(() => {}));
+        }
+        handleNotificationClose();
+        goTo(route.startsWith('/') ? route : '/posts');
+    };
+
     const profileBody = React.useMemo(() => {
         if (!profileData?.body) return null;
         if (typeof profileData.body !== 'string') return profileData.body;
@@ -2678,6 +2785,162 @@ function MainHeader() {
                     <Box sx={{position: 'relative', display: 'flex', alignItems: 'center', gap: 1}}>
                         {isSignedIn ? (
                             <>
+                                <Badge
+                                    badgeContent={Math.min(99, notificationUnreadCount)}
+                                    color="error"
+                                    overlap="circular"
+                                    invisible={notificationUnreadCount === 0}
+                                    sx={{
+                                        mr: 0.5,
+                                        '& .MuiBadge-badge': {
+                                            fontSize: 11,
+                                            fontWeight: 700,
+                                            minWidth: 18,
+                                            height: 18,
+                                            borderRadius: 9
+                                        }
+                                    }}
+                                >
+                                    <IconButton
+                                        onClick={handleNotificationClick}
+                                        aria-label="Thông báo"
+                                        sx={{
+                                            width: 42,
+                                            height: 42,
+                                            bgcolor: 'rgba(37,99,235,0.08)',
+                                            color: BRAND_NAVY,
+                                            border: '1px solid rgba(59,130,246,0.35)',
+                                            '&:hover': {
+                                                bgcolor: 'rgba(37,99,235,0.12)',
+                                                color: APP_PRIMARY_DARK,
+                                                transform: 'translateY(-1px)',
+                                                boxShadow: '0 4px 14px rgba(37,99,235,0.18)'
+                                            },
+                                            transition: 'all 0.2s ease'
+                                        }}
+                                    >
+                                        <NotificationsNoneRoundedIcon sx={{fontSize: 22}}/>
+                                    </IconButton>
+                                </Badge>
+                                <Menu
+                                    anchorEl={notificationAnchorEl}
+                                    open={Boolean(notificationAnchorEl)}
+                                    onClose={handleNotificationClose}
+                                    anchorOrigin={{vertical: 'bottom', horizontal: 'right'}}
+                                    transformOrigin={{vertical: 'top', horizontal: 'right'}}
+                                    disableScrollLock={true}
+                                    slotProps={{
+                                        paper: {
+                                            sx: {
+                                                borderRadius: 3,
+                                                border: '1px solid rgba(59,130,246,0.18)',
+                                                boxShadow: '0 22px 48px rgba(51,65,85,0.16), 0 0 0 1px rgba(255,255,255,0.6) inset',
+                                                width: 380,
+                                                maxWidth: 'calc(100vw - 24px)',
+                                                mt: 1.2,
+                                                p: 0,
+                                                overflow: 'hidden',
+                                                backdropFilter: 'blur(10px)',
+                                                bgcolor: 'rgba(255,255,255,0.97)'
+                                            }
+                                        }
+                                    }}
+                                >
+                                    <Box sx={{px: 2, py: 1.5, borderBottom: '1px solid rgba(59,130,246,0.1)', bgcolor: 'rgba(248,250,252,0.95)'}}>
+                                        <Box sx={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                                            <Box>
+                                                <Typography sx={{fontSize: 24, fontWeight: 800, color: '#1e293b', lineHeight: 1.1}}>
+                                                    Thông báo
+                                                </Typography>
+                                                <Typography sx={{fontSize: 13, color: '#64748b', mt: 0.5}}>
+                                                    {countUnreadNotifications(notificationItems) > 0
+                                                        ? `${countUnreadNotifications(notificationItems)} thông báo chưa đọc`
+                                                        : "Bạn đã đọc hết thông báo"}
+                                                </Typography>
+                                            </Box>
+                                            <Button
+                                                size="small"
+                                                onClick={handleMarkAllNotificationsRead}
+                                                disabled={countUnreadNotifications(notificationItems) === 0}
+                                                sx={{textTransform: 'none', fontWeight: 700, borderRadius: 999}}
+                                            >
+                                                Đánh dấu đã đọc
+                                            </Button>
+                                        </Box>
+                                    </Box>
+                                    <List sx={{p: 0, maxHeight: 420, overflowY: 'auto'}}>
+                                        {notificationItems.length === 0 ? (
+                                            <ListItem>
+                                                <ListItemText
+                                                    primary="Chưa có thông báo"
+                                                    secondary="Thông báo mới sẽ hiện tại đây."
+                                                />
+                                            </ListItem>
+                                        ) : notificationItems.map((item) => (
+                                            <ListItemButton
+                                                key={item.id}
+                                                onClick={() => handleNotificationItemClick(item)}
+                                                sx={{
+                                                    alignItems: 'flex-start',
+                                                    gap: 1.25,
+                                                    py: 1.5,
+                                                    px: 2,
+                                                    borderBottom: '1px solid rgba(226,232,240,0.8)',
+                                                    bgcolor: item.read ? 'transparent' : 'rgba(59,130,246,0.06)',
+                                                    borderLeft: item.read ? '3px solid transparent' : '3px solid #2563eb',
+                                                    '&:hover': {
+                                                        bgcolor: item.read ? 'rgba(148,163,184,0.08)' : 'rgba(59,130,246,0.12)'
+                                                    }
+                                                }}
+                                            >
+                                                <Avatar
+                                                    sx={{
+                                                        width: 40,
+                                                        height: 40,
+                                                        bgcolor: 'rgba(37,99,235,0.12)',
+                                                        color: '#1d4ed8',
+                                                        fontWeight: 800
+                                                    }}
+                                                >
+                                                    <NotificationsNoneRoundedIcon fontSize="small"/>
+                                                </Avatar>
+                                                <Box sx={{minWidth: 0, flex: 1}}>
+                                                    <Typography sx={{
+                                                        fontSize: 16,
+                                                        fontWeight: item.read ? 700 : 800,
+                                                        color: '#0b1220',
+                                                        lineHeight: 1.3,
+                                                        mb: 0.35
+                                                    }}>
+                                                        {item.title}
+                                                    </Typography>
+                                                    <Typography sx={{
+                                                        fontSize: 13.5,
+                                                        fontWeight: 400,
+                                                        color: '#1e293b',
+                                                        lineHeight: 1.45
+                                                    }}>
+                                                        {item.body}
+                                                    </Typography>
+                                                    <Typography sx={{fontSize: 12, color: '#64748b', mt: 0.75}}>
+                                                        {formatNotificationTime(item.createdAt)}
+                                                    </Typography>
+                                                </Box>
+                                                {!item.read && (
+                                                    <Box
+                                                        sx={{
+                                                            width: 10,
+                                                            height: 10,
+                                                            borderRadius: '50%',
+                                                            bgcolor: '#3b82f6',
+                                                            mt: 1
+                                                        }}
+                                                    />
+                                                )}
+                                            </ListItemButton>
+                                        ))}
+                                    </List>
+                                </Menu>
                                 {isParent && (
                                     <Badge
                                         badgeContent={parentHeaderUnreadDisplay}
@@ -3654,6 +3917,27 @@ function MainHeader() {
                                                 }}
                                             >
                                                 <AccountCircleIcon sx={{color: BRAND_NAVY, fontSize: 20}}/> Thông tin con
+                                            </MenuItem>
+                                            <MenuItem
+                                                onClick={() => {
+                                                    handleUserMenuClose();
+                                                    goTo('/parent/offline-consultations');
+                                                }}
+                                                sx={{
+                                                    fontSize: 15,
+                                                    fontWeight: 500,
+                                                    color: BRAND_NAVY,
+                                                    borderRadius: 1,
+                                                    gap: 1.5,
+                                                    mt: 0.5,
+                                                    '&:hover': {
+                                                        bgcolor: 'rgba(59,130,246,0.08)',
+                                                        color: APP_PRIMARY_DARK,
+                                                    },
+                                                    transition: 'background 0.2s, color 0.2s',
+                                                }}
+                                            >
+                                                <EventAvailableIcon sx={{color: BRAND_NAVY, fontSize: 20}}/> Lịch tư vấn trực tiếp
                                             </MenuItem>
                                         </>
                                     ) : (

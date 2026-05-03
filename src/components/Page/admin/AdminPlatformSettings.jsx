@@ -18,6 +18,7 @@ import {
     DialogContent,
     DialogTitle,
     Paper,
+    Popover,
     Stack,
     Tab,
     Table,
@@ -38,6 +39,7 @@ import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import {
     confirmSystemConfigImport,
     getSystemConfig,
@@ -64,19 +66,29 @@ function getAdmissionQuotaMap(cfg) {
     return raw;
 }
 
+function asConfigRecord(raw) {
+    if (raw == null) return {};
+    if (typeof raw === "string") {
+        const t = raw.trim();
+        if (!t) return {};
+        try {
+            const parsed = JSON.parse(t);
+            return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+        } catch {
+            return {};
+        }
+    }
+    if (typeof raw === "object" && !Array.isArray(raw)) return raw;
+    return {};
+}
+
 function getBusinessConfig(cfg) {
     if (!cfg || typeof cfg !== "object") return {};
-    const businessData = cfg.businessData && typeof cfg.businessData === "object" ? cfg.businessData : {};
-    const business = cfg.business && typeof cfg.business === "object" ? cfg.business : {};
+    const businessData = asConfigRecord(cfg.businessData);
+    const business = asConfigRecord(cfg.business);
 
-    const businessPricingFromData =
-        businessData.subscriptionPricing && typeof businessData.subscriptionPricing === "object"
-            ? businessData.subscriptionPricing
-            : {};
-    const businessPricingFromBusiness =
-        business.subscriptionPricing && typeof business.subscriptionPricing === "object"
-            ? business.subscriptionPricing
-            : {};
+    const businessPricingFromData = asConfigRecord(businessData.subscriptionPricing);
+    const businessPricingFromBusiness = asConfigRecord(business.subscriptionPricing);
 
     const mergedSubscriptionPricing = {
         ...businessPricingFromBusiness,
@@ -93,6 +105,11 @@ function getBusinessConfig(cfg) {
             ...(businessPricingFromBusiness.featureUnitPrices ?? {}),
             ...(businessPricingFromData.featureUnitPrices ?? {}),
         },
+        trialRatioCap:
+            businessPricingFromData.trialRatioCap ??
+            businessPricingFromBusiness.trialRatioCap ??
+            businessData.trialRatioCap ??
+            business.trialRatioCap,
     };
 
     return {
@@ -100,6 +117,26 @@ function getBusinessConfig(cfg) {
         ...businessData,
         subscriptionPricing: mergedSubscriptionPricing,
     };
+}
+
+const TRIAL_RATIO_CAP_INFO_TOOLTIP = "Tỉ lệ này xác định quy mô của gói Dùng thử so với gói Tiêu chuẩn. Giúp tự động cân đối hạn mức vận hành (tư vấn viên, bài đăng) để bảo vệ quyền lợi của các gói trả phí.";
+
+const TRIAL_RATIO_CAP_INPUT_HINT = "15%: ít tính năng • 30%: vừa đủ • 40%: nhiều tính năng";
+
+function trialRatioCapDecimalToFormPctString(cap) {
+    if (cap == null || cap === "") return "";
+    const n = Number(cap);
+    if (!Number.isFinite(n)) return String(cap).trim();
+    const pct = n * 100;
+    const rounded = Math.round(pct * 100) / 100;
+    if (Number.isInteger(rounded)) return String(Math.trunc(rounded));
+    return String(rounded);
+}
+
+function formPctStringToTrialRatioCapDecimal(pctStr) {
+    const raw = Number(String(pctStr ?? "").trim());
+    if (!Number.isFinite(raw)) return NaN;
+    return Math.round((raw / 100) * 10000) / 10000;
 }
 
 function getMediaConfig(cfg) {
@@ -124,6 +161,49 @@ function assertSystemConfigUpdateSuccess(response, fallbackMessage = "Cập nh�
     if (message && !/thành công/i.test(message)) {
         throw new Error(message);
     }
+}
+
+function extractBusinessConfigSaveSideEffects(response) {
+    const root = response?.data;
+    const body = root?.body ?? root?.data ?? (root && typeof root === "object" ? root : {});
+    if (!body || typeof body !== "object" || Array.isArray(body)) return { bulletLines: [] };
+
+    const bullets = [];
+    const pending =
+        body.packageInactivePendingCount ??
+        body.inactivePendingCount ??
+        (Array.isArray(body.packagesInactivePending) ? body.packagesInactivePending.length : undefined);
+    const deactivated =
+        body.packageDeactivatedCount ??
+        body.deactivatedCount ??
+        (Array.isArray(body.packagesDeactivated) ? body.packagesDeactivated.length : undefined);
+
+    if (pending != null && Number.isFinite(Number(pending))) {
+        bullets.push(
+            `Đã xử lý gói có giá thay đổi và đang có người dùng → PACKAGE_INACTIVE_PENDING: ${Number(pending)} gói (không bán mới / gia hạn; người đang dùng đến hết hạn).`
+        );
+    }
+    if (deactivated != null && Number.isFinite(Number(deactivated))) {
+        bullets.push(
+            `Đã vô hiệu hóa gói có giá thay đổi và chưa ai dùng → PACKAGE_DEACTIVATED: ${Number(deactivated)} gói.`
+        );
+    }
+
+    const pkgs = body.affectedPackages ?? body.packagesWithPriceChange ?? body.packageImpacts;
+    if (Array.isArray(pkgs) && pkgs.length > 0) {
+        const labels = pkgs
+            .map((p) => String(p?.name ?? p?.packageName ?? p?.title ?? p?.id ?? "").trim())
+            .filter(Boolean)
+            .slice(0, 8);
+        if (labels.length > 0) {
+            bullets.push(`Gói bị tính lại giá (ví dụ): ${labels.join(", ")}${pkgs.length > labels.length ? ", …" : ""}.`);
+        }
+    }
+
+    const notice = body.postSaveNotice ?? body.workflowMessage ?? body.detail;
+    if (typeof notice === "string" && notice.trim()) bullets.push(notice.trim());
+
+    return { bulletLines: bullets };
 }
 
 const IMPORT_TYPE_LABEL = {
@@ -179,7 +259,7 @@ export default function AdminPlatformSettings() {
     const [configBody, setConfigBody] = useState(null);
     const [loadingConfig, setLoadingConfig] = useState(false);
     const [saving, setSaving] = useState(false);
-    const [status, setStatus] = useState({ type: "", message: "" });
+    const [status, setStatus] = useState({ type: "", message: "", workflowNote: "" });
 
     const getBusinessInitialForm = (cfg) => {
         const business = getBusinessConfig(cfg);
@@ -199,10 +279,8 @@ export default function AdminPlatformSettings() {
             baseTrialPrice: basePrices.trial == null ? "" : String(basePrices.trial),
             baseStandardPrice: basePrices.standard == null ? "" : String(basePrices.standard),
             baseEnterprisePrice: basePrices.enterprise == null ? "" : String(basePrices.enterprise),
-            extraPostFee: featureUnitPrices.extraPostFee == null ? "" : String(featureUnitPrices.extraPostFee),
             aiChatbotMonthlyFee: featureUnitPrices.aiChatbotMonthlyFee == null ? "" : String(featureUnitPrices.aiChatbotMonthlyFee),
             premiumSupportFee: featureUnitPrices.premiumSupportFee == null ? "" : String(featureUnitPrices.premiumSupportFee),
-            topRankingFee: featureUnitPrices.topRankingFee == null ? "" : String(featureUnitPrices.topRankingFee),
             durationDays: packageQuotas.durationDays == null ? "" : String(packageQuotas.durationDays),
             trialCounsellor: packageQuotas.trialCounsellor == null ? "" : String(packageQuotas.trialCounsellor),
             standardCounsellor: packageQuotas.standardCounsellor == null ? "" : String(packageQuotas.standardCounsellor),
@@ -210,6 +288,7 @@ export default function AdminPlatformSettings() {
             trialPostLimit: packageQuotas.trialPostLimit == null ? "" : String(packageQuotas.trialPostLimit),
             standardPostLimit: packageQuotas.standardPostLimit == null ? "" : String(packageQuotas.standardPostLimit),
             enterprisePostLimit: packageQuotas.enterprisePostLimit == null ? "" : String(packageQuotas.enterprisePostLimit),
+            trialRatioCapPct: trialRatioCapDecimalToFormPctString(subscriptionPricing.trialRatioCap),
         };
     };
 
@@ -221,10 +300,8 @@ export default function AdminPlatformSettings() {
         baseTrialPrice: "",
         baseStandardPrice: "",
         baseEnterprisePrice: "",
-        extraPostFee: "",
         aiChatbotMonthlyFee: "",
         premiumSupportFee: "",
-        topRankingFee: "",
         durationDays: "",
         trialCounsellor: "",
         standardCounsellor: "",
@@ -232,12 +309,14 @@ export default function AdminPlatformSettings() {
         trialPostLimit: "",
         standardPostLimit: "",
         enterprisePostLimit: "",
+        trialRatioCapPct: "",
     });
     const [businessErrors, setBusinessErrors] = useState({});
     const [businessPricingTab, setBusinessPricingTab] = useState(0);
     const [businessPricingSubTab, setBusinessPricingSubTab] = useState(0);
 
     const [businessEditing, setBusinessEditing] = useState(false);
+    const [trialRatioCapInfoAnchor, setTrialRatioCapInfoAnchor] = useState(null);
 
     const [mediaEditing, setMediaEditing] = useState(false);
     const [quotaEditing, setQuotaEditing] = useState(false);
@@ -469,17 +548,77 @@ export default function AdminPlatformSettings() {
         getMoney("baseTrialPrice", "Giá nền gói Dùng thử");
         getMoney("baseStandardPrice", "Giá nền gói Tiêu chuẩn");
         getMoney("baseEnterprisePrice", "Giá nền gói Doanh nghiệp");
-        getMoney("extraPostFee", "Phí mua thêm bài đăng");
         getMoney("aiChatbotMonthlyFee", "Phí duy trì Trợ lý AI");
         getMoney("premiumSupportFee", "Phí hỗ trợ cao cấp");
-        getMoney("topRankingFee", "Phí đẩy đầu trang tìm kiếm");
-        getPositiveInt("durationDays", "Thời hạn gói mặc định");
+        getPositiveInt("durationDays", "Thời hạn gói dùng thử");
         getPositiveInt("trialCounsellor", "Số tư vấn viên gói Dùng thử");
         getPositiveInt("standardCounsellor", "Số tư vấn viên gói Tiêu chuẩn");
         getPositiveInt("enterpriseCounsellor", "Số tư vấn viên gói Doanh nghiệp");
         getPositiveInt("trialPostLimit", "Giới hạn bài đăng gói Dùng thử");
         getPositiveInt("standardPostLimit", "Giới hạn bài đăng gói Tiêu chuẩn");
-        getPositiveInt("enterprisePostLimit", "Giới hạn bài đăng gói Doanh nghiệp", { allowNegativeOne: true });
+        getPositiveInt("enterprisePostLimit", "Giới hạn bài đăng gói Doanh nghiệp");
+
+        const capStr = String(form.trialRatioCapPct ?? "").trim();
+        let capPctNum = NaN;
+        if (!capStr) {
+            errors.trialRatioCapPct = "Vui lòng nhập Giới hạn tỉ lệ gói Dùng thử (%).";
+        } else {
+            capPctNum = Number(capStr);
+            if (!Number.isFinite(capPctNum)) {
+                errors.trialRatioCapPct = "Giá trị phải là số (ví dụ 30 tương đương 30%).";
+            } else if (capPctNum <= 0 || capPctNum >= 100) {
+                errors.trialRatioCapPct =
+                    "Tỉ lệ trần phải lớn hơn 0% và nhỏ hơn 100% (tỷ lệ thập phân trên máy chủ: 0 < … < 1).";
+            }
+        }
+
+        const trialC = Number(String(form.trialCounsellor ?? "").trim());
+        const standardC = Number(String(form.standardCounsellor ?? "").trim());
+        const enterpriseC = Number(String(form.enterpriseCounsellor ?? "").trim());
+        if (
+            !errors.trialCounsellor &&
+            !errors.standardCounsellor &&
+            !errors.enterpriseCounsellor &&
+            Number.isInteger(trialC) &&
+            Number.isInteger(standardC) &&
+            Number.isInteger(enterpriseC)
+        ) {
+            if (!(trialC < standardC && standardC < enterpriseC)) {
+                errors.standardCounsellor =
+                    "Số tư vấn viên phải tăng nghiêm ngặt theo gói: Dùng thử < Tiêu chuẩn < Doanh nghiệp.";
+            }
+        }
+
+        const trialP = Number(String(form.trialPostLimit ?? "").trim());
+        const standardP = Number(String(form.standardPostLimit ?? "").trim());
+        const enterpriseP = Number(String(form.enterprisePostLimit ?? "").trim());
+        if (!errors.trialPostLimit && !errors.standardPostLimit && !errors.enterprisePostLimit) {
+            if (Number.isInteger(trialP) && Number.isInteger(standardP) && Number.isInteger(enterpriseP)) {
+                if (!(trialP < standardP && standardP < enterpriseP)) {
+                    errors.standardPostLimit =
+                        "Giới hạn bài đăng phải tăng nghiêm ngặt theo gói: Dùng thử < Tiêu chuẩn < Doanh nghiệp.";
+                }
+            }
+        }
+
+        const capDecimal = Number.isFinite(capPctNum) ? capPctNum / 100 : NaN;
+        if (
+            !errors.trialCounsellor &&
+            !errors.standardCounsellor &&
+            !errors.trialRatioCapPct &&
+            Number.isFinite(capDecimal) &&
+            capDecimal > 0 &&
+            capDecimal < 1 &&
+            Number.isInteger(trialC) &&
+            Number.isInteger(standardC) &&
+            trialC >= 0 &&
+            standardC >= 0
+        ) {
+            const maxTrialByCap = Math.floor(standardC * capDecimal);
+            if (trialC > maxTrialByCap) {
+                errors.trialCounsellor = `Theo giới hạn tỉ lệ (${capPctNum}%), gói Dùng thử không được quá ${maxTrialByCap} tư vấn viên (≤ ⌊${standardC} × ${capDecimal}⌋ so với gói Tiêu chuẩn).`;
+            }
+        }
 
         return errors;
     };
@@ -582,7 +721,7 @@ export default function AdminPlatformSettings() {
             const res = await getSystemConfig();
             const body = res?.data?.body ?? res?.data?.data ?? res?.data;
             setConfigBody(body);
-            setStatus({ type: "", message: "" });
+            setStatus({ type: "", message: "", workflowNote: "" });
         } catch (e) {
             console.error("Failed to fetch system config", e);
             enqueueSnackbar("Không thể tải cấu hình nền tảng.", { variant: "error" });
@@ -719,7 +858,7 @@ export default function AdminPlatformSettings() {
         const bizInit = getBusinessInitialForm(configBody);
         setBusinessForm(bizInit);
         setBusinessErrors(validateBusiness(bizInit));
-        setStatus({ type: "", message: "" });
+        setStatus({ type: "", message: "", workflowNote: "" });
     };
 
     const startBusinessEdit = () => {
@@ -1116,12 +1255,13 @@ export default function AdminPlatformSettings() {
 
         setSaving(true);
         let ok = false;
-        setStatus({ type: "", message: "" });
+        setStatus({ type: "", message: "", workflowNote: "" });
         try {
             const minPay = parseFinite(businessForm.minPay);
             const maxPay = parseFinite(businessForm.maxPay);
             const taxRate = toRateDecimal(businessForm.taxRatePct);
             const serviceRate = toRateDecimal(businessForm.serviceRatePct);
+            const trialRatioCap = formPctStringToTrialRatioCapDecimal(businessForm.trialRatioCapPct);
 
             const updatedBody = {
                 businessData: {
@@ -1136,10 +1276,8 @@ export default function AdminPlatformSettings() {
                             enterprise: Math.trunc(parseFinite(businessForm.baseEnterprisePrice) ?? 0),
                         },
                         featureUnitPrices: {
-                            extraPostFee: Math.trunc(parseFinite(businessForm.extraPostFee) ?? 0),
                             aiChatbotMonthlyFee: Math.trunc(parseFinite(businessForm.aiChatbotMonthlyFee) ?? 0),
                             premiumSupportFee: Math.trunc(parseFinite(businessForm.premiumSupportFee) ?? 0),
-                            topRankingFee: Math.trunc(parseFinite(businessForm.topRankingFee) ?? 0),
                         },
                         packageQuotas: {
                             durationDays: Math.trunc(parseFinite(businessForm.durationDays) ?? 0),
@@ -1148,23 +1286,38 @@ export default function AdminPlatformSettings() {
                             enterpriseCounsellor: Math.trunc(parseFinite(businessForm.enterpriseCounsellor) ?? 0),
                             trialPostLimit: Math.trunc(parseFinite(businessForm.trialPostLimit) ?? 0),
                             standardPostLimit: Math.trunc(parseFinite(businessForm.standardPostLimit) ?? 0),
-                            enterprisePostLimit: Math.trunc(parseFinite(businessForm.enterprisePostLimit) ?? -1),
+                            enterprisePostLimit: Math.trunc(parseFinite(businessForm.enterprisePostLimit) ?? 0),
                         },
+                        trialRatioCap,
                     },
                 },
             };
 
             const updateRes = await updateSystemConfig(updatedBody);
             assertSystemConfigUpdateSuccess(updateRes);
+            const sideEffects = extractBusinessConfigSaveSideEffects(updateRes);
+            const workflowLines = [
+                "Sau khi lưu, hệ thống phía server thực hiện lần lượt:",
+                "Bước 1 — Lưu cấu hình vào CSDL: tìm bản ghi PlatformConfig khóa business; chưa có thì tạo, có rồi thì ghi đè JSON mới.",
+                "Bước 2 — Kiểm tra tác động: lấy toàn bộ gói PACKAGE_ACTIVE, tính lại finalPrice theo cấu hình vừa lưu.",
+                "Bước 3 — Gói có giá đổi so với trước: nếu đang có người dùng → PACKAGE_INACTIVE_PENDING (khóa mua mới/gia hạn, người đang dùng đến hết hạn); nếu chưa ai dùng → PACKAGE_DEACTIVATED.",
+            ];
+            if (sideEffects.bulletLines.length > 0) {
+                workflowLines.push("Chi tiết từ phản hồi API:", ...sideEffects.bulletLines);
+            }
             enqueueSnackbar("Cập nhật Cài đặt Doanh nghiệp thành công.", { variant: "success" });
-            setStatus({ type: "success", message: "Cập nhật thành công." });
+            setStatus({
+                type: "success",
+                message: "Đã lưu cấu hình doanh nghiệp.",
+                workflowNote: workflowLines.join("\n"),
+            });
             await fetchConfig();
             ok = true;
         } catch (e) {
             console.error("saveBusiness failed", e);
             const msg = apiErrorMessage(e, "Cập nhật thất bại. Vui lòng thử lại.");
             enqueueSnackbar(msg, { variant: "error" });
-            setStatus({ type: "error", message: msg });
+            setStatus({ type: "error", message: msg, workflowNote: "" });
         } finally {
             setSaving(false);
         }
@@ -2004,7 +2157,7 @@ export default function AdminPlatformSettings() {
                     error={Boolean(businessErrors[field])}
                     helperText={businessErrors[field] || helperHint}
                     inputProps={{ step: 1, ...(allowNegativeOne ? { min: -1 } : { min: 0 }) }}
-                    placeholder={allowNegativeOne ? "-1" : ""}
+                    placeholder={allowNegativeOne && helperHint ? "-1" : ""}
                     InputProps={{ endAdornment: <InputAdornment position="end">{unit}</InputAdornment> }}
                     sx={settingsInputSx}
                 />
@@ -2173,12 +2326,12 @@ export default function AdminPlatformSettings() {
                                 }}
                             >
                                 <Tab label="Giá nền gói cước" />
-                                <Tab label="Đơn giá tính năng mua thêm" />
                                 <Tab label="Định mức theo gói" />
+                                <Tab label="Đơn giá tính năng mua thêm" />
                             </Tabs>
                             <Box sx={{ border: "1px solid #d0d7de", borderRadius: 2, p: 1.25, bgcolor: "#ffffff" }}>
                                 <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#2563eb", mb: 1.25 }}>
-                                    {businessPricingSubTab === 0 ? "Nhóm A - Giá nền gói cước" : businessPricingSubTab === 1 ? "Nhóm B - Đơn giá tính năng mua thêm" : "Nhóm C - Định mức theo gói"}
+                                    {businessPricingSubTab === 0 ? "Giá nền gói cước" : businessPricingSubTab === 1 ? "Định mức theo gói" : "Đơn giá tính năng mua thêm"}
                                 </Typography>
                                 {businessPricingSubTab === 0 ? (
                                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, gap: 1.5 }}>
@@ -2188,28 +2341,102 @@ export default function AdminPlatformSettings() {
                                     </Box>
                                 ) : null}
                                 {businessPricingSubTab === 1 ? (
-                                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
-                                        {moneyField("Phí mua thêm bài đăng", "extraPostFee")}
-                                        {moneyField("Phí duy trì Trợ lý AI", "aiChatbotMonthlyFee")}
-                                        {moneyField("Phí hỗ trợ cao cấp", "premiumSupportFee")}
-                                        {moneyField("Phí đẩy đầu trang tìm kiếm", "topRankingFee")}
+                                    <Box
+                                        sx={{
+                                            display: "grid",
+                                            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+                                            gap: 1.5,
+                                            alignItems: "stretch",
+                                        }}
+                                    >
+                                        {integerField("Thời hạn gói dùng thử", "durationDays", "ngày")}
+                                        <Box sx={{ ...settingsFieldCardSx }}>
+                                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, mb: 0.75 }}>
+                                                <Typography
+                                                    component="span"
+                                                    sx={{ fontSize: 12, fontWeight: 500, color: "#1d4ed8" }}
+                                                >
+                                                    Trial được dùng bao nhiêu % so với gói Tiêu chuẩn
+                                                </Typography>
+                                                <IconButton
+                                                    type="button"
+                                                    size="small"
+                                                    onClick={(e) => setTrialRatioCapInfoAnchor(e.currentTarget)}
+                                                    aria-label="Ví dụ: % trial so với gói Tiêu chuẩn"
+                                                    sx={{ p: 0.25, color: "#1d4ed8" }}
+                                                >
+                                                    <InfoOutlinedIcon sx={{ fontSize: 18 }} />
+                                                </IconButton>
+                                            </Box>
+                                            <Popover
+                                                open={Boolean(trialRatioCapInfoAnchor)}
+                                                anchorEl={trialRatioCapInfoAnchor}
+                                                onClose={() => setTrialRatioCapInfoAnchor(null)}
+                                                anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+                                                transformOrigin={{ vertical: "top", horizontal: "left" }}
+                                                slotProps={{
+                                                    paper: {
+                                                        sx: {
+                                                            minWidth: { xs: "min(92vw, 360px)", sm: 420 },
+                                                            maxWidth: { xs: "92vw", sm: 560 },
+                                                            p: { xs: 1.75, sm: 2.25 },
+                                                            border: "1px solid #e2e8f0",
+                                                            boxShadow: "0 4px 14px rgba(15, 23, 42, 0.12)",
+                                                        },
+                                                    },
+                                                }}
+                                            >
+                                                <Typography
+                                                    variant="body2"
+                                                    sx={{
+                                                        fontSize: { xs: 14, sm: 15 },
+                                                        lineHeight: 1.55,
+                                                        fontWeight: 600,
+                                                        color: "#0f172a",
+                                                    }}
+                                                >
+                                                    {TRIAL_RATIO_CAP_INFO_TOOLTIP}
+                                                </Typography>
+                                            </Popover>
+                                            <TextField
+                                                size="small"
+                                                fullWidth
+                                                type="number"
+                                                disabled={businessDisabled}
+                                                value={businessForm.trialRatioCapPct}
+                                                onChange={(e) => handleBusinessFieldChange("trialRatioCapPct", e.target.value)}
+                                                error={Boolean(businessErrors.trialRatioCapPct)}
+                                                {...(businessErrors.trialRatioCapPct ? { helperText: businessErrors.trialRatioCapPct } : {})}
+                                                InputProps={{
+                                                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                                                }}
+                                                inputProps={{ min: 0, max: 100, step: 0.01 }}
+                                                sx={settingsInputSx}
+                                            />
+                                            <Typography
+                                                variant="body2"
+                                                sx={{
+                                                    mt: 0.5,
+                                                    fontSize: 12,
+                                                    lineHeight: 1.45,
+                                                    color: "#64748b",
+                                                }}
+                                            >
+                                                {TRIAL_RATIO_CAP_INPUT_HINT}
+                                            </Typography>
+                                        </Box>
+                                        {integerField("Số tư vấn viên (Gói dùng thử)", "trialCounsellor", "người")}
+                                        {integerField("Giới hạn bài đăng (Gói dùng thử)", "trialPostLimit", "bài")}
+                                        {integerField("Số tư vấn viên (Gói tiêu chuẩn)", "standardCounsellor", "người")}
+                                        {integerField("Giới hạn bài đăng (Gói tiêu chuẩn)", "standardPostLimit", "bài")}
+                                        {integerField("Số tư vấn viên (Gói doanh nghiệp)", "enterpriseCounsellor", "người")}
+                                        {integerField("Giới hạn bài đăng (Gói doanh nghiệp)", "enterprisePostLimit", "bài")}
                                     </Box>
                                 ) : null}
                                 {businessPricingSubTab === 2 ? (
                                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
-                                        {integerField("Thời hạn gói mặc định", "durationDays", "ngày")}
-                                        {integerField("Số tư vấn viên (Gói dùng thử)", "trialCounsellor", "người")}
-                                        {integerField("Số tư vấn viên (Gói tiêu chuẩn)", "standardCounsellor", "người")}
-                                        {integerField("Số tư vấn viên (Gói doanh nghiệp)", "enterpriseCounsellor", "người")}
-                                        {integerField("Giới hạn bài đăng (Gói dùng thử)", "trialPostLimit", "bài")}
-                                        {integerField("Giới hạn bài đăng (Gói tiêu chuẩn)", "standardPostLimit", "bài")}
-                                        {integerField(
-                                            "Giới hạn bài đăng (Gói doanh nghiệp)",
-                                            "enterprisePostLimit",
-                                            "bài",
-                                            true,
-                                            "Nhập -1 để không giới hạn bài đăng."
-                                        )}
+                                        {moneyField("Phí Chatbot AI (tháng)", "aiChatbotMonthlyFee")}
+                                        {moneyField("Phí hỗ trợ ưu tiên", "premiumSupportFee")}
                                     </Box>
                                 ) : null}
                             </Box>
@@ -3241,9 +3468,24 @@ export default function AdminPlatformSettings() {
                                 </Box>
                             ) : null}
 
-                            {activeTabKey === "business" && status.message ? (
+                            {activeTabKey === "business" && (status.message || status.workflowNote) ? (
                                 <Alert severity={status.type || "success"} sx={{ mt: 2 }}>
-                                    {status.message}
+                                    {status.message ? (
+                                        <Typography sx={{ fontWeight: 700, mb: status.workflowNote ? 1 : 0 }}>{status.message}</Typography>
+                                    ) : null}
+                                    {status.workflowNote ? (
+                                        <Box component="div">
+                                            {String(status.workflowNote)
+                                                .split("\n")
+                                                .map((line) => line.trim())
+                                                .filter(Boolean)
+                                                .map((line, idx) => (
+                                                    <Typography key={idx} variant="body2" sx={{ color: "#334155", mb: 0.5, lineHeight: 1.5 }}>
+                                                        {line}
+                                                    </Typography>
+                                                ))}
+                                        </Box>
+                                    ) : null}
                                 </Alert>
                             ) : null}
 
