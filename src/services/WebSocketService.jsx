@@ -32,8 +32,9 @@ export const normalizeCampusId = (value) => {
 };
 
 /**
- * Body gửi {@code /app/private-message} — khớp DTO tin nhắn chat phía BE:
- * {@code senderName}, {@code receiverName}, {@code campusId}, {@code message}, {@code conversationId}, {@code timestamp}
+ * Body gửi {@code /app/private-message} — khớp DTO tin nhắn chat phía BE (vd {@code ChatMessage}):
+ * {@code senderName}, {@code receiverName}, {@code campusId}, {@code schoolName}, {@code campusName},
+ * {@code message}, {@code conversationId}, {@code timestamp}
  * (+ alias {@code content}/{@code sentAt} nếu BE/handler cũ cần; không thêm {@code type}).
  *
  * Sự kiện {@code CONVERSATION_READ} sau mark-read: BE gửi tới {@code /user/queue/conversation-read};
