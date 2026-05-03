@@ -4,6 +4,7 @@ import {
     Box,
     Card,
     CardContent,
+    Chip,
     CircularProgress,
     Paper,
     Table,
@@ -20,6 +21,7 @@ import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import { enqueueSnackbar } from "notistack";
 import { useLocation } from "react-router-dom";
 import {
+    adminSttChipSx,
     adminTableBodyRowSx,
     adminTableContainerSx,
     adminTableHeadCellSx,
@@ -119,7 +121,10 @@ export default function AdminPurchasedSchools() {
                 <Table size="small" sx={{ tableLayout: "fixed" }}>
                     <TableHead>
                         <TableRow sx={adminTableHeadRowSx}>
-                            <TableCell sx={{ ...adminTableHeadCellSx, width: "44%" }}>Trường học</TableCell>
+                            <TableCell align="center" sx={{ ...adminTableHeadCellSx, width: 52 }}>
+                                STT
+                            </TableCell>
+                            <TableCell sx={{ ...adminTableHeadCellSx, width: "40%" }}>Trường học</TableCell>
                             <TableCell sx={{ ...adminTableHeadCellSx, width: "10%" }}>Gói dịch vụ</TableCell>
                             <TableCell sx={{ ...adminTableHeadCellSx, width: "12%" }}>Mã bản quyền</TableCell>
                             <TableCell sx={{ ...adminTableHeadCellSx, width: "11%" }}>Bắt đầu</TableCell>
@@ -130,20 +135,23 @@ export default function AdminPurchasedSchools() {
                     <TableBody>
                         {loading ? (
                             <TableRow>
-                                <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                                <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
                                     <CircularProgress size={34} />
                                 </TableCell>
                             </TableRow>
                         ) : sortedItems.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} align="center" sx={{ py: 4, color: "#64748b" }}>
+                                <TableCell colSpan={7} align="center" sx={{ py: 4, color: "#64748b" }}>
                                     Chưa có dữ liệu trường đã mua gói.
                                 </TableCell>
                             </TableRow>
                         ) : (
                             sortedItems.map((row, idx) => (
                                 <TableRow key={`${row.licenseKey}-${row.id}-${idx}`} hover sx={adminTableBodyRowSx}>
-                                    <TableCell sx={{ width: "44%" }}>
+                                    <TableCell align="center" sx={{ width: 52 }}>
+                                        <Chip label={idx + 1} size="small" sx={adminSttChipSx} />
+                                    </TableCell>
+                                    <TableCell sx={{ width: "40%" }}>
                                         <Typography sx={{ fontWeight: 600 }} noWrap title={row.schoolName}>
                                             {row.schoolName}
                                         </Typography>

@@ -63,6 +63,7 @@ import ConfirmDialog, { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 import { APP_PRIMARY_MAIN } from "../../../constants/homeLandingTheme";
 import {
     adminDataCardBorderSx,
+    adminSttChipSx,
     adminTableBodyRowSx,
     adminTableContainerSx,
     adminTableHeadCellSx,
@@ -404,7 +405,9 @@ export default function AdminPersonalityTypes() {
                                                     "&:hover": adminTableBodyRowSx["&:hover"],
                                                 }}
                                             >
-                                                <TableCell>{stt}</TableCell>
+                                                <TableCell align="center">
+                                                    <Chip label={stt} size="small" sx={adminSttChipSx} />
+                                                </TableCell>
                                                 <TableCell>
                                                     <Box sx={{ display: "flex", justifyContent: "center" }}>
                                                         <Avatar

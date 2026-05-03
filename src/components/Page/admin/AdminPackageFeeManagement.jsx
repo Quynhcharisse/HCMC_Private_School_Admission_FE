@@ -61,6 +61,7 @@ import {
 } from "../../../constants/adminDialogStyles.js";
 import {
     adminDataCardBorderSx,
+    adminSttChipSx,
     adminTableBodyRowSx,
     adminTableContainerSx,
     adminTableHeadCellSx,
@@ -1160,7 +1161,7 @@ export default function AdminPackageFeeManagement() {
                             <TableHead>
                                 <TableRow sx={adminTableHeadRowSx}>
                                     <TableCell align="center" sx={adminTableHeadCellSx}>
-                                        ID
+                                        STT
                                     </TableCell>
                                     <TableCell align="center" sx={{ ...adminTableHeadCellSx, whiteSpace: "normal", lineHeight: 1.2 }}>
                                         Tên gói
@@ -1202,14 +1203,14 @@ export default function AdminPackageFeeManagement() {
                                         return (
                                             <TableRow key={`${row.id ?? "new"}-${idx}`} hover sx={adminTableBodyRowSx}>
                                                 <TableCell align="center" sx={{ whiteSpace: "nowrap", verticalAlign: "middle" }}>
-                                                    {row.id != null ? row.id : "—"}
+                                                    <Chip label={idx + 1} size="small" sx={adminSttChipSx} />
                                                 </TableCell>
-                                                <TableCell align="center" sx={{ verticalAlign: "middle", maxWidth: isCompact ? 140 : 280 }}>
+                                                <TableCell align="left" sx={{ verticalAlign: "middle", maxWidth: isCompact ? 140 : 280 }}>
                                                     <Typography
                                                         fontWeight={700}
                                                         color="#1e293b"
                                                         sx={{
-                                                            textAlign: "center",
+                                                            textAlign: "left",
                                                             whiteSpace: "nowrap",
                                                             overflow: "hidden",
                                                             textOverflow: "ellipsis",
@@ -1390,26 +1391,28 @@ export default function AdminPackageFeeManagement() {
                         </Stack>
                     )}
                 </DialogContent>
-                <DialogActions sx={adminDialogActionsSx}>
-                    <Button
-                        variant="outlined"
-                        onClick={openEditFromDetail}
-                        disabled={!detailRow || detailRow.status !== "PACKAGE_DRAFT"}
-                        startIcon={<EditOutlinedIcon />}
-                        sx={{ textTransform: "none", fontWeight: 600 }}
-                    >
-                        Chỉnh sửa
-                    </Button>
-                    <Button
-                        variant="contained"
-                        onClick={openPublishConfirmFromDetail}
-                        disabled={!detailRow || detailRow.status !== "PACKAGE_DRAFT"}
-                        startIcon={<FileUploadSharpIcon />}
-                        sx={{ textTransform: "none", fontWeight: 700 }}
-                    >
-                        Công khai
-                    </Button>
-                </DialogActions>
+                {detailRow?.status === "PACKAGE_DRAFT" ? (
+                    <DialogActions sx={adminDialogActionsSx}>
+                        <Button
+                            variant="outlined"
+                            onClick={openEditFromDetail}
+                            disabled={!detailRow}
+                            startIcon={<EditOutlinedIcon />}
+                            sx={{ textTransform: "none", fontWeight: 600 }}
+                        >
+                            Chỉnh sửa
+                        </Button>
+                        <Button
+                            variant="contained"
+                            onClick={openPublishConfirmFromDetail}
+                            disabled={!detailRow}
+                            startIcon={<FileUploadSharpIcon />}
+                            sx={{ textTransform: "none", fontWeight: 700 }}
+                        >
+                            Công khai
+                        </Button>
+                    </DialogActions>
+                ) : null}
             </Dialog>
 
             <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="md" PaperProps={{ sx: adminDialogPaperSx }}>

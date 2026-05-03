@@ -47,13 +47,13 @@ import {exportSchools, exportUsersByRole, getUsersByRole, setAccountRestricted} 
 import ConfirmDialog, {ConfirmHighlight} from "../../ui/ConfirmDialog.jsx";
 import {APP_PRIMARY_MAIN} from "../../../constants/homeLandingTheme";
 import {
+    adminSttChipSx,
     adminTableBodyRowSx,
     adminTableContainerSx,
     adminTableHeadCellSx,
     adminTableHeadRowSx,
 } from "../../../constants/adminTableStyles.js";
 
-/** BE trả accId; thêm các alias thường gặp để tương thích */
 const resolveAccountId = (u) => {
     if (!u) return null;
     const id =
@@ -68,7 +68,6 @@ const resolveAccountId = (u) => {
 
 const accountIdSetKey = (id) => (id === null || id === undefined ? "" : String(id));
 
-/** Phân trang hiển thị; tải một lần nhiều bản ghi để search theo tên hoàn toàn phía FE */
 const TABLE_PAGE_SIZE = 10;
 const FETCH_PAGE_SIZE = 5000;
 
@@ -182,9 +181,12 @@ export default function AdminUsersManagement() {
         setPagination((prev) => ({...prev, page: page - 1}));
     };
 
-    const handleOpenCampuses = (schoolId) => {
+    const handleOpenCampuses = (user) => {
+        const schoolId = user?.schoolId;
         if (!schoolId) return;
-        navigate(`/admin/schools/${schoolId}/campuses`);
+        navigate(`/admin/schools/${schoolId}/campuses`, {
+            state: {schoolId, schoolName: user?.schoolName || ""},
+        });
     };
 
     const handleOpenParentDetail = (user) => {
@@ -197,14 +199,13 @@ export default function AdminUsersManagement() {
     };
 
     const handleOpenSchoolDetail = (user) => {
+        if (!user) return;
         const schoolId = Number(user?.schoolId);
         if (!Number.isFinite(schoolId) || schoolId <= 0) {
             enqueueSnackbar("Không tìm thấy mã trường để xem chi tiết.", { variant: "warning" });
             return;
         }
-        navigate(`/admin/schools/${schoolId}/detail`, {
-            state: { school: user },
-        });
+        setSelectedSchool(user);
     };
 
     const handleCloseSchoolDetail = () => {
@@ -487,14 +488,29 @@ export default function AdminUsersManagement() {
         )
     );
 
+    const statusChipTableSx = {
+        maxWidth: "none",
+        height: "auto",
+        "& .MuiChip-label": {
+            whiteSpace: "normal",
+            lineHeight: 1.3,
+            overflow: "visible",
+            textOverflow: "clip",
+            py: 0.25,
+        },
+    };
+
     const renderStatusChip = (status) => {
-        if (!status) return <Chip label="Không xác định" size="small"/>;
+        if (!status) {
+            return <Chip label="Không xác định" size="small" sx={{...statusChipTableSx}} />;
+        }
         if (status === "ACCOUNT_ACTIVE") {
             return (
                 <Chip
                     label="Hoạt động"
                     size="small"
                     sx={{
+                        ...statusChipTableSx,
                         bgcolor: "rgba(16,185,129,0.16)",
                         color: "#34d399",
                         border: "1px solid rgba(52,211,153,0.35)",
@@ -509,6 +525,7 @@ export default function AdminUsersManagement() {
                     label="Chờ duyệt"
                     size="small"
                     sx={{
+                        ...statusChipTableSx,
                         bgcolor: "rgba(245,158,11,0.16)",
                         color: "#fbbf24",
                         border: "1px solid rgba(251,191,36,0.35)",
@@ -523,6 +540,7 @@ export default function AdminUsersManagement() {
                     label="Không hoạt động"
                     size="small"
                     sx={{
+                        ...statusChipTableSx,
                         bgcolor: "rgba(71,85,105,0.16)",
                         color: "#475569",
                         border: "1px solid rgba(71,85,105,0.28)",
@@ -537,6 +555,7 @@ export default function AdminUsersManagement() {
                     label="Bị hạn chế"
                     size="small"
                     sx={{
+                        ...statusChipTableSx,
                         bgcolor: "rgba(239,68,68,0.16)",
                         color: "#f87171",
                         border: "1px solid rgba(248,113,113,0.35)",
@@ -550,6 +569,7 @@ export default function AdminUsersManagement() {
                 label={status}
                 size="small"
                 sx={{
+                    ...statusChipTableSx,
                     bgcolor: "rgba(148,163,184,0.2)",
                     color: "#cbd5e1",
                     border: "1px solid rgba(203,213,225,0.3)",
@@ -721,33 +741,63 @@ export default function AdminUsersManagement() {
                     </Box>
 
                     <TableContainer component={Paper} elevation={0} sx={adminTableContainerSx}>
-                        <Table size="small">
+                        <Table
+                            size="small"
+                            sx={
+                                roleTab === "SCHOOL"
+                                    ? {
+                                          "& .MuiTableCell-root": {px: 1, py: 0.65},
+                                      }
+                                    : undefined
+                            }
+                        >
                             <TableHead>
                                 <TableRow sx={adminTableHeadRowSx}>
-                                    <TableCell align="center" sx={{...adminTableHeadCellSx, width: 60}}>
+                                    <TableCell align="center" sx={{...adminTableHeadCellSx, width: 48}}>
                                         STT
                                     </TableCell>
                                     {roleTab === "SCHOOL" && (
                                         <>
-                                            <TableCell sx={{...adminTableHeadCellSx, width: 56, pl: 1.5, pr: 0.5}}>
+                                            <TableCell sx={{...adminTableHeadCellSx, width: 44, pl: 0.75, pr: 0.25}}>
                                                 
                                             </TableCell>
-                                            <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 240}}>
+                                            <TableCell
+                                                align="center"
+                                                sx={{
+                                                    ...adminTableHeadCellSx,
+                                                    minWidth: 120,
+                                                    maxWidth: {xs: 180, sm: 220, md: 260},
+                                                    whiteSpace: "normal",
+                                                    wordBreak: "break-word",
+                                                    lineHeight: 1.3,
+                                                }}
+                                            >
                                                 Tên trường
                                             </TableCell>
-                                            <TableCell align="center" sx={{...adminTableHeadCellSx, width: 160}}>
+                                            <TableCell align="center" sx={{...adminTableHeadCellSx, width: 112}}>
                                                 Mã số thuế
                                             </TableCell>
-                                            <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 180}}>
+                                            <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 128}}>
                                                 Website
                                             </TableCell>
-                                            <TableCell align="center" sx={{...adminTableHeadCellSx, width: 150}}>
+                                            <TableCell align="center" sx={{...adminTableHeadCellSx, width: 104}}>
                                                 Hotline
                                             </TableCell>
-                                            <TableCell align="center" sx={{...adminTableHeadCellSx, width: 140}}>
+                                            <TableCell
+                                                align="center"
+                                                sx={{
+                                                    ...adminTableHeadCellSx,
+                                                    minWidth: 158,
+                                                    whiteSpace: "normal",
+                                                    verticalAlign: "middle",
+                                                }}
+                                            >
                                                 Trạng thái
                                             </TableCell>
-                                            <TableCell align="center" sx={{...adminTableHeadCellSx, minWidth: 120}}>
+                                            <TableCell
+                                                align="center"
+                                                sx={{...adminTableHeadCellSx, minWidth: 88, width: 88, whiteSpace: "normal"}}
+                                            >
                                                 Hạn chế
                                             </TableCell>
                                         </>
@@ -771,11 +821,11 @@ export default function AdminUsersManagement() {
                                             </TableCell>
                                         </>
                                     )}
-                                    <TableCell align="center" sx={{...adminTableHeadCellSx, width: roleTab === "PARENT" ? 92 : 78, px: 0.5}}>
+                                    <TableCell align="center" sx={{...adminTableHeadCellSx, width: roleTab === "PARENT" ? 92 : 64, px: 0.35}}>
                                         Chi tiết
                                     </TableCell>
                                     {roleTab === "SCHOOL" && (
-                                        <TableCell align="center" sx={{...adminTableHeadCellSx, width: 72, px: 0.5}}>
+                                        <TableCell align="center" sx={{...adminTableHeadCellSx, width: 56, px: 0.35}}>
                                             Cơ sở
                                         </TableCell>
                                     )}
@@ -811,29 +861,42 @@ export default function AdminUsersManagement() {
                                                 <Chip
                                                     label={pagination.page * pagination.pageSize + index + 1}
                                                     size="small"
-                                                    sx={{
-                                                        width: 28,
-                                                        height: 24,
-                                                        fontWeight: 700,
-                                                        bgcolor: "rgba(37,99,235,0.18)",
-                                                        color: APP_PRIMARY_MAIN,
-                                                        border: "1px solid rgba(96,165,250,0.35)",
-                                                    }}
+                                                    sx={adminSttChipSx}
                                                 />
                                             </TableCell>
                                             {roleTab === "SCHOOL" && (
                                                 <>
-                                                    <TableCell align="left" sx={{pl: 1.5, pr: 0.5}}>
+                                                    <TableCell align="left" sx={{pl: 0.75, pr: 0.25}}>
                                                         <Avatar
                                                             src={user.logoUrl || undefined}
                                                             alt={user.schoolName || "logo trường"}
-                                                            sx={{width: 34, height: 34, bgcolor: "#e2e8f0"}}
+                                                            sx={{width: 32, height: 32, bgcolor: "#e2e8f0"}}
                                                         >
                                                             {(user.schoolName || "S").charAt(0).toUpperCase()}
                                                         </Avatar>
                                                     </TableCell>
-                                                    <TableCell align="left" sx={{pl: 0.5}}>
-                                                        <Typography sx={{fontWeight: 600, fontSize: 14, color: "#1e293b"}}>
+                                                    <TableCell
+                                                        align="left"
+                                                        sx={{
+                                                            pl: 0.35,
+                                                            pr: 0.5,
+                                                            minWidth: 120,
+                                                            maxWidth: {xs: 180, sm: 220, md: 260},
+                                                            whiteSpace: "normal",
+                                                            wordBreak: "break-word",
+                                                            verticalAlign: "middle",
+                                                        }}
+                                                    >
+                                                        <Typography
+                                                            sx={{
+                                                                fontWeight: 600,
+                                                                fontSize: 14,
+                                                                color: "#1e293b",
+                                                                lineHeight: 1.35,
+                                                                whiteSpace: "normal",
+                                                                wordBreak: "break-word",
+                                                            }}
+                                                        >
                                                             {user.schoolName || "Trường chưa đặt tên"}
                                                         </Typography>
                                                     </TableCell>
@@ -867,10 +930,23 @@ export default function AdminUsersManagement() {
                                                             {user.hotline || "-"}
                                                         </Typography>
                                                     </TableCell>
-                                                    <TableCell align="center">
-                                                        {renderStatusChip(user.overallStatus || user.status || user.primaryCampus?.status)}
+                                                    <TableCell
+                                                        align="center"
+                                                        sx={{
+                                                            verticalAlign: "middle",
+                                                            minWidth: 158,
+                                                            whiteSpace: "normal",
+                                                            overflow: "visible",
+                                                        }}
+                                                    >
+                                                        <Box sx={{display: "flex", justifyContent: "center", width: "100%"}}>
+                                                            {renderStatusChip(user.overallStatus || user.status || user.primaryCampus?.status)}
+                                                        </Box>
                                                     </TableCell>
-                                                    <TableCell align="center">
+                                                    <TableCell
+                                                        align="center"
+                                                        sx={{minWidth: 88, width: 88, verticalAlign: "middle"}}
+                                                    >
                                                         {renderRestrictToggle(user)}
                                                     </TableCell>
                                                 </>
@@ -901,8 +977,13 @@ export default function AdminUsersManagement() {
                                                             {user.phone || "-"}
                                                         </Typography>
                                                     </TableCell>
-                                                    <TableCell align="center">
-                                                        {renderStatusChip(user.status)}
+                                                    <TableCell
+                                                        align="center"
+                                                        sx={{verticalAlign: "middle", minWidth: 150, overflow: "visible"}}
+                                                    >
+                                                        <Box sx={{display: "flex", justifyContent: "center", width: "100%"}}>
+                                                            {renderStatusChip(user.status)}
+                                                        </Box>
                                                     </TableCell>
                                                     <TableCell align="center">
                                                         {renderRestrictToggle(user)}
@@ -934,7 +1015,7 @@ export default function AdminUsersManagement() {
                                                 <TableCell align="center" sx={{px: 0.5}}>
                                                     <IconButton
                                                         size="small"
-                                                        onClick={() => handleOpenCampuses(user?.schoolId)}
+                                                        onClick={() => handleOpenCampuses(user)}
                                                         disabled={!user?.schoolId}
                                                         aria-label="Xem cơ sở"
                                                         sx={{color: "#2563eb"}}
