@@ -379,7 +379,7 @@ export default function AdminTransactionManagement() {
                                     series={[
                                         {
                                             data: chartValues,
-                                            area: true,
+                                            area: false,
                                             color: "#2563eb",
                                             curve: "monotoneX",
                                             showMark: true,
