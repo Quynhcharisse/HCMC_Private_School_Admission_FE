@@ -36,7 +36,6 @@ import debounce from "debounce";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import AddIcon from "@mui/icons-material/Add";
 import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
-import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
@@ -51,6 +50,7 @@ import {
 import { autoFillAdminSchoolQuotas } from "../../../services/AdminService.jsx";
 import { getPublicSchoolList } from "../../../services/SchoolPublicService.jsx";
 import { enqueueSnackbar } from "notistack";
+import { adminSttChipSx } from "../../../constants/adminTableStyles.js";
 import { sanitizeAdmissionSettingsForApi } from "../../../utils/admissionSettingsShared.js";
 function getAdmissionQuotaMap(cfg) {
     if (!cfg || typeof cfg !== "object") return {};
@@ -1681,37 +1681,6 @@ export default function AdminPlatformSettings() {
                             <Button
                                 variant="contained"
                                 size="small"
-                                startIcon={confirmingAdmissionImport ? <CircularProgress size={14} /> : <AssignmentOutlinedIcon />}
-                                disabled={!canConfirmImport}
-                                autoFocus={canConfirmImport}
-                                onClick={openAdmissionImportConfirmModal}
-                                sx={{
-                                    textTransform: "none",
-                                    fontWeight: 700,
-                                    borderRadius: 2,
-                                    boxShadow: "none",
-                                    bgcolor: "#16a34a",
-                                    "&:hover": { bgcolor: "#15803d" },
-                                }}
-                            >
-                                {confirmingAdmissionImport ? "Đang xác nhận..." : "Xác nhận nhập"}
-                            </Button>
-                            <Button
-                                variant="outlined"
-                                size="small"
-                                disabled={importRows.length === 0}
-                                onClick={() => setAdmissionImportPreviewOpen(true)}
-                                sx={{
-                                    textTransform: "none",
-                                    fontWeight: 700,
-                                    borderRadius: 2,
-                                }}
-                            >
-                                Xem trước
-                            </Button>
-                            <Button
-                                variant="contained"
-                                size="small"
                                 startIcon={<AddIcon />}
                                 disabled={rowDisabled}
                                 onClick={() =>
@@ -1779,7 +1748,9 @@ export default function AdminPlatformSettings() {
                                         <TableBody>
                                             {importRows.map((row, rowIdx) => (
                                                 <TableRow key={`modal-import-row-${rowIdx}`} hover>
-                                                    <TableCell>{row?.rowData?.index ?? rowIdx + 1}</TableCell>
+                                                    <TableCell align="center">
+                                                        <Chip label={rowIdx + 1} size="small" sx={adminSttChipSx} />
+                                                    </TableCell>
                                                     {importColumns.map((key) => (
                                                         <TableCell key={`modal-import-row-${rowIdx}-cell-${key}`}>
                                                             <TextField

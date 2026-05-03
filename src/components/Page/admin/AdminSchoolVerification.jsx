@@ -44,8 +44,8 @@ import {showSuccessSnackbar} from "../../ui/AppSnackbar.jsx";
 import ConfirmDialog, {ConfirmHighlight} from "../../ui/ConfirmDialog.jsx";
 import {getPendingSchoolRegistrations, verifySchoolRegistration} from "../../../services/AdminService.jsx";
 import {sendSchoolVerifiedEmail} from "../../../services/emailService.jsx";
-import {APP_PRIMARY_MAIN} from "../../../constants/homeLandingTheme";
 import {
+    adminSttChipSx,
     adminTableBodyRowSx,
     adminTableContainerSx,
     adminTableHeadCellSx,
@@ -173,7 +173,6 @@ export default function AdminSchoolVerification() {
                     );
                 }
 
-                // Đồng bộ lại dữ liệu nền, không chặn tương tác người dùng.
                 void fetchRegistrations();
                 closeDetail();
             }
@@ -471,18 +470,7 @@ export default function AdminSchoolVerification() {
                                             sx={adminTableBodyRowSx}
                                         >
                                             <TableCell align="center">
-                                                <Chip
-                                                    label={index + 1}
-                                                    size="small"
-                                                    sx={{
-                                                        width: 28,
-                                                        height: 24,
-                                                        fontWeight: 700,
-                                                        bgcolor: "rgba(37,99,235,0.18)",
-                                                        color: APP_PRIMARY_MAIN,
-                                                        border: "1px solid rgba(96,165,250,0.35)",
-                                                    }}
-                                                />
+                                                <Chip label={index + 1} size="small" sx={adminSttChipSx} />
                                             </TableCell>
                                             <TableCell align="left" sx={{pl: 1.5, pr: 0.5}}>
                                                 <Avatar

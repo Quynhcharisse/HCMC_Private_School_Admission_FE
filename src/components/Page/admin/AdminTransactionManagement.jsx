@@ -34,6 +34,7 @@ import { LineChart } from "@mui/x-charts";
 import { enqueueSnackbar } from "notistack";
 import { useLocation } from "react-router-dom";
 import {
+    adminSttChipSx,
     adminTableBodyRowSx,
     adminTableContainerSx,
     adminTableHeadCellSx,
@@ -481,36 +482,46 @@ export default function AdminTransactionManagement() {
                             <Table size="small" sx={{ tableLayout: "fixed" }}>
                                 <TableHead>
                                     <TableRow sx={adminTableHeadRowSx}>
-                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "50%" }}>Trường học</TableCell>
-                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "11%" }}>Mã GD</TableCell>
-                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "12%" }}>
+                                        <TableCell align="center" sx={{ ...adminTableHeadCellSx, width: 52 }}>
+                                            STT
+                                        </TableCell>
+                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "44%" }}>Trường học</TableCell>
+                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "10%" }}>Mã GD</TableCell>
+                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "11%" }}>
                                             Số tiền
                                         </TableCell>
-                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "13%" }}>Trạng thái</TableCell>
-                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "14%" }}>Ngày giao dịch</TableCell>
+                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "12%" }}>Trạng thái</TableCell>
+                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "13%" }}>Ngày giao dịch</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {loading ? (
                                         <TableRow>
-                                            <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                                            <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
                                                 <CircularProgress size={34} />
                                             </TableCell>
                                         </TableRow>
                                     ) : pagedRows.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={5} align="center" sx={{ py: 4, color: "#64748b" }}>
+                                            <TableCell colSpan={6} align="center" sx={{ py: 4, color: "#64748b" }}>
                                                 Không có giao dịch phù hợp với bộ lọc hiện tại.
                                             </TableCell>
                                         </TableRow>
                                     ) : (
-                                        pagedRows.map((row) => (
+                                        pagedRows.map((row, idx) => (
                                             <TableRow
                                                 key={`${row.id}-${row.txnRef}`}
                                                 hover
                                                 sx={{ ...adminTableBodyRowSx, cursor: "pointer" }}
                                                 onClick={() => setSelectedRow(row)}
                                             >
+                                                <TableCell align="center">
+                                                    <Chip
+                                                        label={(page - 1) * ROWS_PER_PAGE + idx + 1}
+                                                        size="small"
+                                                        sx={adminSttChipSx}
+                                                    />
+                                                </TableCell>
                                                 <TableCell align="center">
                                                     <Typography sx={{ fontWeight: 600 }} noWrap title={row.schoolName} textAlign="center">
                                                         {row.schoolName}

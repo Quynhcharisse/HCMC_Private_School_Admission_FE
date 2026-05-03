@@ -5,6 +5,7 @@ import {
     Button,
     Card,
     CardContent,
+    Chip,
     CircularProgress,
     Dialog,
     DialogActions,
@@ -45,6 +46,7 @@ import {
 } from "../../../constants/adminDialogStyles.js";
 import {
     adminDataCardBorderSx,
+    adminSttChipSx,
     adminTableBodyRowSx,
     adminTableContainerSx,
     adminTableHeadCellSx,
@@ -388,7 +390,9 @@ export default function AdminSubjectsManagement() {
                                                 "&:hover": adminTableBodyRowSx["&:hover"],
                                             }}
                                         >
-                                            <TableCell align="center">{idx + 1}</TableCell>
+                                            <TableCell align="center">
+                                                <Chip label={idx + 1} size="small" sx={adminSttChipSx} />
+                                            </TableCell>
                                             <TableCell align="left">
                                                 <Typography fontWeight={600} color="#1e293b">
                                                     {row.name}

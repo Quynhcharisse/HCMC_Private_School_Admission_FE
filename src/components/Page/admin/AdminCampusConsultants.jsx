@@ -26,17 +26,24 @@ import {useLocation, useNavigate, useParams, useSearchParams} from "react-router
 import {enqueueSnackbar} from "notistack";
 import {exportCampusCounsellors, getCampusCounsellors} from "../../../services/AdminService.jsx";
 import {
+    adminSttChipSx,
     adminTableBodyRowSx,
     adminTableContainerSx,
     adminTableHeadCellSx,
     adminTableHeadRowSx,
 } from "../../../constants/adminTableStyles.js";
+import {
+    adminCampusDisplayNameStorageKey,
+    adminSchoolDisplayNameStorageKey,
+} from "../../../constants/adminBreadcrumbStorage.js";
 
 export default function AdminCampusConsultants() {
     const navigate = useNavigate();
     const {campusId} = useParams();
     const location = useLocation();
     const [searchParams] = useSearchParams();
+
+    const schoolId = String(searchParams.get("schoolId") || location.state?.schoolId || "").trim();
 
     const [consultants, setConsultants] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -48,8 +55,62 @@ export default function AdminCampusConsultants() {
         hasNext: false,
         hasPrevious: false,
     });
-    const [campusName, setCampusName] = useState("");
+    const [displaySchoolName, setDisplaySchoolName] = useState("");
+    const [displayCampusName, setDisplayCampusName] = useState("");
     const [exporting, setExporting] = useState(false);
+
+    const schoolNameFromNav = location.state?.schoolName ?? location.state?.schoolLabel;
+    const schoolIdFromNav = location.state?.schoolId;
+    const campusNameFromNav = location.state?.campusName;
+    const campusIdFromNav = location.state?.campusId;
+
+    useEffect(() => {
+        if (!schoolId) {
+            setDisplaySchoolName("");
+            return;
+        }
+        const fromNav = schoolNameFromNav != null ? String(schoolNameFromNav).trim() : "";
+        const navMatches =
+            fromNav &&
+            (schoolIdFromNav == null || String(schoolIdFromNav) === String(schoolId));
+        if (navMatches) {
+            setDisplaySchoolName(fromNav);
+            try {
+                sessionStorage.setItem(adminSchoolDisplayNameStorageKey(schoolId), fromNav);
+            } catch {}
+            return;
+        }
+        try {
+            const cached = sessionStorage.getItem(adminSchoolDisplayNameStorageKey(schoolId));
+            setDisplaySchoolName(cached || "");
+        } catch {
+            setDisplaySchoolName("");
+        }
+    }, [schoolId, schoolNameFromNav, schoolIdFromNav]);
+
+    useEffect(() => {
+        if (!campusId) {
+            setDisplayCampusName("");
+            return;
+        }
+        const fromNav = campusNameFromNav != null ? String(campusNameFromNav).trim() : "";
+        const navMatches =
+            fromNav &&
+            (campusIdFromNav == null || String(campusIdFromNav) === String(campusId));
+        if (navMatches) {
+            setDisplayCampusName(fromNav);
+            try {
+                sessionStorage.setItem(adminCampusDisplayNameStorageKey(campusId), fromNav);
+            } catch {}
+            return;
+        }
+        try {
+            const cached = sessionStorage.getItem(adminCampusDisplayNameStorageKey(campusId));
+            setDisplayCampusName(cached || "");
+        } catch {
+            setDisplayCampusName("");
+        }
+    }, [campusId, campusNameFromNav, campusIdFromNav]);
 
     const fetchConsultants = async (page = 0) => {
         setLoading(true);
@@ -58,8 +119,21 @@ export default function AdminCampusConsultants() {
             const body = res?.data?.body;
             const items = body?.items || [];
             setConsultants(items);
-            if (!campusName && items.length > 0) {
-                setCampusName(items[0].campusName || "");
+            const inferredCampus = items.map((i) => i?.campusName).find((s) => s && String(s).trim());
+            if (inferredCampus) {
+                const cn = String(inferredCampus).trim();
+                setDisplayCampusName(cn);
+                try {
+                    sessionStorage.setItem(adminCampusDisplayNameStorageKey(campusId), cn);
+                } catch {}
+            }
+            const inferredSchool = items.map((i) => i?.schoolName).find((s) => s && String(s).trim());
+            if (inferredSchool && schoolId) {
+                const sn = String(inferredSchool).trim();
+                setDisplaySchoolName(sn);
+                try {
+                    sessionStorage.setItem(adminSchoolDisplayNameStorageKey(schoolId), sn);
+                } catch {}
             }
             setPagination({
                 page: body?.currentPage ?? page,
@@ -121,11 +195,25 @@ export default function AdminCampusConsultants() {
         return <Chip label={status} size="small"/>;
     };
 
-    const schoolIdFromState = location.state?.schoolId;
-    const schoolIdFromQuery = searchParams.get("schoolId");
-    const schoolId = schoolIdFromState || schoolIdFromQuery;
-    const schoolLabel = location.state?.schoolLabel || (schoolId ? `Trường ${schoolId}` : "Trường");
-    const campusLabel = location.state?.campusName || campusName || `Cơ sở ${campusId}`;
+    const schoolTitle = displaySchoolName.trim() || "Nhà trường";
+    const campusTitle = displayCampusName.trim() || "Cơ sở";
+    const contextLine = [displaySchoolName.trim() || null, displayCampusName.trim() || null]
+        .filter(Boolean)
+        .join(" · ");
+
+    const goToCampusList = () => {
+        if (schoolId) {
+            const sn = displaySchoolName.trim();
+            navigate(`/admin/schools/${schoolId}/campuses`, {
+                state: {
+                    schoolId,
+                    ...(sn ? {schoolName: sn} : {}),
+                },
+            });
+            return;
+        }
+        navigate("/admin/users?tab=SCHOOL");
+    };
 
     return (
         <Box>
@@ -133,19 +221,20 @@ export default function AdminCampusConsultants() {
                 <Link
                     underline="hover"
                     color="inherit"
-                    onClick={() => {
-                        if (schoolId) {
-                            navigate(`/admin/schools/${schoolId}/campuses`);
-                            return;
-                        }
-                        navigate("/admin/users");
-                    }}
-                    sx={{cursor: "pointer"}}
+                    onClick={() => navigate("/admin/users?tab=SCHOOL")}
+                    sx={{cursor: "pointer", fontWeight: 700}}
                 >
-                    {schoolLabel}
+                    Trường học
                 </Link>
-                <Typography color="inherit">{campusLabel}</Typography>
-                <Typography color="text.primary">Tư vấn viên</Typography>
+                <Link underline="hover" color="inherit" onClick={goToCampusList} sx={{cursor: "pointer", fontWeight: 700}}>
+                    {schoolTitle}
+                </Link>
+                <Typography color="inherit" sx={{fontWeight: 700}}>
+                    {campusTitle}
+                </Typography>
+                <Typography color="text.primary" sx={{fontWeight: 700}}>
+                    Tư vấn viên
+                </Typography>
             </Breadcrumbs>
 
             <Box sx={{display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2}}>
@@ -154,9 +243,16 @@ export default function AdminCampusConsultants() {
                         <ArrowBackIcon/>
                     </IconButton>
                     <GroupIcon sx={{fontSize: 30, color: "#2563eb"}}/>
-                    <Typography variant="h5" sx={{fontWeight: 700, color: "#1e293b"}}>
-                        Danh sách tư vấn viên
-                    </Typography>
+                    <Box>
+                        <Typography variant="h5" sx={{fontWeight: 700, color: "#1e293b"}}>
+                            Danh sách tư vấn viên
+                        </Typography>
+                        {contextLine ? (
+                            <Typography variant="body2" sx={{color: "#64748b", mt: 0.35}}>
+                                {contextLine}
+                            </Typography>
+                        ) : null}
+                    </Box>
                 </Box>
                 <Button
                     variant="outlined"
@@ -222,7 +318,11 @@ export default function AdminCampusConsultants() {
                                             sx={adminTableBodyRowSx}
                                         >
                                             <TableCell align="center">
-                                                {pagination.page * pagination.pageSize + index + 1}
+                                                <Chip
+                                                    label={pagination.page * pagination.pageSize + index + 1}
+                                                    size="small"
+                                                    sx={adminSttChipSx}
+                                                />
                                             </TableCell>
                                             <TableCell align="center">
                                                 <Typography sx={{fontWeight: 600, fontSize: 14}}>
