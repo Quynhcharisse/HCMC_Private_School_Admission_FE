@@ -2317,12 +2317,12 @@ export default function AdminPlatformSettings() {
                                 }}
                             >
                                 <Tab label="Giá nền gói cước" />
-                                <Tab label="Đơn giá tính năng mua thêm" />
                                 <Tab label="Định mức theo gói" />
+                                <Tab label="Đơn giá tính năng mua thêm" />
                             </Tabs>
                             <Box sx={{ border: "1px solid #d0d7de", borderRadius: 2, p: 1.25, bgcolor: "#ffffff" }}>
                                 <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#2563eb", mb: 1.25 }}>
-                                    {businessPricingSubTab === 0 ? "Nhóm A - Giá nền gói cước" : businessPricingSubTab === 1 ? "Nhóm B - Đơn giá tính năng mua thêm" : "Nhóm C - Định mức theo gói"}
+                                    {businessPricingSubTab === 0 ? "Giá nền gói cước" : businessPricingSubTab === 1 ? "Định mức theo gói" : "Đơn giá tính năng mua thêm"}
                                 </Typography>
                                 {businessPricingSubTab === 0 ? (
                                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, gap: 1.5 }}>
@@ -2332,12 +2332,6 @@ export default function AdminPlatformSettings() {
                                     </Box>
                                 ) : null}
                                 {businessPricingSubTab === 1 ? (
-                                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
-                                        {moneyField("Phí Chatbot AI (tháng)", "aiChatbotMonthlyFee")}
-                                        {moneyField("Phí hỗ trợ ưu tiên", "premiumSupportFee")}
-                                    </Box>
-                                ) : null}
-                                {businessPricingSubTab === 2 ? (
                                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
                                         {integerField("Thời hạn gói dùng thử", "durationDays", "ngày")}
                                         {integerField("Số tư vấn viên (Gói dùng thử)", "trialCounsellor", "người")}
@@ -2363,6 +2357,12 @@ export default function AdminPlatformSettings() {
                                                 sx={settingsInputSx}
                                             />
                                         </Box>
+                                    </Box>
+                                ) : null}
+                                {businessPricingSubTab === 2 ? (
+                                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
+                                        {moneyField("Phí Chatbot AI (tháng)", "aiChatbotMonthlyFee")}
+                                        {moneyField("Phí hỗ trợ ưu tiên", "premiumSupportFee")}
                                     </Box>
                                 ) : null}
                             </Box>
