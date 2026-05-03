@@ -64,15 +64,15 @@ const CounsellorDashboard = lazy(() => import("./components/Page/counsellor/Coun
 const CounsellorParentConsultation = lazy(() => import("./components/Page/counsellor/CounsellorParentConsultation.jsx"));
 const CounsellorProfile = lazy(() => import("./components/Page/counsellor/CounsellorProfile.jsx"));
 const CounsellorCalendar = lazy(() => import("./components/Page/counsellor/CounsellorCalendar.jsx"));
-const CounsellorOfflineConsultationPage = lazy(() =>
-  import("./components/Page/counsellor/CounsellorOfflineConsultationPage.jsx")
-);
 const SchoolCurriculums = lazy(() => import("./components/Page/school/SchoolCurriculums.jsx"));
 const SchoolPrograms = lazy(() => import("./components/Page/school/SchoolPrograms.jsx"));
 const SchoolPurchasedPackages = lazy(() => import("./components/Page/school/SchoolPurchasedPackages.jsx"));
 const ParentProfile = lazy(() => import("./components/auth/ParentProfile.jsx"));
 const SavedSchoolsPage = lazy(() => import("./components/Page/SavedSchoolsPage.jsx"));
 const CompareSchoolsPage = lazy(() => import("./components/Page/CompareSchoolsPage.jsx"));
+const ParentOfflineConsultationsPage = lazy(() =>
+  import("./components/Page/ParentOfflineConsultationsPage.jsx")
+);
 const ChildrenInfoPage = lazy(() => import("./components/Page/ChildrenInfoPage.jsx"));
 const PackageFeesPage = lazy(() => import("./components/Page/PackageFeesPage.jsx"));
 const VnpayPaymentResultPage = lazy(() => import("./components/Page/payment/VnpayPaymentResultPage.jsx"));
@@ -670,14 +670,6 @@ const router = createBrowserRouter([
                 )
             },
             {
-                path: 'offline-consultation',
-                element: (
-                    <Suspense fallback={<LoadingFallback/>}>
-                        <CounsellorOfflineConsultationPage/>
-                    </Suspense>
-                )
-            },
-            {
                 path: 'profile',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
@@ -708,6 +700,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <ParentProfile/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'offline-consultations',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <ParentOfflineConsultationsPage/>
                     </Suspense>
                 )
             }

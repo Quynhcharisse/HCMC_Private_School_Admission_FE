@@ -59,6 +59,7 @@ export const isRouteAllowedForRole = (path, role) => {
             '/schools',
             '/posts',
             '/parent/profile',
+            '/parent/offline-consultations',
             '/children-info',
             '/saved-schools',
             '/compare-schools',

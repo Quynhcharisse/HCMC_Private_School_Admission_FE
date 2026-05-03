@@ -9,11 +9,11 @@ export const OFFLINE_CONSULTATION_STATUSES = [
   "no-show",
 ];
 
-export async function getCounsellorOfflineConsultations(
+export async function getParentOfflineConsultations(
   { status, page = 0, pageSize = 10 } = {},
   axiosConfig = {}
 ) {
-  return axiosClient.get("/counsellor/consultation/offline", {
+  return axiosClient.get("/parent/consultation/offline", {
     params: {
       status,
       page,
