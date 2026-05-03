@@ -4,12 +4,31 @@ import { CheckCircleOutline as CheckCircleOutlineIcon } from "@mui/icons-materia
 import { BRAND_NAVY } from "../../constants/homeLandingTheme";
 import {
     buildFeatureLines,
-    formatVndPrice,
+    formatSchoolPackageCardPrice,
+    getPackageTypeLabelEn,
     getSupportLevelLabel,
     getSupportLevelRank,
     isSchoolPackageListable,
     normalizeSchoolServicePackageItem,
 } from "../../utils/servicePackageDisplay";
+
+const VI_NUMBER_FRAGMENT_RE = /(\d+(?:[.,]\d+)*)/g;
+
+function renderFeatureLineWithBoldNumbers(line) {
+    const s = String(line ?? "");
+    const parts = s.split(VI_NUMBER_FRAGMENT_RE);
+    return parts.map((part, i) => {
+        if (part === "") return null;
+        if (/^\d+(?:[.,]\d+)*$/.test(part)) {
+            return (
+                <Box component="span" key={i} sx={{ fontWeight: 800 }}>
+                    {part}
+                </Box>
+            );
+        }
+        return <React.Fragment key={i}>{part}</React.Fragment>;
+    });
+}
 
 export default function SchoolServicePackagesGrid({
     packages = [],
@@ -121,6 +140,11 @@ export default function SchoolServicePackagesGrid({
                               checkColor: "#16a34a",
                           };
                 const featureLines = buildFeatureLines(pkg?.features || {}, pkg?.durationDays);
+                const isTrialPackage = String(pkg?.packageType || "").trim().toUpperCase() === "TRIAL";
+                const chipLabel =
+                    pkg?.packageType != null && String(pkg.packageType).trim() !== ""
+                        ? getPackageTypeLabelEn(pkg.packageType)
+                        : getSupportLevelLabel(pkg?.features?.supportLevel);
                 return (
                     <Card
                         key={pkg?.id ?? `${pkg?.name}-${idx}`}
@@ -150,29 +174,35 @@ export default function SchoolServicePackagesGrid({
                     >
                         <Box sx={{ textAlign: "center", mb: 2 }}>
                             <Typography sx={{ fontSize: { xs: "2rem", md: "2.2rem" }, fontWeight: 800, letterSpacing: 0.5 }}>
-                                {formatVndPrice(pkg?.price)}
+                                {pkg?.name?.trim() || "Gói dịch vụ"}
                             </Typography>
                             <Chip
-                                label={getSupportLevelLabel(pkg?.features?.supportLevel)}
+                                label={chipLabel}
                                 sx={{
                                     mt: 1.2,
                                     borderRadius: 999,
                                     fontWeight: 700,
                                     bgcolor: "rgba(255,255,255,0.9)",
                                     color: tone.color,
+                                    border: "2px solid",
+                                    borderColor: tone.color,
                                 }}
                             />
                         </Box>
 
                         <Box sx={{ mb: 2.25, textAlign: "center" }}>
-                            <Typography sx={{ fontWeight: 800, fontSize: "1.05rem" }}>{pkg?.name || "Gói dịch vụ"}</Typography>
+                            <Typography sx={{ fontWeight: 800, fontSize: "1.05rem" }}>
+                                {formatSchoolPackageCardPrice(pkg?.packageType, pkg?.price)}
+                            </Typography>
                         </Box>
 
                         <Box sx={{ display: "flex", flexDirection: "column", gap: 1.15, flex: 1 }}>
                             {featureLines.map((line) => (
                                 <Box key={`${pkg?.id}-${line}`} sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
                                     <CheckCircleOutlineIcon sx={{ fontSize: 18, mt: "2px", color: tone.checkColor }} />
-                                    <Typography sx={{ fontSize: 14, lineHeight: 1.55 }}>{line}</Typography>
+                                    <Typography sx={{ fontSize: 14, lineHeight: 1.55, fontWeight: 500 }}>
+                                        {renderFeatureLineWithBoldNumbers(line)}
+                                    </Typography>
                                 </Box>
                             ))}
                         </Box>
@@ -197,7 +227,13 @@ export default function SchoolServicePackagesGrid({
                                     },
                                 }}
                             >
-                                {buyNowLoadingPackageId === pkg?.id ? <CircularProgress size={22} color="inherit" /> : "Mua ngay"}
+                                {buyNowLoadingPackageId === pkg?.id ? (
+                                    <CircularProgress size={22} color="inherit" />
+                                ) : isTrialPackage ? (
+                                    "Dùng thử"
+                                ) : (
+                                    "Mua ngay"
+                                )}
                             </Button>
                         ) : null}
                     </Card>

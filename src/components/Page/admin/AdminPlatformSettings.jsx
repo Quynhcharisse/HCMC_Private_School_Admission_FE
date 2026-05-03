@@ -18,6 +18,7 @@ import {
     DialogContent,
     DialogTitle,
     Paper,
+    Popover,
     Stack,
     Tab,
     Table,
@@ -38,6 +39,7 @@ import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import {
     confirmSystemConfigImport,
     getSystemConfig,
@@ -64,7 +66,6 @@ function getAdmissionQuotaMap(cfg) {
     return raw;
 }
 
-/** Chuẩn hóa giá trị cấu hình từ API: object hoặc chuỗi JSON object (một số BE serialize lồng). */
 function asConfigRecord(raw) {
     if (raw == null) return {};
     if (typeof raw === "string") {
@@ -81,11 +82,6 @@ function asConfigRecord(raw) {
     return {};
 }
 
-/**
- * Map đọc cấu hình doanh nghiệp — khớp body:
- * businessData: { taxRate, serviceRate, minPay, maxPay, subscriptionPricing: { basePrices, featureUnitPrices, packageQuotas, trialRatioCap } } }
- * Hỗ trợ thêm cfg.business (legacy) và trialRatioCap nhầm lên root businessData.
- */
 function getBusinessConfig(cfg) {
     if (!cfg || typeof cfg !== "object") return {};
     const businessData = asConfigRecord(cfg.businessData);
@@ -123,6 +119,26 @@ function getBusinessConfig(cfg) {
     };
 }
 
+const TRIAL_RATIO_CAP_INFO_TOOLTIP = "Tỉ lệ này xác định quy mô của gói Dùng thử so với gói Tiêu chuẩn. Giúp tự động cân đối hạn mức vận hành (tư vấn viên, bài đăng) để bảo vệ quyền lợi của các gói trả phí.";
+
+const TRIAL_RATIO_CAP_INPUT_HINT = "15%: ít tính năng • 30%: vừa đủ • 40%: nhiều tính năng";
+
+function trialRatioCapDecimalToFormPctString(cap) {
+    if (cap == null || cap === "") return "";
+    const n = Number(cap);
+    if (!Number.isFinite(n)) return String(cap).trim();
+    const pct = n * 100;
+    const rounded = Math.round(pct * 100) / 100;
+    if (Number.isInteger(rounded)) return String(Math.trunc(rounded));
+    return String(rounded);
+}
+
+function formPctStringToTrialRatioCapDecimal(pctStr) {
+    const raw = Number(String(pctStr ?? "").trim());
+    if (!Number.isFinite(raw)) return NaN;
+    return Math.round((raw / 100) * 10000) / 10000;
+}
+
 function getMediaConfig(cfg) {
     if (!cfg || typeof cfg !== "object") return {};
     return cfg.mediaData ?? cfg.media ?? {};
@@ -147,7 +163,6 @@ function assertSystemConfigUpdateSuccess(response, fallbackMessage = "Cập nh�
     }
 }
 
-/** Tóm tắt tác động lên gói sau khi BE lưu business (Bước 2–3); các field là gợi ý, không bắt buộc. */
 function extractBusinessConfigSaveSideEffects(response) {
     const root = response?.data;
     const body = root?.body ?? root?.data ?? (root && typeof root === "object" ? root : {});
@@ -273,15 +288,7 @@ export default function AdminPlatformSettings() {
             trialPostLimit: packageQuotas.trialPostLimit == null ? "" : String(packageQuotas.trialPostLimit),
             standardPostLimit: packageQuotas.standardPostLimit == null ? "" : String(packageQuotas.standardPostLimit),
             enterprisePostLimit: packageQuotas.enterprisePostLimit == null ? "" : String(packageQuotas.enterprisePostLimit),
-            trialRatioCap: (() => {
-                const cap = subscriptionPricing.trialRatioCap;
-                if (cap != null && cap !== "") {
-                    const n = Number(cap);
-                    if (Number.isFinite(n)) return String(Math.round(n * 10000) / 10000);
-                    return String(cap);
-                }
-                return "1";
-            })(),
+            trialRatioCapPct: trialRatioCapDecimalToFormPctString(subscriptionPricing.trialRatioCap),
         };
     };
 
@@ -302,13 +309,14 @@ export default function AdminPlatformSettings() {
         trialPostLimit: "",
         standardPostLimit: "",
         enterprisePostLimit: "",
-        trialRatioCap: "1",
+        trialRatioCapPct: "",
     });
     const [businessErrors, setBusinessErrors] = useState({});
     const [businessPricingTab, setBusinessPricingTab] = useState(0);
     const [businessPricingSubTab, setBusinessPricingSubTab] = useState(0);
 
     const [businessEditing, setBusinessEditing] = useState(false);
+    const [trialRatioCapInfoAnchor, setTrialRatioCapInfoAnchor] = useState(null);
 
     const [mediaEditing, setMediaEditing] = useState(false);
     const [quotaEditing, setQuotaEditing] = useState(false);
@@ -550,15 +558,17 @@ export default function AdminPlatformSettings() {
         getPositiveInt("standardPostLimit", "Giới hạn bài đăng gói Tiêu chuẩn");
         getPositiveInt("enterprisePostLimit", "Giới hạn bài đăng gói Doanh nghiệp");
 
-        const capStr = String(form.trialRatioCap ?? "").trim();
+        const capStr = String(form.trialRatioCapPct ?? "").trim();
+        let capPctNum = NaN;
         if (!capStr) {
-            errors.trialRatioCap = "Vui lòng nhập Giới hạn tỉ lệ gói Dùng thử (trialRatioCap).";
+            errors.trialRatioCapPct = "Vui lòng nhập Giới hạn tỉ lệ gói Dùng thử (%).";
         } else {
-            const capNum = Number(capStr);
-            if (!Number.isFinite(capNum)) {
-                errors.trialRatioCap = "trialRatioCap phải là số.";
-            } else if (capNum < 0 || capNum > 1) {
-                errors.trialRatioCap = "trialRatioCap phải nằm trong khoảng [0..1] (ví dụ 0.3 = 30%).";
+            capPctNum = Number(capStr);
+            if (!Number.isFinite(capPctNum)) {
+                errors.trialRatioCapPct = "Giá trị phải là số (ví dụ 30 tương đương 30%).";
+            } else if (capPctNum <= 0 || capPctNum >= 100) {
+                errors.trialRatioCapPct =
+                    "Tỉ lệ trần phải lớn hơn 0% và nhỏ hơn 100% (tỷ lệ thập phân trên máy chủ: 0 < … < 1).";
             }
         }
 
@@ -591,22 +601,22 @@ export default function AdminPlatformSettings() {
             }
         }
 
-        const capNum = capStr ? Number(capStr) : NaN;
+        const capDecimal = Number.isFinite(capPctNum) ? capPctNum / 100 : NaN;
         if (
             !errors.trialCounsellor &&
             !errors.standardCounsellor &&
-            !errors.trialRatioCap &&
-            Number.isFinite(capNum) &&
-            capNum >= 0 &&
-            capNum <= 1 &&
+            !errors.trialRatioCapPct &&
+            Number.isFinite(capDecimal) &&
+            capDecimal > 0 &&
+            capDecimal < 1 &&
             Number.isInteger(trialC) &&
             Number.isInteger(standardC) &&
             trialC >= 0 &&
             standardC >= 0
         ) {
-            const maxTrialByCap = Math.floor(standardC * capNum);
+            const maxTrialByCap = Math.floor(standardC * capDecimal);
             if (trialC > maxTrialByCap) {
-                errors.trialCounsellor = `Theo trialRatioCap (${capNum}), gói Dùng thử không được quá ${maxTrialByCap} tư vấn viên (≤ ⌊${standardC} × ${capNum}⌋ so với gói Tiêu chuẩn).`;
+                errors.trialCounsellor = `Theo giới hạn tỉ lệ (${capPctNum}%), gói Dùng thử không được quá ${maxTrialByCap} tư vấn viên (≤ ⌊${standardC} × ${capDecimal}⌋ so với gói Tiêu chuẩn).`;
             }
         }
 
@@ -1251,8 +1261,7 @@ export default function AdminPlatformSettings() {
             const maxPay = parseFinite(businessForm.maxPay);
             const taxRate = toRateDecimal(businessForm.taxRatePct);
             const serviceRate = toRateDecimal(businessForm.serviceRatePct);
-            const trialRatioCapRaw = Number(String(businessForm.trialRatioCap ?? "").trim());
-            const trialRatioCap = Number.isFinite(trialRatioCapRaw) ? Math.round(trialRatioCapRaw * 10000) / 10000 : 0;
+            const trialRatioCap = formPctStringToTrialRatioCapDecimal(businessForm.trialRatioCapPct);
 
             const updatedBody = {
                 businessData: {
@@ -2332,31 +2341,96 @@ export default function AdminPlatformSettings() {
                                     </Box>
                                 ) : null}
                                 {businessPricingSubTab === 1 ? (
-                                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
+                                    <Box
+                                        sx={{
+                                            display: "grid",
+                                            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+                                            gap: 1.5,
+                                            alignItems: "stretch",
+                                        }}
+                                    >
                                         {integerField("Thời hạn gói dùng thử", "durationDays", "ngày")}
-                                        {integerField("Số tư vấn viên (Gói dùng thử)", "trialCounsellor", "người")}
-                                        {integerField("Số tư vấn viên (Gói tiêu chuẩn)", "standardCounsellor", "người")}
-                                        {integerField("Số tư vấn viên (Gói doanh nghiệp)", "enterpriseCounsellor", "người")}
-                                        {integerField("Giới hạn bài đăng (Gói dùng thử)", "trialPostLimit", "bài")}
-                                        {integerField("Giới hạn bài đăng (Gói tiêu chuẩn)", "standardPostLimit", "bài")}
-                                        {integerField("Giới hạn bài đăng (Gói doanh nghiệp)", "enterprisePostLimit", "bài")}
-                                        <Box sx={{ ...settingsFieldCardSx, gridColumn: { xs: "1", md: "1 / -1" } }}>
-                                            <Typography sx={settingsFieldLabelSx}>
-                                                Giới hạn tỉ lệ gói Dùng thử (trialRatioCap)
-                                            </Typography>
+                                        <Box sx={{ ...settingsFieldCardSx }}>
+                                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, mb: 0.75 }}>
+                                                <Typography
+                                                    component="span"
+                                                    sx={{ fontSize: 12, fontWeight: 500, color: "#1d4ed8" }}
+                                                >
+                                                    Trial được dùng bao nhiêu % so với gói Tiêu chuẩn
+                                                </Typography>
+                                                <IconButton
+                                                    type="button"
+                                                    size="small"
+                                                    onClick={(e) => setTrialRatioCapInfoAnchor(e.currentTarget)}
+                                                    aria-label="Ví dụ: % trial so với gói Tiêu chuẩn"
+                                                    sx={{ p: 0.25, color: "#1d4ed8" }}
+                                                >
+                                                    <InfoOutlinedIcon sx={{ fontSize: 18 }} />
+                                                </IconButton>
+                                            </Box>
+                                            <Popover
+                                                open={Boolean(trialRatioCapInfoAnchor)}
+                                                anchorEl={trialRatioCapInfoAnchor}
+                                                onClose={() => setTrialRatioCapInfoAnchor(null)}
+                                                anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+                                                transformOrigin={{ vertical: "top", horizontal: "left" }}
+                                                slotProps={{
+                                                    paper: {
+                                                        sx: {
+                                                            minWidth: { xs: "min(92vw, 360px)", sm: 420 },
+                                                            maxWidth: { xs: "92vw", sm: 560 },
+                                                            p: { xs: 1.75, sm: 2.25 },
+                                                            border: "1px solid #e2e8f0",
+                                                            boxShadow: "0 4px 14px rgba(15, 23, 42, 0.12)",
+                                                        },
+                                                    },
+                                                }}
+                                            >
+                                                <Typography
+                                                    variant="body2"
+                                                    sx={{
+                                                        fontSize: { xs: 14, sm: 15 },
+                                                        lineHeight: 1.55,
+                                                        fontWeight: 600,
+                                                        color: "#0f172a",
+                                                    }}
+                                                >
+                                                    {TRIAL_RATIO_CAP_INFO_TOOLTIP}
+                                                </Typography>
+                                            </Popover>
                                             <TextField
                                                 size="small"
                                                 fullWidth
                                                 type="number"
                                                 disabled={businessDisabled}
-                                                value={businessForm.trialRatioCap}
-                                                onChange={(e) => handleBusinessFieldChange("trialRatioCap", e.target.value)}
-                                                error={Boolean(businessErrors.trialRatioCap)}
-                                                helperText={businessErrors.trialRatioCap || ""}
-                                                inputProps={{ min: 0, max: 1, step: 0.01 }}
+                                                value={businessForm.trialRatioCapPct}
+                                                onChange={(e) => handleBusinessFieldChange("trialRatioCapPct", e.target.value)}
+                                                error={Boolean(businessErrors.trialRatioCapPct)}
+                                                {...(businessErrors.trialRatioCapPct ? { helperText: businessErrors.trialRatioCapPct } : {})}
+                                                InputProps={{
+                                                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                                                }}
+                                                inputProps={{ min: 0, max: 100, step: 0.01 }}
                                                 sx={settingsInputSx}
                                             />
+                                            <Typography
+                                                variant="body2"
+                                                sx={{
+                                                    mt: 0.5,
+                                                    fontSize: 12,
+                                                    lineHeight: 1.45,
+                                                    color: "#64748b",
+                                                }}
+                                            >
+                                                {TRIAL_RATIO_CAP_INPUT_HINT}
+                                            </Typography>
                                         </Box>
+                                        {integerField("Số tư vấn viên (Gói dùng thử)", "trialCounsellor", "người")}
+                                        {integerField("Giới hạn bài đăng (Gói dùng thử)", "trialPostLimit", "bài")}
+                                        {integerField("Số tư vấn viên (Gói tiêu chuẩn)", "standardCounsellor", "người")}
+                                        {integerField("Giới hạn bài đăng (Gói tiêu chuẩn)", "standardPostLimit", "bài")}
+                                        {integerField("Số tư vấn viên (Gói doanh nghiệp)", "enterpriseCounsellor", "người")}
+                                        {integerField("Giới hạn bài đăng (Gói doanh nghiệp)", "enterprisePostLimit", "bài")}
                                     </Box>
                                 ) : null}
                                 {businessPricingSubTab === 2 ? (
