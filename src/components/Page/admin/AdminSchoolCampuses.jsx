@@ -63,7 +63,7 @@ export default function AdminSchoolCampuses() {
             });
         } catch (e) {
             console.error("Failed to load campuses", e);
-            enqueueSnackbar("Không thể tải danh sách campus.", {variant: "error"});
+            enqueueSnackbar("Không thể tải danh sách cơ sở.", {variant: "error"});
         } finally {
             setLoading(false);
         }
@@ -142,21 +142,21 @@ export default function AdminSchoolCampuses() {
         });
     };
 
-    const breadcrumbSchoolLabel = `School ${schoolId}`;
+    const breadcrumbSchoolLabel = `Trường ${schoolId}`;
 
     return (
         <Box>
-            <Breadcrumbs separator="›" aria-label="breadcrumb" sx={{mb: 1}}>
+            <Breadcrumbs separator="›" aria-label="điều hướng" sx={{mb: 1}}>
                 <Link
                     underline="hover"
                     color="inherit"
                     onClick={() => navigate("/admin/users?tab=SCHOOL")}
                     sx={{cursor: "pointer"}}
                 >
-                    Users
+                    Người dùng
                 </Link>
                 <Typography color="text.primary">{breadcrumbSchoolLabel}</Typography>
-                <Typography color="text.primary">Campus</Typography>
+                <Typography color="text.primary">Cơ sở</Typography>
             </Breadcrumbs>
 
             <Box sx={{display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2}}>
@@ -166,7 +166,7 @@ export default function AdminSchoolCampuses() {
                     </IconButton>
                     <ApartmentIcon sx={{fontSize: 30, color: "#2563eb"}}/>
                     <Typography variant="h5" sx={{fontWeight: 700, color: "#1e293b"}}>
-                        Danh Sách Campus
+                        Danh sách cơ sở
                     </Typography>
                 </Box>
             </Box>
@@ -181,17 +181,17 @@ export default function AdminSchoolCampuses() {
                 <CardContent>
                     {loading ? (
                         <Typography variant="body2" sx={{color: "#64748b", mb: 2}}>
-                            Đang tải danh sách campus...
+                            Đang tải danh sách cơ sở...
                         </Typography>
                     ) : null}
 
                     {campuses.length === 0 && !loading ? (
                         <Box sx={{py: 4, textAlign: "center"}}>
                             <Typography variant="h6" sx={{mb: 1, color: "#1e293b"}}>
-                                Trường này chưa có campus
+                                Trường này chưa có cơ sở
                             </Typography>
                             <Typography variant="body2" sx={{color: "#64748b"}}>
-                                Khi trường thêm campus mới, bạn sẽ thấy thông tin hiển thị tại đây.
+                                Khi trường thêm cơ sở mới, bạn sẽ thấy thông tin hiển thị tại đây.
                             </Typography>
                         </Box>
                     ) : (
@@ -209,7 +209,7 @@ export default function AdminSchoolCampuses() {
                                             align="center"
                                             sx={{...adminTableHeadCellSx, minWidth: 200}}
                                         >
-                                            Tên campus
+                                            Tên cơ sở
                                         </TableCell>
                                         <TableCell
                                             align="center"
@@ -321,7 +321,7 @@ export default function AdminSchoolCampuses() {
                         <Box sx={{display: "flex", justifyContent: "space-between", mt: 2, alignItems: "center"}}>
                             <Typography variant="body2" sx={{color: "#64748b"}}>
                                 Trang {pagination.page + 1} / {Math.max(pagination.totalPages, 1)} –{" "}
-                                {pagination.totalItems} campus
+                                {pagination.totalItems} cơ sở
                             </Typography>
                             <Stack spacing={1} direction="row" justifyContent="flex-end">
                                 <Pagination

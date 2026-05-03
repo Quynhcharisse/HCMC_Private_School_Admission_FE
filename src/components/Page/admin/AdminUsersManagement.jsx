@@ -575,9 +575,9 @@ export default function AdminUsersManagement() {
                 color: "#1e293b",
             }}
         >
-            <Breadcrumbs separator="›" aria-label="breadcrumb" sx={{mb: 1, color: "#64748b"}}>
+            <Breadcrumbs separator="›" aria-label="điều hướng" sx={{mb: 1, color: "#64748b"}}>
                 <Link underline="hover" color="inherit" onClick={() => navigate("/admin/users")} sx={{cursor: "pointer", color: "#2563eb"}}>
-                    Users
+                    Người dùng
                 </Link>
             </Breadcrumbs>
 
@@ -772,11 +772,11 @@ export default function AdminUsersManagement() {
                                         </>
                                     )}
                                     <TableCell align="center" sx={{...adminTableHeadCellSx, width: roleTab === "PARENT" ? 92 : 78, px: 0.5}}>
-                                        Chi Tiết
+                                        Chi tiết
                                     </TableCell>
                                     {roleTab === "SCHOOL" && (
                                         <TableCell align="center" sx={{...adminTableHeadCellSx, width: 72, px: 0.5}}>
-                                            Campus
+                                            Cơ sở
                                         </TableCell>
                                     )}
                                 </TableRow>
@@ -936,7 +936,7 @@ export default function AdminUsersManagement() {
                                                         size="small"
                                                         onClick={() => handleOpenCampuses(user?.schoolId)}
                                                         disabled={!user?.schoolId}
-                                                        aria-label="Xem campus"
+                                                        aria-label="Xem cơ sở"
                                                         sx={{color: "#2563eb"}}
                                                     >
                                                         <SchoolIcon fontSize="small"/>

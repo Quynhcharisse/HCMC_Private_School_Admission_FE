@@ -15,7 +15,7 @@ import {getCampusConversationsForAdmin} from "../../../services/ConversationServ
 import {getAdminMessagesHistory, markAdminMessagesRead} from "../../../services/MessageService.jsx";
 
 const CONTACT_LABEL_FALLBACK = "Trường học";
-const CONTACT_PRINCIPAL = "School EduBridge";
+const CONTACT_PRINCIPAL = "Trường học EduBridge";
 const ADMIN_CONTACT_CONVERSATION_ID = 1;
 
 const isSameConversationId = (a, b) => a != null && b != null && String(a) === String(b);
@@ -376,7 +376,7 @@ export default function AdminContactPage() {
         const response = await getCampusConversationsForAdmin();
         if (response?.status !== 200) {
           setHasConversation(false);
-          setConversationLoadError("Không tải được conversations");
+          setConversationLoadError("Không tải được danh sách hội thoại.");
           return;
         }
         const sourceItems = extractAdminConversationList(response?.data);
@@ -444,7 +444,7 @@ export default function AdminContactPage() {
         setHasConversation(false);
         setConversations([]);
         setSelectedConversation(null);
-        setConversationLoadError("Không tải được conversations");
+        setConversationLoadError("Không tải được danh sách hội thoại.");
       } finally {
         setConversationsLoading(false);
         /** Không dispatch admin-contact-conversations-refresh — tránh GET /admin/conversation lần 2; badge sidebar nhận admin-contact-unread-aggregate khi conversations set. */
@@ -707,7 +707,7 @@ export default function AdminContactPage() {
             }}
           >
             <SearchIcon fontSize="small" sx={{color: "#94a3b8", mr: 1}} />
-            <Typography sx={{fontSize: 13, color: "#94a3b8"}}>Search...</Typography>
+            <Typography sx={{fontSize: 13, color: "#94a3b8"}}>Tìm kiếm...</Typography>
           </Paper>
           <Divider sx={{my: 2, borderColor: "rgba(148,163,184,0.35)"}} />
           {hasConversation ? (

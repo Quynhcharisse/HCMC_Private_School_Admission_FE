@@ -124,12 +124,12 @@ export default function AdminCampusConsultants() {
     const schoolIdFromState = location.state?.schoolId;
     const schoolIdFromQuery = searchParams.get("schoolId");
     const schoolId = schoolIdFromState || schoolIdFromQuery;
-    const schoolLabel = location.state?.schoolLabel || (schoolId ? `School ${schoolId}` : "School");
-    const campusLabel = location.state?.campusName || campusName || `Campus ${campusId}`;
+    const schoolLabel = location.state?.schoolLabel || (schoolId ? `Trường ${schoolId}` : "Trường");
+    const campusLabel = location.state?.campusName || campusName || `Cơ sở ${campusId}`;
 
     return (
         <Box>
-            <Breadcrumbs separator="›" aria-label="breadcrumb" sx={{mb: 1}}>
+            <Breadcrumbs separator="›" aria-label="điều hướng" sx={{mb: 1}}>
                 <Link
                     underline="hover"
                     color="inherit"
@@ -155,7 +155,7 @@ export default function AdminCampusConsultants() {
                     </IconButton>
                     <GroupIcon sx={{fontSize: 30, color: "#2563eb"}}/>
                     <Typography variant="h5" sx={{fontWeight: 700, color: "#1e293b"}}>
-                        Danh Sách Tư Vấn Viên
+                        Danh sách tư vấn viên
                     </Typography>
                 </Box>
                 <Button
@@ -186,10 +186,10 @@ export default function AdminCampusConsultants() {
                     {consultants.length === 0 && !loading ? (
                         <Box sx={{py: 4, textAlign: "center"}}>
                             <Typography variant="h6" sx={{mb: 1, color: "#1e293b"}}>
-                                Campus này chưa có tư vấn viên
+                                Cơ sở này chưa có tư vấn viên
                             </Typography>
                             <Typography variant="body2" sx={{color: "#64748b"}}>
-                                Khi campus thêm tư vấn viên mới, bạn sẽ thấy thông tin hiển thị tại đây.
+                                Khi cơ sở thêm tư vấn viên mới, bạn sẽ thấy thông tin hiển thị tại đây.
                             </Typography>
                         </Box>
                     ) : (
