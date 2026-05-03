@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useRef, useState} from "react";
+import React, {useCallback, useEffect, useMemo, useRef, useState} from "react";
 import {Box, CircularProgress, IconButton, InputBase, Paper, Typography} from "@mui/material";
 import SendIcon from "@mui/icons-material/Send";
 import SupportAgentIcon from "@mui/icons-material/SupportAgent";
@@ -9,7 +9,7 @@ import {
   toLocalDateTimeIso,
 } from "../../../services/WebSocketService.jsx";
 import {APP_PRIMARY_DARK} from "../../../constants/homeLandingTheme";
-import {createCampusAdminConversation} from "../../../services/ConversationService.jsx";
+import {createCampusAdminConversation, getCampusConversation} from "../../../services/ConversationService.jsx";
 import {getCampusAdminMessagesHistory, markCampusMessagesRead} from "../../../services/MessageService.jsx";
 
 
@@ -28,6 +28,33 @@ const parseBodyObject = (value) => {
   return value && typeof value === "object" ? value : {};
 };
 
+/**
+ * Root payload GET /campus/message/history/admin — có thể là `{ message, body: { schoolName, campusName, messages… } }`
+ * hoặc phẳng; chọn object chứa messages/conversationId/metadata để gán state + payload gửi tin.
+ */
+const pickCampusAdminHistoryBody = (responseData) => {
+  const envelope = parseBodyObject(responseData);
+  const layer1 = parseBodyObject(envelope?.body);
+  const layer2 = parseBodyObject(layer1?.body);
+
+  const candidates = [layer2, layer1, envelope].filter((x) => x && typeof x === "object");
+  for (let i = 0; i < candidates.length; i += 1) {
+    const o = candidates[i];
+    if (
+      Array.isArray(o.messages) ||
+      Array.isArray(o.items) ||
+      o.conversationId != null ||
+      o.schoolName != null ||
+      o.campusName != null
+    ) {
+      return o;
+    }
+  }
+  if (layer2 && Object.keys(layer2).length) return layer2;
+  if (layer1 && Object.keys(layer1).length) return layer1;
+  return envelope;
+};
+
 const pickIncomingConversationId = (payload) => {
   if (!payload || typeof payload !== "object") return null;
   return (
@@ -43,21 +70,41 @@ const pickIncomingConversationId = (payload) => {
   );
 };
 
+/** Chuẩn hóa object tin — BE có thể đặt nội dung trong `chatMessage` hoặc `message` object. */
+const flattenWsForNormalize = (merged) => {
+  const cm = merged?.chatMessage;
+  const msg = merged?.message;
+  return {
+    ...merged,
+    ...(cm && typeof cm === "object" && !Array.isArray(cm) ? cm : {}),
+    ...(msg && typeof msg === "object" && !Array.isArray(msg) ? msg : {}),
+  };
+};
+
+const stripInvisibleAndTrim = (s) =>
+  String(s ?? "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .trim();
+
 const normalizeMessage = (m) => {
-  const id = m?.id ?? m?.messageId ?? m?.clientMessageId ?? `${m?.sentAt || Date.now()}-${Math.random()}`;
-  const text = m?.content ?? m?.message ?? m?.text ?? "";
+  const flat = m && typeof m === "object" && !Array.isArray(m) ? flattenWsForNormalize(m) : m || {};
+  const id = flat?.id ?? flat?.messageId ?? flat?.clientMessageId ?? `${flat?.sentAt || Date.now()}-${Math.random()}`;
+  const rawText = flat?.content ?? flat?.message ?? flat?.text ?? "";
+  const text = typeof rawText === "string" ? stripInvisibleAndTrim(rawText) : stripInvisibleAndTrim(String(rawText ?? ""));
   const sender =
-    m?.senderEmail ??
-    m?.sender ??
-    m?.senderName ??
-    m?.from ??
-    m?.username ??
-    m?.createdBy ??
-    m?.senderId ??
+    flat?.senderEmail ??
+    flat?.sender ??
+    flat?.senderName ??
+    flat?.from ??
+    flat?.username ??
+    flat?.createdBy ??
+    flat?.senderId ??
     "";
-  const sentAt = m?.sentAt ?? m?.createdAt ?? m?.timestamp ?? m?.time ?? null;
+  const sentAt = flat?.sentAt ?? flat?.createdAt ?? flat?.timestamp ?? flat?.time ?? null;
   return {id: String(id), text, sender, sentAt, raw: m};
 };
+
+const hasRenderableChatText = (m) => stripInvisibleAndTrim(m?.text ?? "") !== "";
 
 const mergeUniqueMessages = (messages) => {
   const map = new Map();
@@ -132,17 +179,6 @@ const extractPrivateMessageSender = (merged) => {
   return "";
 };
 
-/** Chuẩn hóa object tin trước khi normalizeMessage — sender nằm trong chatMessage. */
-const flattenWsForNormalize = (merged) => {
-  const cm = merged?.chatMessage;
-  const msg = merged?.message;
-  return {
-    ...merged,
-    ...(cm && typeof cm === "object" && !Array.isArray(cm) ? cm : {}),
-    ...(msg && typeof msg === "object" && !Array.isArray(msg) ? msg : {}),
-  };
-};
-
 const SCHOOL_CONTACT_UNREAD_KEY = "school_contact_admin_unread_count";
 
 /** Xóa badge local — không dispatch school-contact-conversation-refresh (tránh GET /campus/conversation). */
@@ -155,6 +191,15 @@ const clearSchoolContactUnreadLocally = () => {
   if (typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("school-contact-unread-updated", {detail: {count: 0}}));
   }
+};
+
+/** GET /campus/conversation — không tạo conversation; chỉ bổ sung campus/admin email khi history chưa có. */
+const pickCampusConversationPayload = (responseData) => {
+  const envelope = parseBodyObject(responseData);
+  const body = parseBodyObject(envelope?.body);
+  const inner = parseBodyObject(body?.body);
+  if (inner && typeof inner === "object") return inner;
+  return body && typeof body === "object" ? body : {};
 };
 
 export default function SchoolContactAdmin() {
@@ -178,6 +223,8 @@ export default function SchoolContactAdmin() {
   const [campusId, setCampusId] = useState(0);
   const [campusEmail, setCampusEmail] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
+  const [schoolName, setSchoolName] = useState("");
+  const [campusName, setCampusName] = useState("");
   const listRef = useRef(null);
   const conversationIdRef = useRef(null);
   const lastUnreadClearAtRef = useRef(0);
@@ -186,12 +233,68 @@ export default function SchoolContactAdmin() {
     conversationIdRef.current = conversationId;
   }, [conversationId]);
 
+  /** GET /campus/conversation — bổ sung metadata (email + tên trường/cơ sở cho payload ChatMessage BE). */
+  const fillContactContextFromCampusGet = useCallback(async () => {
+    try {
+      const response = await getCampusConversation();
+      if (response?.status !== 200) return null;
+      const p = pickCampusConversationPayload(response?.data);
+      if (!p || typeof p !== "object") return null;
+
+      let conversationIdOut = null;
+      const cidRaw = p.conversationId ?? p.conversation_id ?? p.conversationID ?? p.id ?? null;
+      if (cidRaw != null && String(cidRaw).trim() !== "") {
+        const cidNum = Number(cidRaw);
+        conversationIdOut = Number.isFinite(cidNum) ? cidNum : cidRaw;
+        setConversationId(conversationIdOut);
+      }
+
+      const campusIdRaw = Number(p.campusId ?? p.campusID ?? 0);
+      const campusIdOut = Number.isFinite(campusIdRaw) && campusIdRaw >= 0 ? campusIdRaw : 0;
+      setCampusId(campusIdOut);
+
+      const campusEmailRaw =
+        p.campusEmail ??
+        p.emailCampus ??
+        p.campusMailId ??
+        p.campus_mail ??
+        "";
+      const adminEmailRaw =
+        p.emailAdmin ??
+        p.adminEmail ??
+        p.adminMailId ??
+        p.admin_mail ??
+        "";
+      const ce = String(campusEmailRaw || "").trim();
+      const ae = String(adminEmailRaw || "").trim();
+      if (ce) setCampusEmail(ce);
+      if (ae) setAdminEmail(ae);
+
+      const sn = String(p.schoolName ?? p.school_name ?? "").trim();
+      const cn = String(p.campusName ?? p.campus_name ?? "").trim();
+      if (sn) setSchoolName(sn);
+      if (cn) setCampusName(cn);
+
+      return {
+        conversationId: conversationIdOut,
+        campusId: campusIdOut,
+        campusEmail: ce,
+        adminEmail: ae,
+        schoolName: sn,
+        campusName: cn,
+      };
+    } catch {
+      return null;
+    }
+  }, []);
+
   const isOutgoing = (m) => {
     const s = normalizePrincipal(m?.sender);
     return !!myPrincipalLower && s === myPrincipalLower;
   };
 
-  const loadHistory = async ({createIfMissing = false} = {}) => {
+  /** Trả về context để handleSend dùng ngay sau await (tránh stale state). `false` khi lỗi HTTP. */
+  const loadHistory = async () => {
     setHistoryLoading(true);
     try {
       const response = await getCampusAdminMessagesHistory();
@@ -203,11 +306,12 @@ export default function SchoolContactAdmin() {
 
       const cidRaw = body?.conversationId;
       const cidNum = cidRaw != null && String(cidRaw).trim() !== "" ? Number(cidRaw) : NaN;
-      const resolvedConversationId = Number.isFinite(cidNum) ? cidNum : null;
+      let resolvedConversationId = Number.isFinite(cidNum) ? cidNum : null;
       setConversationId(resolvedConversationId);
 
       const campusIdRaw = Number(body?.campusId ?? body?.campusID ?? 0);
-      setCampusId(Number.isFinite(campusIdRaw) ? campusIdRaw : 0);
+      let campusIdResolved = Number.isFinite(campusIdRaw) ? campusIdRaw : 0;
+      setCampusId(campusIdResolved);
       const campusEmailRaw =
         body?.campusEmail ??
         body?.emailCampus ??
@@ -215,29 +319,59 @@ export default function SchoolContactAdmin() {
         body?.campus_mail ??
         "";
       const adminEmailRaw =
-        body?.adminEmail ??
         body?.emailAdmin ??
+        body?.adminEmail ??
         body?.adminMailId ??
         body?.admin_mail ??
         "";
-      setCampusEmail(String(campusEmailRaw || "").trim());
-      setAdminEmail(String(adminEmailRaw || "").trim());
+      let campusEmailStr = String(campusEmailRaw || "").trim();
+      let adminEmailStr = String(adminEmailRaw || "").trim();
+      setCampusEmail(campusEmailStr);
+      setAdminEmail(adminEmailStr);
+
+      let schoolNameStr = String(body?.schoolName ?? body?.school_name ?? "").trim();
+      let campusNameStr = String(body?.campusName ?? body?.campus_name ?? "").trim();
+      /** Ưu tiên user chỉ khi API không trả (history luôn có school/campus khi BE đã thêm). */
+      if (!schoolNameStr) schoolNameStr = String(userInfo?.schoolName ?? userInfo?.school ?? "").trim();
+      if (!campusNameStr) campusNameStr = String(userInfo?.campusName ?? userInfo?.campus ?? "").trim();
+      setSchoolName(schoolNameStr);
+      setCampusName(campusNameStr);
 
       const messagesRaw = Array.isArray(body?.messages)
         ? body.messages
         : Array.isArray(body?.items)
           ? body.items
           : [];
-      const normalized = messagesRaw.map(normalizeMessage);
+      const normalized = messagesRaw.map(normalizeMessage).filter(hasRenderableChatText);
       setMessageItems(mergeUniqueMessages(normalized));
+      /** Lịch sử trống → đồng bộ badge sidebar (localStorage/WS trước đó có thể còn 1 dù chưa có tin admin). */
+      if (normalized.length === 0) {
+        clearSchoolContactUnreadLocally();
+      }
 
-      if (createIfMissing && resolvedConversationId == null) {
-        const createRes = await createCampusAdminConversation();
-        if (createRes?.status >= 200 && createRes?.status < 300) {
-          await loadHistory({createIfMissing: false});
+      /** Chưa có email admin trên history — chỉ GET metadata (không POST tạo conversation). */
+      if (!adminEmailStr) {
+        const filled = await fillContactContextFromCampusGet();
+        if (filled) {
+          if (filled.adminEmail) adminEmailStr = filled.adminEmail;
+          if (filled.campusEmail) campusEmailStr = filled.campusEmail;
+          if (filled.conversationId != null) resolvedConversationId = filled.conversationId;
+          if (filled.campusId != null && filled.campusId >= 0) campusIdResolved = filled.campusId;
+          if (filled.schoolName) schoolNameStr = filled.schoolName;
+          if (filled.campusName) campusNameStr = filled.campusName;
+          setSchoolName(schoolNameStr);
+          setCampusName(campusNameStr);
         }
       }
-      return true;
+
+      return {
+        conversationId: resolvedConversationId,
+        campusEmail: campusEmailStr,
+        adminEmail: adminEmailStr,
+        campusId: campusIdResolved,
+        schoolName: schoolNameStr,
+        campusName: campusNameStr,
+      };
     } finally {
       setHistoryLoading(false);
       /** Không dispatch school-contact-conversation-refresh: GET /campus/conversation sau load lịch sử hay trả unread=0 và xóa badge đã + qua WebSocket. */
@@ -245,13 +379,16 @@ export default function SchoolContactAdmin() {
   };
 
   useEffect(() => {
-    void loadHistory({createIfMissing: true});
+    void loadHistory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     const onPrivateMessage = (payload) => {
       const merged = mergeSchoolIncomingWsPayload(payload);
+      const normalized = normalizeMessage(merged);
+      if (!hasRenderableChatText(normalized)) return;
+
       const incomingConversationId = pickIncomingConversationId(merged);
       const cid = conversationIdRef.current;
       if (cid != null && incomingConversationId != null && !isSameConversationId(incomingConversationId, cid)) {
@@ -261,7 +398,6 @@ export default function SchoolContactAdmin() {
       const senderNorm = normalizePrincipal(extractPrivateMessageSender(merged));
       const selfSend = !!(myPrincipalLower && senderNorm && senderNorm === myPrincipalLower);
 
-      const normalized = normalizeMessage(flattenWsForNormalize(merged));
       setMessageItems((prev) => {
         let replacedOptimistic = false;
         const withoutMatchingOptimistic = prev.filter((m) => {
@@ -309,25 +445,48 @@ export default function SchoolContactAdmin() {
     void (async () => {
       try {
         let cid = conversationIdRef.current;
+        let ctx = {
+          campusEmail,
+          adminEmail,
+          campusId,
+          schoolName,
+          campusName,
+        };
         if (cid == null) {
           const createRes = await createCampusAdminConversation();
           const createOk = createRes?.status >= 200 && createRes?.status < 300;
           if (!createOk) return;
-          await loadHistory({createIfMissing: false});
-          cid = conversationIdRef.current;
+          const meta = await loadHistory();
+          if (meta === false) return;
+          cid = meta.conversationId ?? conversationIdRef.current;
+          ctx = {
+            campusEmail: meta.campusEmail,
+            adminEmail: meta.adminEmail,
+            campusId: meta.campusId,
+            schoolName: meta.schoolName ?? "",
+            campusName: meta.campusName ?? "",
+          };
         }
         if (cid == null) return;
 
-        const senderName = String(campusEmail || myPrincipal).trim();
-        const receiverName = String(adminEmail || "").trim();
+        const senderName = String(ctx.campusEmail || myPrincipal).trim();
+        const receiverName = String(ctx.adminEmail || "").trim();
         if (!receiverName) return;
         const cidNum = Number(cid);
-        const campusIdNum = Number.isFinite(Number(campusId)) ? Number(campusId) : 0;
+        const campusIdNum = Number.isFinite(Number(ctx.campusId)) ? Number(ctx.campusId) : 0;
+        const schoolNameOut = String(
+          ctx.schoolName || userInfo?.schoolName || userInfo?.school || ""
+        ).trim();
+        const campusNameOut = String(
+          ctx.campusName || userInfo?.campusName || userInfo?.campus || ""
+        ).trim();
         const ts = toLocalDateTimeIso();
         const payload = {
           senderName,
           receiverName,
           campusId: campusIdNum,
+          schoolName: schoolNameOut,
+          campusName: campusNameOut,
           message: text,
           conversationId: Number.isFinite(cidNum) ? cidNum : cid,
           studentProfileId: null,
@@ -446,7 +605,7 @@ export default function SchoolContactAdmin() {
                 <Typography sx={{fontSize: 13, color: "#64748b", textAlign: "center"}}>Chưa có tin nhắn.</Typography>
               </Box>
             ) : (
-              messageItems.map((m) => {
+              messageItems.filter(hasRenderableChatText).map((m) => {
                 const mine = isOutgoing(m);
                 return (
                   <Box key={m.id} sx={{display: "flex", justifyContent: mine ? "flex-end" : "flex-start", mb: 1}}>
