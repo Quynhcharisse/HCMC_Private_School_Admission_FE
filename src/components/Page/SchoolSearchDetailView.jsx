@@ -2598,8 +2598,8 @@ export default function SchoolSearchDetailView({
     }, [parentSlotsNormalized]);
 
     const showConsultApiGrid = Boolean(isParent && consultDynamicTimeRows.length > 0);
-    const showConsultParentWeekEmpty = Boolean(
-        isParent && !parentSlotsLoading && !parentSlotsError && consultDynamicTimeRows.length === 0
+    const showConsultParentDefaultShiftsGrid = Boolean(
+        isParent && selectedConsultWeek?.start && consultDynamicTimeRows.length === 0
     );
 
     return (
@@ -3544,22 +3544,7 @@ export default function SchoolSearchDetailView({
                                                           </Box>
                                                       ))
                                                     : null}
-                                                {showConsultParentWeekEmpty ? (
-                                                    <Box
-                                                        sx={{
-                                                            px: 2,
-                                                            py: 2.5,
-                                                            textAlign: "center",
-                                                            bgcolor: "rgba(248,250,252,0.95)",
-                                                            borderTop: CONSULT_GRID_LINE_ROW
-                                                        }}
-                                                    >
-                                                        <Typography sx={{fontSize: "0.88rem", color: "#64748b"}}>
-                                                            Tuần đã chọn chưa có khung giờ tư vấn trên lịch.
-                                                        </Typography>
-                                                    </Box>
-                                                ) : null}
-                                                {!isParent
+                                                {!isParent || showConsultParentDefaultShiftsGrid
                                                     ? CONSULT_CALENDAR_SHIFTS.map((shift) => (
                                                           <Box
                                                               key={shift.key}
