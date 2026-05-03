@@ -266,7 +266,6 @@ export default function AdminPlatformSettings() {
             baseEnterprisePrice: basePrices.enterprise == null ? "" : String(basePrices.enterprise),
             aiChatbotMonthlyFee: featureUnitPrices.aiChatbotMonthlyFee == null ? "" : String(featureUnitPrices.aiChatbotMonthlyFee),
             premiumSupportFee: featureUnitPrices.premiumSupportFee == null ? "" : String(featureUnitPrices.premiumSupportFee),
-            topRankingFee: featureUnitPrices.topRankingFee == null ? "" : String(featureUnitPrices.topRankingFee),
             durationDays: packageQuotas.durationDays == null ? "" : String(packageQuotas.durationDays),
             trialCounsellor: packageQuotas.trialCounsellor == null ? "" : String(packageQuotas.trialCounsellor),
             standardCounsellor: packageQuotas.standardCounsellor == null ? "" : String(packageQuotas.standardCounsellor),
@@ -296,7 +295,6 @@ export default function AdminPlatformSettings() {
         baseEnterprisePrice: "",
         aiChatbotMonthlyFee: "",
         premiumSupportFee: "",
-        topRankingFee: "",
         durationDays: "",
         trialCounsellor: "",
         standardCounsellor: "",
@@ -544,14 +542,13 @@ export default function AdminPlatformSettings() {
         getMoney("baseEnterprisePrice", "Giá nền gói Doanh nghiệp");
         getMoney("aiChatbotMonthlyFee", "Phí duy trì Trợ lý AI");
         getMoney("premiumSupportFee", "Phí hỗ trợ cao cấp");
-        getMoney("topRankingFee", "Phí đẩy đầu trang tìm kiếm");
-        getPositiveInt("durationDays", "Thời hạn gói mặc định");
+        getPositiveInt("durationDays", "Thời hạn gói dùng thử");
         getPositiveInt("trialCounsellor", "Số tư vấn viên gói Dùng thử");
         getPositiveInt("standardCounsellor", "Số tư vấn viên gói Tiêu chuẩn");
         getPositiveInt("enterpriseCounsellor", "Số tư vấn viên gói Doanh nghiệp");
         getPositiveInt("trialPostLimit", "Giới hạn bài đăng gói Dùng thử");
         getPositiveInt("standardPostLimit", "Giới hạn bài đăng gói Tiêu chuẩn");
-        getPositiveInt("enterprisePostLimit", "Giới hạn bài đăng gói Doanh nghiệp", { allowNegativeOne: true });
+        getPositiveInt("enterprisePostLimit", "Giới hạn bài đăng gói Doanh nghiệp");
 
         const capStr = String(form.trialRatioCap ?? "").trim();
         if (!capStr) {
@@ -587,12 +584,7 @@ export default function AdminPlatformSettings() {
         const enterpriseP = Number(String(form.enterprisePostLimit ?? "").trim());
         if (!errors.trialPostLimit && !errors.standardPostLimit && !errors.enterprisePostLimit) {
             if (Number.isInteger(trialP) && Number.isInteger(standardP) && Number.isInteger(enterpriseP)) {
-                if (enterpriseP === -1) {
-                    if (!(trialP < standardP)) {
-                        errors.standardPostLimit =
-                            "Giới hạn bài đăng phải tăng nghiêm ngặt: Dùng thử < Tiêu chuẩn (gói Doanh nghiệp không giới hạn).";
-                    }
-                } else if (!(trialP < standardP && standardP < enterpriseP)) {
+                if (!(trialP < standardP && standardP < enterpriseP)) {
                     errors.standardPostLimit =
                         "Giới hạn bài đăng phải tăng nghiêm ngặt theo gói: Dùng thử < Tiêu chuẩn < Doanh nghiệp.";
                 }
@@ -1262,9 +1254,6 @@ export default function AdminPlatformSettings() {
             const trialRatioCapRaw = Number(String(businessForm.trialRatioCap ?? "").trim());
             const trialRatioCap = Number.isFinite(trialRatioCapRaw) ? Math.round(trialRatioCapRaw * 10000) / 10000 : 0;
 
-            const entPostParsed = parseFinite(businessForm.enterprisePostLimit);
-            const enterprisePostLimit = entPostParsed != null ? Math.trunc(entPostParsed) : -1;
-
             const updatedBody = {
                 businessData: {
                     minPay: minPay != null ? Math.trunc(minPay) : minPay,
@@ -1280,7 +1269,6 @@ export default function AdminPlatformSettings() {
                         featureUnitPrices: {
                             aiChatbotMonthlyFee: Math.trunc(parseFinite(businessForm.aiChatbotMonthlyFee) ?? 0),
                             premiumSupportFee: Math.trunc(parseFinite(businessForm.premiumSupportFee) ?? 0),
-                            topRankingFee: Math.trunc(parseFinite(businessForm.topRankingFee) ?? 0),
                         },
                         packageQuotas: {
                             durationDays: Math.trunc(parseFinite(businessForm.durationDays) ?? 0),
@@ -1289,7 +1277,7 @@ export default function AdminPlatformSettings() {
                             enterpriseCounsellor: Math.trunc(parseFinite(businessForm.enterpriseCounsellor) ?? 0),
                             trialPostLimit: Math.trunc(parseFinite(businessForm.trialPostLimit) ?? 0),
                             standardPostLimit: Math.trunc(parseFinite(businessForm.standardPostLimit) ?? 0),
-                            enterprisePostLimit,
+                            enterprisePostLimit: Math.trunc(parseFinite(businessForm.enterprisePostLimit) ?? 0),
                         },
                         trialRatioCap,
                     },
@@ -2347,24 +2335,17 @@ export default function AdminPlatformSettings() {
                                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
                                         {moneyField("Phí Chatbot AI (tháng)", "aiChatbotMonthlyFee")}
                                         {moneyField("Phí hỗ trợ ưu tiên", "premiumSupportFee")}
-                                        {moneyField("Phí đẩy bài (top ranking)", "topRankingFee")}
                                     </Box>
                                 ) : null}
                                 {businessPricingSubTab === 2 ? (
                                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
-                                        {integerField("Thời hạn gói mặc định", "durationDays", "ngày")}
+                                        {integerField("Thời hạn gói dùng thử", "durationDays", "ngày")}
                                         {integerField("Số tư vấn viên (Gói dùng thử)", "trialCounsellor", "người")}
                                         {integerField("Số tư vấn viên (Gói tiêu chuẩn)", "standardCounsellor", "người")}
                                         {integerField("Số tư vấn viên (Gói doanh nghiệp)", "enterpriseCounsellor", "người")}
                                         {integerField("Giới hạn bài đăng (Gói dùng thử)", "trialPostLimit", "bài")}
                                         {integerField("Giới hạn bài đăng (Gói tiêu chuẩn)", "standardPostLimit", "bài")}
-                                        {integerField(
-                                            "Giới hạn bài đăng (Gói doanh nghiệp)",
-                                            "enterprisePostLimit",
-                                            "bài",
-                                            true,
-                                            ""
-                                        )}
+                                        {integerField("Giới hạn bài đăng (Gói doanh nghiệp)", "enterprisePostLimit", "bài")}
                                         <Box sx={{ ...settingsFieldCardSx, gridColumn: { xs: "1", md: "1 / -1" } }}>
                                             <Typography sx={settingsFieldLabelSx}>
                                                 Giới hạn tỉ lệ gói Dùng thử (trialRatioCap)
