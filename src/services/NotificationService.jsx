@@ -111,9 +111,13 @@ export const resolveNotificationRoute = ({eventType, data = {}, role}) => {
             return role === "SCHOOL" ? "/package-fees" : "/admin/package-fees";
 
         case NOTIFICATION_EVENTS.COUNSELLOR_ASSIGNED:
+            if (role === "PARENT") return "/parent/profile";
+            if (role === "COUNSELLOR") return "/counsellor/parent-consultation";
+            if (role === "SCHOOL") return "/school/counselor-schedule";
+            return "/home";
         case NOTIFICATION_EVENTS.CONSULTATION_BOOKED:
         case NOTIFICATION_EVENTS.CONSULTATION_CANCELLED:
-            if (role === "PARENT") return "/parent/profile";
+            if (role === "PARENT") return "/parent/offline-consultations";
             if (role === "COUNSELLOR") return "/counsellor/parent-consultation";
             if (role === "SCHOOL") return "/school/counselor-schedule";
             return "/home";

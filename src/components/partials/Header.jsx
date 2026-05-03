@@ -31,6 +31,7 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import PersonIcon from '@mui/icons-material/Person';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import EventAvailableIcon from '@mui/icons-material/EventAvailable';
 import ChatBubbleRoundedIcon from "@mui/icons-material/ChatBubbleRounded";
 import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import SearchIcon from "@mui/icons-material/Search";
@@ -3916,6 +3917,27 @@ function MainHeader() {
                                                 }}
                                             >
                                                 <AccountCircleIcon sx={{color: BRAND_NAVY, fontSize: 20}}/> Thông tin con
+                                            </MenuItem>
+                                            <MenuItem
+                                                onClick={() => {
+                                                    handleUserMenuClose();
+                                                    goTo('/parent/offline-consultations');
+                                                }}
+                                                sx={{
+                                                    fontSize: 15,
+                                                    fontWeight: 500,
+                                                    color: BRAND_NAVY,
+                                                    borderRadius: 1,
+                                                    gap: 1.5,
+                                                    mt: 0.5,
+                                                    '&:hover': {
+                                                        bgcolor: 'rgba(59,130,246,0.08)',
+                                                        color: APP_PRIMARY_DARK,
+                                                    },
+                                                    transition: 'background 0.2s, color 0.2s',
+                                                }}
+                                            >
+                                                <EventAvailableIcon sx={{color: BRAND_NAVY, fontSize: 20}}/> Lịch tư vấn trực tiếp
                                             </MenuItem>
                                         </>
                                     ) : (
