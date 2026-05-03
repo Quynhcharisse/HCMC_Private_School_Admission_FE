@@ -708,10 +708,9 @@ export default function AdminPackageFeeManagement() {
 
     const isEdit = form.packageId != null;
     const isTrialPackage = form.packageType === "TRIAL";
-    const lockAutoQuotaCounsellorPost = !isEdit && platformQuotasForFormLoaded;
+    const lockAutoQuotaCounsellorPost = platformQuotasForFormLoaded;
     const trialPlatformDurationRaw = Number(platformPackageQuotasRef.current?.durationDays);
     const lockAutoTrialDurationDays =
-        !isEdit &&
         platformQuotasForFormLoaded &&
         isTrialPackage &&
         Number.isFinite(trialPlatformDurationRaw) &&
@@ -805,6 +804,7 @@ export default function AdminPackageFeeManagement() {
             enqueueSnackbar("Chỉ có thể cập nhật gói đang ở trạng thái bản nháp.", { variant: "warning" });
             return;
         }
+        platformPackageQuotasRef.current = null;
         setPlatformQuotasForFormLoaded(false);
         setForm({
             packageId: row.id,
@@ -838,6 +838,17 @@ export default function AdminPackageFeeManagement() {
             featureContributions: row.featureContributions || {},
         });
         setDialogOpen(true);
+        getSystemConfig()
+            .then((res) => {
+                const body = res?.data?.body ?? res?.data?.data ?? res?.data;
+                const quotas = extractPlatformPackageQuotasFromConfig(body);
+                platformPackageQuotasRef.current = quotas;
+                setPlatformQuotasForFormLoaded(hasUsablePackageQuotas(quotas));
+            })
+            .catch((e) => {
+                console.error("getSystemConfig for package quotas failed", e);
+                setPlatformQuotasForFormLoaded(false);
+            });
     };
 
     const closeDialog = () => {
@@ -971,7 +982,7 @@ export default function AdminPackageFeeManagement() {
             const next = { ...prev, [key]: value };
             if (key === "packageType") {
                 const quotas = platformPackageQuotasRef.current;
-                if (quotas && prev.packageId == null) {
+                if (quotas) {
                     const { maxCounsellors, postLimit, durationDays } = quotasToPackageFormFields(value, quotas);
                     next.maxCounsellors = maxCounsellors;
                     next.postLimit = postLimit;
