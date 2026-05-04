@@ -3952,7 +3952,7 @@ function MainHeader() {
                                                 } else if (userInfo.role === 'ADMIN') {
                                                     goTo('/admin/dashboard');
                                                 } else if (userInfo.role === 'COUNSELLOR') {
-                                                    goTo('/counsellor/dashboard');
+                                                    goTo('/counsellor/calendar');
                                                 } else {
                                                     goTo('/home');
                                                 }
@@ -4213,7 +4213,7 @@ function MainHeader() {
                                                 } else if (userInfo.role === 'ADMIN') {
                                                     goTo('/admin/dashboard');
                                                 } else if (userInfo.role === 'COUNSELLOR') {
-                                                    goTo('/counsellor/dashboard');
+                                                    goTo('/counsellor/calendar');
                                                 } else {
                                                     goTo('/home');
                                                 }

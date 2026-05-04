@@ -124,7 +124,7 @@ export const resolveNotificationRoute = ({eventType, data = {}, role}) => {
         default:
             if (role === "ADMIN") return "/admin/dashboard";
             if (role === "SCHOOL") return "/school/dashboard";
-            if (role === "COUNSELLOR") return "/counsellor/dashboard";
+            if (role === "COUNSELLOR") return "/counsellor/calendar";
             if (role === "PARENT") return "/parent/profile";
             return "/home";
     }

@@ -9,7 +9,6 @@ import {
     Divider,
     Link,
     Pagination,
-    Rating,
     Stack,
     Typography
 } from "@mui/material";
@@ -89,7 +88,6 @@ function mapFavouriteSchoolRow(item) {
         gradeLevel: school?.gradeLevel ?? item?.gradeLevel ?? "",
         schoolType: school?.schoolType ?? item?.schoolType ?? "",
         logoUrl: school?.logoUrl || item?.logoUrl || null,
-        averageRating: Number(school?.averageRating ?? item?.averageRating) || 0,
         description: school?.description ?? item?.description ?? "",
         website: school?.websiteUrl ?? item?.websiteUrl ?? "",
         phone: school?.hotline ?? item?.hotline ?? firstCampus?.phoneNumber ?? "",
@@ -496,52 +494,6 @@ export default function SavedSchoolsPage() {
                                             >
                                                 {item?.schoolName}
                                             </Typography>
-                                            <Box sx={{display: "flex", alignItems: "center", flexWrap: "wrap", gap: 0.4}}>
-                                                {(Number(item?.averageRating) || 0) > 0 ? (
-                                                    <>
-                                                        <Typography
-                                                            component="span"
-                                                            sx={{
-                                                                fontSize: "0.75rem",
-                                                                fontWeight: 600,
-                                                                color: "#000",
-                                                                lineHeight: 1,
-                                                                display: "inline-block",
-                                                                flexShrink: 0
-                                                            }}
-                                                        >
-                                                            {Number(item.averageRating).toFixed(1)}
-                                                        </Typography>
-                                                        <Rating
-                                                            value={Math.min(5, Math.max(0, Number(item.averageRating) || 0))}
-                                                            precision={0.1}
-                                                            readOnly
-                                                            size="small"
-                                                            sx={{
-                                                                color: "#ffc107",
-                                                                display: "inline-flex",
-                                                                verticalAlign: "middle",
-                                                                m: 0,
-                                                                p: 0,
-                                                                "& .MuiRating-iconFilled": {color: "#ffc107"},
-                                                                "& .MuiRating-iconEmpty": {color: "rgba(0,0,0,0.22)"}
-                                                            }}
-                                                        />
-                                                    </>
-                                                ) : (
-                                                    <Typography
-                                                        component="span"
-                                                        sx={{
-                                                            fontSize: "0.75rem",
-                                                            fontWeight: 500,
-                                                            color: "#000",
-                                                            lineHeight: 1.2
-                                                        }}
-                                                    >
-                                                        —
-                                                    </Typography>
-                                                )}
-                                            </Box>
                                             {item.description ? (
                                                 <Typography
                                                     sx={{
