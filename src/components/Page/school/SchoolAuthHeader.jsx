@@ -29,6 +29,7 @@ import {
   watchNotificationList,
   watchNotificationUnread,
 } from "../../../services/NotificationService.jsx";
+import { ROLE_SHELL_HEADER_HEIGHT_PX } from "../../../constants/appShellLayout.js";
 import { APP_PRIMARY_DARK, BRAND_NAVY } from "../../../constants/homeLandingTheme";
 import logo from "../../../assets/logo.png";
 
@@ -216,6 +217,12 @@ export default function SchoolAuthHeader({ headerLeftOffset }) {
         bgcolor: "white",
         borderBottom: "1px solid #e0e7ff",
         top: 0,
+        height: ROLE_SHELL_HEADER_HEIGHT_PX,
+        minHeight: ROLE_SHELL_HEADER_HEIGHT_PX,
+        maxHeight: ROLE_SHELL_HEADER_HEIGHT_PX,
+        boxSizing: "border-box",
+        display: "flex",
+        flexDirection: "column",
         ...(isHeaderOverContentOnly && { left: headerLeftOffset }),
         ...(!isHeaderOverContentOnly && { left: 0 }),
         right: 0,
@@ -226,16 +233,23 @@ export default function SchoolAuthHeader({ headerLeftOffset }) {
         maxWidth={false}
         sx={{
           px: isHeaderOverContentOnly ? 3 : 2,
+          height: "100%",
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          justifyContent: "center",
+          minHeight: 0,
         }}
       >
         <Box
           sx={{
-            py: 1.5,
+            flex: 1,
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             minWidth: 0,
             position: "relative",
+            py: 0,
           }}
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0, flex: 1, pr: isHeaderOverContentOnly ? 12 : 0 }}>

@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Box, Drawer, Fade } from "@mui/material";
 import { ThemeProvider, createTheme, useTheme } from "@mui/material/styles";
 import { Outlet, useLocation } from "react-router-dom";
+import { ROLE_SHELL_HEADER_HEIGHT_PX } from "../../constants/appShellLayout.js";
 import AuthHeader from "../partials/AuthHeader.jsx";
 import AdminSidebar from "../partials/AdminSidebar.jsx";
 
@@ -27,7 +28,7 @@ export default function AdminLayout() {
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
-  const HEADER_HEIGHT = 65;
+  const HEADER_HEIGHT = ROLE_SHELL_HEADER_HEIGHT_PX;
 
   return (
     <ThemeProvider theme={adminTheme}>
