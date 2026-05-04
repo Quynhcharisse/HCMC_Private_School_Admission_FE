@@ -8,7 +8,6 @@ import {
     Dialog,
     DialogActions,
     DialogContent,
-    DialogTitle,
     FormControl,
     IconButton,
     InputAdornment,
@@ -16,7 +15,6 @@ import {
     MenuItem,
     Select,
     Stack,
-    Switch,
     Table,
     TableBody,
     TableCell,
@@ -35,15 +33,11 @@ import AddIcon from "@mui/icons-material/Add";
 import DownloadIcon from "@mui/icons-material/Download";
 import SearchIcon from "@mui/icons-material/Search";
 import VisibilityIcon from "@mui/icons-material/Visibility";
-import EditIcon from "@mui/icons-material/Edit";
-import BlockIcon from "@mui/icons-material/Block";
-import PersonOffIcon from "@mui/icons-material/PersonOff";
 import SupportAgentIcon from "@mui/icons-material/SupportAgent";
 import CloseIcon from "@mui/icons-material/Close";
 import LockIcon from "@mui/icons-material/Lock";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import {enqueueSnackbar} from "notistack";
-import {ConfirmHighlight} from "../../ui/ConfirmDialog.jsx";
 import {useNavigate} from "react-router-dom";
 import {useSchool} from "../../../contexts/SchoolContext.jsx";
 import BranchQuotaRequestToPrimaryCard from "./BranchQuotaRequestToPrimaryCard.jsx";
@@ -113,18 +107,20 @@ const _initialMockCounsellors = [
 const emptyForm = {
     email: "",
     avatar: "",
-    status: true,
 };
 
+/** Khớp item trong GET /api/v1/campus/counsellor/list → body.counsellors.items */
 const mapCounsellorFromApi = (dto) => ({
     id: dto.id,
+    campusId: dto.campusId,
     fullName: dto.name || "",
-    email: dto.account?.email || "",
+    email: dto.account?.email || dto.email || "",
     phone: "",
     specialty: "",
     shortBio: "",
     avatar: dto.avatar || null,
-    firstLogin: dto.account?.firstLogin,
+    accountId: dto.account?.id,
+    role: dto.account?.role || "",
     status: dto.account?.status === "ACCOUNT_ACTIVE" ? "active" : "inactive",
     campusName: dto.campusName,
     employeeCode: dto.employeeCode,
@@ -236,8 +232,6 @@ export default function SchoolCounselors() {
     const [statusFilter, setStatusFilter] = useState("all");
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [viewModalOpen, setViewModalOpen] = useState(false);
-    const [editModalOpen, setEditModalOpen] = useState(false);
-    const [disableConfirmOpen, setDisableConfirmOpen] = useState(false);
     const [selectedCounselor, setSelectedCounselor] = useState(null);
     const [formValues, setFormValues] = useState(emptyForm);
     const [formErrors, setFormErrors] = useState({});
@@ -262,10 +256,11 @@ export default function SchoolCounselors() {
             const body = res?.data?.body;
             const counsellorsPayload = body?.counsellors;
             const list = counsellorsPayload?.items;
-            if (res && res.status === 200 && Array.isArray(list)) {
-                setCounselors(list.map(mapCounsellorFromApi));
-                setTotalItems(counsellorsPayload?.totalItems ?? 0);
-                setTotalPages(counsellorsPayload?.totalPages ?? 0);
+            if (res && res.status === 200 && body != null && counsellorsPayload != null) {
+                const items = Array.isArray(list) ? list : [];
+                setCounselors(items.map(mapCounsellorFromApi));
+                setTotalItems(Number(counsellorsPayload.totalItems ?? items.length) || 0);
+                setTotalPages(Number(counsellorsPayload.totalPages ?? 0) || 0);
                 setCanCreate(Boolean(body?.canCreate));
                 setDisplayMessage(normalizeFeatureLockDisplayMessage(body?.displayMessage));
                 setCurrentUsage(Number(body?.currentUsage ?? 0));
@@ -306,16 +301,12 @@ export default function SchoolCounselors() {
         setFormValues((prev) => ({...prev, [name]: value}));
         if (name === "email") {
             setFormErrors((prev) => {
-                if (!prev.email) return prev;
+                if (!prev[name]) return prev;
                 const next = {...prev};
-                delete next.email;
+                delete next[name];
                 return next;
             });
         }
-    };
-
-    const handleStatusToggle = (e) => {
-        setFormValues((prev) => ({...prev, status: e.target.checked}));
     };
 
     const filteredCounselors = useMemo(() => {
@@ -400,6 +391,7 @@ export default function SchoolCounselors() {
             const res = await createCounsellor({
                 email: emailPayload,
                 avatar: formValues.avatar?.trim() || "",
+                name: "",
             });
             const dto = res?.data?.body;
             const ok = res && res.status >= 200 && res.status < 300;
@@ -462,67 +454,6 @@ export default function SchoolCounselors() {
     const handleOpenView = (counselor) => {
         setSelectedCounselor(counselor);
         setViewModalOpen(true);
-    };
-
-    const handleOpenEdit = (counselor) => {
-        setSelectedCounselor(counselor);
-        setFormValues({
-            fullName: counselor.fullName || "",
-            email: counselor.email || "",
-            phone: counselor.phone || "",
-            password: "",
-            specialty: counselor.specialty || "",
-            shortBio: counselor.shortBio || "",
-            avatar: counselor.avatar || "",
-            status: counselor.status === "active",
-        });
-        setFormErrors({});
-        setEditModalOpen(true);
-    };
-
-    const handleEditSubmit = () => {
-        if (!selectedCounselor) return;
-        const errors = {};
-        if (!formValues.fullName?.trim()) errors.fullName = "Họ tên là bắt buộc";
-        if (!formValues.email?.trim()) errors.email = "Email là bắt buộc";
-        setFormErrors(errors);
-        if (Object.keys(errors).length > 0) return;
-
-        setCounselors((prev) =>
-            prev.map((c) =>
-                c.id === selectedCounselor.id
-                    ? {
-                        ...c,
-                        fullName: formValues.fullName.trim(),
-                        email: formValues.email.trim(),
-                        phone: formValues.phone?.trim() || "",
-                        specialty: formValues.specialty?.trim() || "",
-                        shortBio: formValues.shortBio?.trim() || "",
-                        avatar: formValues.avatar?.trim() || null,
-                        status: formValues.status ? "active" : "inactive",
-                    }
-                    : c
-            )
-        );
-        enqueueSnackbar("Cập nhật tư vấn viên thành công", {variant: "success"});
-        setEditModalOpen(false);
-    };
-
-    const handleOpenDisableConfirm = (counselor) => {
-        setSelectedCounselor(counselor);
-        setDisableConfirmOpen(true);
-    };
-
-    const handleDisableConfirm = () => {
-        if (!selectedCounselor) return;
-        setCounselors((prev) =>
-            prev.map((c) =>
-                c.id === selectedCounselor.id ? {...c, status: "inactive"} : c
-            )
-        );
-        enqueueSnackbar("Đã vô hiệu hóa tài khoản tư vấn viên", {variant: "info"});
-        setDisableConfirmOpen(false);
-        setSelectedCounselor(null);
     };
 
     const getInitials = (name) => {
@@ -977,29 +908,6 @@ export default function SchoolCounselors() {
                                                 >
                                                     <VisibilityIcon fontSize="small"/>
                                                 </IconButton>
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => handleOpenEdit(row)}
-                                                    sx={{
-                                                        color: "#64748b",
-                                                        "&:hover": {color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)"},
-                                                    }}
-                                                    title="Sửa"
-                                                >
-                                                    <EditIcon fontSize="small"/>
-                                                </IconButton>
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => handleOpenDisableConfirm(row)}
-                                                    disabled={row.status === "inactive"}
-                                                    sx={{
-                                                        color: "#64748b",
-                                                        "&:hover": {color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)"},
-                                                    }}
-                                                    title="Vô hiệu hóa"
-                                                >
-                                                    <BlockIcon fontSize="small"/>
-                                                </IconButton>
                                             </Stack>
                                         </TableCell>
                                     </TableRow>
@@ -1232,9 +1140,8 @@ export default function SchoolCounselors() {
                             />
                         </Box>
                         <Typography variant="body2" sx={{color: "#64748b", fontSize: 13}}>
-                            Hệ thống sẽ tạo tài khoản với role <strong>COUNSELLOR</strong> dựa trên địa chỉ
-                            email. Các thông tin khác (họ tên, mật khẩu, chuyên môn) sẽ được cập nhật sau khi
-                            tư vấn viên đăng nhập lần đầu hoặc qua trang quản trị.
+                            Hệ thống tạo tài khoản role <strong>COUNSELLOR</strong> với email và ảnh đại diện (nếu có).
+                            Họ tên, mật khẩu và thông tin bổ sung có thể cập nhật sau khi tư vấn viên đăng nhập.
                         </Typography>
                         {createSubmitting && (
                             <Typography
@@ -1389,16 +1296,6 @@ export default function SchoolCounselors() {
                             label="Ngày đăng ký"
                             value={formatDate(selectedCounselor.registerDate)}
                         />
-                        <InfoItem
-                            label="Đăng nhập lần đầu"
-                            value={
-                                selectedCounselor.firstLogin === true
-                                    ? "Chưa hoàn tất"
-                                    : selectedCounselor.firstLogin === false
-                                        ? "Đã hoàn tất"
-                                        : "—"
-                            }
-                        />
 
                         {/* STATUS */}
                         <Box>
@@ -1445,6 +1342,7 @@ export default function SchoolCounselors() {
             px: 3,
             py: 2,
             borderTop: "1px solid #f1f5f9",
+            justifyContent: "flex-end",
         }}
     >
         <Button
@@ -1457,212 +1355,8 @@ export default function SchoolCounselors() {
         >
             Đóng
         </Button>
-
-        <Button
-            variant="contained"
-            startIcon={<EditIcon/>}
-            onClick={() => {
-                setViewModalOpen(false);
-                handleOpenEdit(selectedCounselor);
-            }}
-            sx={{
-                borderRadius: 2,
-                px: 2.5,
-                fontWeight: 600,
-                background:
-                    "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
-                boxShadow: "0 4px 14px rgba(13,100,222,0.4)",
-                textTransform: "none",
-                "&:hover": {
-                    background:
-                        "linear-gradient(135deg, #6b9be6 0%, #0b5ad1 100%)",
-                },
-            }}
-        >
-            Sửa thông tin
-        </Button>
     </DialogActions>
 </Dialog>
-
-            {/* Edit Modal */}
-            <Dialog
-                open={editModalOpen}
-                onClose={(event, reason) => {
-                    if (reason === "backdropClick") return;
-                    setEditModalOpen(false);
-                }}
-                fullWidth
-                maxWidth="sm"
-                PaperProps={{sx: modalPaperSx}}
-                slotProps={{backdrop: {sx: modalBackdropSx}}}
-            >
-                <Box sx={{px: 3, pt: 3, pb: 0}}>
-                    <Box
-                        sx={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            justifyContent: "space-between",
-                            gap: 2,
-                        }}
-                    >
-                        <Box>
-                            <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
-                                Chỉnh sửa tư vấn viên
-                            </Typography>
-                            <Typography variant="body2" sx={{color: "#64748b", mt: 0.5}}>
-                                Cập nhật thông tin tư vấn viên.
-                            </Typography>
-                        </Box>
-                        <IconButton
-                            onClick={() => setEditModalOpen(false)}
-                            size="small"
-                            sx={{mt: -0.5, mr: -0.5}}
-                            aria-label="Đóng"
-                        >
-                            <CloseIcon fontSize="small"/>
-                        </IconButton>
-                    </Box>
-                </Box>
-                <DialogContent dividers={false} sx={{px: 3, pt: 2, pb: 1}}>
-                    <Stack spacing={2.5}>
-                        <TextField
-                            label="Họ và tên"
-                            name="fullName"
-                            fullWidth
-                            value={formValues.fullName}
-                            onChange={handleChange}
-                            error={!!formErrors.fullName}
-                            helperText={formErrors.fullName}
-                        />
-                        <TextField
-                            label="Email"
-                            name="email"
-                            type="email"
-                            fullWidth
-                            value={formValues.email}
-                            onChange={handleChange}
-                            error={!!formErrors.email}
-                            helperText={formErrors.email}
-                        />
-                        <TextField
-                            label="Số điện thoại"
-                            name="phone"
-                            fullWidth
-                            value={formValues.phone}
-                            onChange={handleChange}
-                        />
-                        <TextField
-                            label="Chuyên môn / Lĩnh vực"
-                            name="specialty"
-                            fullWidth
-                            value={formValues.specialty}
-                            onChange={handleChange}
-                        />
-                        <TextField
-                            label="Tiểu sử ngắn"
-                            name="shortBio"
-                            fullWidth
-                            multiline
-                            rows={3}
-                            value={formValues.shortBio}
-                            onChange={handleChange}
-                        />
-                        <TextField
-                            label="Ảnh đại diện (URL)"
-                            name="avatar"
-                            type="url"
-                            fullWidth
-                            value={formValues.avatar ?? ""}
-                            onChange={handleChange}
-                            placeholder="https://..."
-                        />
-                        <Box
-                            sx={{
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "space-between",
-                            }}
-                        >
-                            <Typography sx={{fontWeight: 500}}>Trạng thái</Typography>
-                            <Stack direction="row" alignItems="center" spacing={1}>
-                                <Typography
-                                    variant="body2"
-                                    sx={{color: formValues.status ? "#16a34a" : "#94a3b8"}}
-                                >
-                                    {formValues.status ? "Hoạt động" : "Ngưng hoạt động"}
-                                </Typography>
-                                <Switch
-                                    checked={formValues.status}
-                                    onChange={handleStatusToggle}
-                                    sx={{
-                                        "& .MuiSwitch-switchBase.Mui-checked": {color: "#0D64DE"},
-                                        "& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track": {
-                                            backgroundColor: "#0D64DE",
-                                        },
-                                    }}
-                                />
-                            </Stack>
-                        </Box>
-                    </Stack>
-                </DialogContent>
-                <DialogActions sx={{px: 3, py: 2.5, borderTop: "1px solid #e2e8f0", gap: 1}}>
-                    <Button
-                        onClick={() => setEditModalOpen(false)}
-                        variant="text"
-                        color="inherit"
-                        sx={{textTransform: "none", fontWeight: 500}}
-                    >
-                        Hủy
-                    </Button>
-                    <Button
-                        onClick={handleEditSubmit}
-                        variant="contained"
-                        sx={{
-                            textTransform: "none",
-                            fontWeight: 600,
-                            borderRadius: 2,
-                            px: 3,
-                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
-                        }}
-                    >
-                        Lưu
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* Disable confirmation dialog */}
-            <Dialog
-                open={disableConfirmOpen}
-                onClose={(event, reason) => {
-                    if (reason === "backdropClick") return;
-                    setDisableConfirmOpen(false);
-                }}
-                PaperProps={{sx: {borderRadius: 3, p: 1}}}
-            >
-                <DialogTitle sx={{display: "flex", alignItems: "center", gap: 1}}>
-                    <PersonOffIcon color="error"/> Vô hiệu hóa tài khoản tư vấn viên
-                </DialogTitle>
-                <DialogContent>
-                    <Typography>
-                        Bạn có chắc muốn <ConfirmHighlight>vô hiệu hóa tài khoản</ConfirmHighlight> của{" "}
-                        <ConfirmHighlight>{selectedCounselor?.fullName}</ConfirmHighlight>? Tư vấn viên này sẽ{" "}
-                        <ConfirmHighlight>không thể đăng nhập hoặc truy cập hệ thống</ConfirmHighlight> nữa.
-                    </Typography>
-                </DialogContent>
-                <DialogActions sx={{px: 3, pb: 2}}>
-                    <Button onClick={() => setDisableConfirmOpen(false)} color="inherit">
-                        Hủy
-                    </Button>
-                    <Button
-                        variant="contained"
-                        color="error"
-                        onClick={handleDisableConfirm}
-                        startIcon={<BlockIcon/>}
-                    >
-                        Vô hiệu hóa
-                    </Button>
-                </DialogActions>
-            </Dialog>
         </Box>
     );
 }
