@@ -2024,6 +2024,7 @@ export default function SchoolSearchDetailView({
     const [parentSlotsRaw, setParentSlotsRaw] = React.useState([]);
     const [parentSlotsLoading, setParentSlotsLoading] = React.useState(false);
     const [parentSlotsError, setParentSlotsError] = React.useState("");
+    const [parentSlotsRefreshNonce, setParentSlotsRefreshNonce] = React.useState(0);
     const [consultBookingDialogOpen, setConsultBookingDialogOpen] = React.useState(false);
     const [selectedConsultBookingSlot, setSelectedConsultBookingSlot] = React.useState(null);
     const [bookingPhone, setBookingPhone] = React.useState("");
@@ -2500,6 +2501,7 @@ export default function SchoolSearchDetailView({
             setSelectedConsultBookingSlot(null);
             setBookingPhone("");
             setBookingQuestion("");
+            setParentSlotsRefreshNonce((n) => n + 1);
         } catch (error) {
             const apiMessage =
                 error?.response?.data?.message ||
@@ -2591,7 +2593,7 @@ export default function SchoolSearchDetailView({
             }
         })();
         return () => ac.abort();
-    }, [isParent, school, campusDetailTabIndex, selectedConsultWeek, campusListForDetail]);
+    }, [isParent, school, campusDetailTabIndex, selectedConsultWeek, campusListForDetail, parentSlotsRefreshNonce]);
 
     const parentSlotsNormalized = React.useMemo(() => {
         const dedup = new Map();

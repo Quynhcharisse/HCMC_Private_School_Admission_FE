@@ -2,10 +2,16 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Avatar,
   Box,
+  Button,
   Chip,
   CircularProgress,
   Container,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Grid,
+  IconButton,
   LinearProgress,
   Pagination,
   Paper,
@@ -14,7 +20,9 @@ import {
   Tabs,
   Typography,
 } from "@mui/material";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
+import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 import SchoolOutlinedIcon from "@mui/icons-material/SchoolOutlined";
 import StickyNote2OutlinedIcon from "@mui/icons-material/StickyNote2Outlined";
 import { enqueueSnackbar } from "notistack";
@@ -47,6 +55,8 @@ const softLabelSx = {
 
 const pickStudentName = (row) =>
   row?.studentName || row?.childName || row?.student?.name || row?.student?.fullName || "";
+
+const pickTrim = (v) => (hasText(v) ? String(v).trim() : "");
 
 const formatOfflineAppointment = (row) => {
   const dateStr = row?.appointmentDate;
@@ -168,6 +178,216 @@ const formatSlotDisplayParts = (row) => {
   return { primary: fallback, secondary: null };
 };
 
+const getOfflineScheduleDisplay = (row) => {
+  const combined = formatOfflineAppointment(row);
+  const dateRaw = pickTrim(row?.appointmentDate);
+  const timeRaw = pickTrim(row?.appointmentTime);
+  if (hasText(combined)) return pickTrim(combined);
+  if (dateRaw && timeRaw) return `${dateRaw} · ${timeRaw}`;
+  if (dateRaw) return dateRaw;
+  if (timeRaw) return timeRaw;
+  return "";
+};
+
+const offlineDetailModalSx = {
+  pageBg: "#e8f4fc",
+  sectionBorder: "1px solid #b0cfe8",
+  sectionInnerBg: "rgba(255,255,255,0.72)",
+  labelColor: "#1565c0",
+  titleColor: "#0d47a1",
+  valueColor: "#1e293b",
+  fieldBorder: "1px solid #cfe8f8",
+  headerBar: "linear-gradient(180deg, #dceef9 0%, #c9e3f5 100%)",
+};
+
+function OfflineConsultDetailField({ label, value, grid = 12 }) {
+  if (!hasText(value)) return null;
+  return (
+    <Grid size={{ xs: 12, sm: grid }}>
+      <Box
+        sx={{
+          bgcolor: "#fff",
+          border: offlineDetailModalSx.fieldBorder,
+          borderRadius: 2,
+          p: 1.75,
+          height: "100%",
+        }}
+      >
+        <Typography sx={{ fontSize: 12.5, fontWeight: 700, color: offlineDetailModalSx.labelColor, mb: 0.5 }}>
+          {label}
+        </Typography>
+        <Typography
+          sx={{
+            fontSize: 15,
+            fontWeight: 500,
+            color: offlineDetailModalSx.valueColor,
+            lineHeight: 1.55,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+          }}
+        >
+          {value}
+        </Typography>
+      </Box>
+    </Grid>
+  );
+}
+
+function OfflineConsultDetailSection({ title, icon, children }) {
+  return (
+    <Box
+      sx={{
+        border: offlineDetailModalSx.sectionBorder,
+        borderRadius: 2.5,
+        p: 2,
+        bgcolor: offlineDetailModalSx.sectionInnerBg,
+      }}
+    >
+      <Stack direction="row" alignItems="center" spacing={1.25} sx={{ mb: 1.75 }}>
+        <Box
+          sx={{
+            width: 40,
+            height: 40,
+            borderRadius: 1.5,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            bgcolor: "rgba(21, 101, 160, 0.12)",
+            color: offlineDetailModalSx.titleColor,
+          }}
+        >
+          {icon}
+        </Box>
+        <Typography
+          sx={{
+            fontSize: 17,
+            fontWeight: 800,
+            color: offlineDetailModalSx.titleColor,
+            letterSpacing: "-0.02em",
+          }}
+        >
+          {title}
+        </Typography>
+      </Stack>
+      <Grid container spacing={1.5}>
+        {children}
+      </Grid>
+    </Box>
+  );
+}
+
+function OfflineConsultDetailContent({ row }) {
+  if (!row) return null;
+
+  const statusKey = String(row?.status || "")
+    .trim()
+    .toLowerCase()
+    .replace(/_/g, "-");
+  const statusLabel = pickTrim(STATUS_LABELS[statusKey] || row?.status);
+
+  const schoolName = pickTrim(row?.schoolName);
+  const campusName = pickTrim(row?.campusName);
+  const address = pickTrim(row?.address);
+  const phone = pickTrim(row?.phone);
+  const parentName = pickTrim(row?.parentName);
+  const studentName = pickTrim(pickStudentName(row));
+  const question = pickTrim(row?.question);
+  const note = pickTrim(row?.note);
+  const cancelReason = pickTrim(row?.cancelReason);
+  const idStr = row?.id != null && row?.id !== "" ? String(row.id) : "";
+  const scheduleText = getOfflineScheduleDisplay(row);
+
+  const hasSchool = hasText(schoolName) || hasText(campusName) || hasText(address) || hasText(phone);
+  const hasAppt = hasText(idStr) || hasText(statusLabel) || hasText(scheduleText);
+  const hasPeople = hasText(parentName) || hasText(studentName);
+  const hasContent = hasText(question) || hasText(note) || hasText(cancelReason);
+
+  return (
+    <Stack spacing={2}>
+      {hasSchool ? (
+        <OfflineConsultDetailSection
+          title="Thông tin trường & cơ sở"
+          icon={<SchoolOutlinedIcon sx={{ fontSize: 22 }} />}
+        >
+          {hasText(schoolName) ? (
+            <OfflineConsultDetailField label="Tên trường" value={schoolName} grid={12} />
+          ) : null}
+          {hasText(campusName) ? (
+            <OfflineConsultDetailField
+              label="Tên cơ sở"
+              value={campusName}
+              grid={hasText(phone) ? 6 : 12}
+            />
+          ) : null}
+          {hasText(phone) ? (
+            <OfflineConsultDetailField
+              label="Số điện thoại"
+              value={phone}
+              grid={hasText(campusName) ? 6 : 12}
+            />
+          ) : null}
+          {hasText(address) ? <OfflineConsultDetailField label="Địa chỉ" value={address} grid={12} /> : null}
+        </OfflineConsultDetailSection>
+      ) : null}
+
+      {hasAppt ? (
+        <OfflineConsultDetailSection title="Lịch hẹn" icon={<EventAvailableIcon sx={{ fontSize: 22 }} />}>
+          {hasText(idStr) ? (
+            <OfflineConsultDetailField label="Mã lịch" value={idStr} grid={hasText(statusLabel) ? 6 : 12} />
+          ) : null}
+          {hasText(statusLabel) ? (
+            <OfflineConsultDetailField
+              label="Trạng thái"
+              value={statusLabel}
+              grid={hasText(idStr) ? 6 : 12}
+            />
+          ) : null}
+          {hasText(scheduleText) ? (
+            <OfflineConsultDetailField label="Thời gian" value={scheduleText} grid={12} />
+          ) : null}
+        </OfflineConsultDetailSection>
+      ) : null}
+
+      {hasPeople ? (
+        <OfflineConsultDetailSection
+          title="Phụ huynh & học sinh"
+          icon={<PersonOutlineOutlinedIcon sx={{ fontSize: 22 }} />}
+        >
+          {hasText(parentName) ? (
+            <OfflineConsultDetailField
+              label="Phụ huynh"
+              value={parentName}
+              grid={hasText(studentName) ? 6 : 12}
+            />
+          ) : null}
+          {hasText(studentName) ? (
+            <OfflineConsultDetailField
+              label="Học sinh"
+              value={studentName}
+              grid={hasText(parentName) ? 6 : 12}
+            />
+          ) : null}
+        </OfflineConsultDetailSection>
+      ) : null}
+
+      {hasContent ? (
+        <OfflineConsultDetailSection
+          title="Nội dung & ghi chú"
+          icon={<StickyNote2OutlinedIcon sx={{ fontSize: 22 }} />}
+        >
+          {hasText(question) ? (
+            <OfflineConsultDetailField label="Nội dung đăng ký" value={question} grid={12} />
+          ) : null}
+          {hasText(note) ? <OfflineConsultDetailField label="Ghi chú" value={note} grid={12} /> : null}
+          {hasText(cancelReason) ? (
+            <OfflineConsultDetailField label="Lý do hủy" value={cancelReason} grid={12} />
+          ) : null}
+        </OfflineConsultDetailSection>
+      ) : null}
+    </Stack>
+  );
+}
+
 export default function ParentOfflineConsultationsPage() {
   const [activeStatus, setActiveStatus] = useState(OFFLINE_CONSULTATION_STATUSES[0]);
   const [page, setPage] = useState(0);
@@ -175,6 +395,7 @@ export default function ParentOfflineConsultationsPage() {
   const [loading, setLoading] = useState(false);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
+  const [detailRow, setDetailRow] = useState(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -314,18 +535,18 @@ export default function ParentOfflineConsultationsPage() {
               <Grid container spacing={2.5}>
                 {items.map((row, index) => {
                   const id = row?.id ?? row?.consultationId ?? `${activeStatus}-${index}`;
-                  const parentName = hasText(row?.parentName) ? String(row.parentName).trim() : "";
                   const studentName = pickStudentName(row);
                   const slotParts = formatSlotDisplayParts(row);
                   const showStudent = hasText(studentName);
-                  const showPhone = hasText(row?.phone);
-                  const showQuestion = hasText(row?.question);
                   const showNote = hasText(row?.note);
                   const showSlot = slotParts != null;
-                  const showContact = hasText(parentName) || showPhone;
+                  const schoolName = pickTrim(row?.schoolName);
+                  const campusName = pickTrim(row?.campusName);
+                  const address = pickTrim(row?.address);
+                  const showSchoolInfo = hasText(schoolName) || hasText(campusName) || hasText(address);
 
                   return (
-                    <Grid key={id} item xs={12} sm={6} sx={{ display: "flex", minWidth: 0 }}>
+                    <Grid key={id} size={{ xs: 12, sm: 6 }} sx={{ display: "flex", minWidth: 0 }}>
                       <Paper
                         elevation={0}
                         sx={{
@@ -416,7 +637,7 @@ export default function ParentOfflineConsultationsPage() {
                         ) : null}
 
                         <Stack spacing={0} sx={{ flex: 1, minWidth: 0 }}>
-                          {showContact || showStudent ? (
+                          {showSchoolInfo || showStudent ? (
                             <Box
                               sx={{
                                 px: 2.25,
@@ -430,12 +651,12 @@ export default function ParentOfflineConsultationsPage() {
                               }}
                             >
                               <Box sx={{ flex: 1, minWidth: 0 }}>
-                                {showContact ? (
+                                {showSchoolInfo ? (
                                   <Box sx={{ mb: showStudent ? 1.5 : 0 }}>
                                     <Typography component="span" sx={{ ...softLabelSx, fontWeight: 800 }}>
-                                      Thông tin liên hệ
+                                      Thông tin trường
                                     </Typography>
-                                    {hasText(parentName) ? (
+                                    {hasText(schoolName) ? (
                                       <Typography
                                         sx={{
                                           fontSize: 16,
@@ -445,19 +666,32 @@ export default function ParentOfflineConsultationsPage() {
                                           lineHeight: 1.35,
                                         }}
                                       >
-                                        {parentName}
+                                        {schoolName}
                                       </Typography>
                                     ) : null}
-                                    {showPhone ? (
+                                    {hasText(campusName) ? (
                                       <Typography
                                         sx={{
                                           fontSize: 14,
                                           color: "#475569",
-                                          mt: hasText(parentName) ? 0.35 : 0,
-                                          fontWeight: 500,
+                                          mt: hasText(schoolName) ? 0.35 : 0,
+                                          fontWeight: 600,
                                         }}
                                       >
-                                        {row.phone}
+                                        {campusName}
+                                      </Typography>
+                                    ) : null}
+                                    {hasText(address) ? (
+                                      <Typography
+                                        sx={{
+                                          fontSize: 14,
+                                          color: "#64748b",
+                                          mt: hasText(schoolName) || hasText(campusName) ? 0.35 : 0,
+                                          fontWeight: 500,
+                                          lineHeight: 1.45,
+                                        }}
+                                      >
+                                        {address}
                                       </Typography>
                                     ) : null}
                                   </Box>
@@ -479,33 +713,33 @@ export default function ParentOfflineConsultationsPage() {
                             </Box>
                           ) : null}
 
-                          {showQuestion ? (
-                            <Box
+                          <Box
+                            sx={{
+                              px: 2.25,
+                              py: 2,
+                              borderTop: "1px solid #ede9fe",
+                              mt: "auto",
+                            }}
+                          >
+                            <Button
+                              variant="outlined"
+                              size="medium"
+                              onClick={() => setDetailRow(row)}
                               sx={{
-                                px: 2.25,
-                                py: 2,
-                                borderTop: "1px solid #ede9fe",
-                                background:
-                                  "linear-gradient(180deg, rgba(124, 58, 237, 0.06) 0%, rgba(99, 102, 241, 0.03) 100%)",
+                                textTransform: "none",
+                                fontWeight: 700,
+                                borderRadius: 2,
+                                borderColor: "rgba(124, 58, 237, 0.45)",
+                                color: "#5b21b6",
+                                "&:hover": {
+                                  borderColor: "#7c3aed",
+                                  bgcolor: "rgba(124, 58, 237, 0.06)",
+                                },
                               }}
                             >
-                              <Typography component="span" sx={{ ...softLabelSx, color: "#5b21b6", mb: 1, fontWeight: 800 }}>
-                                Nội dung đăng ký
-                              </Typography>
-                              <Typography
-                                sx={{
-                                  fontSize: 14,
-                                  color: "#4338ca",
-                                  lineHeight: 1.65,
-                                  whiteSpace: "pre-wrap",
-                                  wordBreak: "break-word",
-                                  fontWeight: 500,
-                                }}
-                              >
-                                {row.question}
-                              </Typography>
-                            </Box>
-                          ) : null}
+                              Xem chi tiết
+                            </Button>
+                          </Box>
 
                           {showNote ? (
                             <Box
@@ -575,6 +809,142 @@ export default function ParentOfflineConsultationsPage() {
           </Box>
         </Paper>
       </Box>
+
+      <Dialog
+        open={Boolean(detailRow)}
+        onClose={() => setDetailRow(null)}
+        maxWidth="md"
+        fullWidth
+        scroll="paper"
+        PaperProps={{
+          elevation: 0,
+          sx: {
+            borderRadius: 2.5,
+            overflow: "hidden",
+            border: "1px solid #9ec9e8",
+            boxShadow: "0 20px 45px -12px rgba(13, 71, 161, 0.18)",
+          },
+        }}
+      >
+        <DialogTitle sx={{ p: 0, bgcolor: "transparent" }}>
+          <Box
+            sx={{
+              px: 2.5,
+              py: 2,
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 2,
+              background: offlineDetailModalSx.headerBar,
+              borderBottom: "1px solid #9ec9e8",
+            }}
+          >
+            <Stack direction="row" spacing={1.75} alignItems="flex-start" sx={{ minWidth: 0, flex: 1 }}>
+              <Box
+                sx={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 2,
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  bgcolor: "rgba(13, 71, 161, 0.1)",
+                  border: "1px solid rgba(13, 71, 161, 0.18)",
+                }}
+              >
+                <EventAvailableIcon sx={{ fontSize: 24, color: offlineDetailModalSx.titleColor }} />
+              </Box>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography
+                  component="div"
+                  sx={{
+                    fontSize: { xs: 18, sm: 20 },
+                    fontWeight: 800,
+                    lineHeight: 1.25,
+                    letterSpacing: "-0.02em",
+                    color: offlineDetailModalSx.titleColor,
+                  }}
+                >
+                  Chi tiết lịch tư vấn
+                </Typography>
+                <Typography
+                  component="div"
+                  sx={{
+                    mt: 0.5,
+                    fontSize: 13.5,
+                    fontWeight: 500,
+                    color: "#455a64",
+                    lineHeight: 1.45,
+                  }}
+                >
+                  Thông tin trường, lịch hẹn và nội dung đăng ký
+                </Typography>
+              </Box>
+            </Stack>
+            <IconButton
+              size="small"
+              onClick={() => setDetailRow(null)}
+              aria-label="Đóng"
+              sx={{
+                color: offlineDetailModalSx.titleColor,
+                flexShrink: 0,
+                bgcolor: "rgba(255,255,255,0.65)",
+                border: "1px solid #b0cfe8",
+                "&:hover": { bgcolor: "#fff" },
+              }}
+            >
+              <CloseRoundedIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+
+        <DialogContent
+          sx={{
+            p: 0,
+            bgcolor: offlineDetailModalSx.pageBg,
+            maxHeight: { xs: "min(72vh, 560px)", sm: "min(70vh, 520px)" },
+            overflow: "auto",
+          }}
+        >
+          <Box
+            sx={{
+              px: { xs: 2.25, sm: 2.75 },
+              pt: { xs: 2, sm: 2.25 },
+              pb: 2.25,
+            }}
+          >
+            {detailRow ? <OfflineConsultDetailContent row={detailRow} /> : null}
+          </Box>
+        </DialogContent>
+
+        <DialogActions
+          sx={{
+            px: { xs: 2.25, sm: 2.75 },
+            py: 2,
+            bgcolor: "#f5fafd",
+            borderTop: "1px solid #b0cfe8",
+            justifyContent: "flex-end",
+          }}
+        >
+          <Button
+            variant="contained"
+            onClick={() => setDetailRow(null)}
+            sx={{
+              textTransform: "none",
+              fontWeight: 700,
+              borderRadius: 2,
+              px: 3,
+              minWidth: 120,
+              bgcolor: "#1565c0",
+              boxShadow: "0 4px 14px rgba(21, 101, 160, 0.35)",
+              "&:hover": { bgcolor: "#0d47a1", boxShadow: "0 6px 18px rgba(13, 71, 161, 0.38)" },
+            }}
+          >
+            Đóng
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }
