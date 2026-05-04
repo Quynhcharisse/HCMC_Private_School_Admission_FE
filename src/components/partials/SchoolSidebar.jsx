@@ -34,6 +34,7 @@ import ContactSupportOutlinedIcon from "@mui/icons-material/ContactSupportOutlin
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
+import { ROLE_SHELL_HEADER_HEIGHT_PX } from "../../constants/appShellLayout.js";
 import { signout } from "../../services/AccountService.jsx";
 import { useSchool } from "../../contexts/SchoolContext.jsx";
 import { getCampusConversation } from "../../services/ConversationService.jsx";
@@ -475,16 +476,18 @@ export default function SchoolSidebar({ currentPath, collapsed = false, onToggle
             <Box
                 sx={{
                     flexShrink: 0,
-                    pt: 2.5,
-                    pb: 2.75,
+                    height: ROLE_SHELL_HEADER_HEIGHT_PX,
+                    minHeight: ROLE_SHELL_HEADER_HEIGHT_PX,
+                    maxHeight: ROLE_SHELL_HEADER_HEIGHT_PX,
+                    boxSizing: "border-box",
                     pl: collapsed ? 2 : 3,
                     pr: 1,
-                    borderBottom: "1px solid #f1f5f9",
+                    borderBottom: "1px solid #e0e7ff",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: collapsed ? "center" : "space-between",
-                    minHeight: 48,
                     gap: 0.5,
+                    py: 0,
                 }}
             >
                 <Box sx={{ display: "flex", alignItems: "center", minWidth: 0, flex: collapsed ? 0 : 1, overflow: "hidden" }}>
