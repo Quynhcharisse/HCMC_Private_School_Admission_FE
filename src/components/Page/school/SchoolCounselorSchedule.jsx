@@ -44,6 +44,7 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import CloseIcon from "@mui/icons-material/Close";
+import DownloadIcon from "@mui/icons-material/Download";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
@@ -59,6 +60,7 @@ import {
     buildUpsertCampusScheduleTemplatePayload,
     fetchSchoolCampusScheduleTemplateListAll,
     getCampusScheduleTemplateList,
+    exportCampusScheduleTemplateList,
     getSchoolCampusScheduleTemplateList,
     normalizeScheduleTemplateDayMap,
     parseCampusSchedulePolicyFromConfigResponse,
@@ -239,6 +241,23 @@ function formatYmdVi(ymd) {
     const d = new Date(p[0], p[1] - 1, p[2]);
     if (Number.isNaN(d.getTime())) return s;
     return d.toLocaleDateString("vi-VN", {day: "2-digit", month: "2-digit", year: "numeric"});
+}
+
+function parseFilenameFromContentDisposition(headerValue) {
+    if (!headerValue || typeof headerValue !== "string") return null;
+    const utf8 = /filename\*=UTF-8''([^;\s]+)/i.exec(headerValue);
+    if (utf8?.[1]) {
+        try {
+            return decodeURIComponent(utf8[1].trim());
+        } catch {
+            return utf8[1].trim();
+        }
+    }
+    const quoted = /filename="([^"]+)"/i.exec(headerValue);
+    if (quoted?.[1]) return quoted[1].trim();
+    const unquoted = /filename=([^;\s]+)/i.exec(headerValue);
+    if (unquoted?.[1]) return unquoted[1].trim().replace(/^["']|["']$/g, "");
+    return null;
 }
 
 /**
@@ -576,6 +595,8 @@ export default function SchoolCounselorSchedule() {
     const [selectedAssignmentSlotIds, setSelectedAssignmentSlotIds] = useState(() => new Set());
     const [unassignDialog, setUnassignDialog] = useState({open: false, rows: []});
     const [unassignSubmitting, setUnassignSubmitting] = useState(false);
+    const [blockedUnassignSlotIds, setBlockedUnassignSlotIds] = useState(() => new Set());
+    const [exportingTemplate, setExportingTemplate] = useState(false);
 
     /** Modal chi tiết khung giờ + danh sách tư vấn viên */
     const [scheduleDetail, setScheduleDetail] = useState({open: false, slot: null, day: null});
@@ -586,6 +607,37 @@ export default function SchoolCounselorSchedule() {
     const closeSlotActionsMenu = useCallback(() => {
         setSlotActionsMenu({anchorEl: null, slot: null, day: null});
     }, []);
+
+    const handleExportScheduleTemplate = useCallback(async () => {
+        if (exportingTemplate) return;
+        setExportingTemplate(true);
+        try {
+            const res = await exportCampusScheduleTemplateList();
+            const fileBlob = res?.data;
+            if (!fileBlob) {
+                enqueueSnackbar("Không có dữ liệu để xuất file.", {variant: "warning"});
+                return;
+            }
+            const contentDisposition = res?.headers?.["content-disposition"] || "";
+            const fromHeader = parseFilenameFromContentDisposition(contentDisposition);
+            const fallback = `lich-khung-tu-van-${new Date().toISOString().slice(0, 10)}.xlsx`;
+            const fileName = fromHeader || fallback;
+            const downloadUrl = window.URL.createObjectURL(fileBlob);
+            const link = document.createElement("a");
+            link.href = downloadUrl;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(downloadUrl);
+            enqueueSnackbar("Đã tải file lịch khung tư vấn.", {variant: "success"});
+        } catch (error) {
+            console.error("Export schedule template error:", error);
+            enqueueSnackbar("Không thể tải file lịch khung tư vấn.", {variant: "error"});
+        } finally {
+            setExportingTemplate(false);
+        }
+    }, [exportingTemplate]);
 
     const loadCampuses = useCallback(async () => {
         setLoadingCampuses(true);
@@ -789,12 +841,14 @@ export default function SchoolCounselorSchedule() {
                 throw new Error(res?.data?.message || "Không tải được lịch gán");
             }
             setAssignedSlotRows(parseCounsellorAssignedSlotsBody(res));
+            setBlockedUnassignSlotIds(new Set());
         } catch (e) {
             console.error(e);
             enqueueSnackbar(e?.response?.data?.message || e?.message || "Không tải được lịch gán tư vấn viên.", {
                 variant: "error",
             });
             setAssignedSlotRows([]);
+            setBlockedUnassignSlotIds(new Set());
         } finally {
             setLoadingAssigned(false);
         }
@@ -829,13 +883,44 @@ export default function SchoolCounselorSchedule() {
                 const res = await postCounsellorAssign(payload);
                 const st = res && typeof res === "object" && "status" in res ? Number(res.status) : 0;
                 if (st >= 200 && st < 300) {
-                    enqueueSnackbar(
-                        slotIds.length > 1 ? `Đã hủy gán ${slotIds.length} lượt.` : "Đã hủy gán tư vấn viên.",
-                        {variant: "success"}
-                    );
                     const snap = parseCounsellorAssignSuccessBody(res);
+                    const removedSlotIds = Array.isArray(snap?.removedSlotIds) ? snap.removedSlotIds : [];
+                    const blockedSlotIds = Array.isArray(snap?.blockedSlotIds) ? snap.blockedSlotIds : [];
+                    const blockedAppointmentDates = Array.isArray(snap?.blockedAppointmentDates)
+                        ? snap.blockedAppointmentDates
+                        : [];
+                    const deletedCount = Number.isFinite(Number(snap?.deletedCount)) ? Number(snap.deletedCount) : null;
+                    const blockedCount = Number.isFinite(Number(snap?.blockedCount)) ? Number(snap.blockedCount) : null;
+
+                    if ((deletedCount ?? 0) > 0 && (blockedCount ?? 0) > 0) {
+                        const dateText =
+                            blockedAppointmentDates.length > 0
+                                ? ` (${blockedAppointmentDates.map((d) => formatYmdVi(d)).join(", ")})`
+                                : "";
+                        enqueueSnackbar(
+                            `Đã gỡ ${deletedCount} lịch. ${blockedCount} lịch giữ lại vì có lịch hẹn${dateText}.`,
+                            {variant: "warning"}
+                        );
+                    } else if ((deletedCount ?? 0) > 0) {
+                        enqueueSnackbar(
+                            deletedCount > 1 ? `Đã gỡ ${deletedCount} lịch.` : "Gỡ lịch thành công.",
+                            {variant: "success"}
+                        );
+                    } else if ((blockedCount ?? 0) > 0) {
+                        enqueueSnackbar("Không thể hủy lịch vì đã có phụ huynh đăng ký.", {variant: "warning"});
+                    } else {
+                        enqueueSnackbar(
+                            slotIds.length > 1 ? `Đã hủy gán ${slotIds.length} lượt.` : "Đã hủy gán tư vấn viên.",
+                            {variant: "success"}
+                        );
+                    }
+
+                    setBlockedUnassignSlotIds(new Set(blockedSlotIds));
                     if (snap?.slots && Array.isArray(snap.slots)) {
                         setAssignedSlotRows(snap.slots);
+                    } else if (removedSlotIds.length > 0) {
+                        const removedSet = new Set(removedSlotIds);
+                        setAssignedSlotRows((prev) => prev.filter((r) => !removedSet.has(getAssignedRowSlotId(r))));
                     } else {
                         await loadAssignedSlots();
                     }
@@ -1839,34 +1924,35 @@ export default function SchoolCounselorSchedule() {
                         </Typography>
                     </Box>
                     {viewMode === "manage" ? (
-                        <Button
-                            variant="contained"
-                            startIcon={<AddIcon/>}
-                            disabled={activeCampusId == null || loadingCampuses}
-                            onClick={openCreate}
-                            sx={{
-                                alignSelf: {xs: "stretch", sm: "center"},
-                                bgcolor: "rgba(255,255,255,0.98)",
-                                color: PRIMARY,
-                                borderRadius: "14px",
-                                textTransform: "none",
-                                fontWeight: 700,
-                                px: 3,
-                                py: 1.35,
-                                boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
-                                border: "1px solid rgba(255,255,255,0.55)",
-                                "&:hover": {
-                                    bgcolor: "#fff",
-                                    boxShadow: "0 8px 28px rgba(0,0,0,0.16)",
-                                },
-                                "&.Mui-disabled": {
-                                    bgcolor: "rgba(255,255,255,0.45)",
-                                    color: "rgba(255,255,255,0.85)",
-                                },
-                            }}
-                        >
-                            Thêm
-                        </Button>
+                        <Stack direction="row" spacing={1} sx={{alignSelf: {xs: "stretch", sm: "center"}}}>
+                            <Button
+                                variant="contained"
+                                startIcon={<AddIcon/>}
+                                disabled={activeCampusId == null || loadingCampuses}
+                                onClick={openCreate}
+                                sx={{
+                                    bgcolor: "rgba(255,255,255,0.98)",
+                                    color: PRIMARY,
+                                    borderRadius: "14px",
+                                    textTransform: "none",
+                                    fontWeight: 700,
+                                    px: 3,
+                                    py: 1.35,
+                                    boxShadow: "0 4px 20px rgba(0,0,0,0.12)",
+                                    border: "1px solid rgba(255,255,255,0.55)",
+                                    "&:hover": {
+                                        bgcolor: "#fff",
+                                        boxShadow: "0 8px 28px rgba(0,0,0,0.16)",
+                                    },
+                                    "&.Mui-disabled": {
+                                        bgcolor: "rgba(255,255,255,0.45)",
+                                        color: "rgba(255,255,255,0.85)",
+                                    },
+                                }}
+                            >
+                                Thêm
+                            </Button>
+                        </Stack>
                     ) : null}
                 </Box>
             </Box>
@@ -2173,6 +2259,33 @@ export default function SchoolCounselorSchedule() {
                                             ))}
                                         </Select>
                                     </FormControl>
+                                        <Tooltip title="Tải danh sách khung lịch">
+                                            <span>
+                                                <IconButton
+                                                    onClick={handleExportScheduleTemplate}
+                                                    disabled={activeCampusId == null || loadingCampuses || exportingTemplate}
+                                                    sx={{
+                                                        width: 40,
+                                                        height: 40,
+                                                        bgcolor: SURFACE_CARD,
+                                                        color: PRIMARY,
+                                                        borderRadius: "12px",
+                                                        border: `1px solid ${BORDER_SOFT}`,
+                                                        boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+                                                        "&:hover": {
+                                                            bgcolor: "#fff",
+                                                            borderColor: "rgba(13,100,222,0.35)",
+                                                        },
+                                                    }}
+                                                >
+                                                    {exportingTemplate ? (
+                                                        <CircularProgress size={16} sx={{color: PRIMARY}}/>
+                                                    ) : (
+                                                        <DownloadIcon fontSize="small"/>
+                                                    )}
+                                                </IconButton>
+                                            </span>
+                                        </Tooltip>
                                     </Stack>
                                 </Box>
                                 {viewMode === "manage" && managePanel === "list" && selectedAssignmentSlotIds.size > 0 ? (
@@ -2493,7 +2606,9 @@ export default function SchoolCounselorSchedule() {
                                             <TableBody>
                                                 {sortedListViewRows.map((row, idx) => {
                                                     const sid = getAssignedRowSlotId(row);
-                                                    const blocked = assignmentRowBlocksUnassign(row);
+                                                    const blockedByData = assignmentRowBlocksUnassign(row);
+                                                    const blockedByResponse = sid != null && blockedUnassignSlotIds.has(sid);
+                                                    const blocked = blockedByData || blockedByResponse;
                                                     const c = row?.counsellor ?? {id: row?.counsellor_id};
                                                     const email = c?.email != null && String(c.email).trim() !== "" ? String(c.email).trim() : "";
                                                     const rowDisabled = sid == null || unassignSubmitting;
@@ -2542,7 +2657,7 @@ export default function SchoolCounselorSchedule() {
                                                             </TableCell>
                                                             <TableCell align="right">
                                                                 <Tooltip
-                                                                    title={blocked ? "Còn lịch hẹn đang xử lý — không thể hủy gán" : "Hủy gán"}>
+                                                                    title={blocked ? "Có lịch hẹn đang chờ — không thể gỡ" : "Hủy gán"}>
                                   <span>
                                     <IconButton
                                         size="small"
@@ -3044,7 +3159,9 @@ export default function SchoolCounselorSchedule() {
                     <Typography variant="body2" sx={{color: "#4B5563", mb: 1.5}}>
                         Bạn có chắc muốn <ConfirmHighlight>gỡ</ConfirmHighlight>{" "}
                         <ConfirmHighlight>
-                            {unassignDialog.row ? assignedCounsellorLabel(unassignDialog.row.counsellor) : ""}
+                            {unassignDialog.rows?.[0]
+                                ? assignedCounsellorLabel(unassignDialog.rows[0]?.counsellor ?? {id: unassignDialog.rows[0]?.counsellor_id})
+                                : ""}
                         </ConfirmHighlight>{" "}
                         khỏi khung giờ này trong khoảng:
                     </Typography>

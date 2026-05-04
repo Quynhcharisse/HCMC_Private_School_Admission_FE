@@ -246,6 +246,17 @@ export const getCampusScheduleTemplateList = async (campusId) => {
   return response ?? null;
 };
 
+/**
+ * GET /api/v1/campus/schedule/template/list/export
+ * Export danh sách template lịch của campus hiện tại theo phiên đăng nhập.
+ */
+export const exportCampusScheduleTemplateList = async () => {
+  const response = await axiosClient.get("/campus/schedule/template/list/export", {
+    responseType: "blob",
+  });
+  return response ?? null;
+};
+
 export function parseCampusScheduleTemplateListBody(res) {
   const body = res?.data?.body ?? res?.data?.data?.body;
   if (!body || typeof body !== "object" || Array.isArray(body)) {
