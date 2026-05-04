@@ -27,7 +27,7 @@ export const createCounsellor = async ({email, avatar = "", name = ""}) => {
 };
 
 export const exportCounsellors = async () => {
-    const response = await axiosClient.get("/account/counsellor/list/export", {
+    const response = await axiosClient.get("/campus/counsellor/list/export", {
         responseType: "blob",
     });
     return response || null;

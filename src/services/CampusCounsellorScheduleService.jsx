@@ -27,8 +27,8 @@ function logCounsellorAssign(stage, data) {
 }
 
 /**
- * Chuẩn hóa body trước POST — UNASSIGN: `action` + `slotIds` (tùy chọn `counsellorIds`), không gửi campusId (BE theo phiên).
- * ASSIGN: templateIds + counsellorIds + campaignId + action.
+ * Chuẩn hóa body trước POST — UNASSIGN: `action` + (`slotIds` hoặc `counsellorIds` + `startDate/endDate`), không gửi campusId.
+ * ASSIGN: templateIds + counsellorIds + campaignId + action, giữ startDate/endDate nếu FE có gửi.
  * @param {Record<string, unknown>} payload
  * @returns {Record<string, unknown>}
  */
@@ -52,21 +52,38 @@ export function normalizeCounsellorAssignPayload(payload) {
       const one = Number(out.slotId ?? out.slot_id);
       if (Number.isFinite(one) && one > 0) slotIds = [one];
     }
-    if (slotIds.length === 0) {
-      throw new Error("counsellor/assign UNASSIGN: slotIds is required (≥1 id from GET …/slots/assigned)");
+    if (slotIds.length > 0) {
+      out.slotIds = [...new Set(slotIds)];
+    } else {
+      delete out.slotIds;
     }
-    out.slotIds = [...new Set(slotIds)];
     delete out.slotId;
     delete out.slot_id;
     delete out.slot_ids;
     delete out.templateIds;
-    delete out.startDate;
-    delete out.endDate;
     if (Array.isArray(out.counsellorIds) && out.counsellorIds.length > 0) {
-      out.counsellorIds = out.counsellorIds.map((x) => Number(x)).filter((x) => Number.isFinite(x));
+      out.counsellorIds = out.counsellorIds.map((x) => Number(x)).filter((x) => Number.isFinite(x) && x > 0);
       if (out.counsellorIds.length === 0) delete out.counsellorIds;
     } else {
       delete out.counsellorIds;
+    }
+    const startDate = typeof out.startDate === "string" ? out.startDate.trim() : "";
+    const endDate = typeof out.endDate === "string" ? out.endDate.trim() : "";
+    if (startDate) out.startDate = startDate;
+    else delete out.startDate;
+    if (endDate) out.endDate = endDate;
+    else delete out.endDate;
+    delete out.start_date;
+    delete out.end_date;
+
+    const hasSlotIds = Array.isArray(out.slotIds) && out.slotIds.length > 0;
+    const hasCounsellorIds = Array.isArray(out.counsellorIds) && out.counsellorIds.length > 0;
+    const hasRange = Boolean(out.startDate) && Boolean(out.endDate);
+    if (!hasSlotIds && !(hasCounsellorIds && hasRange)) {
+      throw new Error("Hủy gán: gửi slotIds hoặc điền đủ startDate và endDate.");
+    }
+    if (hasCounsellorIds && hasRange && String(out.startDate) > String(out.endDate)) {
+      throw new Error("Hủy gán: startDate phải nhỏ hơn hoặc bằng endDate.");
     }
     delete out.campusId;
     delete out.campus_id;
@@ -92,10 +109,18 @@ export function normalizeCounsellorAssignPayload(payload) {
     out.counsellorIds = cids;
     out.campaignId = campaignId;
     delete out.campaign_id;
-    delete out.startDate;
-    delete out.endDate;
+    const startDate = typeof out.startDate === "string" ? out.startDate.trim() : "";
+    const endDate = typeof out.endDate === "string" ? out.endDate.trim() : "";
+    if (startDate) out.startDate = startDate;
+    else if (out.startDate !== null) delete out.startDate;
+    if (endDate) out.endDate = endDate;
+    else if (out.endDate !== null) delete out.endDate;
     delete out.start_date;
     delete out.end_date;
+    delete out.slotIds;
+    delete out.slot_ids;
+    delete out.slotId;
+    delete out.slot_id;
   }
   return out;
 }
@@ -145,11 +170,29 @@ export const postCounsellorAssign = async (payload) => {
 export function parseCounsellorAssignSuccessBody(res) {
   const body = res?.data?.body;
   if (body == null || typeof body !== "object") return null;
-  const { slots } = body;
-  if (!Array.isArray(slots)) return null;
+  const slots = Array.isArray(body.slots) ? body.slots : null;
   const raw = String(body.action ?? "").toUpperCase();
   const action = raw === "UNASSIGN" ? "UNASSIGN" : "ASSIGN";
-  return { action, slots };
+  const removedSlotIds = Array.isArray(body.removedSlotIds)
+    ? body.removedSlotIds.map((x) => Number(x)).filter((x) => Number.isFinite(x) && x > 0)
+    : [];
+  const blockedSlotIds = Array.isArray(body.blockedSlotIds)
+    ? body.blockedSlotIds.map((x) => Number(x)).filter((x) => Number.isFinite(x) && x > 0)
+    : [];
+  const blockedAppointmentDates = Array.isArray(body.blockedAppointmentDates)
+    ? body.blockedAppointmentDates.map((x) => String(x ?? "").trim()).filter(Boolean)
+    : [];
+  const deletedCount = Number(body.deletedCount);
+  const blockedCount = Number(body.blockedCount);
+  return {
+    action,
+    slots,
+    removedSlotIds,
+    blockedSlotIds,
+    blockedAppointmentDates,
+    deletedCount: Number.isFinite(deletedCount) ? deletedCount : null,
+    blockedCount: Number.isFinite(blockedCount) ? blockedCount : null,
+  };
 }
 
 /**

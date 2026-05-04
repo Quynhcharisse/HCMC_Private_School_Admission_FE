@@ -576,6 +576,7 @@ export default function SchoolCounselorSchedule() {
     const [selectedAssignmentSlotIds, setSelectedAssignmentSlotIds] = useState(() => new Set());
     const [unassignDialog, setUnassignDialog] = useState({open: false, rows: []});
     const [unassignSubmitting, setUnassignSubmitting] = useState(false);
+    const [blockedUnassignSlotIds, setBlockedUnassignSlotIds] = useState(() => new Set());
 
     /** Modal chi tiết khung giờ + danh sách tư vấn viên */
     const [scheduleDetail, setScheduleDetail] = useState({open: false, slot: null, day: null});
@@ -789,12 +790,14 @@ export default function SchoolCounselorSchedule() {
                 throw new Error(res?.data?.message || "Không tải được lịch gán");
             }
             setAssignedSlotRows(parseCounsellorAssignedSlotsBody(res));
+            setBlockedUnassignSlotIds(new Set());
         } catch (e) {
             console.error(e);
             enqueueSnackbar(e?.response?.data?.message || e?.message || "Không tải được lịch gán tư vấn viên.", {
                 variant: "error",
             });
             setAssignedSlotRows([]);
+            setBlockedUnassignSlotIds(new Set());
         } finally {
             setLoadingAssigned(false);
         }
@@ -829,13 +832,44 @@ export default function SchoolCounselorSchedule() {
                 const res = await postCounsellorAssign(payload);
                 const st = res && typeof res === "object" && "status" in res ? Number(res.status) : 0;
                 if (st >= 200 && st < 300) {
-                    enqueueSnackbar(
-                        slotIds.length > 1 ? `Đã hủy gán ${slotIds.length} lượt.` : "Đã hủy gán tư vấn viên.",
-                        {variant: "success"}
-                    );
                     const snap = parseCounsellorAssignSuccessBody(res);
+                    const removedSlotIds = Array.isArray(snap?.removedSlotIds) ? snap.removedSlotIds : [];
+                    const blockedSlotIds = Array.isArray(snap?.blockedSlotIds) ? snap.blockedSlotIds : [];
+                    const blockedAppointmentDates = Array.isArray(snap?.blockedAppointmentDates)
+                        ? snap.blockedAppointmentDates
+                        : [];
+                    const deletedCount = Number.isFinite(Number(snap?.deletedCount)) ? Number(snap.deletedCount) : null;
+                    const blockedCount = Number.isFinite(Number(snap?.blockedCount)) ? Number(snap.blockedCount) : null;
+
+                    if ((deletedCount ?? 0) > 0 && (blockedCount ?? 0) > 0) {
+                        const dateText =
+                            blockedAppointmentDates.length > 0
+                                ? ` (${blockedAppointmentDates.map((d) => formatYmdVi(d)).join(", ")})`
+                                : "";
+                        enqueueSnackbar(
+                            `Đã gỡ ${deletedCount} lịch. ${blockedCount} lịch giữ lại vì có lịch hẹn${dateText}.`,
+                            {variant: "warning"}
+                        );
+                    } else if ((deletedCount ?? 0) > 0) {
+                        enqueueSnackbar(
+                            deletedCount > 1 ? `Đã gỡ ${deletedCount} lịch.` : "Gỡ lịch thành công.",
+                            {variant: "success"}
+                        );
+                    } else if ((blockedCount ?? 0) > 0) {
+                        enqueueSnackbar("Không thể hủy lịch vì đã có phụ huynh đăng ký.", {variant: "warning"});
+                    } else {
+                        enqueueSnackbar(
+                            slotIds.length > 1 ? `Đã hủy gán ${slotIds.length} lượt.` : "Đã hủy gán tư vấn viên.",
+                            {variant: "success"}
+                        );
+                    }
+
+                    setBlockedUnassignSlotIds(new Set(blockedSlotIds));
                     if (snap?.slots && Array.isArray(snap.slots)) {
                         setAssignedSlotRows(snap.slots);
+                    } else if (removedSlotIds.length > 0) {
+                        const removedSet = new Set(removedSlotIds);
+                        setAssignedSlotRows((prev) => prev.filter((r) => !removedSet.has(getAssignedRowSlotId(r))));
                     } else {
                         await loadAssignedSlots();
                     }
@@ -2493,7 +2527,9 @@ export default function SchoolCounselorSchedule() {
                                             <TableBody>
                                                 {sortedListViewRows.map((row, idx) => {
                                                     const sid = getAssignedRowSlotId(row);
-                                                    const blocked = assignmentRowBlocksUnassign(row);
+                                                    const blockedByData = assignmentRowBlocksUnassign(row);
+                                                    const blockedByResponse = sid != null && blockedUnassignSlotIds.has(sid);
+                                                    const blocked = blockedByData || blockedByResponse;
                                                     const c = row?.counsellor ?? {id: row?.counsellor_id};
                                                     const email = c?.email != null && String(c.email).trim() !== "" ? String(c.email).trim() : "";
                                                     const rowDisabled = sid == null || unassignSubmitting;
@@ -2542,7 +2578,7 @@ export default function SchoolCounselorSchedule() {
                                                             </TableCell>
                                                             <TableCell align="right">
                                                                 <Tooltip
-                                                                    title={blocked ? "Còn lịch hẹn đang xử lý — không thể hủy gán" : "Hủy gán"}>
+                                                                    title={blocked ? "Có lịch hẹn đang chờ — không thể gỡ" : "Hủy gán"}>
                                   <span>
                                     <IconButton
                                         size="small"
@@ -3044,7 +3080,9 @@ export default function SchoolCounselorSchedule() {
                     <Typography variant="body2" sx={{color: "#4B5563", mb: 1.5}}>
                         Bạn có chắc muốn <ConfirmHighlight>gỡ</ConfirmHighlight>{" "}
                         <ConfirmHighlight>
-                            {unassignDialog.row ? assignedCounsellorLabel(unassignDialog.row.counsellor) : ""}
+                            {unassignDialog.rows?.[0]
+                                ? assignedCounsellorLabel(unassignDialog.rows[0]?.counsellor ?? {id: unassignDialog.rows[0]?.counsellor_id})
+                                : ""}
                         </ConfirmHighlight>{" "}
                         khỏi khung giờ này trong khoảng:
                     </Typography>
