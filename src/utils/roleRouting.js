@@ -9,7 +9,7 @@ export const getRoleDashboardRoute = (role) => {
         case 'SCHOOL':
             return '/school/dashboard';
         case 'COUNSELLOR':
-            return '/counsellor/dashboard';
+            return '/counsellor/calendar';
         case 'PARENT':
             return '/home';
         default:

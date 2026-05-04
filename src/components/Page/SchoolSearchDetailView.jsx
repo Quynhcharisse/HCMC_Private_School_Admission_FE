@@ -14,7 +14,6 @@ import {
     IconButton,
     Link,
     MenuItem,
-    Rating,
     Select,
     Stack,
     Tab,
@@ -2992,32 +2991,6 @@ export default function SchoolSearchDetailView({
                                             }}
                                         >
                                             {school.ward}, {school.province}
-                                        </Typography>
-                                    </Stack>
-                                    <Stack
-                                        direction="row"
-                                        alignItems="center"
-                                        spacing={0.6}
-                                        sx={{gap: 0.6, minHeight: 24}}
-                                    >
-                                        <Rating
-                                            value={Math.min(5, Math.max(0, Number(school.averageRating) || 0))}
-                                            precision={0.1}
-                                            readOnly
-                                            size="small"
-                                            sx={{color: "#fbbf24", display: "flex", alignItems: "center"}}
-                                        />
-                                        <Typography
-                                            component="span"
-                                            sx={{
-                                                fontSize: "0.84rem",
-                                                color: "#eff6ff",
-                                                lineHeight: 1.2,
-                                                display: "inline-flex",
-                                                alignItems: "center"
-                                            }}
-                                        >
-                                            {school.averageRating > 0 ? school.averageRating.toFixed(1) : "—"}
                                         </Typography>
                                     </Stack>
                                 </Stack>

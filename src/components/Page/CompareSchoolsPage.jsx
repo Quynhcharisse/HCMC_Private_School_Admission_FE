@@ -460,7 +460,6 @@ function buildComparisonPayload(row, detail, campaigns, userLocation) {
         campaignStatus: hasOpenCampaign ? "Đang mở nhận hồ sơ" : campaignStatuses.join(" | ") || "Đang cập nhật",
         foundingDate: toText(detail?.foundingDate),
         description: stripHtml(detail?.description) || "Đang cập nhật",
-        rating: Number.isFinite(Number(detail?.averageRating)) ? `${Number(detail.averageRating).toFixed(1)}/5` : "Chưa có đánh giá",
         feeReliability: "Chưa thể so sánh chuẩn (thiếu finalTuitionFee theo campus/năm/hệ)",
         programDepth: curriculumList.length > 0 ? `${curriculumList.length} khung chương trình` : "Đang cập nhật"
         ,

@@ -424,7 +424,6 @@ export default function AdminPlatformSettings() {
     const [confirmingAdmissionImport, setConfirmingAdmissionImport] = useState(false);
     const [admissionImportConfirmOpen, setAdmissionImportConfirmOpen] = useState(false);
     const [admissionImportPreviewOpen, setAdmissionImportPreviewOpen] = useState(false);
-    const [validatingImportRow, setValidatingImportRow] = useState(false);
     const [admissionTemplateEditing, setAdmissionTemplateEditing] = useState(false);
     const [admissionImportPreview, setAdmissionImportPreview] = useState(null);
     const [importingAdmissionTemplate, setImportingAdmissionTemplate] = useState(false);
@@ -907,8 +906,6 @@ export default function AdminPlatformSettings() {
                 });
             } catch (error) {
                 void error;
-            } finally {
-                setValidatingImportRow(false);
             }
         }, 500);
         validateRowDebouncedRef.current = debounced;
@@ -1476,7 +1473,6 @@ export default function AdminPlatformSettings() {
         if (!rowPayload) return;
         const version = (rowValidationVersionRef.current[rowIndex] || 0) + 1;
         rowValidationVersionRef.current[rowIndex] = version;
-        setValidatingImportRow(true);
         validateRowDebouncedRef.current?.({
             row: rowPayload,
             rowIndex,
@@ -1569,12 +1565,12 @@ export default function AdminPlatformSettings() {
         }, {});
         const importRows = Array.isArray(admissionImportRows) ? admissionImportRows : [];
         const importErrorCount = importRows.filter((row) => row?.isError).length;
-        const importValidCount = Math.max(0, importRows.length - importErrorCount);
         const hasImportError = importErrorCount > 0;
         const canConfirmImport = importRows.length > 0 && !hasImportError && !confirmingAdmissionImport && !saving;
         const importColumns = importRows.length
             ? Object.keys(importRows.reduce((acc, row) => ({ ...acc, ...(row?.rowData || {}) }), {}))
             : [];
+        const importDisplayColumns = importColumns.filter((key) => key !== "index");
         const admissionInputSx = {
             "& .MuiOutlinedInput-root": {
                 borderRadius: 1.75,
@@ -1720,10 +1716,6 @@ export default function AdminPlatformSettings() {
                             Kiểm tra dữ liệu trước khi nhập — {IMPORT_TYPE_LABEL[importType]}
                         </DialogTitle>
                         <DialogContent sx={{ pt: "8px !important" }}>
-                            <Typography variant="body2" sx={{ color: "#475569", mb: 1 }}>
-                                Tổng: {importRows.length} | Hợp lệ: {importValidCount} | Lỗi: {importErrorCount}
-                                {validatingImportRow ? " | Đang kiểm tra..." : ""}
-                            </Typography>
                             {importRows.length > 0 ? (
                                 <TableContainer
                                     sx={{
@@ -1737,7 +1729,7 @@ export default function AdminPlatformSettings() {
                                         <TableHead>
                                             <TableRow>
                                                 <TableCell sx={{ fontWeight: 800 }}>STT</TableCell>
-                                                {importColumns.map((key) => (
+                                                {importDisplayColumns.map((key) => (
                                                     <TableCell key={`modal-col-${key}`} sx={{ fontWeight: 800 }}>
                                                         {getAdmissionImportColumnLabel(key)}
                                                     </TableCell>
@@ -1751,13 +1743,12 @@ export default function AdminPlatformSettings() {
                                                     <TableCell align="center">
                                                         <Chip label={rowIdx + 1} size="small" sx={adminSttChipSx} />
                                                     </TableCell>
-                                                    {importColumns.map((key) => (
+                                                    {importDisplayColumns.map((key) => (
                                                         <TableCell key={`modal-import-row-${rowIdx}-cell-${key}`}>
                                                             <TextField
                                                                 fullWidth
                                                                 size="small"
                                                                 value={row?.rowData?.[key] ?? ""}
-                                                                disabled={key === "index"}
                                                                 onChange={(e) => handleImportCellChange(rowIdx, key, e.target.value)}
                                                                 error={Boolean(row?.isError)}
                                                                 inputProps={{

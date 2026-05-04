@@ -16,7 +16,6 @@ import {
   Tooltip,
   Typography,
 } from "@mui/material";
-import DashboardIcon from "@mui/icons-material/Dashboard";
 import GroupsIcon from "@mui/icons-material/Groups";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -24,17 +23,11 @@ import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
-import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
 import { signout } from "../../services/AccountService.jsx";
 import { getCounsellorConversations } from "../../services/ConversationService.jsx";
 import { connectPrivateMessageSocket, removePrivateMessageListener } from "../../services/WebSocketService.jsx";
-import {
-  clearNotificationUnreadCount,
-  readNotificationUnreadCount,
-  watchNotificationUnread,
-} from "../../services/NotificationService.jsx";
 
 const COUNSELLOR_PARENT_UNREAD_CONVERSATIONS_KEY = "counsellor_parent_unread_conversations";
 
@@ -54,7 +47,6 @@ const writeCounsellorUnreadConversations = (value, options = {}) => {
   try {
     localStorage.setItem(COUNSELLOR_PARENT_UNREAD_CONVERSATIONS_KEY, String(next));
   } catch {
-    // ignore storage errors
   }
   if (!silent && typeof window !== "undefined") {
     window.dispatchEvent(new CustomEvent("counsellor-parent-unread-updated", { detail: { count: next } }));
@@ -130,14 +122,10 @@ const rebuildUnreadConversationIdSet = (activeItems, pendingItems) => {
 
 const menuGroups = [
   {
-    title: "TỔNG QUAN",
-    items: [{ text: "Bảng thống kê", icon: <DashboardIcon />, path: "/counsellor/dashboard" }],
-  },
-  {
     title: "TƯ VẤN",
     items: [
+      { text: "Lịch tư vấn trực tiếp", icon: <CalendarMonthIcon />, path: "/counsellor/calendar" },
       { text: "Tư vấn Phụ Huynh", icon: <GroupsIcon />, path: "/counsellor/parent-consultation" },
-      { text: "Lịch tư vấn", icon: <CalendarMonthIcon />, path: "/counsellor/calendar" },
     ],
   },
 ];
@@ -146,11 +134,8 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
   const navigate = useNavigate();
   const [userAnchorEl, setUserAnchorEl] = useState(null);
   const [parentUnreadConversations, setParentUnreadConversations] = useState(() => readCounsellorUnreadConversations());
-  const [notificationUnreadCount, setNotificationUnreadCount] = useState(() => readNotificationUnreadCount());
-  /** conversationId đã tính vào badge (đồng bộ với GET lần đầu + tin WS), tránh gọi API mỗi tin parent. */
   const conversationIdsWithUnreadRef = useRef(new Set());
   const eventUnreadSyncTimerRef = useRef(null);
-  /** So sánh với count mới từ event: chỉ GET khi số giảm (đã đọc), không GET khi parent nhắn làm count tăng. */
   const lastUnreadCountRef = useRef(readCounsellorUnreadConversations());
 
   const userInfo = useMemo(() => {
@@ -191,15 +176,12 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
       setParentUnreadConversations(unreadConversationCount);
       writeCounsellorUnreadConversations(unreadConversationCount, { silent: true });
     } catch {
-      // ignore sidebar unread sync errors
     }
   }, []);
 
   useEffect(() => {
     void refreshCounsellorUnreadFromApi();
   }, [refreshCounsellorUnreadFromApi]);
-
-  useEffect(() => watchNotificationUnread((count) => setNotificationUnreadCount(count)), []);
 
   useEffect(() => {
     const onUnreadUpdated = (event) => {
@@ -209,7 +191,6 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
         const n = Math.trunc(next);
         lastUnreadCountRef.current = n;
         setParentUnreadConversations(n);
-        /** Chỉ GET khi unread giảm (đánh dấu đã đọc trên trang tư vấn). Parent nhắn → count tăng → không GET. */
         if (n < prev) {
           if (eventUnreadSyncTimerRef.current != null) clearTimeout(eventUnreadSyncTimerRef.current);
           eventUnreadSyncTimerRef.current = window.setTimeout(() => {
@@ -274,14 +255,12 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
         return true;
       }
       if (identityLowerSet.has(recv)) return true;
-      // WS frame da vao /user queue cua counsellor, receiver trong body co the sai.
       if (senderIds.length > 0 && senderIds.every((id) => identityLowerSet.has(id))) return false;
       return true;
     };
 
     const senderLooksLikeSelf = (payload) => {
       const merged = mergeCounsellorWsPayload(payload);
-      // Không dùng username — trùng principal phiên TVV trên frame /user.
       const identifiers = [
         normalizeWsPrincipal(merged?.senderName),
         normalizeWsPrincipal(merged?.senderEmail),
@@ -405,35 +384,6 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
           ) : null}
         </Box>
         {onToggleCollapse && (
-          <Badge
-            badgeContent={Math.min(99, notificationUnreadCount)}
-            color="error"
-            overlap="circular"
-            invisible={notificationUnreadCount === 0}
-            sx={{ mr: 0.5 }}
-          >
-            <IconButton
-              size="small"
-              aria-label="Thông báo"
-              onClick={() => {
-                clearNotificationUnreadCount();
-                navigate("/posts");
-              }}
-              sx={{
-                flexShrink: 0,
-                color: "#64748b",
-                bgcolor: "rgba(100, 116, 139, 0.08)",
-                "&:hover": {
-                  bgcolor: "rgba(100, 116, 139, 0.14)",
-                  color: "#1e293b",
-                },
-              }}
-            >
-              <NotificationsNoneRoundedIcon fontSize="small" />
-            </IconButton>
-          </Badge>
-        )}
-        {onToggleCollapse && (
           <Tooltip title={collapsed ? "Mở rộng" : "Thu gọn"} placement="right">
             <IconButton
               size="small"
@@ -522,8 +472,7 @@ export default function CounsellorSidebar({ currentPath, collapsed = false, onTo
             {group.items.map((item) => {
               const isActive =
                 currentPath === item.path ||
-                (item.path !== "/counsellor/dashboard" &&
-                  currentPath.startsWith(item.path + "/"));
+                (item.path !== "/counsellor/calendar" && currentPath.startsWith(item.path + "/"));
 
               const button = (
                 <ListItem key={item.path} disablePadding sx={{ mb: 0.5 }}>

@@ -16,7 +16,6 @@ const CALENDAR_DAYS = [
   { key: "SUN", label: "CN", offset: 6 },
 ];
 
-/** Đồng bộ với lịch «Đặt lịch tư vấn» (SchoolSearchDetailView — CONSULT_*) */
 const CAL_HEADER_BG = "#6c8fcf";
 const CAL_CARD_BORDER = "1px solid rgba(59,130,246,0.22)";
 const CAL_GRID_LINE_ROW = "1px solid rgba(100, 116, 139, 0.36)";
@@ -110,17 +109,6 @@ const formatDateVi = (date) =>
   });
 
 const normalizeTime = (value) => String(value || "").slice(0, 5);
-const sessionColors = {
-  MORNING: {
-    strip: "#fef3c7",
-    row: "rgba(254, 243, 199, 0.35)",
-  },
-  AFTERNOON: {
-    strip: "#dbeafe",
-    row: "rgba(219, 234, 254, 0.35)",
-  },
-};
-
 const timeToMinutes = (value) => {
   const [h, m] = String(value || "")
     .split(":")
@@ -135,22 +123,9 @@ const detectSessionKey = (startTime) => {
   return mins < 12 * 60 ? "MORNING" : "AFTERNOON";
 };
 
-const stripKey = (sessionKey) => sessionColors[sessionKey]?.strip || sessionColors.AFTERNOON.strip;
-const rowBg = (sessionKey) => sessionColors[sessionKey]?.row || sessionColors.AFTERNOON.row;
-
-const CALENDAR_DEFAULT_SHIFTS = [
-  {
-    key: "MORNING",
-    label: "Ca sáng",
-    stripBg: "#fef3c7",
-    rowBg: "rgba(254, 243, 199, 0.35)",
-  },
-  {
-    key: "AFTERNOON",
-    label: "Ca chiều",
-    stripBg: "#dbeafe",
-    rowBg: "rgba(219, 234, 254, 0.35)",
-  },
+const SESSION_DISPLAY_ROWS = [
+  { sessionKey: "MORNING", label: "Ca sáng", stripBg: "#fef3c7", rowBg: "rgba(254, 243, 199, 0.35)" },
+  { sessionKey: "AFTERNOON", label: "Ca chiều", stripBg: "#dbeafe", rowBg: "rgba(219, 234, 254, 0.35)" },
 ];
 
 export default function CounsellorCalendar() {
@@ -177,35 +152,25 @@ export default function CounsellorCalendar() {
     return `${formatDateVi(weekDays[0].date)} - ${formatDateVi(weekDays[6].date)}`;
   }, [weekDays]);
 
-  const timeRows = useMemo(() => {
-    const keyMap = new Map();
-    calendarRows.forEach((row) => {
-      const startTime = normalizeTime(row?.startTime);
-      const endTime = normalizeTime(row?.endTime);
-      if (!startTime || !endTime) return;
-      const key = `${startTime}-${endTime}`;
-      if (!keyMap.has(key)) {
-        keyMap.set(key, {
-          key,
-          startTime,
-          endTime,
-          sortValue: startTime,
-          sessionKey: detectSessionKey(startTime),
-        });
-      }
-    });
-    return Array.from(keyMap.values()).sort((a, b) => a.sortValue.localeCompare(b.sortValue));
-  }, [calendarRows]);
-
-  const slotByCell = useMemo(() => {
+  const slotsByDayAndSession = useMemo(() => {
     const map = new Map();
+    const seen = new Set();
     calendarRows.forEach((slot) => {
       const date = String(slot?.date || "").slice(0, 10);
       const startTime = normalizeTime(slot?.startTime);
       const endTime = normalizeTime(slot?.endTime);
       if (!date || !startTime || !endTime) return;
-      const rowKey = `${startTime}-${endTime}`;
-      map.set(`${date}|${rowKey}`, slot);
+      const status = String(slot?.status || "").toUpperCase();
+      const dedupKey = `${date}|${startTime}|${endTime}|${status}`;
+      if (seen.has(dedupKey)) return;
+      seen.add(dedupKey);
+      const sessionKey = detectSessionKey(startTime);
+      const cellKey = `${date}|${sessionKey}`;
+      if (!map.has(cellKey)) map.set(cellKey, []);
+      map.get(cellKey).push(slot);
+    });
+    map.forEach((arr) => {
+      arr.sort((a, b) => normalizeTime(a.startTime).localeCompare(normalizeTime(b.startTime)));
     });
     return map;
   }, [calendarRows]);
@@ -262,7 +227,7 @@ export default function CounsellorCalendar() {
   return (
     <Box sx={{ width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box" }}>
       <Typography variant="h5" sx={{ fontWeight: 700, color: "#1e293b", mb: 0.5 }}>
-        Lịch tư vấn
+        Lịch tư vấn trực tiếp
       </Typography>
       <Typography variant="body2" sx={{ color: "#64748b", mb: 2.5 }}>
         Theo dõi lịch làm việc theo tuần của tư vấn viên.
@@ -452,84 +417,22 @@ export default function CounsellorCalendar() {
             ))}
           </Box>
 
-          {timeRows.length === 0
-            ? CALENDAR_DEFAULT_SHIFTS.map((shift) => (
-                <Box
-                  key={shift.key}
-                  sx={{
-                    display: "grid",
-                    width: "100%",
-                    minWidth: 0,
-                    gridTemplateColumns: "220px repeat(7, minmax(88px, 1fr))",
-                    borderBottom: CAL_GRID_LINE_ROW,
-                    bgcolor: shift.rowBg,
-                  }}
-                >
-                  <Box
-                    sx={{
-                      minHeight: 36,
-                      bgcolor: shift.stripBg,
-                      borderRight: CAL_GRID_LINE_COL,
-                      px: 1,
-                      py: 0.5,
-                      display: "flex",
-                      alignItems: "center",
-                    }}
-                  >
-                    <Typography sx={{ fontSize: "0.72rem", fontWeight: 700, color: "#334155" }}>{shift.label}</Typography>
-                  </Box>
-                  {weekDays.map((day) => (
-                    <Box
-                      key={`${shift.key}-${day.dateYmd}`}
-                      sx={{
-                        px: 0.75,
-                        py: 0.5,
-                        borderLeft: CAL_GRID_LINE_COL,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        minHeight: 36,
-                      }}
-                    >
-                      <Button
-                        variant="text"
-                        size="small"
-                        disabled
-                        sx={{
-                          minWidth: 0,
-                          minHeight: 32,
-                          px: 0.5,
-                          py: 0,
-                          color: "#64748b",
-                          textTransform: "none",
-                          fontSize: "0.8rem",
-                          lineHeight: 1,
-                          cursor: "default",
-                        }}
-                      >
-                        Đặt lịch
-                      </Button>
-                    </Box>
-                  ))}
-                </Box>
-              ))
-            : null}
-          {timeRows.map((row) => (
+          {SESSION_DISPLAY_ROWS.map((shift) => (
             <Box
-              key={row.key}
+              key={shift.sessionKey}
               sx={{
                 display: "grid",
                 width: "100%",
                 minWidth: 0,
                 gridTemplateColumns: "220px repeat(7, minmax(88px, 1fr))",
                 borderBottom: CAL_GRID_LINE_ROW,
-                bgcolor: rowBg(row.sessionKey),
+                bgcolor: shift.rowBg,
               }}
             >
               <Box
                 sx={{
                   minHeight: 36,
-                  bgcolor: stripKey(row.sessionKey),
+                  bgcolor: shift.stripBg,
                   borderRight: CAL_GRID_LINE_COL,
                   px: 1,
                   py: 0.5,
@@ -537,16 +440,14 @@ export default function CounsellorCalendar() {
                   alignItems: "center",
                 }}
               >
-                <Typography sx={{ fontSize: "0.75rem", fontWeight: 700, color: "#334155" }}>
-                  {row.startTime && row.endTime ? `${row.startTime} - ${row.endTime}` : " "}
-                </Typography>
+                <Typography sx={{ fontSize: "0.72rem", fontWeight: 700, color: "#334155" }}>{shift.label}</Typography>
               </Box>
-
               {weekDays.map((day) => {
-                const slot = slotByCell.get(`${day.dateYmd}|${row.key}`);
+                const cellKey = `${day.dateYmd}|${shift.sessionKey}`;
+                const slots = slotsByDayAndSession.get(cellKey) || [];
                 return (
                   <Box
-                    key={`${row.key}-${day.dateYmd}`}
+                    key={`${shift.sessionKey}-${day.dateYmd}`}
                     sx={{
                       px: 0.75,
                       py: 0.5,
@@ -557,19 +458,24 @@ export default function CounsellorCalendar() {
                       minHeight: 36,
                     }}
                   >
-                    {slot ? (
-                      <Chip
-                        label={slot.statusLabel || slot.status}
-                        color={
-                          slotLooksCompleted(slot.status, slot.statusLabel)
-                            ? undefined
-                            : STATUS_COLOR[slot.status] || "default"
-                        }
-                        size="small"
-                        sx={calendarSlotChipSx(slot.status, slot.statusLabel)}
-                      />
-                    ) : (
+                    {slots.length === 0 ? (
                       <Box sx={{ minHeight: 24, width: "100%" }} aria-hidden />
+                    ) : (
+                      <Stack spacing={0.45} alignItems="center" sx={{ width: "100%", py: 0.15 }}>
+                        {slots.map((slot, slotIdx) => (
+                          <Chip
+                            key={`${cellKey}-${slotIdx}-${slot.startTime}-${slot.endTime}`}
+                            label={slot.statusLabel || slot.status}
+                            color={
+                              slotLooksCompleted(slot.status, slot.statusLabel)
+                                ? undefined
+                                : STATUS_COLOR[slot.status] || "default"
+                            }
+                            size="small"
+                            sx={calendarSlotChipSx(slot.status, slot.statusLabel)}
+                          />
+                        ))}
+                      </Stack>
                     )}
                   </Box>
                 );

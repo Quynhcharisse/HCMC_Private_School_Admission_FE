@@ -25,7 +25,7 @@ import {
 } from "../../services/ParentOfflineConsultationService.jsx";
 
 const STATUS_LABELS = {
-  pending: "Đang chờ",
+  pending: "Chờ tư vấn",
   confirmed: "Đã xác nhận",
   "in-progress": "Đang diễn ra",
   completed: "Hoàn tất",

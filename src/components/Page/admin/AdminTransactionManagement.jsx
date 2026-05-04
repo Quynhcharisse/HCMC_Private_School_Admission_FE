@@ -2,10 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Avatar,
     Box,
+    Button,
     Card,
     CardContent,
     Chip,
     CircularProgress,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
     Drawer,
     FormControl,
     InputAdornment,
@@ -49,20 +53,6 @@ function formatCurrency(value) {
     return `${amount.toLocaleString("vi-VN")} VNĐ`;
 }
 
-function formatDateTime(value) {
-    if (!value) return "—";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "—";
-    return date.toLocaleString("vi-VN");
-}
-
-function formatDateOnly(value) {
-    if (!value) return "—";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "—";
-    return date.toLocaleDateString("vi-VN");
-}
-
 function formatDateTimeParts(value) {
     if (!value) return { date: "—", time: "—" };
     const date = new Date(value);
@@ -73,6 +63,33 @@ function formatDateTimeParts(value) {
     };
 }
 
+function formatDateTime(value) {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleString("vi-VN");
+}
+
+function formatDateOnly(value) {
+    if (!value) return null;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return null;
+    return date.toLocaleDateString("vi-VN");
+}
+
+function pickOptionalString(v) {
+    if (v == null) return null;
+    const s = String(v).trim();
+    return s === "" ? null : s;
+}
+
+function hasDetailValue(v) {
+    if (v == null) return false;
+    if (typeof v === "number") return Number.isFinite(v);
+    const s = String(v).trim();
+    return s !== "";
+}
+
 function isSuccessStatus(status) {
     return String(status || "").toUpperCase() === "PAYMENT_SUCCESS";
 }
@@ -80,17 +97,17 @@ function isSuccessStatus(status) {
 function normalizeTransaction(item, index) {
     return {
         id: Number(item?.transactionId ?? index + 1),
-        schoolName: String(item?.schoolName || "—"),
-        packageName: String(item?.packageName || "—"),
-        txnRef: String(item?.txnRef || "—"),
-        vnpTransactionNo: item?.vnpTransactionNo ? String(item.vnpTransactionNo) : "—",
-        orderInfo: item?.orderInfo ? String(item.orderInfo) : "—",
-        bankCode: item?.bankCode ? String(item.bankCode) : "—",
-        cardType: item?.cardType ? String(item.cardType) : "—",
+        schoolName: pickOptionalString(item?.schoolName) ?? "—",
+        packageName: pickOptionalString(item?.packageName),
+        txnRef: pickOptionalString(item?.txnRef) ?? "—",
+        vnpTransactionNo: pickOptionalString(item?.vnpTransactionNo),
+        orderInfo: pickOptionalString(item?.orderInfo),
+        bankCode: pickOptionalString(item?.bankCode),
+        cardType: pickOptionalString(item?.cardType),
         amount: Number(item?.amount || 0),
-        status: String(item?.status || "UNKNOWN"),
-        createdAt: item?.createdAt || "",
-        notes: item?.notes ? String(item.notes) : "—",
+        status: pickOptionalString(item?.status) ?? "UNKNOWN",
+        createdAt: pickOptionalString(item?.createdAt),
+        notes: pickOptionalString(item?.notes),
     };
 }
 
@@ -147,6 +164,25 @@ export default function AdminTransactionManagement() {
     const [statusFilter, setStatusFilter] = useState("ALL");
     const [page, setPage] = useState(1);
     const [selectedRow, setSelectedRow] = useState(null);
+
+    const detailRows = useMemo(() => {
+        const row = selectedRow;
+        if (!row) return [];
+        const createdFmt = formatDateTime(row.createdAt);
+        const dateShort = formatDateOnly(row.createdAt);
+        const candidates = [
+            ["Mã giao dịch", row.txnRef !== "—" ? row.txnRef : null],
+            ["Mã VNPay", row.vnpTransactionNo],
+            ["Gói dịch vụ", row.packageName],
+            ["Thông tin đơn hàng", row.orderInfo],
+            ["Mã ngân hàng", row.bankCode],
+            ["Loại thẻ", row.cardType],
+            ["Ngày tạo", createdFmt],
+            ["Ghi chú", row.notes],
+            ["Ngày (rút gọn)", dateShort],
+        ];
+        return candidates.filter(([, v]) => hasDetailValue(v));
+    }, [selectedRow]);
 
     const loadTransactions = useCallback(async () => {
         setLoading(true);
@@ -587,43 +623,51 @@ export default function AdminTransactionManagement() {
             </Stack>
 
             <Drawer anchor="right" open={Boolean(selectedRow)} onClose={() => setSelectedRow(null)}>
-                <Box sx={{ width: { xs: 320, sm: 420 }, p: 2.2 }}>
-                    <Typography sx={{ fontSize: 20, fontWeight: 800, color: "#0f172a" }}>Chi tiết giao dịch</Typography>
+                <Box sx={{ width: { xs: 320, sm: 420 }, p: 2.2, boxSizing: "border-box" }}>
+                    <DialogTitle sx={{ p: 0, pb: 0.5, fontWeight: 800, color: "#0f172a" }}>Chi tiết giao dịch</DialogTitle>
                     <Typography sx={{ mt: 0.3, color: "#64748b", fontSize: 13 }}>
                         Toàn bộ thông tin liên quan đến giao dịch đã chọn.
                     </Typography>
 
                     {selectedRow ? (
-                        <Stack spacing={1.2} sx={{ mt: 2 }}>
-                            <Card elevation={0} sx={{ border: "1px solid #e2e8f0", borderRadius: 2 }}>
-                                <CardContent sx={{ p: 1.5 }}>
-                                    <Stack spacing={0.9}>
-                                        <Typography sx={{ fontWeight: 700, color: "#0f172a" }}>{selectedRow.schoolName}</Typography>
-                                        <StatusBadge status={selectedRow.status} />
-                                        <Typography sx={{ color: "#334155", fontSize: 14 }}>
-                                            Số tiền: <b>{formatCurrency(selectedRow.amount)}</b>
-                                        </Typography>
-                                    </Stack>
-                                </CardContent>
-                            </Card>
+                        <>
+                            <DialogContent sx={{ px: 0, pt: 2, pb: 0 }}>
+                                <Card elevation={0} sx={{ border: "1px solid #e2e8f0", borderRadius: 2 }}>
+                                    <CardContent sx={{ p: 1.5 }}>
+                                        <Stack spacing={0.9}>
+                                            <Typography sx={{ fontWeight: 700, color: "#0f172a" }}>
+                                                {selectedRow.schoolName}
+                                            </Typography>
+                                            <StatusBadge status={selectedRow.status} />
+                                            <Typography sx={{ color: "#334155", fontSize: 14 }}>
+                                                Số tiền: <b>{formatCurrency(selectedRow.amount)}</b>
+                                            </Typography>
+                                        </Stack>
+                                    </CardContent>
+                                </Card>
 
-                            {[
-                                ["Mã giao dịch", selectedRow.txnRef],
-                                ["Mã VNPay", selectedRow.vnpTransactionNo],
-                                ["Gói dịch vụ", selectedRow.packageName],
-                                ["Thông tin đơn hàng", selectedRow.orderInfo],
-                                ["Mã ngân hàng", selectedRow.bankCode],
-                                ["Loại thẻ", selectedRow.cardType],
-                                ["Ngày tạo", formatDateTime(selectedRow.createdAt)],
-                                ["Ghi chú", selectedRow.notes],
-                                ["Ngày (rút gọn)", formatDateOnly(selectedRow.createdAt)],
-                            ].map(([label, value]) => (
-                                <Box key={label} sx={{ border: "1px solid #e2e8f0", borderRadius: 2, px: 1.3, py: 1 }}>
-                                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b" }}>{label}</Typography>
-                                    <Typography sx={{ mt: 0.35, color: "#0f172a", wordBreak: "break-word" }}>{value || "—"}</Typography>
-                                </Box>
-                            ))}
-                        </Stack>
+                                <Stack spacing={1.2} sx={{ mt: 1.2 }}>
+                                    {detailRows.map(([label, value]) => (
+                                        <Box
+                                            key={label}
+                                            sx={{ border: "1px solid #e2e8f0", borderRadius: 2, px: 1.3, py: 1 }}
+                                        >
+                                            <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b" }}>
+                                                {label}
+                                            </Typography>
+                                            <Typography sx={{ mt: 0.35, color: "#0f172a", wordBreak: "break-word" }}>
+                                                {String(value)}
+                                            </Typography>
+                                        </Box>
+                                    ))}
+                                </Stack>
+                            </DialogContent>
+                            <DialogActions sx={{ px: 0, pt: 2, pb: 0 }}>
+                                <Button variant="outlined" onClick={() => setSelectedRow(null)} sx={{ textTransform: "none", fontWeight: 700 }}>
+                                    Đóng
+                                </Button>
+                            </DialogActions>
+                        </>
                     ) : null}
                 </Box>
             </Drawer>
