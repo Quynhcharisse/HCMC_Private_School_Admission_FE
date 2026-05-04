@@ -69,6 +69,7 @@ const CounsellorConsultationManagement = lazy(() =>
 const SchoolCurriculums = lazy(() => import("./components/Page/school/SchoolCurriculums.jsx"));
 const SchoolPrograms = lazy(() => import("./components/Page/school/SchoolPrograms.jsx"));
 const SchoolPurchasedPackages = lazy(() => import("./components/Page/school/SchoolPurchasedPackages.jsx"));
+const SchoolParentsInterestPage = lazy(() => import("./components/Page/school/SchoolParentsInterestPage.jsx"));
 const ParentProfile = lazy(() => import("./components/auth/ParentProfile.jsx"));
 const SavedSchoolsPage = lazy(() => import("./components/Page/SavedSchoolsPage.jsx"));
 const CompareSchoolsPage = lazy(() => import("./components/Page/CompareSchoolsPage.jsx"));
@@ -344,6 +345,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <SchoolDashboard/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'parents-interest',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolParentsInterestPage/>
                     </Suspense>
                 )
             },

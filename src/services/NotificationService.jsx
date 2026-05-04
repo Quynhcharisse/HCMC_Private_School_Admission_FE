@@ -109,6 +109,8 @@ export const resolveNotificationRoute = ({eventType, data = {}, role}) => {
             return "/admin/transaction-statistics";
         case NOTIFICATION_EVENTS.CREATE_PACKAGE_FEE:
             return role === "SCHOOL" ? "/package-fees" : "/admin/package-fees";
+        case NOTIFICATION_EVENTS.FAVORITE_SCHOOL:
+            return "/school/parents-interest";
 
         case NOTIFICATION_EVENTS.COUNSELLOR_ASSIGNED:
             if (role === "PARENT") return "/parent/profile";

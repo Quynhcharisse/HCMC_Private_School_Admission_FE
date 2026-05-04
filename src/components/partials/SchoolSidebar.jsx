@@ -17,6 +17,7 @@ import {
     Typography,
 } from "@mui/material";
 import DashboardIcon from "@mui/icons-material/Dashboard";
+import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
 import ApartmentIcon from "@mui/icons-material/Apartment";
 import SupportAgentIcon from "@mui/icons-material/SupportAgent";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
@@ -244,6 +245,7 @@ const menuGroupsBase = [
         title: "TỔNG QUAN",
         items: [
             { text: "Bảng thống kê", icon: <DashboardIcon />, path: "/school/dashboard" },
+            { text: "Phụ huynh quan tâm", icon: <PeopleAltIcon />, path: "/school/parents-interest" },
             { text: "Gói đã mua", icon: <CardMembershipIcon />, path: "/school/purchased-packages" },
         ],
     },

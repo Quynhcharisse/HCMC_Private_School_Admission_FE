@@ -6,6 +6,7 @@ export const NOTIFICATION_EVENTS = {
     ADMIN_POST_PUBLISHED: "ADMIN_POST_PUBLISHED",
     BUY_PACKAGE_FEE: "BUY_PACKAGE_FEE",
     CREATE_PACKAGE_FEE: "CREATE_PACKAGE_FEE",
+    FAVORITE_SCHOOL: "FAVORITE_SCHOOL",
 
     COUNSELLOR_ASSIGNED: "COUNSELLOR_ASSIGNED",
     CONSULTATION_BOOKED: "CONSULTATION_BOOKED",
@@ -19,6 +20,7 @@ const EVENT_ROLE_MATRIX = {
     [NOTIFICATION_EVENTS.ADMIN_POST_PUBLISHED]: [ROLES.SCHOOL, ROLES.PARENT],
     [NOTIFICATION_EVENTS.BUY_PACKAGE_FEE]: [ROLES.ADMIN],
     [NOTIFICATION_EVENTS.CREATE_PACKAGE_FEE]: [ROLES.SCHOOL],
+    [NOTIFICATION_EVENTS.FAVORITE_SCHOOL]: [ROLES.SCHOOL],
 
     [NOTIFICATION_EVENTS.COUNSELLOR_ASSIGNED]: [ROLES.PARENT, ROLES.COUNSELLOR],
     [NOTIFICATION_EVENTS.CONSULTATION_BOOKED]: [ROLES.PARENT, ROLES.COUNSELLOR, ROLES.SCHOOL],
@@ -34,6 +36,8 @@ export const normalizeNotificationEventType = (payload) => {
         USER_REGISTERED: NOTIFICATION_EVENTS.NEW_USER_REGISTERED,
         NEW_REGISTER: NOTIFICATION_EVENTS.NEW_USER_REGISTERED,
         PACKAGE_FEE_CREATED: NOTIFICATION_EVENTS.CREATE_PACKAGE_FEE,
+        FAVOURITE_SCHOOL: NOTIFICATION_EVENTS.FAVORITE_SCHOOL,
+        FAVORITE_SCHOOL: NOTIFICATION_EVENTS.FAVORITE_SCHOOL,
     };
     return aliasMap[raw] || raw;
 };
@@ -78,6 +82,10 @@ export const getNotificationMessage = (payload) => {
             body: packageName
                 ? `Gói ${packageName} đã sẵn sàng để đăng ký.`
                 : "Có gói dịch vụ mới vừa được phát hành.",
+        },
+        [NOTIFICATION_EVENTS.FAVORITE_SCHOOL]: {
+            title: actorName ? `${actorName} vừa quan tâm trường của bạn` : "Phụ huynh mới quan tâm trường",
+            body: "Có phụ huynh vừa thêm trường của bạn vào danh sách yêu thích.",
         },
 
 
