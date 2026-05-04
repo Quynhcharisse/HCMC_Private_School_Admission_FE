@@ -36,7 +36,6 @@ export const normalizeNotificationEventType = (payload) => {
         USER_REGISTERED: NOTIFICATION_EVENTS.NEW_USER_REGISTERED,
         NEW_REGISTER: NOTIFICATION_EVENTS.NEW_USER_REGISTERED,
         PACKAGE_FEE_CREATED: NOTIFICATION_EVENTS.CREATE_PACKAGE_FEE,
-        FAVOURITE_SCHOOL: NOTIFICATION_EVENTS.FAVORITE_SCHOOL,
         FAVORITE_SCHOOL: NOTIFICATION_EVENTS.FAVORITE_SCHOOL,
     };
     return aliasMap[raw] || raw;
@@ -56,6 +55,7 @@ export const getNotificationMessage = (payload) => {
     const body = payload?.notification?.body;
     if (title || body) return {title: title || "Thông báo", body: body || "Bạn có thông báo mới."};
     const actorName = String(payload?.data?.actorName || "").trim();
+    const parentName = String(payload?.data?.parentName || "").trim();
     const packageName = String(payload?.data?.packageName || "").trim();
 
     const fallbackByEvent = {
@@ -84,10 +84,9 @@ export const getNotificationMessage = (payload) => {
                 : "Có gói dịch vụ mới vừa được phát hành.",
         },
         [NOTIFICATION_EVENTS.FAVORITE_SCHOOL]: {
-            title: actorName ? `${actorName} vừa quan tâm trường của bạn` : "Phụ huynh mới quan tâm trường",
+            title: parentName ? `${parentName} vừa quan tâm trường của bạn` : "Phụ huynh mới quan tâm trường",
             body: "Có phụ huynh vừa thêm trường của bạn vào danh sách yêu thích.",
         },
-
 
 
         [NOTIFICATION_EVENTS.CONSULTATION_BOOKED]: {
