@@ -323,8 +323,6 @@ export default function ParentOfflineConsultationsPage() {
                   const showNote = hasText(row?.note);
                   const showSlot = slotParts != null;
                   const showContact = hasText(parentName) || showPhone;
-                  const rowNumericId = row?.id ?? row?.consultationId;
-                  const showIdBadge = rowNumericId != null && rowNumericId !== "";
 
                   return (
                     <Grid key={id} item xs={12} sm={6} sx={{ display: "flex", minWidth: 0 }}>
@@ -434,7 +432,7 @@ export default function ParentOfflineConsultationsPage() {
                               <Box sx={{ flex: 1, minWidth: 0 }}>
                                 {showContact ? (
                                   <Box sx={{ mb: showStudent ? 1.5 : 0 }}>
-                                    <Typography component="span" sx={softLabelSx}>
+                                    <Typography component="span" sx={{ ...softLabelSx, fontWeight: 800 }}>
                                       Thông tin liên hệ
                                     </Typography>
                                     {hasText(parentName) ? (
@@ -478,28 +476,6 @@ export default function ParentOfflineConsultationsPage() {
                                   </Box>
                                 ) : null}
                               </Box>
-                              {showIdBadge ? (
-                                <Box sx={{ textAlign: "right", flexShrink: 0 }}>
-                                  <Typography sx={{ fontSize: 12, color: "#94a3b8", fontWeight: 500 }}>
-                                    Mã lịch
-                                  </Typography>
-                                  <Typography
-                                    sx={{
-                                      fontSize: 22,
-                                      fontWeight: 800,
-                                      background: "linear-gradient(90deg, #7c3aed, #4f46e5)",
-                                      backgroundClip: "text",
-                                      WebkitBackgroundClip: "text",
-                                      WebkitTextFillColor: "transparent",
-                                      color: "#7c3aed",
-                                      lineHeight: 1.2,
-                                      mt: 0.25,
-                                    }}
-                                  >
-                                    #{rowNumericId}
-                                  </Typography>
-                                </Box>
-                              ) : null}
                             </Box>
                           ) : null}
 
@@ -513,7 +489,7 @@ export default function ParentOfflineConsultationsPage() {
                                   "linear-gradient(180deg, rgba(124, 58, 237, 0.06) 0%, rgba(99, 102, 241, 0.03) 100%)",
                               }}
                             >
-                              <Typography component="span" sx={{ ...softLabelSx, color: "#5b21b6", mb: 1 }}>
+                              <Typography component="span" sx={{ ...softLabelSx, color: "#5b21b6", mb: 1, fontWeight: 800 }}>
                                 Nội dung đăng ký
                               </Typography>
                               <Typography
