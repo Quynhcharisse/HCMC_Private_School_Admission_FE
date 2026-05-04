@@ -31,6 +31,29 @@ export const forwardSchoolVnpayCallback = async (queryString) => {
 };
 
 /**
+ * GET /api/v1/school/payment/receipt — chi tiết hóa đơn theo mã tham chiếu VNPay (txnRef).
+ */
+export const getSchoolPaymentReceipt = async (txnRef) => {
+    const ref = String(txnRef ?? "").trim();
+    const response = await axiosClient.get("/school/payment/receipt", {
+        params: { txnRef: ref },
+    });
+    return response;
+};
+
+/**
+ * GET /api/v1/school/subscription/receipt/export — tải file PDF hóa đơn.
+ */
+export const exportSchoolSubscriptionReceiptPdf = async (txnRef) => {
+    const ref = String(txnRef ?? "").trim();
+    const response = await axiosClient.get("/school/subscription/receipt/export", {
+        params: { txnRef: ref },
+        responseType: "blob",
+    });
+    return response;
+};
+
+/**
  * POST /api/v1/school/subscription/preview — xem trước chênh lệch khi nâng cấp/gia hạn gói.
  */
 export const previewSchoolSubscriptionChange = async ({ actionType, targetPackageId }) => {
