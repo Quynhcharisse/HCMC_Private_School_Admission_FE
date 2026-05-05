@@ -1425,6 +1425,62 @@ export default function AdminPlatformSettings() {
         admissionImportInputRef.current?.click();
     };
 
+    const getAdmissionImportRowTemplate = (type) => {
+        switch (String(type || "").trim()) {
+            case "ADMISSION_PROCESSES":
+                return {
+                    methodCode: "",
+                    stepName: "",
+                    stepOrder: "",
+                    description: "",
+                };
+            case "METHOD_DOCUMENTS":
+                return {
+                    methodCode: "",
+                    documentCode: "",
+                    documentName: "",
+                    required: "",
+                };
+            case "ALLOWED_METHODS":
+            default:
+                return {
+                    code: "",
+                    displayName: "",
+                    description: "",
+                };
+        }
+    };
+
+    const createAdmissionImportRow = (type) => ({
+        rowData: getAdmissionImportRowTemplate(type),
+        error: null,
+        errorText: "",
+        isError: false,
+    });
+
+    const getRequiredFieldsByImportType = (type) => {
+        switch (String(type || "").trim()) {
+            case "METHOD_DOCUMENTS":
+                return ["methodCode", "documentCode", "documentName"];
+            case "ADMISSION_PROCESSES":
+                return ["methodCode", "stepName"];
+            case "ALLOWED_METHODS":
+            default:
+                return ["code", "displayName"];
+        }
+    };
+
+    const isAdmissionImportRowComplete = (type, rowData) => {
+        if (!rowData || typeof rowData !== "object") return false;
+        const required = getRequiredFieldsByImportType(type);
+        return required.every((field) => String(rowData[field] ?? "").trim() !== "");
+    };
+
+    const handleAddAdmissionImportRow = () => {
+        setAdmissionImportRows((prev) => [...(Array.isArray(prev) ? prev : []), createAdmissionImportRow(importType)]);
+        setAdmissionImportPreviewOpen(true);
+    };
+
     const handleAdmissionTemplateImport = async (event) => {
         const file = event?.target?.files?.[0];
         if (!file) return;
@@ -1471,6 +1527,16 @@ export default function AdminPlatformSettings() {
             return next;
         });
         if (!rowPayload) return;
+        const shouldValidate = isAdmissionImportRowComplete(importType, rowPayload);
+        if (!shouldValidate) {
+            setAdmissionImportRows((prev) => {
+                const next = [...(Array.isArray(prev) ? prev : [])];
+                if (!next[rowIndex]) return prev;
+                next[rowIndex] = { ...next[rowIndex], error: null, errorText: "", isError: false };
+                return next;
+            });
+            return;
+        }
         const version = (rowValidationVersionRef.current[rowIndex] || 0) + 1;
         rowValidationVersionRef.current[rowIndex] = version;
         validateRowDebouncedRef.current?.({
@@ -1545,11 +1611,21 @@ export default function AdminPlatformSettings() {
         const rowDisabled = !admissionTemplateEditing || saving;
         const methods = admissionTemplateForm.allowedMethods || [];
         const preview = admissionImportPreview;
-        const docsByMethod = Array.isArray(preview?.documentRequirementsData?.byMethod)
-            ? preview.documentRequirementsData.byMethod
-            : [];
-        const processByMethod = Array.isArray(preview?.admissionProcesses) ? preview.admissionProcesses : [];
-        const processByMethodMap = processByMethod.reduce((acc, group) => {
+        const docsSource = admissionTemplateEditing
+            ? Array.isArray(admissionTemplateForm.methodDocumentRequirements)
+                ? admissionTemplateForm.methodDocumentRequirements
+                : []
+            : Array.isArray(preview?.documentRequirementsData?.byMethod)
+                ? preview.documentRequirementsData.byMethod
+                : [];
+        const processSource = admissionTemplateEditing
+            ? Array.isArray(admissionTemplateForm.methodAdmissionProcess)
+                ? admissionTemplateForm.methodAdmissionProcess
+                : []
+            : Array.isArray(preview?.admissionProcesses)
+                ? preview.admissionProcesses
+                : [];
+        const processByMethodMap = processSource.reduce((acc, group) => {
             const methodCode = String(group?.methodCode ?? "").trim();
             if (!methodCode) return acc;
             acc[methodCode] = Array.isArray(group?.steps)
@@ -1571,6 +1647,13 @@ export default function AdminPlatformSettings() {
             ? Object.keys(importRows.reduce((acc, row) => ({ ...acc, ...(row?.rowData || {}) }), {}))
             : [];
         const importDisplayColumns = importColumns.filter((key) => key !== "index");
+        const isBooleanImportColumn = (key) => ["required", "isRequired", "is_required", "optional"].includes(key);
+        const getImportColumnWidth = (key) => {
+            if (["code", "methodCode", "documentCode", "processCode", "stepOrder"].includes(key)) return 120;
+            if (isBooleanImportColumn(key)) return 80;
+            if (["description", "displayName", "documentName", "stepName", "processName", "title", "instructions", "remark", "note"].includes(key)) return 260;
+            return undefined;
+        };
         const admissionInputSx = {
             "& .MuiOutlinedInput-root": {
                 borderRadius: 1.75,
@@ -1604,20 +1687,19 @@ export default function AdminPlatformSettings() {
             px: 1,
             py: 0.9,
             borderRadius: 0.9,
-            borderBottom: "1px solid rgba(148, 163, 184, 0.2)",
+            borderBottom: "1px solid rgba(203, 213, 225, 0.4)",
             bgcolor: "transparent",
-            transition: "all 220ms ease",
+            transition: "background-color 220ms ease, transform 220ms ease",
             "&:hover": {
-                bgcolor: "#eff6ff",
+                bgcolor: "#f8fbff",
                 transform: "translateX(2px)",
             },
         };
         const previewSectionCardSx = {
             p: 1.5,
             borderRadius: 2,
-            border: "1px solid #dbe7fb",
-            bgcolor: "#ffffff",
-            boxShadow: "0 6px 16px rgba(15, 23, 42, 0.04)",
+            bgcolor: "#f7fbff",
+            boxShadow: "none",
         };
         const previewSectionTitleSx = {
             fontWeight: 800,
@@ -1627,7 +1709,6 @@ export default function AdminPlatformSettings() {
             py: 0.6,
             borderRadius: 1,
             bgcolor: "#eff6ff",
-            border: "1px solid #dbeafe",
             display: "block",
         };
 
@@ -1710,12 +1791,31 @@ export default function AdminPlatformSettings() {
                         onClose={() => setAdmissionImportPreviewOpen(false)}
                         fullWidth
                         maxWidth="lg"
-                        PaperProps={{ sx: { borderRadius: 3, border: "1px solid #dbeafe" } }}
+                        PaperProps={{ sx: { borderRadius: 3, border: "1px solid #dbeafe", overflow: "hidden" } }}
                     >
-                        <DialogTitle sx={{ fontWeight: 800, color: "#0f172a" }}>
+                        <DialogTitle
+                            sx={{
+                                fontWeight: 900,
+                                color: "#0f172a",
+                                background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 48%, #bfdbfe 100%)",
+                                borderBottom: "1px solid #dbeafe",
+                            }}
+                        >
                             Kiểm tra dữ liệu trước khi nhập — {IMPORT_TYPE_LABEL[importType]}
                         </DialogTitle>
-                        <DialogContent sx={{ pt: "8px !important" }}>
+                        <DialogContent sx={{ pt: 3.5, px: 3, pb: 3, bgcolor: "#f8fafc" }}>
+                            <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1, mb: 2, gap: 1, flexWrap: "wrap" }}>
+                                <Button
+                                    variant="outlined"
+                                    size="small"
+                                    startIcon={<AddIcon />}
+                                    disabled={saving || confirmingAdmissionImport}
+                                    onClick={handleAddAdmissionImportRow}
+                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                >
+                                    {importType === "ALLOWED_METHODS" ? "Thêm phương thức" : "Thêm hồ sơ"}
+                                </Button>
+                            </Box>
                             {importRows.length > 0 ? (
                                 <TableContainer
                                     sx={{
@@ -1728,13 +1828,17 @@ export default function AdminPlatformSettings() {
                                     <Table stickyHeader size="small">
                                         <TableHead>
                                             <TableRow>
-                                                <TableCell sx={{ fontWeight: 800 }}>STT</TableCell>
+                                                <TableCell sx={{ fontWeight: 800, width: 66, textAlign: "center" }}>STT</TableCell>
                                                 {importDisplayColumns.map((key) => (
-                                                    <TableCell key={`modal-col-${key}`} sx={{ fontWeight: 800 }}>
+                                                    <TableCell
+                                                        key={`modal-col-${key}`}
+                                                        sx={{ fontWeight: 800, width: getImportColumnWidth(key), textAlign: "center" }}
+                                                    >
                                                         {getAdmissionImportColumnLabel(key)}
                                                     </TableCell>
                                                 ))}
-                                                <TableCell sx={{ fontWeight: 800 }}>Trạng thái</TableCell>
+                                                <TableCell sx={{ fontWeight: 800, width: 110, textAlign: "center" }}>Trạng thái</TableCell>
+                                                <TableCell sx={{ fontWeight: 800, width: 72, textAlign: "center" }}>Xóa</TableCell>
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
@@ -1744,26 +1848,69 @@ export default function AdminPlatformSettings() {
                                                         <Chip label={rowIdx + 1} size="small" sx={adminSttChipSx} />
                                                     </TableCell>
                                                     {importDisplayColumns.map((key) => (
-                                                        <TableCell key={`modal-import-row-${rowIdx}-cell-${key}`}>
-                                                            <TextField
-                                                                fullWidth
-                                                                size="small"
-                                                                value={row?.rowData?.[key] ?? ""}
-                                                                onChange={(e) => handleImportCellChange(rowIdx, key, e.target.value)}
-                                                                error={Boolean(row?.isError)}
-                                                                inputProps={{
-                                                                    "aria-label": getAdmissionImportColumnLabel(key),
-                                                                }}
-                                                                sx={{ minWidth: 120 }}
-                                                            />
+                                                        <TableCell key={`modal-import-row-${rowIdx}-cell-${key}`} sx={{ width: getImportColumnWidth(key) }}>
+                                                            {isBooleanImportColumn(key) ? (
+                                                                <TextField
+                                                                    fullWidth
+                                                                    size="small"
+                                                                    select
+                                                                    value={String(row?.rowData?.[key] ?? "").trim()}
+                                                                    onChange={(e) => handleImportCellChange(rowIdx, key, e.target.value)}
+                                                                    error={Boolean(row?.isError)}
+                                                                    inputProps={{
+                                                                        "aria-label": getAdmissionImportColumnLabel(key),
+                                                                    }}
+                                                                    sx={{ minWidth: 80 }}
+                                                                >
+                                                                    <MenuItem value="">Chọn</MenuItem>
+                                                                    <MenuItem value="true">Có</MenuItem>
+                                                                    <MenuItem value="false">Không</MenuItem>
+                                                                </TextField>
+                                                            ) : (
+                                                                <TextField
+                                                                    fullWidth
+                                                                    size="small"
+                                                                    multiline={['description','displayName','documentName','stepName','processName','title','instructions','remark','note'].includes(key)}
+                                                                    minRows={['description','displayName','documentName','stepName','processName','title','instructions','remark','note'].includes(key) ? 2 : 1}
+                                                                    maxRows={4}
+                                                                    value={row?.rowData?.[key] ?? ""}
+                                                                    onChange={(e) => handleImportCellChange(rowIdx, key, e.target.value)}
+                                                                    error={Boolean(row?.isError)}
+                                                                    inputProps={{
+                                                                        "aria-label": getAdmissionImportColumnLabel(key),
+                                                                        title: String(row?.rowData?.[key] ?? ""),
+                                                                    }}
+                                                                    sx={{ minWidth: 120 }}
+                                                                />
+                                                            )}
                                                         </TableCell>
                                                     ))}
-                                                    <TableCell>
+                                                    <TableCell sx={{ width: 110, textAlign: "center" }}>
                                                         <Chip
                                                             size="small"
                                                             color={row?.isError ? "error" : "success"}
                                                             label={row?.isError ? (row?.errorText || "Lỗi dữ liệu") : "Hợp lệ"}
                                                         />
+                                                    </TableCell>
+                                                    <TableCell sx={{ width: 72, textAlign: "center" }}>
+                                                        <Tooltip title="Xóa dòng" placement="top">
+                                                            <span>
+                                                                <IconButton
+                                                                    size="small"
+                                                                    color="error"
+                                                                    disabled={saving || confirmingAdmissionImport}
+                                                                    onClick={() => {
+                                                                        setAdmissionImportRows((prev) => {
+                                                                            const next = [...(Array.isArray(prev) ? prev : [])];
+                                                                            next.splice(rowIdx, 1);
+                                                                            return next;
+                                                                        });
+                                                                    }}
+                                                                >
+                                                                    <DeleteOutlineIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </span>
+                                                        </Tooltip>
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -1776,7 +1923,7 @@ export default function AdminPlatformSettings() {
                                 </Typography>
                             )}
                         </DialogContent>
-                        <DialogActions sx={{ px: 2, pb: 2 }}>
+                        <DialogActions sx={{ px: 3, pb: 3, pt: 1, gap: 1 }}>
                             <Button variant="outlined" onClick={() => setAdmissionImportPreviewOpen(false)} sx={cancelButtonSx}>
                                 Đóng
                             </Button>
@@ -1851,15 +1998,12 @@ export default function AdminPlatformSettings() {
                                             gridTemplateColumns: { xs: "1fr", md: "0.9fr 1fr 1.5fr 52px" },
                                             gap: 1.25,
                                             p: 1.1,
-                                            borderRadius: 2.25,
-                                            border: "1px solid rgba(148, 163, 184, 0.24)",
-                                            bgcolor: "rgba(255,255,255,0.88)",
-                                            boxShadow: "0 4px 12px rgba(37, 99, 235, 0.08)",
-                                            transition: "all 0.2s ease",
+                                            borderRadius: 1.75,
+                                            border: "1px solid #e2e8f0",
+                                            bgcolor: "#ffffff",
+                                            transition: "border-color 0.2s ease, background-color 0.2s ease",
                                             "&:hover": {
-                                                borderColor: "rgba(59,130,246,0.45)",
-                                                boxShadow: "0 10px 20px rgba(37, 99, 235, 0.14)",
-                                                transform: "translateY(-1px)",
+                                                borderColor: "#c7d2fe",
                                             },
                                         }}
                                     >
@@ -1972,64 +2116,178 @@ export default function AdminPlatformSettings() {
                 {preview ? (
                     <Stack spacing={1.5} sx={{ width: "100%" }}>
                         <Box sx={previewSectionCardSx}>
-                            <Typography sx={previewSectionTitleSx}>Hồ sơ theo phương thức</Typography>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 1, alignItems: "center", mb: 1 }}>
+                                <Typography sx={previewSectionTitleSx}>Hồ sơ theo phương thức</Typography>
+                                {admissionTemplateEditing ? (
+                                    <Button
+                                        size="small"
+                                        variant="contained"
+                                        startIcon={<AddIcon fontSize="small" />}
+                                        onClick={() => {
+                                            setAdmissionTemplateForm((prev) => {
+                                                const nextGroups = Array.isArray(prev.methodDocumentRequirements)
+                                                    ? [...prev.methodDocumentRequirements]
+                                                    : [];
+                                                const targetIndex = nextGroups.length > 0 ? 0 : -1;
+                                                if (targetIndex < 0) {
+                                                    nextGroups.push({ methodCode: "", documents: [{ code: "", name: "", required: false }] });
+                                                } else {
+                                                    const currentGroup = { ...nextGroups[0] };
+                                                    currentGroup.documents = [
+                                                        ...(Array.isArray(currentGroup.documents) ? currentGroup.documents : []),
+                                                        { code: "", name: "", required: false },
+                                                    ];
+                                                    nextGroups[0] = currentGroup;
+                                                }
+                                                return { ...prev, methodDocumentRequirements: nextGroups };
+                                            });
+                                        }}
+                                        sx={{
+                                            textTransform: "none",
+                                            fontWeight: 700,
+                                            borderRadius: 2,
+                                            boxShadow: "none",
+                                            bgcolor: "#2563eb",
+                                            "&:hover": { bgcolor: "#1d4ed8" },
+                                        }}
+                                    >
+                                        Thêm hồ sơ
+                                    </Button>
+                                ) : null}
+                            </Box>
                             <Stack spacing={1.4}>
-                                {docsByMethod.length === 0 ? (
+                                {docsSource.length === 0 ? (
                                     <Typography variant="body2" sx={{ color: "#64748b" }}>Không có dữ liệu hồ sơ theo phương thức.</Typography>
                                 ) : (
-                                    docsByMethod.map((group, idx) => {
+                                    docsSource.map((group, idx) => {
                                         const methodCode = String(group?.methodCode ?? "").trim();
                                         const methodLabel = methodNameMap[methodCode] || methodCode || "Phương thức";
                                         const docs = Array.isArray(group?.documents) ? group.documents : [];
                                         const steps = processByMethodMap[methodCode] || [];
+                                        const canEdit = admissionTemplateEditing;
                                         return (
                                             <Box
                                                 key={`method-doc-group-${idx}`}
                                                 sx={{
                                                     p: 1.1,
                                                     borderRadius: 1.5,
-                                                    bgcolor: "#fcfdff",
-                                                    border: "1px solid #e2e8f0",
-                                                    transition: "all 220ms ease",
-                                                    boxShadow: "0 4px 10px rgba(15, 23, 42, 0.04)",
+                                                    bgcolor: "#ffffff",
+                                                    transition: "border-color 200ms ease, background-color 200ms ease",
+                                                    boxShadow: "none",
                                                     "&:hover": {
-                                                        borderColor: "#bfdbfe",
-                                                        boxShadow: "0 10px 18px rgba(37, 99, 235, 0.12)",
-                                                        transform: "translateY(-1px)",
+                                                        bgcolor: "#f7fbff",
                                                     },
                                                 }}
                                             >
-                                                <Typography
-                                                    sx={{
-                                                        fontWeight: 800,
-                                                        color: "#1f2937",
-                                                        mb: 0.9,
-                                                        px: 0.9,
-                                                        py: 0.4,
-                                                        borderRadius: 1,
-                                                        bgcolor: "#eef2ff",
-                                                        display: "inline-block",
-                                                        border: "1px solid #dbeafe",
-                                                    }}
-                                                >
-                                                    {methodLabel}
-                                                </Typography>
+                                                <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 1, mb: 1 }}>
+                                                    <Typography
+                                                        sx={{
+                                                            fontWeight: 800,
+                                                            color: "#0f172a",
+                                                            px: 0.9,
+                                                            py: 0.4,
+                                                            borderRadius: 1,
+                                                            display: "inline-block",
+                                                        }}
+                                                    >
+                                                        {`${idx + 1}. ${methodLabel}`}
+                                                    </Typography>
+                                                </Box>
                                                 <Box sx={previewHeaderRowSx}>
                                                     <Typography sx={{ fontWeight: 800, color: "#374151", fontSize: 13 }}>Tên hồ sơ</Typography>
                                                     <Typography sx={{ fontWeight: 800, color: "#374151", fontSize: 13, textAlign: "center" }}>Trạng thái</Typography>
                                                 </Box>
                                                 {docs.length === 0 ? (
                                                     <Typography variant="body2" sx={{ color: "#64748b" }}>Không có hồ sơ.</Typography>
+                                                ) : canEdit ? (
+                                                    <Stack spacing={0.8}>
+                                                        {docs.map((doc, dIdx) => (
+                                                            <Box
+                                                                key={`method-doc-${idx}-${dIdx}`}
+                                                                sx={{
+                                                                    display: "grid",
+                                                                    gridTemplateColumns: "1fr 120px 40px",
+                                                                    gap: 1,
+                                                                    alignItems: "center",
+                                                                    borderRadius: 1,
+                                                                    p: 0.75,
+                                                                    bgcolor: "#f8fbff",
+                                                                }}
+                                                            >
+                                                                <TextField
+                                                                    size="small"
+                                                                    fullWidth
+                                                                    value={doc?.name ?? ""}
+                                                                    onChange={(e) => {
+                                                                        const value = e.target.value;
+                                                                        setAdmissionTemplateForm((prev) => {
+                                                                            const nextGroups = [...(prev.methodDocumentRequirements || [])];
+                                                                            const currentGroup = { ...nextGroups[idx] };
+                                                                            currentGroup.documents = [...(Array.isArray(currentGroup.documents) ? currentGroup.documents : [])];
+                                                                            currentGroup.documents[dIdx] = { ...currentGroup.documents[dIdx], name: value };
+                                                                            nextGroups[idx] = currentGroup;
+                                                                            return { ...prev, methodDocumentRequirements: nextGroups };
+                                                                        });
+                                                                    }}
+                                                                    placeholder="Tên hồ sơ"
+                                                                    sx={{ minWidth: 0 }}
+                                                                />
+                                                                <TextField
+                                                                    size="small"
+                                                                    select
+                                                                    value={doc?.required === true ? "true" : doc?.required === false ? "false" : ""}
+                                                                    onChange={(e) => {
+                                                                        const value = e.target.value;
+                                                                        setAdmissionTemplateForm((prev) => {
+                                                                            const nextGroups = [...(prev.methodDocumentRequirements || [])];
+                                                                            const currentGroup = { ...nextGroups[idx] };
+                                                                            currentGroup.documents = [...(Array.isArray(currentGroup.documents) ? currentGroup.documents : [])];
+                                                                            currentGroup.documents[dIdx] = {
+                                                                                ...currentGroup.documents[dIdx],
+                                                                                required: value === "true" ? true : value === "false" ? false : null,
+                                                                            };
+                                                                            nextGroups[idx] = currentGroup;
+                                                                            return { ...prev, methodDocumentRequirements: nextGroups };
+                                                                        });
+                                                                    }}
+                                                                    sx={{ minWidth: 0 }}
+                                                                >
+                                                                    <MenuItem value="">Chọn</MenuItem>
+                                                                    <MenuItem value="true">Bắt buộc</MenuItem>
+                                                                    <MenuItem value="false">Tùy chọn</MenuItem>
+                                                                </TextField>
+                                                                <Tooltip title="Xóa hồ sơ" placement="top">
+                                                                    <span>
+                                                                        <IconButton
+                                                                            size="small"
+                                                                            color="error"
+                                                                            onClick={() => {
+                                                                                setAdmissionTemplateForm((prev) => {
+                                                                                    const nextGroups = [...(prev.methodDocumentRequirements || [])];
+                                                                                    const currentGroup = { ...nextGroups[idx] };
+                                                                                    currentGroup.documents = [...(Array.isArray(currentGroup.documents) ? currentGroup.documents : [])];
+                                                                                    currentGroup.documents.splice(dIdx, 1);
+                                                                                    nextGroups[idx] = currentGroup;
+                                                                                    return { ...prev, methodDocumentRequirements: nextGroups };
+                                                                                });
+                                                                            }}
+                                                                        >
+                                                                            <DeleteOutlineIcon fontSize="small" />
+                                                                        </IconButton>
+                                                                    </span>
+                                                                </Tooltip>
+                                                            </Box>
+                                                        ))}
+                                                    </Stack>
                                                 ) : (
                                                     <Stack spacing={0.8}>
                                                         {docs.map((doc, dIdx) => {
                                                             const isRequired = doc?.required === true;
                                                             return (
-                                                                <Box
-                                                                    key={`method-doc-${idx}-${dIdx}`}
-                                                                    sx={previewDataRowSx}
-                                                                >
-                                                                    <Typography variant="body2" sx={{ color: "#1e293b", fontWeight: 600 }}>{doc?.name || "-"}</Typography>
+                                                                <Box key={`method-doc-${idx}-${dIdx}`} sx={previewDataRowSx}>
+                                                                    <Typography variant="body2" sx={{ color: "#1e293b", fontWeight: 600 }}>
+                                                                        {doc?.name || "-"}
+                                                                    </Typography>
                                                                     <Chip
                                                                         size="small"
                                                                         label={isRequired ? "Bắt buộc" : "Tùy chọn"}
@@ -2053,15 +2311,144 @@ export default function AdminPlatformSettings() {
                                                         mt: 1.25,
                                                         p: 0.8,
                                                         borderRadius: 1.5,
-                                                        bgcolor: "#ffffff",
-                                                        border: "1px dashed #dbeafe",
+                                                        bgcolor: "#f8fbff",
+                                                        border: "1px dashed rgba(226, 232, 240, 0.8)",
                                                     }}
                                                 >
-                                                    <Typography sx={{ fontWeight: 800, color: "#1d4ed8", mb: 1, fontSize: 13.5 }}>
-                                                        Quy trình tuyển sinh
-                                                    </Typography>
+                                                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 1 }}>
+                                                        <Typography sx={{ fontWeight: 800, color: "#1d4ed8", fontSize: 13.5 }}>
+                                                            Quy trình tuyển sinh
+                                                        </Typography>
+                                                        {canEdit ? (
+                                                            <Button
+                                                                size="small"
+                                                                variant="contained"
+                                                                startIcon={<AddIcon fontSize="small" />}
+                                                                onClick={() => {
+                                                                    setAdmissionTemplateForm((prev) => {
+                                                                        const nextGroups = Array.isArray(prev.methodAdmissionProcess)
+                                                                            ? [...prev.methodAdmissionProcess]
+                                                                            : [];
+                                                                        const currentGroup = nextGroups[idx] || { methodCode, steps: [] };
+                                                                        currentGroup.steps = [
+                                                                            ...(Array.isArray(currentGroup.steps) ? currentGroup.steps : []),
+                                                                            { stepOrder: (currentGroup.steps?.length ?? 0) + 1, stepName: "", description: "" },
+                                                                        ];
+                                                                        nextGroups[idx] = currentGroup;
+                                                                        return { ...prev, methodAdmissionProcess: nextGroups };
+                                                                    });
+                                                                }}
+                                                                sx={{
+                                                                    textTransform: "none",
+                                                                    fontWeight: 700,
+                                                                    borderRadius: 2,
+                                                                    boxShadow: "none",
+                                                                    bgcolor: "#2563eb",
+                                                                    "&:hover": { bgcolor: "#1d4ed8" },
+                                                                }}
+                                                            >
+                                                                Thêm bước
+                                                            </Button>
+                                                        ) : null}
+                                                    </Box>
                                                     {steps.length === 0 ? (
                                                         <Typography variant="body2" sx={{ color: "#64748b" }}>Không có bước.</Typography>
+                                                    ) : canEdit ? (
+                                                        <Stack spacing={0.75}>
+                                                            {steps.map((step, sIdx) => {
+                                                                const stepNumber = step?.stepOrder ?? sIdx + 1;
+                                                                return (
+                                                                    <Box
+                                                                        key={`method-step-inline-${idx}-${sIdx}`}
+                                                                        sx={{
+                                                                            display: "grid",
+                                                                            gridTemplateColumns: "64px 1fr 1fr 40px",
+                                                                            gap: 1,
+                                                                            alignItems: "center",
+                                                                            borderRadius: 1,
+                                                                            p: 0.75,
+                                                                            border: "1px solid #e2e8f0",
+                                                                        }}
+                                                                    >
+                                                                        <TextField
+                                                                            size="small"
+                                                                            value={String(step?.stepOrder ?? stepNumber)}
+                                                                            onChange={(e) => {
+                                                                                const value = e.target.value;
+                                                                                setAdmissionTemplateForm((prev) => {
+                                                                                    const nextGroups = [...(prev.methodAdmissionProcess || [])];
+                                                                                    const currentGroup = { ...nextGroups[idx] };
+                                                                                    currentGroup.steps = [...(Array.isArray(currentGroup.steps) ? currentGroup.steps : [])];
+                                                                                    currentGroup.steps[sIdx] = {
+                                                                                        ...currentGroup.steps[sIdx],
+                                                                                        stepOrder: value === "" ? "" : Number(value),
+                                                                                    };
+                                                                                    nextGroups[idx] = currentGroup;
+                                                                                    return { ...prev, methodAdmissionProcess: nextGroups };
+                                                                                });
+                                                                            }}
+                                                                            sx={{ minWidth: 0 }}
+                                                                        />
+                                                                        <TextField
+                                                                            size="small"
+                                                                            fullWidth
+                                                                            value={step?.stepName ?? ""}
+                                                                            onChange={(e) => {
+                                                                                const value = e.target.value;
+                                                                                setAdmissionTemplateForm((prev) => {
+                                                                                    const nextGroups = [...(prev.methodAdmissionProcess || [])];
+                                                                                    const currentGroup = { ...nextGroups[idx] };
+                                                                                    currentGroup.steps = [...(Array.isArray(currentGroup.steps) ? currentGroup.steps : [])];
+                                                                                    currentGroup.steps[sIdx] = { ...currentGroup.steps[sIdx], stepName: value };
+                                                                                    nextGroups[idx] = currentGroup;
+                                                                                    return { ...prev, methodAdmissionProcess: nextGroups };
+                                                                                });
+                                                                            }}
+                                                                            sx={{ minWidth: 0 }}
+                                                                            placeholder="Tên bước"
+                                                                        />
+                                                                        <TextField
+                                                                            size="small"
+                                                                            fullWidth
+                                                                            value={step?.description ?? ""}
+                                                                            onChange={(e) => {
+                                                                                const value = e.target.value;
+                                                                                setAdmissionTemplateForm((prev) => {
+                                                                                    const nextGroups = [...(prev.methodAdmissionProcess || [])];
+                                                                                    const currentGroup = { ...nextGroups[idx] };
+                                                                                    currentGroup.steps = [...(Array.isArray(currentGroup.steps) ? currentGroup.steps : [])];
+                                                                                    currentGroup.steps[sIdx] = { ...currentGroup.steps[sIdx], description: value };
+                                                                                    nextGroups[idx] = currentGroup;
+                                                                                    return { ...prev, methodAdmissionProcess: nextGroups };
+                                                                                });
+                                                                            }}
+                                                                            sx={{ minWidth: 0 }}
+                                                                            placeholder="Mô tả"
+                                                                        />
+                                                                        <Tooltip title="Xóa bước" placement="top">
+                                                                            <span>
+                                                                                <IconButton
+                                                                                    size="small"
+                                                                                    color="error"
+                                                                                    onClick={() => {
+                                                                                        setAdmissionTemplateForm((prev) => {
+                                                                                            const nextGroups = [...(prev.methodAdmissionProcess || [])];
+                                                                                            const currentGroup = { ...nextGroups[idx] };
+                                                                                            currentGroup.steps = [...(Array.isArray(currentGroup.steps) ? currentGroup.steps : [])];
+                                                                                            currentGroup.steps.splice(sIdx, 1);
+                                                                                            nextGroups[idx] = currentGroup;
+                                                                                            return { ...prev, methodAdmissionProcess: nextGroups };
+                                                                                        });
+                                                                                    }}
+                                                                                >
+                                                                                    <DeleteOutlineIcon fontSize="small" />
+                                                                                </IconButton>
+                                                                            </span>
+                                                                        </Tooltip>
+                                                                    </Box>
+                                                                );
+                                                            })}
+                                                        </Stack>
                                                     ) : (
                                                         <Stack spacing={0.2}>
                                                             {steps.map((step, sIdx) => {
@@ -3549,17 +3936,27 @@ export default function AdminPlatformSettings() {
                     sx: {
                         borderRadius: 3,
                         border: "1px solid #dbeafe",
+                        overflow: "hidden",
                     },
                 }}
             >
-                <DialogTitle sx={{ fontWeight: 800, color: "#0f172a" }}>Xác nhận nhập dữ liệu</DialogTitle>
-                <DialogContent sx={{ pt: "8px !important" }}>
+                <DialogTitle
+                    sx={{
+                        fontWeight: 900,
+                        color: "#0f172a",
+                        background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 48%, #bfdbfe 100%)",
+                        borderBottom: "1px solid #dbeafe",
+                    }}
+                >
+                    Xác nhận nhập dữ liệu
+                </DialogTitle>
+                <DialogContent sx={{ pt: 2, px: 3, pb: 2, bgcolor: "#f8fafc" }}>
                     <Typography variant="body2" sx={{ color: "#334155" }}>
                         Bạn có chắc muốn nhập dữ liệu cho loại{" "}
                         <strong>{IMPORT_TYPE_LABEL[importType] || importType}</strong>?
                     </Typography>
                 </DialogContent>
-                <DialogActions sx={{ px: 2, pb: 2 }}>
+                <DialogActions sx={{ px: 3, pb: 3, pt: 1, gap: 1 }}>
                     <Button
                         variant="outlined"
                         disabled={confirmingAdmissionImport}
