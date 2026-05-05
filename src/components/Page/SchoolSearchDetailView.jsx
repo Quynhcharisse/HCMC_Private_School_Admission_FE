@@ -51,6 +51,7 @@ import {OPEN_PARENT_CHAT_EVENT} from "../../constants/parentChatEvents";
 import {showErrorSnackbar, showSuccessSnackbar, showWarningSnackbar} from "../ui/AppSnackbar.jsx";
 import {DEFAULT_SCHOOL_IMAGE} from "../../utils/schoolPublicMapper.js";
 import {getPublicSchoolCampaignTemplates} from "../../services/SchoolPublicService.jsx";
+import {getProfile} from "../../services/AccountService.jsx";
 import {
     bookParentOfflineConsultation,
     getParentConsultSlots,
@@ -240,6 +241,51 @@ function parseYmdLocal(ymd) {
 
 function normalizeConsultSlotTime(value) {
     return String(value || "").slice(0, 5);
+}
+
+function readCachedParentPhone() {
+    if (typeof window === "undefined") return "";
+    const storageKeys = ["user", "currentUser", "authUser", "profile"];
+    const phoneKeys = ["phone", "phoneNumber", "mobile", "phoneNo"];
+    for (const storageKey of storageKeys) {
+        try {
+            const raw = window.localStorage.getItem(storageKey);
+            if (!raw) continue;
+            const parsed = JSON.parse(raw);
+            const candidates = [parsed, parsed?.user, parsed?.profile];
+            for (const candidate of candidates) {
+                if (!candidate || typeof candidate !== "object") continue;
+                for (const phoneKey of phoneKeys) {
+                    const phone = String(candidate?.[phoneKey] ?? "").trim();
+                    if (phone) return phone;
+                }
+            }
+        } catch {
+            // Ignore malformed cache and continue checking other keys.
+        }
+    }
+    return "";
+}
+
+function pickParentPhoneFromProfileResponse(response) {
+    const rawBody = response?.data?.body ?? response?.body ?? null;
+    let body = rawBody;
+    if (typeof body === "string") {
+        try {
+            body = JSON.parse(body);
+        } catch {
+            body = null;
+        }
+    }
+    const phone = String(
+        body?.parent?.phone ??
+            body?.phone ??
+            body?.phoneNumber ??
+            body?.mobile ??
+            body?.phoneNo ??
+            ""
+    ).trim();
+    return phone;
 }
 
 function consultTimeToMinutes(value) {
@@ -2429,34 +2475,47 @@ export default function SchoolSearchDetailView({
                 showWarningSnackbar("Không lấy được thông tin cơ sở. Vui lòng chọn lại cơ sở.");
                 return;
             }
-            const cachedUser = (() => {
-                try {
-                    if (typeof window === "undefined") return null;
-                    const raw = window.localStorage.getItem("user");
-                    return raw ? JSON.parse(raw) : null;
-                } catch {
-                    return null;
-                }
-            })();
             setSelectedConsultBookingSlot({
                 appointmentDate: String(slot.date || "").slice(0, 10),
                 appointmentTime: normalizeConsultSlotTime(slot.startTime),
                 campusId
             });
-            setBookingPhone(
-                String(
-                    cachedUser?.phone ??
-                        cachedUser?.phoneNumber ??
-                        cachedUser?.mobile ??
-                        cachedUser?.phoneNo ??
-                        ""
-                ).trim()
-            );
+            setBookingPhone(readCachedParentPhone());
             setBookingQuestion("");
             setConsultBookingDialogOpen(true);
         },
         [isParent, campusListForDetail, campusDetailTabIndex, parentSlotsRaw]
     );
+    React.useEffect(() => {
+        if (!consultBookingDialogOpen) return;
+        setBookingPhone((prev) => {
+            if (String(prev || "").trim()) return prev;
+            return readCachedParentPhone();
+        });
+    }, [consultBookingDialogOpen]);
+    React.useEffect(() => {
+        if (!consultBookingDialogOpen) return;
+        let cancelled = false;
+        const cachedPhoneAtRequest = readCachedParentPhone();
+        (async () => {
+            try {
+                const profileRes = await getProfile();
+                if (cancelled) return;
+                const profilePhone = pickParentPhoneFromProfileResponse(profileRes);
+                if (!profilePhone) return;
+                setBookingPhone((prev) => {
+                    const prevTrimmed = String(prev || "").trim();
+                    if (!prevTrimmed || prevTrimmed === cachedPhoneAtRequest) return profilePhone;
+                    return prev;
+                });
+            } catch {
+                // Keep silent here; booking still works with manual input/cached phone.
+            }
+        })();
+        return () => {
+            cancelled = true;
+        };
+    }, [consultBookingDialogOpen]);
     const closeConsultBookingDialog = React.useCallback(() => {
         if (bookingSubmitting) return;
         setConsultBookingDialogOpen(false);

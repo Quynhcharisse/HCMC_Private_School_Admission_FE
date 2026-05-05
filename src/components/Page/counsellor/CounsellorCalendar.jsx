@@ -1,11 +1,34 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, alpha, Avatar, Box, Button, Card, CardContent, Chip, CircularProgress, Stack, Typography } from "@mui/material";
+import {
+  Alert,
+  alpha,
+  Avatar,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material";
 import CalendarMonthOutlinedIcon from "@mui/icons-material/CalendarMonthOutlined";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import TodayIcon from "@mui/icons-material/Today";
+import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import EventAvailableOutlinedIcon from "@mui/icons-material/EventAvailableOutlined";
+import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
+import StickyNote2OutlinedIcon from "@mui/icons-material/StickyNote2Outlined";
 import { enqueueSnackbar } from "notistack";
 import { getCounsellorCalendar, parseCounsellorCalendarBody } from "../../../services/CounsellorCalendarService.jsx";
+import { putCounsellorOfflineConsultation } from "../../../services/CounsellorOfflineConsultationService.jsx";
 import {
   counsellorGradientHeaderCardSx,
   counsellorInnerCardSx,
@@ -36,6 +59,143 @@ const STATUS_COLOR = {
   COMPLETED: "default",
   CANCELLED: "error",
 };
+
+const detailModalSx = {
+  pageBg: "#e8f4fc",
+  sectionBorder: "1px solid #b0cfe8",
+  sectionInnerBg: "rgba(255,255,255,0.72)",
+  labelColor: "#1565c0",
+  titleColor: "#0d47a1",
+  valueColor: "#1e293b",
+  fieldBorder: "1px solid #cfe8f8",
+  headerBar: "linear-gradient(180deg, #dceef9 0%, #c9e3f5 100%)",
+};
+
+const detailDialogPaperProps = {
+  elevation: 0,
+  sx: {
+    borderRadius: 2.5,
+    overflow: "hidden",
+    border: "1px solid #9ec9e8",
+    boxShadow: "0 20px 45px -12px rgba(13, 71, 161, 0.18)",
+  },
+};
+
+function hasOfflineAppointment(slot) {
+  const req = slot?.consultationOfflineRequest;
+  if (Array.isArray(req)) return req.length > 0;
+  return req != null;
+}
+
+function pickFirstOfflineAppointment(slot) {
+  const req = slot?.consultationOfflineRequest;
+  if (Array.isArray(req)) return req[0] || null;
+  return req || null;
+}
+
+function consultationStatusLabel(status) {
+  const s = String(status || "").toUpperCase();
+  if (s.includes("PENDING")) return "Chờ xử lý";
+  if (s.includes("CONFIRM")) return "Đã xác nhận";
+  if (s.includes("IN_PROGRESS") || s.includes("IN-PROGRESS")) return "Đang tư vấn";
+  if (s.includes("COMPLETE")) return "Hoàn tất";
+  if (s.includes("CANCEL")) return "Đã hủy";
+  return String(status || "—").replace(/^CONSULTATION_/i, "").replace(/_/g, " ").trim() || "—";
+}
+
+function consultationStatusChipSx(status) {
+  const s = String(status || "").toUpperCase();
+  if (s.includes("PENDING")) {
+    return {
+      bgcolor: "rgba(245,158,11,0.16)",
+      color: "#f59e0b",
+      border: "1px solid rgba(245,158,11,0.35)",
+      fontWeight: 700,
+    };
+  }
+  if (s.includes("CONFIRM")) {
+    return {
+      bgcolor: "rgba(250,204,21,0.18)", 
+      color: "#eab308",
+      border: "1px solid rgba(234,179,8,0.45)",
+      fontWeight: 700,
+    };
+  }
+  if (s.includes("IN_PROGRESS") || s.includes("IN-PROGRESS")) {
+    return {
+      bgcolor: "rgba(59,130,246,0.16)", 
+      color: "#2563eb",
+      border: "1px solid rgba(37,99,235,0.45)",
+      fontWeight: 700,
+    };
+  }
+  if (s.includes("COMPLETE")) {
+    return {
+      bgcolor: "rgba(22,163,74,0.16)", 
+      color: "#16a34a",
+      border: "1px solid rgba(22,163,74,0.35)",
+      fontWeight: 700,
+    };
+  }
+  if (s.includes("CANCEL")) {
+    return {
+      bgcolor: "rgba(239,68,68,0.16)",
+      color: "#ef4444",
+      border: "1px solid rgba(239,68,68,0.35)",
+      fontWeight: 700,
+    };
+  }
+  return {
+    bgcolor: "rgba(148,163,184,0.16)",
+    color: "#64748b",
+    border: "1px solid rgba(148,163,184,0.35)",
+    fontWeight: 700,
+  };
+}
+
+function consultationIsInProgress(status) {
+  const s = String(status || "").toUpperCase();
+  return s.includes("IN_PROGRESS") || s.includes("IN-PROGRESS");
+}
+
+function consultationIsDone(status) {
+  const s = String(status || "").toUpperCase();
+  return s.includes("COMPLETE") || s.includes("NO_SHOW") || s.includes("NO-SHOW") || s.includes("CANCEL");
+}
+
+function DetailSection({ title, icon, children }) {
+  return (
+    <Box
+      sx={{
+        border: detailModalSx.sectionBorder,
+        borderRadius: 2.5,
+        p: 2,
+        bgcolor: detailModalSx.sectionInnerBg,
+      }}
+    >
+      <Stack direction="row" alignItems="center" spacing={1.25} sx={{ mb: 1.5 }}>
+        <Box
+          sx={{
+            width: 40,
+            height: 40,
+            borderRadius: 1.5,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            bgcolor: "rgba(21, 101, 160, 0.12)",
+            color: detailModalSx.titleColor,
+          }}
+        >
+          {icon}
+        </Box>
+        <Typography sx={{ fontSize: 17, fontWeight: 800, color: detailModalSx.titleColor, letterSpacing: "-0.02em" }}>
+          {title}
+        </Typography>
+      </Stack>
+      {children}
+    </Box>
+  );
+}
 
 function slotLooksCompleted(status, statusLabel) {
   const s = String(status || "").toUpperCase();
@@ -129,7 +289,6 @@ const detectSessionKey = (startTime) => {
   return mins < 12 * 60 ? "MORNING" : "AFTERNOON";
 };
 
-/** Một hàng lưới = một khung giờ (start–end), gom mọi ngày trong tuần có slot trùng khung. */
 function slotWindowSortKey(startTime, endTime) {
   const sm = timeToMinutes(startTime);
   const em = timeToMinutes(endTime);
@@ -142,6 +301,10 @@ export default function CounsellorCalendar() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [calendarRows, setCalendarRows] = useState([]);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [appointmentFlowStep, setAppointmentFlowStep] = useState("initial");
+  const [completionNote, setCompletionNote] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
 
   const weekDays = useMemo(() => {
     const monday = startOfWeekMonday(anchorDate);
@@ -161,7 +324,6 @@ export default function CounsellorCalendar() {
     return `${formatDateVi(weekDays[0].date)} - ${formatDateVi(weekDays[6].date)}`;
   }, [weekDays]);
 
-  /** Các khung giờ duy nhất trong tuần, sắp theo thời gian — mỗi phần tử là một hàng lưới. */
   const uniqueSlotWindows = useMemo(() => {
     const byKey = new Map();
     calendarRows.forEach((slot) => {
@@ -185,7 +347,6 @@ export default function CounsellorCalendar() {
     return { morning, afternoon };
   }, [uniqueSlotWindows]);
 
-  /** Ô (ngày, start, end) → danh sách slot (có thể >1 nếu BE tách bản ghi). */
   const slotsByDayAndWindow = useMemo(() => {
     const map = new Map();
     calendarRows.forEach((slot) => {
@@ -221,6 +382,7 @@ export default function CounsellorCalendar() {
         const status = String(item?.status || "").toUpperCase();
         const key = `${date}|${startTime}|${endTime}|${status}`;
         if (!dedupMap.has(key)) {
+          const reqRaw = item?.consultationOfflineRequest;
           dedupMap.set(key, {
             date,
             dayOfWeek: String(item?.dayOfWeek || "").toUpperCase(),
@@ -228,6 +390,8 @@ export default function CounsellorCalendar() {
             endTime,
             status: status || "UPCOMING",
             statusLabel: item?.statusLabel || "Sắp diễn ra",
+            counsellorSlotId: item?.counsellorSlotId ?? item?.slotId ?? null,
+            consultationOfflineRequest: Array.isArray(reqRaw) ? reqRaw : reqRaw != null ? [reqRaw] : [],
           });
         }
       });
@@ -544,19 +708,62 @@ export default function CounsellorCalendar() {
                           <Box sx={{ minHeight: 22, width: "100%" }} aria-hidden />
                         ) : (
                           <Stack spacing={0.45} alignItems="center" sx={{ width: "100%", py: 0.15 }}>
-                            {slots.map((slot, slotIdx) => (
-                              <Chip
-                                key={`${cellKey}-${slotIdx}-${slot.status}`}
-                                label={slot.statusLabel || slot.status}
-                                color={
-                                  slotLooksCompleted(slot.status, slot.statusLabel)
-                                    ? undefined
-                                    : STATUS_COLOR[slot.status] || "default"
-                                }
-                                size="small"
-                                sx={calendarSlotChipSx(slot.status, slot.statusLabel)}
-                              />
-                            ))}
+                            {slots.map((slot, slotIdx) => {
+                              const hasOffline = hasOfflineAppointment(slot);
+                              const detail = hasOffline ? pickFirstOfflineAppointment(slot) : null;
+                              const offlineStatus = detail?.status;
+                              const label = hasOffline
+                                ? String(offlineStatus || "")
+                                        .toUpperCase()
+                                        .includes("CONFIRM")
+                                  ? "Có lịch hẹn"
+                                  : consultationStatusLabel(offlineStatus)
+                                : slot.statusLabel || slot.status;
+                              const baseSx = calendarSlotChipSx(slot.status, slot.statusLabel);
+                              const statusSx =
+                                hasOffline && String(offlineStatus || "").toUpperCase().includes("CONFIRM")
+                                  ? {
+                                      bgcolor: "rgba(192,132,252,0.16)",
+                                      color: "#7c3aed",
+                                      border: "1px solid rgba(124,58,237,0.45)",
+                                      fontWeight: 700,
+                                    }
+                                  : hasOffline
+                                  ? consultationStatusChipSx(offlineStatus)
+                                  : {};
+                              const color =
+                                !hasOffline && !slotLooksCompleted(slot.status, slot.statusLabel)
+                                  ? STATUS_COLOR[slot.status] || "default"
+                                  : undefined;
+                              return (
+                                <Chip
+                                  key={`${cellKey}-${slotIdx}-${slot.status}`}
+                                  label={label}
+                                  color={color}
+                                  size="small"
+                                  onClick={() => {
+                                    if (!hasOffline || !detail) return;
+                                    setSelectedAppointment({
+                                      ...detail,
+                                      slotDate: slot.date,
+                                      slotTime: `${slot.startTime} - ${slot.endTime}`,
+                                      counsellorSlotId: slot.counsellorSlotId,
+                                    });
+                                    setAppointmentFlowStep(consultationIsInProgress(detail?.status) ? "in_progress" : "initial");
+                                    setCompletionNote("");
+                                  }}
+                                  sx={{
+                                    ...baseSx,
+                                    ...statusSx,
+                                    ...(hasOffline
+                                      ? {
+                                          cursor: "pointer",
+                                        }
+                                      : null),
+                                  }}
+                                />
+                              );
+                            })}
                           </Stack>
                         )}
                       </Box>
@@ -647,6 +854,252 @@ export default function CounsellorCalendar() {
           </CardContent>
         </Card>
       </Box>
+      <Dialog
+        open={Boolean(selectedAppointment)}
+        onClose={() => {
+          if (actionLoading) return;
+          setSelectedAppointment(null);
+          setAppointmentFlowStep("initial");
+          setCompletionNote("");
+        }}
+        maxWidth="sm"
+        fullWidth
+        scroll="paper"
+        PaperProps={detailDialogPaperProps}
+      >
+        <DialogTitle sx={{ p: 0, bgcolor: "transparent" }}>
+          <Box
+            sx={{
+              px: 2.5,
+              py: 2,
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "space-between",
+              gap: 2,
+              background: detailModalSx.headerBar,
+              borderBottom: "1px solid #9ec9e8",
+            }}
+          >
+            <Stack direction="row" spacing={1.75} alignItems="flex-start" sx={{ minWidth: 0, flex: 1 }}>
+              <Box
+                sx={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 2,
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  bgcolor: "rgba(13, 71, 161, 0.1)",
+                  border: "1px solid rgba(13, 71, 161, 0.18)",
+                }}
+              >
+                <EventAvailableOutlinedIcon sx={{ fontSize: 24, color: detailModalSx.titleColor }} />
+              </Box>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ fontSize: { xs: 18, sm: 20 }, fontWeight: 800, color: detailModalSx.titleColor }}>
+                  Chi tiết cuộc hẹn
+                </Typography>
+                <Typography sx={{ mt: 0.5, fontSize: 13.5, fontWeight: 500, color: "#455a64" }}>
+                  Thông tin phụ huynh đăng ký lịch tư vấn
+                </Typography>
+              </Box>
+            </Stack>
+            <IconButton
+              size="small"
+              onClick={() => {
+                if (actionLoading) return;
+                setSelectedAppointment(null);
+                setAppointmentFlowStep("initial");
+                setCompletionNote("");
+              }}
+              aria-label="Đóng"
+              sx={{
+                color: detailModalSx.titleColor,
+                flexShrink: 0,
+                bgcolor: "rgba(255,255,255,0.65)",
+                border: "1px solid #b0cfe8",
+                "&:hover": { bgcolor: "#fff" },
+              }}
+            >
+              <CloseRoundedIcon fontSize="small" />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0, bgcolor: detailModalSx.pageBg }}>
+          {selectedAppointment ? (
+            <Box sx={{ px: { xs: 2.25, sm: 2.75 }, pt: { xs: 2, sm: 2.25 }, pb: 2.25 }}>
+              <Stack spacing={2}>
+                <DetailSection title="Thông tin phụ huynh" icon={<PersonOutlineOutlinedIcon sx={{ fontSize: 22 }} />}>
+                  <Stack spacing={1.1}>
+                    <Typography sx={{ fontSize: 14, fontWeight: 700, color: detailModalSx.labelColor }}>Họ và tên</Typography>
+                    <Typography sx={{ fontSize: 15, fontWeight: 600, color: detailModalSx.valueColor }}>
+                      {String(selectedAppointment.parentName || "—").trim() || "—"}
+                    </Typography>
+                    <Typography sx={{ fontSize: 14, fontWeight: 700, color: detailModalSx.labelColor }}>Số điện thoại</Typography>
+                    <Typography sx={{ fontSize: 15, fontWeight: 600, color: detailModalSx.valueColor }}>
+                      {String(selectedAppointment.phone || "—").trim() || "—"}
+                    </Typography>
+                  </Stack>
+                </DetailSection>
+                <DetailSection title="Nội dung tư vấn" icon={<StickyNote2OutlinedIcon sx={{ fontSize: 22 }} />}>
+                  <Stack spacing={1.1}>
+                    <Typography sx={{ fontSize: 14, fontWeight: 700, color: detailModalSx.labelColor }}>Câu hỏi</Typography>
+                    <Typography sx={{ fontSize: 15, fontWeight: 500, color: detailModalSx.valueColor, whiteSpace: "pre-wrap" }}>
+                      {String(selectedAppointment.question || "—").trim() || "—"}
+                    </Typography>
+                    <Typography sx={{ fontSize: 14, fontWeight: 700, color: detailModalSx.labelColor }}>Trạng thái</Typography>
+                    <Box>
+                      <Chip
+                        size="small"
+                        label={consultationStatusLabel(selectedAppointment.status)}
+                        sx={consultationStatusChipSx(selectedAppointment.status)}
+                      />
+                    </Box>
+                  </Stack>
+                </DetailSection>
+                {appointmentFlowStep === "complete_form" ? (
+                  <DetailSection title="Ghi chú buổi tư vấn" icon={<StickyNote2OutlinedIcon sx={{ fontSize: 22 }} />}>
+                    <Stack spacing={1.1}>
+                      <Typography sx={{ fontSize: 14, fontWeight: 700, color: detailModalSx.labelColor }}>Nội dung ghi chú</Typography>
+                      <TextField
+                        value={completionNote}
+                        onChange={(e) => setCompletionNote(e.target.value)}
+                        disabled={actionLoading}
+                        multiline
+                        minRows={3}
+                        placeholder="Nhập ghi chú sau buổi tư vấn..."
+                        fullWidth
+                        sx={{ "& .MuiOutlinedInput-root": { bgcolor: "#fff", borderRadius: 2 } }}
+                      />
+                    </Stack>
+                  </DetailSection>
+                ) : null}
+              </Stack>
+            </Box>
+          ) : null}
+        </DialogContent>
+        <DialogActions
+          sx={{
+            px: { xs: 2.25, sm: 2.75 },
+            py: 2,
+            bgcolor: "#f5fafd",
+            borderTop: "1px solid #b0cfe8",
+            justifyContent: "flex-end",
+          }}
+        >
+          {selectedAppointment ? (
+            (() => {
+              const isInProgress = consultationIsInProgress(selectedAppointment.status);
+              const isDone = consultationIsDone(selectedAppointment.status);
+              const callUpdateAction = async (action, noteValue = "") => {
+                const id = Number(selectedAppointment?.id);
+                const counsellorSlotId = Number(selectedAppointment?.counsellorSlotId);
+                const appointmentDate = String(selectedAppointment?.appointmentDate || selectedAppointment?.slotDate || "").slice(0, 10);
+                if (!Number.isFinite(id) || id <= 0 || !appointmentDate || !Number.isFinite(counsellorSlotId) || counsellorSlotId <= 0) {
+                  enqueueSnackbar("Thiếu dữ liệu cuộc hẹn để cập nhật trạng thái.", { variant: "warning" });
+                  return;
+                }
+                setActionLoading(true);
+                try {
+                  const res = await putCounsellorOfflineConsultation({
+                    id,
+                    appointmentDate,
+                    note: String(noteValue ?? ""),
+                    cancelReason: "",
+                    counsellorSlotId,
+                    action,
+                  });
+                  const msg = String(res?.data?.message || "").trim();
+                  enqueueSnackbar(msg || "Cập nhật lịch tư vấn thành công.", { variant: "success" });
+                  setSelectedAppointment(null);
+                  setAppointmentFlowStep("initial");
+                  setCompletionNote("");
+                  await loadCalendar();
+                } catch (e) {
+                  const msg =
+                    e?.response?.data?.message || e?.response?.data?.error || e?.message || "Không thể cập nhật lịch tư vấn.";
+                  enqueueSnackbar(String(msg), { variant: "error" });
+                } finally {
+                  setActionLoading(false);
+                }
+              };
+              if (isDone) return null;
+              if (!isInProgress) {
+                return (
+                  <>
+                    <Button
+                      variant="outlined"
+                      disabled={actionLoading}
+                      onClick={() => void callUpdateAction("no_show")}
+                      sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, px: 2.4, minWidth: 120 }}
+                    >
+                      Vắng mặt
+                    </Button>
+                    <Button
+                      variant="contained"
+                      disabled={actionLoading}
+                      onClick={() => void callUpdateAction("start")}
+                      sx={{
+                        textTransform: "none",
+                        fontWeight: 700,
+                        borderRadius: 2,
+                        px: 3,
+                        minWidth: 120,
+                        bgcolor: "#1565c0",
+                        boxShadow: "0 4px 14px rgba(21, 101, 160, 0.35)",
+                        "&:hover": { bgcolor: "#0d47a1", boxShadow: "0 6px 18px rgba(13, 71, 161, 0.38)" },
+                      }}
+                    >
+                      Bắt đầu
+                    </Button>
+                  </>
+                );
+              }
+              if (appointmentFlowStep !== "complete_form") {
+                return (
+                  <Button
+                    variant="contained"
+                    disabled={actionLoading}
+                    onClick={() => setAppointmentFlowStep("complete_form")}
+                    sx={{
+                      textTransform: "none",
+                      fontWeight: 700,
+                      borderRadius: 2,
+                      px: 3,
+                      minWidth: 120,
+                      bgcolor: "#1565c0",
+                      boxShadow: "0 4px 14px rgba(21, 101, 160, 0.35)",
+                      "&:hover": { bgcolor: "#0d47a1", boxShadow: "0 6px 18px rgba(13, 71, 161, 0.38)" },
+                    }}
+                  >
+                    Kết thúc
+                  </Button>
+                );
+              }
+              return (
+                <Button
+                  variant="contained"
+                  disabled={actionLoading}
+                  onClick={() => void callUpdateAction("end", completionNote)}
+                  sx={{
+                    textTransform: "none",
+                    fontWeight: 700,
+                    borderRadius: 2,
+                    px: 3,
+                    minWidth: 120,
+                    bgcolor: "#16a34a",
+                    boxShadow: "0 4px 14px rgba(22, 163, 74, 0.32)",
+                    "&:hover": { bgcolor: "#15803d", boxShadow: "0 6px 18px rgba(21, 128, 61, 0.36)" },
+                  }}
+                >
+                  Hoàn thành
+                </Button>
+              );
+            })()
+          ) : null}
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

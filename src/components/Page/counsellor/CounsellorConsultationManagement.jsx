@@ -1034,6 +1034,9 @@ export default function CounsellorConsultationManagement() {
     () => buildCounsellorQueryKey(editForm.appointmentDate, editForm.appointmentTime),
     [editForm.appointmentDate, editForm.appointmentTime]
   );
+  const canConfirmEditSlot = Boolean(
+    editCounsellorDraftKey && editCounsellorDraftKey !== editCounsellorQueryKey
+  );
 
   useEffect(() => {
     if (!editOpen || !editSlotWeekBounds?.startDate || !editSlotWeekBounds?.endDate) {
@@ -1212,9 +1215,9 @@ export default function CounsellorConsultationManagement() {
       enqueueSnackbar("Vui lòng chọn slot trên lịch trước khi xác nhận.", { variant: "warning" });
       return;
     }
+    if (draftKey === editCounsellorQueryKey) return;
     setEditUiAssignedCounsellor(null);
     setEditCounsellorQueryKey(draftKey);
-    setEditSlotBaselineKey(draftKey);
   };
 
   const handleSaveConsultation = async () => {
@@ -2037,7 +2040,7 @@ export default function CounsellorConsultationManagement() {
             <Button
               onClick={handleConfirmEdit}
               variant="contained"
-              disabled={editSaveLoading || !editCounsellorDraftKey || editCounsellorDraftKey === editSlotBaselineKey}
+              disabled={editSaveLoading || !canConfirmEditSlot}
               sx={{
                 textTransform: "none",
                 fontWeight: 700,
