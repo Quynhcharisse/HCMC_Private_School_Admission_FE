@@ -36,46 +36,42 @@ import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
 import LaunchOutlinedIcon from "@mui/icons-material/LaunchOutlined";
+import OpenInNewRoundedIcon from "@mui/icons-material/OpenInNewRounded";
+import { LineChart } from "@mui/x-charts";
 import { useSchool } from "../../../contexts/SchoolContext.jsx";
 import { getSchoolFavouriteParents, getParentStudentDetailById } from "../../../services/SchoolService.jsx";
+import { getCampusConsultationStats } from "../../../services/CampusConsultationStatsService.jsx";
 import { getApiErrorMessage } from "../../../utils/getApiErrorMessage.js";
 import { useNavigate } from "react-router-dom";
 
-const statCards = [
+const buildSummaryCards = (summary) => [
     {
         label: "Tổng số cơ sở",
-        value: 4,
-        trend: "+5% tuần này",
+        value: summary?.totalCampuses ?? "—",
+        sub: "Trong hệ thống trường",
         icon: <ApartmentIcon sx={{fontSize: 28}}/>,
         color: "#2563eb",
     },
     {
-        label: "Tổng số tư vấn viên",
-        value: 12,
-        trend: "+2% tuần này",
+        label: "Tổng tư vấn viên",
+        value: summary?.totalCounsellors ?? "—",
+        sub: "Đã được phân công",
         icon: <PeopleAltIcon sx={{fontSize: 28}}/>,
         color: "#0ea5e9",
     },
     {
-        label: "Chiến dịch đang hoạt động",
-        value: 2,
-        trend: "+1 chiến dịch mới",
-        icon: <CampaignIcon sx={{fontSize: 28}}/>,
+        label: "TVV đang hoạt động",
+        value: summary?.activeCounsellors ?? "—",
+        sub: "Đang nhận lịch tư vấn",
+        icon: <ChatBubbleOutlineIcon sx={{fontSize: 28}}/>,
         color: "#22c55e",
     },
     {
-        label: "Yêu cầu tư vấn",
-        value: 28,
-        trend: "+5 yêu cầu mới",
-        icon: <ChatBubbleOutlineIcon sx={{fontSize: 28}}/>,
-        color: "#f97316",
-    },
-    {
-        label: "Học sinh đã đăng ký",
-        value: 65,
-        trend: "+8% tuần này",
+        label: "Lịch tư vấn tháng này",
+        value: summary?.totalConsultationsInPeriod ?? "—",
+        sub: "Tổng lịch đặt trong tháng",
         icon: <SchoolIcon sx={{fontSize: 28}}/>,
-        color: "#2563eb",
+        color: "#f97316",
     },
 ];
 
@@ -142,6 +138,10 @@ export default function SchoolDashboard() {
     const navigate = useNavigate();
     const { isPrimaryBranch, loading: schoolCtxLoading } = useSchool();
 
+    const [summary, setSummary] = React.useState(null);
+    const [trend, setTrend] = React.useState([]);
+    const [loadingSummary, setLoadingSummary] = React.useState(false);
+
     const [parents, setParents] = React.useState([]);
     const [loadingParents, setLoadingParents] = React.useState(false);
     const [parentsError, setParentsError] = React.useState("");
@@ -151,6 +151,23 @@ export default function SchoolDashboard() {
     const [detailLoading, setDetailLoading] = React.useState(false);
     const [detailError, setDetailError] = React.useState("");
     const [studentDetail, setStudentDetail] = React.useState(null);
+
+    React.useEffect(() => {
+        let cancelled = false;
+        if (schoolCtxLoading) return undefined;
+        setLoadingSummary(true);
+        getCampusConsultationStats({ period: "THIS_MONTH" })
+            .then((res) => {
+                if (!cancelled) {
+                    const body = res?.data?.body || {};
+                    setSummary(body.schoolSummary || null);
+                    setTrend(Array.isArray(body.trend) ? body.trend : []);
+                }
+            })
+            .catch(() => { if (!cancelled) { setSummary(null); setTrend([]); } })
+            .finally(() => { if (!cancelled) setLoadingSummary(false); });
+        return () => { cancelled = true; };
+    }, [schoolCtxLoading]);
 
     React.useEffect(() => {
         let cancelled = false;
@@ -347,8 +364,8 @@ export default function SchoolDashboard() {
             </Card>
 
             <Grid container spacing={2.5}>
-                {statCards.map((card) => (
-                    <Grid key={card.label} item xs={12} sm={6} md={4} lg={2.4}>
+                {buildSummaryCards(summary).map((card) => (
+                    <Grid key={card.label} item xs={12} sm={6} md={3}>
                         <Card
                             elevation={0}
                             sx={{
@@ -386,7 +403,7 @@ export default function SchoolDashboard() {
                                                 letterSpacing: "-0.04em",
                                             }}
                                         >
-                                            {card.value}
+                                            {loadingSummary ? "..." : card.value}
                                         </Typography>
                                     </Box>
                                     <Box
@@ -405,9 +422,9 @@ export default function SchoolDashboard() {
                                     </Box>
                                 </Stack>
                                 <Stack direction="row" alignItems="center" spacing={1} sx={{mt: 1.5}}>
-                                    <TrendingUpIcon sx={{fontSize: 18, color: "#16a34a"}}/>
-                                    <Typography variant="caption" sx={{color: "#16a34a", fontWeight: 500}}>
-                                        {card.trend}
+                                    <TrendingUpIcon sx={{fontSize: 18, color: "#64748b"}}/>
+                                    <Typography variant="caption" sx={{color: "#64748b", fontWeight: 500}}>
+                                        {card.sub}
                                     </Typography>
                                 </Stack>
                             </CardContent>
@@ -490,52 +507,64 @@ export default function SchoolDashboard() {
                 <Grid item xs={12} md={6} lg={4}>
                     <Card
                         elevation={0}
+                        onClick={() => navigate("/school/consultation-stats")}
                         sx={{
                             borderRadius: 3,
                             border: "1px solid #e2e8f0",
                             bgcolor: "#ffffff",
+                            cursor: "pointer",
+                            transition: "transform 0.18s ease, box-shadow 0.18s ease",
+                            "&:hover": {
+                                transform: "translateY(-3px)",
+                                boxShadow: "0 16px 40px rgba(51,65,85,0.12)",
+                                borderColor: "#0D64DE",
+                            },
                         }}
                     >
-                        <CardContent sx={{p: 3}}>
-                            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-                                <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
-                                    Yêu cầu tư vấn theo thời gian
+                        <CardContent sx={{p: 3, pb: "12px !important"}}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={0.5}>
+                                <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b", fontSize: 15}}>
+                                    Lịch tư vấn tháng này
                                 </Typography>
-                                <IconButton size="small" sx={{color: "#64748b"}}>
-                                    <TimelineIcon fontSize="small"/>
-                                </IconButton>
+                                <Stack direction="row" alignItems="center" gap={0.5} sx={{color: "#0D64DE"}}>
+                                    <Typography variant="caption" sx={{fontWeight: 600}}>Xem chi tiết</Typography>
+                                    <OpenInNewRoundedIcon sx={{fontSize: 14}}/>
+                                </Stack>
                             </Stack>
-                            <Typography variant="body2" sx={{mb: 2, color: "#94a3b8"}}>
-                                Biểu đồ minh họa – sẽ thay bằng dữ liệu thực khi API sẵn sàng.
+                            <Typography variant="caption" sx={{color: "#94a3b8", display: "block", mb: 0.5}}>
+                                Tổng số lịch hẹn theo ngày trong tháng
                             </Typography>
-                            <Box
-                                sx={{
-                                    mt: 1,
-                                    height: 180,
-                                    borderRadius: 2,
-                                    bgcolor: "#f8fafc",
-                                    position: "relative",
-                                    overflow: "hidden",
-                                    px: 1,
-                                    display: "flex",
-                                    alignItems: "flex-end",
-                                    gap: 1,
-                                }}
-                            >
-                                {[30, 60, 45, 80, 55, 90, 70].map((h, idx) => (
-                                    <Box
-                                        key={idx}
-                                        sx={{
-                                            flex: 1,
-                                            borderRadius: 999,
-                                            bgcolor: "linear-gradient(180deg, #0D64DE, #7AA9EB)",
-                                            background: "linear-gradient(180deg, #0D64DE, #7AA9EB)",
-                                            height: `${h}%`,
-                                            opacity: 0.9,
-                                        }}
-                                    />
-                                ))}
-                            </Box>
+                            {loadingSummary ? (
+                                <Box sx={{height: 180, display: "flex", alignItems: "center", justifyContent: "center"}}>
+                                    <CircularProgress size={28} sx={{color: "#0D64DE"}}/>
+                                </Box>
+                            ) : trend.length > 0 ? (
+                                <LineChart
+                                    xAxis={[{
+                                        data: trend.map((t) => t.label),
+                                        scaleType: "point",
+                                        tickLabelStyle: {fontSize: 9},
+                                        tickMinStep: Math.ceil(trend.length / 8),
+                                    }]}
+                                    series={[{
+                                        data: trend.map((t) => Number(t.total ?? 0)),
+                                        label: "Tổng lịch",
+                                        color: "#0D64DE",
+                                        showMark: false,
+                                        area: true,
+                                    }]}
+                                    height={185}
+                                    margin={{ left: 32, right: 12, top: 10, bottom: 28 }}
+                                    sx={{
+                                        "& .MuiAreaElement-root": { fill: "url(#trendGrad)", opacity: 0.25 },
+                                        "& .MuiLineElement-root": { strokeWidth: 2 },
+                                    }}
+                                />
+                            ) : (
+                                <Box sx={{height: 180, display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "#f8fafc", borderRadius: 2}}>
+                                    <Typography variant="body2" color="text.secondary">Chưa có dữ liệu tháng này</Typography>
+                                </Box>
+                            )}
                         </CardContent>
                     </Card>
                 </Grid>
