@@ -709,8 +709,16 @@ function MainHeader() {
         const notificationPollTimer = window.setInterval(() => {
             refreshNotificationInboxForUser(userInfo).catch(() => {});
         }, 20000);
+        // Khi tab được focus lại (từ background), sync ngay lập tức thay vì chờ poll
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === "visible") {
+                refreshNotificationInboxForUser(userInfo).catch(() => {});
+            }
+        };
+        document.addEventListener("visibilitychange", handleVisibilityChange);
         return () => {
             window.clearInterval(notificationPollTimer);
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
             stopUnreadWatch?.();
             stopListWatch?.();
         };

@@ -45,6 +45,7 @@ const SchoolCampus = lazy(() => import("./components/Page/school/SchoolCampus.js
 const UserProfilePage = lazy(() => import("./components/Page/UserProfilePage.jsx"));
 const SchoolCounselors = lazy(() => import("./components/Page/school/SchoolCounselors.jsx"));
 const SchoolCounselorSchedule = lazy(() => import("./components/Page/school/SchoolCounselorSchedule.jsx"));
+const CampusConsultationStats = lazy(() => import("./components/Page/school/CampusConsultationStats.jsx"));
 const SchoolCampaigns = lazy(() => import("./components/Page/school/SchoolCampaigns.jsx"));
 const SchoolCampaignOfferings = lazy(() => import("./components/Page/school/SchoolCampaignOfferings.jsx"));
 const SchoolCampaignDetail = lazy(() => import("./components/Page/school/SchoolCampaignDetail.jsx"));
@@ -69,6 +70,7 @@ const CounsellorConsultationManagement = lazy(() =>
 const SchoolCurriculums = lazy(() => import("./components/Page/school/SchoolCurriculums.jsx"));
 const SchoolPrograms = lazy(() => import("./components/Page/school/SchoolPrograms.jsx"));
 const SchoolPurchasedPackages = lazy(() => import("./components/Page/school/SchoolPurchasedPackages.jsx"));
+const SchoolParentsInterestPage = lazy(() => import("./components/Page/school/SchoolParentsInterestPage.jsx"));
 const ParentProfile = lazy(() => import("./components/auth/ParentProfile.jsx"));
 const SavedSchoolsPage = lazy(() => import("./components/Page/SavedSchoolsPage.jsx"));
 const CompareSchoolsPage = lazy(() => import("./components/Page/CompareSchoolsPage.jsx"));
@@ -344,6 +346,22 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <SchoolDashboard/>
+                    </Suspense>
+                )
+            } ,
+            {
+                path: 'consultation-stats',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <CampusConsultationStats/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'parents-interest',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolParentsInterestPage/>
                     </Suspense>
                 )
             },

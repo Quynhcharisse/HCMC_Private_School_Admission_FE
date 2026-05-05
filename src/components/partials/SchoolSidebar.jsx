@@ -17,6 +17,7 @@ import {
     Typography,
 } from "@mui/material";
 import DashboardIcon from "@mui/icons-material/Dashboard";
+import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
 import ApartmentIcon from "@mui/icons-material/Apartment";
 import SupportAgentIcon from "@mui/icons-material/SupportAgent";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
@@ -28,6 +29,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import EventBusyOutlinedIcon from "@mui/icons-material/EventBusyOutlined";
+import BarChartRoundedIcon from "@mui/icons-material/BarChartRounded";
 import CorporateFareOutlinedIcon from "@mui/icons-material/CorporateFareOutlined";
 import CardMembershipIcon from "@mui/icons-material/CardMembership";
 import ContactSupportOutlinedIcon from "@mui/icons-material/ContactSupportOutlined";
@@ -244,6 +246,8 @@ const menuGroupsBase = [
         title: "TỔNG QUAN",
         items: [
             { text: "Bảng thống kê", icon: <DashboardIcon />, path: "/school/dashboard" },
+            { text: "Thống kê tư vấn", icon: <BarChartRoundedIcon />, path: "/school/consultation-stats" },
+            { text: "Phụ huynh quan tâm", icon: <PeopleAltIcon />, path: "/school/parents-interest" },
             { text: "Gói đã mua", icon: <CardMembershipIcon />, path: "/school/purchased-packages" },
         ],
     },
