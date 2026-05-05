@@ -1126,9 +1126,9 @@ export default function SchoolPrograms() {
         setDisableCurriculumSelection(shouldDisableCurriculum);
         setCurriculumSelectionWarning(
             isActiveProgram
-                ? "Chương trình đang hoạt động: không thể thay đổi Khung chương trình (Curriculum), học phí gốc và đơn vị học phí."
+                ? "Chương trình đang hoạt động: không thể thay đổi Khung chương trình, học phí gốc và đơn vị học phí."
                 : hasOfferingHistory
-                    ? "Chương trình đã có lịch sử tuyển sinh (offering). Không thể thay đổi Khung chương trình (Curriculum)."
+                    ? "Chương trình đã có lịch sử tuyển sinh. Không thể thay đổi Khung chương trình."
                     : ""
         );
         setSelectedCurriculum(null);
@@ -1600,7 +1600,7 @@ export default function SchoolPrograms() {
                 <CardContent sx={{p: 2.5}}>
                     <Stack direction={{xs: "column", md: "row"}} spacing={2} alignItems={{xs: "stretch", md: "center"}}>
                         <TextField
-                            placeholder="Tìm theo tên program hoặc khung chương trình..."
+                            placeholder="Tìm theo tên chương trình đào tạo"
                             value={search}
                             onChange={(e) => {
                                 setSearch(e.target.value);
@@ -1819,25 +1819,50 @@ export default function SchoolPrograms() {
                                                     >
                                                         <VisibilityIcon fontSize="small"/>
                                                     </IconButton>
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (!isPrimaryBranch) return;
-                                                            setCloneTargetProgram(row);
-                                                            setCloneConfirmOpen(true);
-                                                        }}
-                                                        sx={{
-                                                            color: "#64748b",
-                                                            "&:hover": {
-                                                                color: "#0D64DE",
-                                                                bgcolor: "rgba(13, 100, 222, 0.08)"
-                                                            },
-                                                        }}
-                                                        title="Nhân bản chương trình này"
-                                                    >
-                                                        <ContentCopyRoundedIcon fontSize="small"/>
-                                                    </IconButton>
+                                                    {normalizeStatus(row.status) !== "PRO_ACTIVE" ? (
+                                                        <Tooltip title="Công bố chương trình" arrow>
+                                                            <IconButton
+                                                                size="small"
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setActionTargetProgram(row);
+                                                                    setActionType("ACTIVATE");
+                                                                    setActionConfirmOpen(true);
+                                                                }}
+                                                                sx={{
+                                                                    color: "#64748b",
+                                                                    "&:hover": {
+                                                                        color: "#0D64DE",
+                                                                        bgcolor: "rgba(13, 100, 222, 0.08)"
+                                                                    },
+                                                                }}
+                                                                title="Công bố"
+                                                            >
+                                                                <FileUploadOutlinedIcon fontSize="small"/>
+                                                            </IconButton>
+                                                        </Tooltip>
+                                                    ) : null}
+                                                    {normalizeStatus(row.status) === "PRO_ACTIVE" ? (
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (!isPrimaryBranch) return;
+                                                                setCloneTargetProgram(row);
+                                                                setCloneConfirmOpen(true);
+                                                            }}
+                                                            sx={{
+                                                                color: "#64748b",
+                                                                "&:hover": {
+                                                                    color: "#0D64DE",
+                                                                    bgcolor: "rgba(13, 100, 222, 0.08)"
+                                                                },
+                                                            }}
+                                                            title="Nhân bản chương trình này"
+                                                        >
+                                                            <ContentCopyRoundedIcon fontSize="small"/>
+                                                        </IconButton>
+                                                    ) : null}
                                                     <IconButton
                                                         size="small"
                                                         onClick={(e) => {
@@ -2090,8 +2115,8 @@ export default function SchoolPrograms() {
                                         }}
                                     >
                                         {programViewDetailTab === 0
-                                            ? "Thông tin đào tạo & trạng thái của program."
-                                            : "Chi tiết khung chương trình gắn với program (đọc)."}
+                                            ? "Thông tin đào tạo & trạng thái của chương trình đào tạo."
+                                            : "Chi tiết khung chương trình gắn với chương trình đào tạo (đọc)."}
                                     </Typography>
                                 </Box>
 
@@ -2120,57 +2145,6 @@ export default function SchoolPrograms() {
                                                         {selectedProgram.applicationYear || "—"} {toCurriculumTypeLabel(selectedProgram.curriculumType)}
                                                     </Typography>
                                                 </Box>
-                                                {isPrimaryBranch ? (
-                                                    <Stack
-                                                        direction="row"
-                                                        spacing={1}
-                                                        justifyContent={{xs: "flex-start", sm: "flex-end"}}
-                                                        sx={{flexShrink: 0, pt: {xs: 0, sm: 0.25}}}
-                                                    >
-                                                        {normalizeStatus(selectedProgram.status) === "PRO_ACTIVE" ? (
-                                                            <Button
-                                                                variant="contained"
-                                                                startIcon={<PowerSettingsNewRoundedIcon
-                                                                    fontSize="small"/>}
-                                                                onClick={() => {
-                                                                    setActionTargetProgram(selectedProgram);
-                                                                    setActionType("DEACTIVATE");
-                                                                    setActionConfirmOpen(true);
-                                                                }}
-                                                                disabled={actionLoading}
-                                                                sx={{
-                                                                    textTransform: "none",
-                                                                    fontWeight: 900,
-                                                                    borderRadius: 2,
-                                                                    bgcolor: "#fb923c",
-                                                                    "&:hover": {bgcolor: "#f97316"},
-                                                                }}
-                                                            >
-                                                                Tạm dừng
-                                                            </Button>
-                                                        ) : (
-                                                            <Button
-                                                                variant="contained"
-                                                                startIcon={<CheckCircleOutlineIcon fontSize="small"/>}
-                                                                onClick={() => {
-                                                                    setActionTargetProgram(selectedProgram);
-                                                                    setActionType("ACTIVATE");
-                                                                    setActionConfirmOpen(true);
-                                                                }}
-                                                                disabled={actionLoading}
-                                                                sx={{
-                                                                    textTransform: "none",
-                                                                    fontWeight: 900,
-                                                                    borderRadius: 2,
-                                                                    bgcolor: "#22c55e",
-                                                                    "&:hover": {bgcolor: "#16a34a"},
-                                                                }}
-                                                            >
-                                                                Công bố
-                                                            </Button>
-                                                        )}
-                                                    </Stack>
-                                                ) : null}
                                             </Stack>
 
                                             <Divider/>
@@ -2182,7 +2156,7 @@ export default function SchoolPrograms() {
                                                     mb: 0.6,
                                                     fontWeight: 900
                                                 }}>
-                                                    Tên program
+                                                    Tên chương trình đào tạo
                                                 </Typography>
                                                 <Typography sx={{fontWeight: 900, color: "#1e293b"}}>
                                                     {safeString(formValues.name).trim() || "—"}
@@ -2300,7 +2274,7 @@ export default function SchoolPrograms() {
                             ) : null}
                             <Stepper activeStep={activeStep} sx={{pt: 1.5, pb: 1.8}}>
                                 <Step>
-                                    <StepLabel>Chọn Curriculum</StepLabel>
+                                    <StepLabel>Chọn khung chương trình</StepLabel>
                                 </Step>
                                 <Step>
                                     <StepLabel>Nhập thông tin</StepLabel>
@@ -2314,7 +2288,7 @@ export default function SchoolPrograms() {
                                 {activeStep === 0 && (
                                     <>
                                         <Typography variant="subtitle1" sx={{fontWeight: 900, color: "#1e293b"}}>
-                                            Bước 1: Chọn khung chương trình (Curriculum)
+                                            Bước 1: Chọn khung chương trình
                                         </Typography>
 
                                         {curriculumSelectionWarning ? (
@@ -2486,7 +2460,7 @@ export default function SchoolPrograms() {
                                 {activeStep === 1 && (
                                     <>
                                         <Typography variant="subtitle1" sx={{fontWeight: 900, color: "#1e293b"}}>
-                                            Bước 2: Nhập thông tin Program
+                                            Bước 2: Nhập thông tin chương trình đào tạo
                                         </Typography>
 
                                         {curriculumSelectionWarning && (
@@ -2494,7 +2468,7 @@ export default function SchoolPrograms() {
                                         )}
 
                                         <TextField
-                                            label="Tên program"
+                                            label="Tên chương trình đào tạo"
                                             fullWidth
                                             required
                                             value={formValues.name}
@@ -2506,7 +2480,7 @@ export default function SchoolPrograms() {
                                             inputProps={{maxLength: MAX_PROGRAM_NAME_LEN}}
                                             error={!!formErrors.name}
                                             helperText={
-                                                formErrors.name || `Tên hiển thị của program. Tối đa ${MAX_PROGRAM_NAME_LEN} ký tự.`
+                                                formErrors.name || `Tên hiển thị của chương trình đào tạo. Tối đa ${MAX_PROGRAM_NAME_LEN} ký tự.`
                                             }
                                         />
 
@@ -2770,7 +2744,7 @@ export default function SchoolPrograms() {
                                                                     <SchoolIcon sx={{fontSize: 22}}/>
                                                                     <Box component="span"
                                                                          sx={{display: {xs: "none", sm: "inline"}}}>
-                                                                        Thông tin Program
+                                                                        Thông tin chương trình đào tạo
                                                                     </Box>
                                                                     <Box component="span" sx={{
                                                                         display: {xs: "inline", sm: "none"},
@@ -2824,7 +2798,7 @@ export default function SchoolPrograms() {
                                                     }}
                                                 >
                                                     {programWizardReviewTab === 0
-                                                        ? "Xem lại thông tin program trước khi gửi yêu cầu."
+                                                        ? "Xem lại thông tin chương trình đào tạo trước khi gửi yêu cầu."
                                                         : "Chi tiết khung chương trình đã chọn (đọc)."}
                                                 </Typography>
                                             </Box>
@@ -2839,7 +2813,7 @@ export default function SchoolPrograms() {
                                                                 mb: 0.6,
                                                                 fontWeight: 900
                                                             }}>
-                                                                Curriculum
+                                                                Khung chương trình
                                                             </Typography>
                                                             <Typography sx={{fontWeight: 900, color: "#1e293b"}}>
                                                                 {curriculumPreview?.subTypeName || selectedCurriculum?.subTypeName || "—"}
@@ -2859,7 +2833,7 @@ export default function SchoolPrograms() {
                                                                 mb: 0.6,
                                                                 fontWeight: 900
                                                             }}>
-                                                                Tên program
+                                                                Tên chương trình đào tạo
                                                             </Typography>
                                                             <Typography sx={{fontWeight: 900, color: "#1e293b"}}>
                                                                 {safeString(formValues.name).trim() || "—"}
@@ -2971,17 +2945,7 @@ export default function SchoolPrograms() {
                 <DialogActions sx={{px: 3, py: 2.2, borderTop: "1px solid #e2e8f0", gap: 1}}>
                     {modalMode === "view" ? (
                         <>
-                            <Button
-                                onClick={handleCloseProgramModal}
-                                variant="text"
-                                color="inherit"
-                                sx={{textTransform: "none", fontWeight: 800}}
-                                disabled={cloneLoading || actionLoading}
-                            >
-                                Quay lại
-                            </Button>
-
-                            {isPrimaryBranch ? (
+                            {isPrimaryBranch && normalizeStatus(selectedProgram?.status) === "PRO_ACTIVE" ? (
                                 <Button
                                     variant="outlined"
                                     startIcon={<ContentCopyRoundedIcon fontSize="small"/>}
@@ -2998,7 +2962,7 @@ export default function SchoolPrograms() {
 
                             {isPrimaryBranch ? (
                                 <Button
-                                    variant="contained"
+                                    variant="outlined"
                                     onClick={() => selectedProgram && handleOpenEdit(selectedProgram)}
                                     disabled={cloneLoading || actionLoading || !selectedProgram}
                                     sx={{
@@ -3006,11 +2970,35 @@ export default function SchoolPrograms() {
                                         fontWeight: 950,
                                         borderRadius: 2,
                                         px: 3,
-                                        background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                                     }}
                                 >
                                     Chỉnh sửa
                                 </Button>
+                            ) : null}
+                            {isPrimaryBranch && normalizeStatus(selectedProgram?.status) !== "PRO_ACTIVE" ? (
+                                <Tooltip title="Công bố chương trình" arrow>
+                                    <span>
+                                        <Button
+                                            variant="contained"
+                                            startIcon={<FileUploadOutlinedIcon fontSize="small"/>}
+                                            onClick={() => {
+                                                setActionTargetProgram(selectedProgram);
+                                                setActionType("ACTIVATE");
+                                                setActionConfirmOpen(true);
+                                            }}
+                                            disabled={cloneLoading || actionLoading || !selectedProgram}
+                                            sx={{
+                                                textTransform: "none",
+                                                fontWeight: 950,
+                                                borderRadius: 2,
+                                                px: 3,
+                                                background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
+                                            }}
+                                        >
+                                            Công bố
+                                        </Button>
+                                    </span>
+                                </Tooltip>
                             ) : null}
                         </>
                     ) : (

@@ -34,6 +34,7 @@ import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import EditIcon from "@mui/icons-material/Edit";
+import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import CloseIcon from "@mui/icons-material/Close";
 import DownloadIcon from "@mui/icons-material/Download";
@@ -44,6 +45,7 @@ import {
     getCampaignTemplatesByYear,
     createCampaignTemplate,
     exportAdmissionCampaignList,
+    updateCampaignTemplateStatus,
 } from "../../../services/CampaignService.jsx";
 import {
     getSchoolConfigByKey,
@@ -51,6 +53,7 @@ import {
     SCHOOL_CONFIG_KEY,
 } from "../../../services/SchoolFacilityService.jsx";
 import CreatePostRichTextEditor from "../../ui/CreatePostRichTextEditor.jsx";
+import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 
 const modalPaperSx = {
     borderRadius: "16px",
@@ -321,6 +324,9 @@ export default function SchoolCampaigns() {
     const rowsPerPage = 10;
     const [exporting, setExporting] = useState(false);
     const [exportYear, setExportYear] = useState(CURRENT_YEAR);
+    const [publishLoading, setPublishLoading] = useState(false);
+    const [confirmPublishOpen, setConfirmPublishOpen] = useState(false);
+    const [publishTargetCampaign, setPublishTargetCampaign] = useState(null);
 
     useEffect(() => {
         setExportYear(campaignTab === CAMPAIGN_TAB_CURRENT ? CURRENT_YEAR : CURRENT_YEAR - 1);
@@ -768,6 +774,35 @@ export default function SchoolCampaigns() {
             enqueueSnackbar("Xuất file Excel thất bại.", {variant: "error"});
         } finally {
             setExporting(false);
+        }
+    };
+
+    const openPublishConfirm = (campaign) => {
+        if (!campaign?.id || publishLoading) return;
+        if (String(campaign.status || "").toUpperCase() === "OPEN") return;
+        setPublishTargetCampaign(campaign);
+        setConfirmPublishOpen(true);
+    };
+
+    const handlePublishCampaign = async () => {
+        if (!publishTargetCampaign?.id || publishLoading) return;
+        setPublishLoading(true);
+        try {
+            await updateCampaignTemplateStatus(publishTargetCampaign.id);
+            setCampaigns((prev) =>
+                prev.map((item) =>
+                    Number(item.id) === Number(publishTargetCampaign.id)
+                        ? { ...item, status: "OPEN" }
+                        : item
+                )
+            );
+            setConfirmPublishOpen(false);
+            setPublishTargetCampaign(null);
+            enqueueSnackbar("Công bố chiến dịch thành công.", { variant: "success" });
+        } catch {
+            enqueueSnackbar("Công bố chiến dịch thất bại.", { variant: "error" });
+        } finally {
+            setPublishLoading(false);
         }
     };
 
@@ -1234,6 +1269,25 @@ export default function SchoolCampaigns() {
                                                             <VisibilityIcon fontSize="small" />
                                                         </IconButton>
                                                         {!isPastYearView && (
+                                                            !["OPEN", "CANCELLED"].includes(String(row.status || "").toUpperCase()) ? (
+                                                                <IconButton
+                                                                    size="small"
+                                                                    onClick={() => openPublishConfirm(row)}
+                                                                    title="Công bố"
+                                                                    aria-label="Công bố"
+                                                                    sx={{
+                                                                        color: "#64748b",
+                                                                        "&:hover": {
+                                                                            color: "#0D64DE",
+                                                                            bgcolor: "rgba(13, 100, 222, 0.08)",
+                                                                        },
+                                                                    }}
+                                                                >
+                                                                    <FileUploadOutlinedIcon fontSize="small" />
+                                                                </IconButton>
+                                                            ) : null
+                                                        )}
+                                                        {!isPastYearView && (
                                                             <IconButton
                                                                 size="small"
                                                                 onClick={() => handleOpenEdit(row)}
@@ -1559,6 +1613,50 @@ export default function SchoolCampaigns() {
                         }}
                     >
                         {submitLoading ? "Đang tạo…" : "Lưu"}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
+            <Dialog
+                open={confirmPublishOpen}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    if (!publishLoading) {
+                        setConfirmPublishOpen(false);
+                        setPublishTargetCampaign(null);
+                    }
+                }}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{ sx: { borderRadius: "16px" } }}
+            >
+                <DialogContent>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Công bố chiến dịch?
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                        Bạn có chắc chắn muốn <ConfirmHighlight>công bố chiến dịch này</ConfirmHighlight>? Sau khi công bố sẽ{" "}
+                        <ConfirmHighlight>không thể chỉnh sửa thông tin cơ bản</ConfirmHighlight>.
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2 }}>
+                    <Button
+                        onClick={() => {
+                            setConfirmPublishOpen(false);
+                            setPublishTargetCampaign(null);
+                        }}
+                        disabled={publishLoading}
+                        sx={{ textTransform: "none" }}
+                    >
+                        Hủy
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={handlePublishCampaign}
+                        disabled={publishLoading}
+                        sx={{ textTransform: "none", fontWeight: 600, bgcolor: "#0D64DE", borderRadius: "12px" }}
+                    >
+                        {publishLoading ? "Đang công bố..." : "Công bố"}
                     </Button>
                 </DialogActions>
             </Dialog>

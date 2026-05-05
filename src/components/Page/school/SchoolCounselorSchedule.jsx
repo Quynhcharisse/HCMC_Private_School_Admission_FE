@@ -3116,8 +3116,8 @@ export default function SchoolCounselorSchedule() {
                         <EditOutlinedIcon fontSize="small" sx={{color: "#475569"}}/>
                     </ListItemIcon>
                     <ListItemText
-                        primary="Sửa khung giờ (template)"
-                        secondary="Khác API gán tư vấn viên"
+                        primary="Sửa khung giờ"
+                        // secondary="Khác API gán tư vấn viên"
                         primaryTypographyProps={{fontWeight: 600, fontSize: "0.875rem"}}
                         secondaryTypographyProps={{variant: "caption", sx: {color: "#94A3B8"}}}
                     />
