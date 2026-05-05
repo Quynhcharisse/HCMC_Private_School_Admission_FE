@@ -488,6 +488,7 @@ export default function SchoolCurriculums() {
     const [nationalLanguageSelections, setNationalLanguageSelections] = useState([]);
     const [nationalTemplateLoading, setNationalTemplateLoading] = useState(false);
     const [internationalImportLoading, setInternationalImportLoading] = useState(false);
+    const [internationalImportConfirmOpen, setInternationalImportConfirmOpen] = useState(false);
     const internationalFileInputRef = useRef(null);
 
     const applicationYearOptions = useMemo(() => {
@@ -1390,6 +1391,15 @@ export default function SchoolCurriculums() {
     };
 
     const openInternationalImportFileDialog = () => {
+        setInternationalImportConfirmOpen(true);
+    };
+
+    const closeInternationalImportConfirm = () => {
+        setInternationalImportConfirmOpen(false);
+    };
+
+    const continueInternationalImport = () => {
+        setInternationalImportConfirmOpen(false);
         internationalFileInputRef.current?.click();
     };
 
@@ -1480,7 +1490,7 @@ export default function SchoolCurriculums() {
                                 "&:hover": { bgcolor: "white", boxShadow: "0 6px 20px rgba(0,0,0,0.2)" },
                             }}
                         >
-                            Tạo chương trình
+                            Tạo khung chương trình
                         </Button>
                     )}
                 </Box>
@@ -1499,7 +1509,7 @@ export default function SchoolCurriculums() {
                 <CardContent sx={{ p: 2.5 }}>
                     <Stack direction={{ xs: "column", md: "row" }} spacing={2} alignItems={{ xs: "stretch", md: "center" }}>
                         <TextField
-                            placeholder="Tìm theo tên chương trình..."
+                            placeholder="Tìm theo tên khung chương trình..."
                             value={search}
                             onChange={(e) => {
                                 setSearch(e.target.value);
@@ -1599,7 +1609,7 @@ export default function SchoolCurriculums() {
                     <Table>
                         <TableHead>
                             <TableRow sx={{ bgcolor: "#f1f5f9" }}>
-                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Tên chương trình</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Tên khung chương trình</TableCell>
                                 <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Loại chương trình</TableCell>
                                 <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Năm áp dụng</TableCell>
                                 <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Số chương trình</TableCell>
@@ -1633,14 +1643,14 @@ export default function SchoolCurriculums() {
                                         <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5 }}>
                                             <SchoolIcon sx={{ fontSize: 56, color: "#cbd5e1" }} />
                                             <Typography variant="h6" sx={{ color: "#64748b", fontWeight: 700 }}>
-                                                Chưa có chương trình
+                                                Chưa có khung chương trình
                                             </Typography>
                                             <Typography variant="body2" sx={{ color: "#94a3b8", maxWidth: 420 }}>
                                                 {filteredCurriculums.length === 0 && curriculums.length > 0
                                                     ? "Không có kết quả phù hợp với tìm kiếm hoặc bộ lọc."
                                                     : curriculums.length === 0 && isPrimaryBranch
-                                                      ? "Chưa có chương trình nào. Hãy tạo chương trình đầu tiên để bắt đầu."
-                                                      : "Chưa có chương trình nào."}
+                                                      ? "Chưa có khung chương trình nào. Hãy tạo khung chương trình đầu tiên để bắt đầu."
+                                                      : "Chưa có khung chương trình nào."}
                                             </Typography>
                                             {curriculums.length === 0 && isPrimaryBranch && (
                                                 <Button
@@ -1655,7 +1665,7 @@ export default function SchoolCurriculums() {
                                                         background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
                                                     }}
                                                 >
-                                                    Tạo chương trình
+                                                    Tạo khung chương trình
                                                 </Button>
                                             )}
                                         </Box>
@@ -1789,8 +1799,7 @@ export default function SchoolCurriculums() {
                                                             </span>
                                                         </Tooltip>
                                                     )}
-                                                    {(normalizeStatus(row.curriculumStatus) === "CUR_DRAFT" ||
-                                                        normalizeStatus(row.curriculumStatus) === "CUR_ACTIVE") && (
+                                                    {normalizeStatus(row.curriculumStatus) === "CUR_ACTIVE" && (
                                                         <Tooltip
                                                             title={
                                                                 row.programCount > 0
@@ -1999,7 +2008,7 @@ export default function SchoolCurriculums() {
                     {viewCurriculum && (() => {
                         return (
                             <Typography sx={{ fontWeight: 900, color: "#1e293b", fontSize: 22, lineHeight: 1.2 }}>
-                                Chi tiết chương trình
+                                Chi tiết khung chương trình
                             </Typography>
                         );
                     })()}
@@ -2386,9 +2395,22 @@ export default function SchoolCurriculums() {
                             {evolveLoading ? "Đang tạo nháp…" : "Phiên bản mới (Revise)"}
                         </Button>
                     )}
-                    {isPrimaryBranch &&
-                        (normalizeStatus(viewCurriculum?.curriculumStatus) === "CUR_DRAFT" ||
-                            normalizeStatus(viewCurriculum?.curriculumStatus) === "CUR_ACTIVE") && (
+                    {isPrimaryBranch && normalizeStatus(viewCurriculum?.curriculumStatus) === "CUR_DRAFT" && (
+                        <Button
+                            onClick={() => {
+                                setViewModalOpen(false);
+                                setConfirmPublishOpen(false);
+                                setPublishPendingCurriculum(null);
+                                handleEditClick(viewCurriculum);
+                            }}
+                            variant="outlined"
+                            disabled={publishLoading || archiveLoading || evolveLoading}
+                            sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                        >
+                            Chỉnh sửa
+                        </Button>
+                    )}
+                    {isPrimaryBranch && normalizeStatus(viewCurriculum?.curriculumStatus) === "CUR_ACTIVE" && (
                         <Tooltip
                             title={
                                 Number(viewCurriculum?.programCount || 0) > 0
@@ -2575,6 +2597,46 @@ export default function SchoolCurriculums() {
                 </DialogActions>
             </Dialog>
 
+            <Dialog
+                open={internationalImportConfirmOpen}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    closeInternationalImportConfirm();
+                }}
+                maxWidth="xs"
+                fullWidth
+                PaperProps={{ sx: { borderRadius: 3 } }}
+            >
+                <DialogTitle sx={{ fontWeight: 700 }}>Chú ý trước khi import</DialogTitle>
+                <DialogContent>
+                    <Typography variant="body2" sx={{ color: "#475569", lineHeight: 1.65 }}>
+                        Vì import file sẽ ghi đè dữ liệu môn học hiện tại bằng dữ liệu mới từ file Excel. Bạn có muốn tiếp tục không?
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ px: 3, py: 2, gap: 1 }}>
+                    <Button
+                        onClick={closeInternationalImportConfirm}
+                        disabled={internationalImportLoading}
+                        sx={{ textTransform: "none" }}
+                    >
+                        Hủy
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={continueInternationalImport}
+                        disabled={internationalImportLoading}
+                        sx={{
+                            textTransform: "none",
+                            fontWeight: 700,
+                            borderRadius: 2,
+                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
+                        }}
+                    >
+                        Tiếp tục
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
             {/* Create Curriculum Dialog */}
             <Dialog
                 open={createModalOpen}
@@ -2600,7 +2662,7 @@ export default function SchoolCurriculums() {
                         gap: 2,
                     }}
                 >
-                    Tạo chương trình
+                    Tạo khung chương trình
                     <IconButton
                         aria-label="Đóng"
                         onClick={handleCloseCreate}
@@ -2625,7 +2687,7 @@ export default function SchoolCurriculums() {
                         ) : null}
 
                         <TextField
-                            label="Tên phân loại"
+                            label="Tên khung chương trình"
                             name="subTypeName"
                             fullWidth
                             value={formValues.subTypeName}
@@ -2742,6 +2804,19 @@ export default function SchoolCurriculums() {
                                                             <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800 }}>
                                                                 Môn {idx + 1}
                                                             </Typography>
+                                                            {formValues.curriculumType === "INTERNATIONAL" ? (
+                                                                <IconButton
+                                                                    size="small"
+                                                                    onClick={() => handleDeleteSubject(idx)}
+                                                                    sx={{
+                                                                        color: "#64748b",
+                                                                        "&:hover": { color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)" },
+                                                                    }}
+                                                                    title="Xóa"
+                                                                >
+                                                                    <DeleteOutlineIcon fontSize="small" />
+                                                                </IconButton>
+                                                            ) : null}
                                                         </Stack>
 
                                                         <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 1 }}>
@@ -2930,7 +3005,7 @@ export default function SchoolCurriculums() {
                         gap: 2,
                     }}
                 >
-                    Chỉnh sửa chương trình
+                    Chỉnh sửa khung chương trình
                     <IconButton
                         aria-label="Đóng"
                         onClick={handleCloseEdit}
@@ -2955,7 +3030,7 @@ export default function SchoolCurriculums() {
                         ) : null}
 
                         <TextField
-                            label="Tên phân loại"
+                            label="Tên khung chương trình"
                             name="subTypeName"
                             fullWidth
                             value={formValues.subTypeName}
@@ -3069,6 +3144,19 @@ export default function SchoolCurriculums() {
                                                     <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800 }}>
                                                         Môn {idx + 1}
                                                     </Typography>
+                                                    {formValues.curriculumType === "INTERNATIONAL" ? (
+                                                        <IconButton
+                                                            size="small"
+                                                            onClick={() => handleDeleteSubject(idx)}
+                                                            sx={{
+                                                                color: "#64748b",
+                                                                "&:hover": { color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)" },
+                                                            }}
+                                                            title="Xóa"
+                                                        >
+                                                            <DeleteOutlineIcon fontSize="small" />
+                                                        </IconButton>
+                                                    ) : null}
                                                 </Stack>
 
                                                 <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 1 }}>
