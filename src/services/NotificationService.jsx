@@ -110,6 +110,7 @@ export const resolveNotificationRoute = ({eventType, data = {}, role}) => {
         case NOTIFICATION_EVENTS.CREATE_PACKAGE_FEE:
             return role === "SCHOOL" ? "/package-fees" : "/admin/package-fees";
         case NOTIFICATION_EVENTS.FAVORITE_SCHOOL:
+        case NOTIFICATION_EVENTS.REMOVE_FAVORITE_SCHOOL:
             return "/school/parents-interest";
 
         case NOTIFICATION_EVENTS.COUNSELLOR_ASSIGNED:
@@ -117,8 +118,14 @@ export const resolveNotificationRoute = ({eventType, data = {}, role}) => {
             if (role === "COUNSELLOR") return "/counsellor/parent-consultation";
             if (role === "SCHOOL") return "/school/counselor-schedule";
             return "/home";
+        case NOTIFICATION_EVENTS.COUNSELLOR_SLOT_ASSIGNED:
+        case NOTIFICATION_EVENTS.COUNSELLOR_SLOT_UNASSIGNED:
+            return "/counsellor/calendar";
         case NOTIFICATION_EVENTS.CONSULTATION_BOOKED:
+        case NOTIFICATION_EVENTS.CONSULTATION_CONFIRMED:
         case NOTIFICATION_EVENTS.CONSULTATION_CANCELLED:
+        case NOTIFICATION_EVENTS.CONSULTATION_COMPLETED:
+        case NOTIFICATION_EVENTS.CONSULTATION_NO_SHOW:
             if (role === "PARENT") return "/parent/offline-consultations";
             if (role === "COUNSELLOR") return "/counsellor/parent-consultation";
             if (role === "SCHOOL") return "/school/counselor-schedule";
