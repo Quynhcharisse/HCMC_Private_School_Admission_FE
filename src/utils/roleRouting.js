@@ -9,7 +9,7 @@ export const getRoleDashboardRoute = (role) => {
         case 'SCHOOL':
             return '/school/dashboard';
         case 'COUNSELLOR':
-            return '/counsellor/dashboard';
+            return '/counsellor/calendar';
         case 'PARENT':
             return '/home';
         default:
@@ -59,6 +59,7 @@ export const isRouteAllowedForRole = (path, role) => {
             '/schools',
             '/posts',
             '/parent/profile',
+            '/parent/offline-consultations',
             '/children-info',
             '/saved-schools',
             '/compare-schools',

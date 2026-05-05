@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Avatar,
     Box,
@@ -61,12 +61,14 @@ import {
 } from "../../../constants/adminDialogStyles.js";
 import {
     adminDataCardBorderSx,
+    adminSttChipSx,
     adminTableBodyRowSx,
     adminTableContainerSx,
     adminTableHeadCellSx,
     adminTableHeadRowSx,
 } from "../../../constants/adminTableStyles.js";
 import { deactiveAdminPackageFee, getAdminPackageFees, publishAdminPackageFee, upsertAdminPackageFee } from "../../../services/AdminService.jsx";
+import { getSystemConfig } from "../../../services/SystemConfigService.jsx";
 
 const defaultForm = {
     packageId: null,
@@ -161,10 +163,16 @@ function parsePricingAmount(value) {
     return Number.isFinite(parsed) ? parsed : null;
 }
 
+const FEATURE_CONTRIBUTION_LABEL_VI = {
+    aiAssistantFee: "Phí trợ lý AI",
+    premiumSupportFee: "Phí hỗ trợ ưu tiên",
+    aiChatbotMonthlyFee: "Phí Chatbot AI (tháng)",
+};
+
 function featureContributionLabelVi(key) {
     const k = String(key || "").trim();
-    if (k === "aiAssistantFee") return "Phí trợ lý AI";
-    return k || "Phí tính năng";
+    if (FEATURE_CONTRIBUTION_LABEL_VI[k]) return FEATURE_CONTRIBUTION_LABEL_VI[k];
+    return "Phí tính năng";
 }
 
 function mapPackageFromApi(item) {
@@ -563,6 +571,81 @@ function PackageFeaturesDetailGrid({ features }) {
     );
 }
 
+function asConfigRecord(raw) {
+    if (raw == null) return {};
+    if (typeof raw === "string") {
+        const t = raw.trim();
+        if (!t) return {};
+        try {
+            const parsed = JSON.parse(t);
+            return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+        } catch {
+            return {};
+        }
+    }
+    if (typeof raw === "object" && !Array.isArray(raw)) return raw;
+    return {};
+}
+
+function extractPlatformPackageQuotasFromConfig(cfg) {
+    if (!cfg || typeof cfg !== "object") return {};
+    const businessData = asConfigRecord(cfg.businessData);
+    const business = asConfigRecord(cfg.business);
+    const spBiz = asConfigRecord(business.subscriptionPricing);
+    const spData = asConfigRecord(businessData.subscriptionPricing);
+    return {
+        ...(typeof spBiz.packageQuotas === "object" && spBiz.packageQuotas ? spBiz.packageQuotas : {}),
+        ...(typeof spData.packageQuotas === "object" && spData.packageQuotas ? spData.packageQuotas : {}),
+    };
+}
+
+function hasUsablePackageQuotas(quotas) {
+    if (!quotas || typeof quotas !== "object") return false;
+    return Object.keys(quotas).some((k) => {
+        const v = quotas[k];
+        if (v == null || v === "") return false;
+        const n = Number(v);
+        return Number.isFinite(n);
+    });
+}
+
+function quotasToPackageFormFields(packageType, quotas) {
+    const t = String(packageType || "").toUpperCase();
+    let mc;
+    let pl;
+    let durationDays;
+    if (t === "TRIAL") {
+        mc = quotas.trialCounsellor;
+        pl = quotas.trialPostLimit;
+        const rawD = quotas.durationDays;
+        if (rawD != null && rawD !== "" && Number.isFinite(Number(rawD))) {
+            const di = Math.trunc(Number(rawD));
+            durationDays = di >= 1 ? String(di) : "";
+        } else {
+            durationDays = "";
+        }
+    } else if (t === "STANDARD") {
+        mc = quotas.standardCounsellor;
+        pl = quotas.standardPostLimit;
+        durationDays = undefined;
+    } else if (t === "ENTERPRISE") {
+        mc = quotas.enterpriseCounsellor;
+        pl = quotas.enterprisePostLimit;
+        durationDays = undefined;
+    } else {
+        return { maxCounsellors: "", postLimit: "", durationDays: undefined };
+    }
+    const maxCounsellors =
+        mc != null && mc !== "" && Number.isFinite(Number(mc)) ? String(Math.trunc(Number(mc))) : "";
+    let postLimit = "";
+    if (pl != null && pl !== "") {
+        const pn = Number(pl);
+        if (pn === -1) postLimit = "-1";
+        else if (Number.isFinite(pn)) postLimit = String(Math.trunc(pn));
+    }
+    return { maxCounsellors, postLimit, durationDays };
+}
+
 function buildPayload(form, isEdit) {
     const normalizedParentPostPermission = PARENT_POST_PERMISSIONS.includes(form.parentPostPermission)
         ? form.parentPostPermission
@@ -570,7 +653,7 @@ function buildPayload(form, isEdit) {
     const normalizedPackageType = PACKAGE_TYPES.includes(form.packageType) ? form.packageType : "STANDARD";
     const isTrial = normalizedPackageType === "TRIAL";
     const normalizedSupportLevel = SUPPORT_LEVELS.includes(form.supportLevel) ? form.supportLevel : "STANDARD_SUPPORT";
-    const supportLevel = isTrial && normalizedSupportLevel === "PREMIUM_SUPPORT" ? "STANDARD_SUPPORT" : normalizedSupportLevel;
+    const supportLevel = isTrial ? "BASIC_SUPPORT" : normalizedSupportLevel;
     const body = {
         name: String(form.name).trim(),
         packageType: normalizedPackageType,
@@ -609,6 +692,8 @@ export default function AdminPackageFeeManagement() {
     const [submitting, setSubmitting] = useState(false);
     const [submitAttempted, setSubmitAttempted] = useState(false);
     const [form, setForm] = useState(defaultForm);
+    const platformPackageQuotasRef = useRef(null);
+    const [platformQuotasForFormLoaded, setPlatformQuotasForFormLoaded] = useState(false);
     const [pricePreview, setPricePreview] = useState({
         packageId: null,
         status: "DRAFT",
@@ -624,6 +709,13 @@ export default function AdminPackageFeeManagement() {
 
     const isEdit = form.packageId != null;
     const isTrialPackage = form.packageType === "TRIAL";
+    const lockAutoQuotaCounsellorPost = platformQuotasForFormLoaded;
+    const trialPlatformDurationRaw = Number(platformPackageQuotasRef.current?.durationDays);
+    const lockAutoTrialDurationDays =
+        platformQuotasForFormLoaded &&
+        isTrialPackage &&
+        Number.isFinite(trialPlatformDurationRaw) &&
+        Math.trunc(trialPlatformDurationRaw) >= 1;
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -658,6 +750,8 @@ export default function AdminPackageFeeManagement() {
     }, [items]);
 
     const openCreateDialog = () => {
+        platformPackageQuotasRef.current = null;
+        setPlatformQuotasForFormLoaded(false);
         setForm(defaultForm);
         setSubmitAttempted(false);
         setPricePreview({
@@ -673,6 +767,37 @@ export default function AdminPackageFeeManagement() {
             featureContributions: {},
         });
         setDialogOpen(true);
+        getSystemConfig()
+            .then((res) => {
+                const body = res?.data?.body ?? res?.data?.data ?? res?.data;
+                const quotas = extractPlatformPackageQuotasFromConfig(body);
+                platformPackageQuotasRef.current = quotas;
+                setPlatformQuotasForFormLoaded(hasUsablePackageQuotas(quotas));
+                setForm((prev) => {
+                    if (prev.packageId != null) return prev;
+                    const patch = quotasToPackageFormFields(prev.packageType, quotas);
+                    const stillBlankLimits =
+                        (prev.maxCounsellors === "" || prev.maxCounsellors == null) &&
+                        (prev.postLimit === "" || prev.postLimit == null);
+                    const stillBlankTrialDuration =
+                        prev.packageType === "TRIAL" &&
+                        (prev.durationDays === "" || prev.durationDays == null);
+                    if (!stillBlankLimits && !stillBlankTrialDuration) return prev;
+                    const next = { ...prev };
+                    if (stillBlankLimits) {
+                        next.maxCounsellors = patch.maxCounsellors;
+                        next.postLimit = patch.postLimit;
+                    }
+                    if (stillBlankTrialDuration && patch.durationDays !== undefined) {
+                        next.durationDays = patch.durationDays;
+                    }
+                    return next;
+                });
+            })
+            .catch((e) => {
+                console.error("getSystemConfig for package quotas failed", e);
+                setPlatformQuotasForFormLoaded(false);
+            });
     };
 
     const openEditDialog = (row) => {
@@ -680,6 +805,8 @@ export default function AdminPackageFeeManagement() {
             enqueueSnackbar("Chỉ có thể cập nhật gói đang ở trạng thái bản nháp.", { variant: "warning" });
             return;
         }
+        platformPackageQuotasRef.current = null;
+        setPlatformQuotasForFormLoaded(false);
         setForm({
             packageId: row.id,
             name: row.name,
@@ -691,7 +818,12 @@ export default function AdminPackageFeeManagement() {
             parentPostPermission: PARENT_POST_PERMISSIONS.includes(row.features.parentPostPermission)
                 ? row.features.parentPostPermission
                 : "CREATE_POST",
-            supportLevel: SUPPORT_LEVELS.includes(row.features.supportLevel) ? row.features.supportLevel : "STANDARD_SUPPORT",
+            supportLevel:
+                PACKAGE_TYPES.includes(row.packageType) && row.packageType === "TRIAL"
+                    ? "BASIC_SUPPORT"
+                    : SUPPORT_LEVELS.includes(row.features.supportLevel)
+                      ? row.features.supportLevel
+                      : "STANDARD_SUPPORT",
         });
         setSubmitAttempted(false);
         setPricePreview({
@@ -707,11 +839,24 @@ export default function AdminPackageFeeManagement() {
             featureContributions: row.featureContributions || {},
         });
         setDialogOpen(true);
+        getSystemConfig()
+            .then((res) => {
+                const body = res?.data?.body ?? res?.data?.data ?? res?.data;
+                const quotas = extractPlatformPackageQuotasFromConfig(body);
+                platformPackageQuotasRef.current = quotas;
+                setPlatformQuotasForFormLoaded(hasUsablePackageQuotas(quotas));
+            })
+            .catch((e) => {
+                console.error("getSystemConfig for package quotas failed", e);
+                setPlatformQuotasForFormLoaded(false);
+            });
     };
 
     const closeDialog = () => {
         if (submitting) return;
         setDialogOpen(false);
+        platformPackageQuotasRef.current = null;
+        setPlatformQuotasForFormLoaded(false);
         setForm(defaultForm);
         setSubmitAttempted(false);
         setPricePreview({
@@ -836,10 +981,19 @@ export default function AdminPackageFeeManagement() {
         const value = e?.target?.type === "checkbox" ? e.target.checked : e.target.value;
         setForm((prev) => {
             const next = { ...prev, [key]: value };
-            if (key === "packageType" && value === "TRIAL") {
-                next.hasAiAssistant = false;
-                if (next.supportLevel === "PREMIUM_SUPPORT") {
-                    next.supportLevel = "STANDARD_SUPPORT";
+            if (key === "packageType") {
+                const quotas = platformPackageQuotasRef.current;
+                if (quotas) {
+                    const { maxCounsellors, postLimit, durationDays } = quotasToPackageFormFields(value, quotas);
+                    next.maxCounsellors = maxCounsellors;
+                    next.postLimit = postLimit;
+                    if (durationDays !== undefined) {
+                        next.durationDays = durationDays;
+                    }
+                }
+                if (value === "TRIAL") {
+                    next.hasAiAssistant = false;
+                    next.supportLevel = "BASIC_SUPPORT";
                 }
             }
             return next;
@@ -869,13 +1023,10 @@ export default function AdminPackageFeeManagement() {
         }
         if (!PARENT_POST_PERMISSIONS.includes(form.parentPostPermission)) return "Quyền đăng bài của nhà trường không hợp lệ.";
         if (!SUPPORT_LEVELS.includes(form.supportLevel)) return "Mức hỗ trợ không hợp lệ.";
-        if (form.packageType === "TRIAL" && form.supportLevel === "PREMIUM_SUPPORT") {
-            return "Gói dùng thử không được chọn mức hỗ trợ cao cấp.";
-        }
         if (form.packageId != null) {
             const pid = Number(form.packageId);
             if (!Number.isFinite(pid) || pid < 1) {
-                return "Cập nhật cần mã gói (packageId) hợp lệ.";
+                return "Cập nhật cần mã định danh gói hợp lệ.";
             }
         }
         return null;
@@ -892,7 +1043,7 @@ export default function AdminPackageFeeManagement() {
         setSubmitting(true);
         try {
             if (isEdit && (form.packageId == null || Number.isNaN(Number(form.packageId)))) {
-                enqueueSnackbar("Cập nhật bắt buộc có packageId.", { variant: "warning" });
+                enqueueSnackbar("Cập nhật cần có mã gói dịch vụ.", { variant: "warning" });
                 setSubmitting(false);
                 return;
             }
@@ -1010,7 +1161,7 @@ export default function AdminPackageFeeManagement() {
                             <TableHead>
                                 <TableRow sx={adminTableHeadRowSx}>
                                     <TableCell align="center" sx={adminTableHeadCellSx}>
-                                        ID
+                                        STT
                                     </TableCell>
                                     <TableCell align="center" sx={{ ...adminTableHeadCellSx, whiteSpace: "normal", lineHeight: 1.2 }}>
                                         Tên gói
@@ -1052,14 +1203,14 @@ export default function AdminPackageFeeManagement() {
                                         return (
                                             <TableRow key={`${row.id ?? "new"}-${idx}`} hover sx={adminTableBodyRowSx}>
                                                 <TableCell align="center" sx={{ whiteSpace: "nowrap", verticalAlign: "middle" }}>
-                                                    {row.id != null ? row.id : "—"}
+                                                    <Chip label={idx + 1} size="small" sx={adminSttChipSx} />
                                                 </TableCell>
-                                                <TableCell align="center" sx={{ verticalAlign: "middle", maxWidth: isCompact ? 140 : 280 }}>
+                                                <TableCell align="left" sx={{ verticalAlign: "middle", maxWidth: isCompact ? 140 : 280 }}>
                                                     <Typography
                                                         fontWeight={700}
                                                         color="#1e293b"
                                                         sx={{
-                                                            textAlign: "center",
+                                                            textAlign: "left",
                                                             whiteSpace: "nowrap",
                                                             overflow: "hidden",
                                                             textOverflow: "ellipsis",
@@ -1240,26 +1391,28 @@ export default function AdminPackageFeeManagement() {
                         </Stack>
                     )}
                 </DialogContent>
-                <DialogActions sx={adminDialogActionsSx}>
-                    <Button
-                        variant="outlined"
-                        onClick={openEditFromDetail}
-                        disabled={!detailRow || detailRow.status !== "PACKAGE_DRAFT"}
-                        startIcon={<EditOutlinedIcon />}
-                        sx={{ textTransform: "none", fontWeight: 600 }}
-                    >
-                        Chỉnh sửa
-                    </Button>
-                    <Button
-                        variant="contained"
-                        onClick={openPublishConfirmFromDetail}
-                        disabled={!detailRow || detailRow.status !== "PACKAGE_DRAFT"}
-                        startIcon={<FileUploadSharpIcon />}
-                        sx={{ textTransform: "none", fontWeight: 700 }}
-                    >
-                        Công khai
-                    </Button>
-                </DialogActions>
+                {detailRow?.status === "PACKAGE_DRAFT" ? (
+                    <DialogActions sx={adminDialogActionsSx}>
+                        <Button
+                            variant="outlined"
+                            onClick={openEditFromDetail}
+                            disabled={!detailRow}
+                            startIcon={<EditOutlinedIcon />}
+                            sx={{ textTransform: "none", fontWeight: 600 }}
+                        >
+                            Chỉnh sửa
+                        </Button>
+                        <Button
+                            variant="contained"
+                            onClick={openPublishConfirmFromDetail}
+                            disabled={!detailRow}
+                            startIcon={<FileUploadSharpIcon />}
+                            sx={{ textTransform: "none", fontWeight: 700 }}
+                        >
+                            Công khai
+                        </Button>
+                    </DialogActions>
+                ) : null}
             </Dialog>
 
             <Dialog open={dialogOpen} onClose={closeDialog} fullWidth maxWidth="md" PaperProps={{ sx: adminDialogPaperSx }}>
@@ -1307,6 +1460,7 @@ export default function AdminPackageFeeManagement() {
                                     value={form.durationDays}
                                     onChange={handleChange("durationDays")}
                                     fullWidth
+                                    disabled={submitting || lockAutoTrialDurationDays}
                                     inputProps={{ min: 1 }}
                                 />
                                 <Divider />
@@ -1321,6 +1475,7 @@ export default function AdminPackageFeeManagement() {
                                         value={form.maxCounsellors}
                                         onChange={handleChange("maxCounsellors")}
                                         fullWidth
+                                        disabled={submitting || lockAutoQuotaCounsellorPost}
                                         inputProps={{ min: 0 }}
                                     />
                                     <TextField
@@ -1330,6 +1485,7 @@ export default function AdminPackageFeeManagement() {
                                         value={form.postLimit}
                                         onChange={handleChange("postLimit")}
                                         fullWidth
+                                        disabled={submitting || lockAutoQuotaCounsellorPost}
                                     />
                                 </Stack>
                                 <Stack direction={{ xs: "column", sm: "row" }} spacing={1.2}>
@@ -1354,12 +1510,13 @@ export default function AdminPackageFeeManagement() {
                                         <Select
                                             labelId="support-level-label"
                                             label="Mức hỗ trợ"
-                                            value={form.supportLevel}
+                                            value={isTrialPackage ? "BASIC_SUPPORT" : form.supportLevel}
                                             onChange={handleChange("supportLevel")}
+                                            disabled={isTrialPackage}
                                             renderValue={(v) => supportLevelLabelVi(v)}
                                         >
                                             {SUPPORT_LEVELS.map((v) => (
-                                                <MenuItem key={v} value={v} disabled={form.packageType === "TRIAL" && v === "PREMIUM_SUPPORT"}>
+                                                <MenuItem key={v} value={v} disabled={isTrialPackage && v !== "BASIC_SUPPORT"}>
                                                     {supportLevelLabelVi(v)}
                                                 </MenuItem>
                                             ))}
@@ -1379,7 +1536,7 @@ export default function AdminPackageFeeManagement() {
                                 />
                                 {isTrialPackage && (
                                     <Typography variant="caption" color="#b45309">
-                                        Gói dùng thử: trợ lý AI luôn tắt và không được chọn mức hỗ trợ cao cấp.
+                                        Gói dùng thử: trợ lý AI luôn tắt; mức hỗ trợ cố định là Hỗ trợ cơ bản.
                                     </Typography>
                                 )}
                                 {submitAttempted && formValidationError ? (
@@ -1434,7 +1591,7 @@ export default function AdminPackageFeeManagement() {
                         disabled={submitting}
                         sx={{ textTransform: "none", fontWeight: 700 }}
                     >
-                        {submitting ? <CircularProgress size={22} color="inherit" /> : isEdit ? "Chỉnh sửa" : "Tạo"}
+                        {submitting ? <CircularProgress size={22} color="inherit" /> : isEdit ? "Lưu" : "Tạo"}
                     </Button>
                 </DialogActions>
             </Dialog>

@@ -2,11 +2,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Avatar,
     Box,
+    Button,
     Card,
     CardContent,
     Chip,
     CircularProgress,
-    Drawer,
+    Dialog,
+    DialogActions,
+    DialogContent,
+    DialogTitle,
     FormControl,
     InputAdornment,
     InputLabel,
@@ -30,10 +34,14 @@ import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import ErrorRoundedIcon from "@mui/icons-material/ErrorRounded";
 import SearchRoundedIcon from "@mui/icons-material/SearchRounded";
 import WalletRoundedIcon from "@mui/icons-material/WalletRounded";
+import InfoRoundedIcon from "@mui/icons-material/InfoRounded";
+import CreditCardRoundedIcon from "@mui/icons-material/CreditCardRounded";
+import AttachMoneyRoundedIcon from "@mui/icons-material/AttachMoneyRounded";
 import { LineChart } from "@mui/x-charts";
 import { enqueueSnackbar } from "notistack";
 import { useLocation } from "react-router-dom";
 import {
+    adminSttChipSx,
     adminTableBodyRowSx,
     adminTableContainerSx,
     adminTableHeadCellSx,
@@ -48,20 +56,6 @@ function formatCurrency(value) {
     return `${amount.toLocaleString("vi-VN")} VNĐ`;
 }
 
-function formatDateTime(value) {
-    if (!value) return "—";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "—";
-    return date.toLocaleString("vi-VN");
-}
-
-function formatDateOnly(value) {
-    if (!value) return "—";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "—";
-    return date.toLocaleDateString("vi-VN");
-}
-
 function formatDateTimeParts(value) {
     if (!value) return { date: "—", time: "—" };
     const date = new Date(value);
@@ -72,25 +66,98 @@ function formatDateTimeParts(value) {
     };
 }
 
+function pickOptionalString(v) {
+    if (v == null) return null;
+    const s = String(v).trim();
+    return s === "" ? null : s;
+}
+
 function isSuccessStatus(status) {
     return String(status || "").toUpperCase() === "PAYMENT_SUCCESS";
 }
 
 function normalizeTransaction(item, index) {
+    const amount = Number(item?.amount || 0);
+    const expectedAmount = Number(
+        item?.expectedAmount != null && item?.expectedAmount !== "" ? item.expectedAmount : amount,
+    );
+    const paidAmount = Number(item?.paidAmount != null && item?.paidAmount !== "" ? item.paidAmount : amount);
+    const txnId = Number(item?.transactionId ?? index + 1);
     return {
-        id: Number(item?.transactionId ?? index + 1),
-        schoolName: String(item?.schoolName || "—"),
-        packageName: String(item?.packageName || "—"),
-        txnRef: String(item?.txnRef || "—"),
-        vnpTransactionNo: item?.vnpTransactionNo ? String(item.vnpTransactionNo) : "—",
-        orderInfo: item?.orderInfo ? String(item.orderInfo) : "—",
-        bankCode: item?.bankCode ? String(item.bankCode) : "—",
-        cardType: item?.cardType ? String(item.cardType) : "—",
-        amount: Number(item?.amount || 0),
-        status: String(item?.status || "UNKNOWN"),
-        createdAt: item?.createdAt || "",
-        notes: item?.notes ? String(item.notes) : "—",
+        id: txnId,
+        transactionId: txnId,
+        schoolName: pickOptionalString(item?.schoolName) ?? "—",
+        packageName: pickOptionalString(item?.packageName),
+        txnRef: pickOptionalString(item?.txnRef) ?? "—",
+        vnpTransactionNo: pickOptionalString(item?.vnpTransactionNo),
+        orderInfo: pickOptionalString(item?.orderInfo),
+        bankCode: pickOptionalString(item?.bankCode),
+        cardType: pickOptionalString(item?.cardType),
+        amount,
+        expectedAmount,
+        paidAmount,
+        status: pickOptionalString(item?.status) ?? "UNKNOWN",
+        createdAt: pickOptionalString(item?.createdAt),
+        notes: pickOptionalString(item?.notes),
     };
+}
+
+const transactionDetailSectionSx = {
+    border: "1px solid #bfdbfe",
+    borderRadius: 3,
+    bgcolor: "#eff6ff",
+    p: { xs: 1.4, md: 1.8 },
+    boxShadow: "0 10px 24px rgba(37,99,235,0.14)",
+};
+
+function renderTransactionDetailField(label, value, fullWidth = false) {
+    const display = value === null || value === undefined || value === "" ? "—" : value;
+    return (
+        <Box
+            sx={{
+                border: "1px solid #bfdbfe",
+                borderRadius: 2.25,
+                bgcolor: "#ffffff",
+                px: 1.3,
+                py: 1.1,
+                gridColumn: fullWidth ? { xs: "auto", md: "1 / span 2" } : "auto",
+                boxShadow: "0 5px 12px rgba(37,99,235,0.08)",
+            }}
+        >
+            <Typography sx={{ fontSize: 12, color: "#2563eb", mb: 0.35, fontWeight: 700 }}>{label}</Typography>
+            <Typography sx={{ fontSize: 14, color: "#1e293b", fontWeight: 600, wordBreak: "break-word" }}>
+                {display}
+            </Typography>
+        </Box>
+    );
+}
+
+function renderTransactionCreatedAtField(isoValue, fullWidth = false) {
+    const { date, time } = formatDateTimeParts(isoValue);
+    const invalid = date === "—";
+    return (
+        <Box
+            sx={{
+                border: "1px solid #bfdbfe",
+                borderRadius: 2.25,
+                bgcolor: "#ffffff",
+                px: 1.3,
+                py: 1.1,
+                gridColumn: fullWidth ? { xs: "auto", md: "1 / span 2" } : "auto",
+                boxShadow: "0 5px 12px rgba(37,99,235,0.08)",
+            }}
+        >
+            <Typography sx={{ fontSize: 12, color: "#2563eb", mb: 0.35, fontWeight: 700 }}>Thời gian tạo</Typography>
+            {invalid ? (
+                <Typography sx={{ fontSize: 14, color: "#1e293b", fontWeight: 600 }}>—</Typography>
+            ) : (
+                <Stack spacing={0.15}>
+                    <Typography sx={{ fontSize: 15, fontWeight: 700, color: "#1e293b", lineHeight: 1.25 }}>{date}</Typography>
+                    <Typography sx={{ fontSize: 12, fontWeight: 500, color: "#64748b", lineHeight: 1.2 }}>{time}</Typography>
+                </Stack>
+            )}
+        </Box>
+    );
 }
 
 function normalizeChartPoint(item, index) {
@@ -101,6 +168,15 @@ function normalizeChartPoint(item, index) {
         label: Number.isNaN(parsed.getTime()) ? String(item?.date || "—") : parsed.toLocaleDateString("vi-VN"),
         value: Number(item?.value || 0),
     };
+}
+
+function buildAdminRevenueLineDataset(chartData) {
+    if (!Array.isArray(chartData) || chartData.length === 0) return [];
+    const rows = [{ x: -1, y: 0 }];
+    chartData.forEach((item, i) => {
+        rows.push({ x: i, y: item.value });
+    });
+    return rows;
 }
 
 function StatusBadge({ status }) {
@@ -246,8 +322,8 @@ export default function AdminTransactionManagement() {
         },
     ];
 
-    const chartLabels = chartData.map((item) => item.label);
-    const chartValues = chartData.map((item) => item.value);
+    const revenueLineDataset = useMemo(() => buildAdminRevenueLineDataset(chartData), [chartData]);
+    const revenueXTickInterval = useMemo(() => chartData.map((_, i) => i), [chartData]);
 
     return (
         <Box
@@ -369,22 +445,42 @@ export default function AdminTransactionManagement() {
                             ) : (
                                 <LineChart
                                     height={320}
-                                    xAxis={[{ scaleType: "point", data: chartLabels }]}
+                                    dataset={revenueLineDataset}
+                                    xAxis={[
+                                        {
+                                            scaleType: "linear",
+                                            dataKey: "x",
+                                            min: -1,
+                                            max: Math.max(chartData.length - 1 + 0.5, 0.5),
+                                            tickInterval: revenueXTickInterval,
+                                            valueFormatter: (value) => {
+                                                const v = Number(value);
+                                                const i = Math.round(v);
+                                                if (!Number.isFinite(v) || Math.abs(v - i) > 1e-6) return "";
+                                                if (i >= 0 && i < chartData.length) return chartData[i].label;
+                                                return "";
+                                            },
+                                        },
+                                    ]}
                                     yAxis={[
                                         {
+                                            min: 0,
                                             width: 90,
                                             valueFormatter: (value) => `${Number(value || 0).toLocaleString("vi-VN")} VNĐ`,
                                         },
                                     ]}
                                     series={[
                                         {
-                                            data: chartValues,
-                                            area: true,
+                                            dataKey: "y",
+                                            area: false,
                                             color: "#2563eb",
-                                            curve: "monotoneX",
-                                            showMark: true,
+                                            curve: "linear",
+                                            showMark: (params) => params.index !== 0,
                                             valueFormatter: (value, context) => {
-                                                const dateLabel = chartLabels[context?.dataIndex ?? 0] || "—";
+                                                const idx = context?.dataIndex ?? 0;
+                                                if (idx <= 0) return null;
+                                                const dataIdx = idx - 1;
+                                                const dateLabel = chartData[dataIdx]?.label ?? "—";
                                                 return `Ngày: ${dateLabel} - Doanh thu: ${formatCurrency(value)}`;
                                             },
                                         },
@@ -452,36 +548,46 @@ export default function AdminTransactionManagement() {
                             <Table size="small" sx={{ tableLayout: "fixed" }}>
                                 <TableHead>
                                     <TableRow sx={adminTableHeadRowSx}>
-                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "50%" }}>Trường học</TableCell>
-                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "11%" }}>Mã GD</TableCell>
-                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "12%" }}>
+                                        <TableCell align="center" sx={{ ...adminTableHeadCellSx, width: 52 }}>
+                                            STT
+                                        </TableCell>
+                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "44%" }}>Trường học</TableCell>
+                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "10%" }}>Mã GD</TableCell>
+                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "11%" }}>
                                             Số tiền
                                         </TableCell>
-                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "13%" }}>Trạng thái</TableCell>
-                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "14%" }}>Ngày giao dịch</TableCell>
+                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "12%" }}>Trạng thái</TableCell>
+                                        <TableCell sx={{ ...adminTableHeadCellSx, width: "13%" }}>Ngày giao dịch</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {loading ? (
                                         <TableRow>
-                                            <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                                            <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
                                                 <CircularProgress size={34} />
                                             </TableCell>
                                         </TableRow>
                                     ) : pagedRows.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={5} align="center" sx={{ py: 4, color: "#64748b" }}>
+                                            <TableCell colSpan={6} align="center" sx={{ py: 4, color: "#64748b" }}>
                                                 Không có giao dịch phù hợp với bộ lọc hiện tại.
                                             </TableCell>
                                         </TableRow>
                                     ) : (
-                                        pagedRows.map((row) => (
+                                        pagedRows.map((row, idx) => (
                                             <TableRow
                                                 key={`${row.id}-${row.txnRef}`}
                                                 hover
                                                 sx={{ ...adminTableBodyRowSx, cursor: "pointer" }}
                                                 onClick={() => setSelectedRow(row)}
                                             >
+                                                <TableCell align="center">
+                                                    <Chip
+                                                        label={(page - 1) * ROWS_PER_PAGE + idx + 1}
+                                                        size="small"
+                                                        sx={adminSttChipSx}
+                                                    />
+                                                </TableCell>
                                                 <TableCell align="center">
                                                     <Typography sx={{ fontWeight: 600 }} noWrap title={row.schoolName} textAlign="center">
                                                         {row.schoolName}
@@ -546,47 +652,164 @@ export default function AdminTransactionManagement() {
                 </Card>
             </Stack>
 
-            <Drawer anchor="right" open={Boolean(selectedRow)} onClose={() => setSelectedRow(null)}>
-                <Box sx={{ width: { xs: 320, sm: 420 }, p: 2.2 }}>
-                    <Typography sx={{ fontSize: 20, fontWeight: 800, color: "#0f172a" }}>Chi tiết giao dịch</Typography>
-                    <Typography sx={{ mt: 0.3, color: "#64748b", fontSize: 13 }}>
-                        Toàn bộ thông tin liên quan đến giao dịch đã chọn.
-                    </Typography>
-
-                    {selectedRow ? (
-                        <Stack spacing={1.2} sx={{ mt: 2 }}>
-                            <Card elevation={0} sx={{ border: "1px solid #e2e8f0", borderRadius: 2 }}>
-                                <CardContent sx={{ p: 1.5 }}>
-                                    <Stack spacing={0.9}>
-                                        <Typography sx={{ fontWeight: 700, color: "#0f172a" }}>{selectedRow.schoolName}</Typography>
-                                        <StatusBadge status={selectedRow.status} />
-                                        <Typography sx={{ color: "#334155", fontSize: 14 }}>
-                                            Số tiền: <b>{formatCurrency(selectedRow.amount)}</b>
+            <Dialog
+                open={Boolean(selectedRow)}
+                onClose={() => setSelectedRow(null)}
+                fullWidth
+                maxWidth="md"
+                PaperProps={{
+                    sx: {
+                        borderRadius: 4,
+                        overflow: "hidden",
+                        border: "1px solid #93c5fd",
+                        boxShadow: "0 24px 48px rgba(37,99,235,0.24)",
+                    },
+                }}
+            >
+                <DialogTitle
+                    sx={{
+                        fontWeight: 800,
+                        color: "#1e293b",
+                        pb: 1.2,
+                        background: "linear-gradient(135deg, #dbeafe 0%, #bfdbfe 48%, #93c5fd 100%)",
+                        borderBottom: "1px solid #93c5fd",
+                    }}
+                >
+                    Chi tiết giao dịch
+                </DialogTitle>
+                <DialogContent dividers sx={{ bgcolor: "#eff6ff" }}>
+                    <Stack spacing={1.5}>
+                        <Box sx={transactionDetailSectionSx}>
+                            <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: 1 }}>
+                                <InfoRoundedIcon sx={{ fontSize: 17, color: "#2563eb" }} />
+                                <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#2563eb" }}>Thông tin chung</Typography>
+                            </Stack>
+                            <Box
+                                sx={{
+                                    border: "1px solid #bfdbfe",
+                                    borderRadius: 2.25,
+                                    bgcolor: "#ffffff",
+                                    px: 1.4,
+                                    py: 1.25,
+                                    boxShadow: "0 5px 12px rgba(37,99,235,0.08)",
+                                }}
+                            >
+                                <Typography
+                                    sx={{ fontSize: 18, color: "#1e293b", fontWeight: 700, lineHeight: 1.25, mb: 0.9 }}
+                                >
+                                    {selectedRow?.schoolName || "—"}
+                                </Typography>
+                                <Typography sx={{ fontSize: 14, color: "#334155", lineHeight: 1.5, mb: 0.75 }}>
+                                    {selectedRow?.packageName ? (
+                                        <>
+                                            <Box component="span" sx={{ color: "#2563eb", fontWeight: 700 }}>
+                                                Gói:{" "}
+                                            </Box>
+                                            {selectedRow.packageName}
+                                        </>
+                                    ) : (
+                                        "—"
+                                    )}
+                                </Typography>
+                                <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+                                    <StatusBadge status={selectedRow?.status} />
+                                    {!isSuccessStatus(selectedRow?.status) && selectedRow?.status ? (
+                                        <Typography sx={{ fontSize: 12, color: "#64748b", fontWeight: 600 }}>
+                                            {selectedRow.status}
                                         </Typography>
-                                    </Stack>
-                                </CardContent>
-                            </Card>
-
-                            {[
-                                ["Mã giao dịch", selectedRow.txnRef],
-                                ["Mã VNPay", selectedRow.vnpTransactionNo],
-                                ["Gói dịch vụ", selectedRow.packageName],
-                                ["Thông tin đơn hàng", selectedRow.orderInfo],
-                                ["Mã ngân hàng", selectedRow.bankCode],
-                                ["Loại thẻ", selectedRow.cardType],
-                                ["Ngày tạo", formatDateTime(selectedRow.createdAt)],
-                                ["Ghi chú", selectedRow.notes],
-                                ["Ngày (rút gọn)", formatDateOnly(selectedRow.createdAt)],
-                            ].map(([label, value]) => (
-                                <Box key={label} sx={{ border: "1px solid #e2e8f0", borderRadius: 2, px: 1.3, py: 1 }}>
-                                    <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#64748b" }}>{label}</Typography>
-                                    <Typography sx={{ mt: 0.35, color: "#0f172a", wordBreak: "break-word" }}>{value || "—"}</Typography>
+                                    ) : null}
                                 </Box>
-                            ))}
-                        </Stack>
-                    ) : null}
-                </Box>
-            </Drawer>
+                            </Box>
+                        </Box>
+
+                        <Box sx={transactionDetailSectionSx}>
+                            <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: 1 }}>
+                                <ReceiptLongRoundedIcon sx={{ fontSize: 17, color: "#2563eb" }} />
+                                <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#2563eb" }}>
+                                    Thông tin giao dịch
+                                </Typography>
+                            </Stack>
+                            <Box
+                                sx={{
+                                    display: "grid",
+                                    gridTemplateColumns: { xs: "1fr", sm: "repeat(3, minmax(0, 1fr))" },
+                                    gap: 1,
+                                    "& > *": { minWidth: 0 },
+                                }}
+                            >
+                                {renderTransactionDetailField("Mã tham chiếu", selectedRow?.txnRef !== "—" ? selectedRow?.txnRef : null)}
+                                {renderTransactionDetailField("Mã giao dịch VNPAY", selectedRow?.vnpTransactionNo)}
+                                {renderTransactionCreatedAtField(selectedRow?.createdAt)}
+                            </Box>
+                        </Box>
+
+                        <Box sx={transactionDetailSectionSx}>
+                            <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: 1 }}>
+                                <CreditCardRoundedIcon sx={{ fontSize: 17, color: "#2563eb" }} />
+                                <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#2563eb" }}>
+                                    Chi tiết thanh toán
+                                </Typography>
+                            </Stack>
+                            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1 }}>
+                                {renderTransactionDetailField("Ngân hàng", selectedRow?.bankCode)}
+                                {renderTransactionDetailField("Loại thẻ", selectedRow?.cardType)}
+                                {renderTransactionDetailField("Nội dung thanh toán", selectedRow?.orderInfo, true)}
+                            </Box>
+                        </Box>
+
+                        <Box sx={transactionDetailSectionSx}>
+                            <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: 1 }}>
+                                <AttachMoneyRoundedIcon sx={{ fontSize: 17, color: "#2563eb" }} />
+                                <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#2563eb" }}>
+                                    Thông tin số tiền
+                                </Typography>
+                            </Stack>
+                            <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1 }}>
+                                {renderTransactionDetailField("Số tiền giao dịch", formatCurrency(selectedRow?.amount))}
+                                {renderTransactionDetailField("Số tiền dự kiến", formatCurrency(selectedRow?.expectedAmount))}
+                                {renderTransactionDetailField("Số tiền thực thanh toán", formatCurrency(selectedRow?.paidAmount), true)}
+                            </Box>
+                        </Box>
+
+                        {selectedRow?.notes ? (
+                            <Box sx={transactionDetailSectionSx}>
+                                <Stack direction="row" spacing={0.8} alignItems="center" sx={{ mb: 1 }}>
+                                    <ReceiptLongRoundedIcon sx={{ fontSize: 17, color: "#2563eb" }} />
+                                    <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#2563eb" }}>Ghi chú</Typography>
+                                </Stack>
+                                <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1 }}>
+                                    {renderTransactionDetailField("Nội dung", selectedRow.notes, true)}
+                                </Box>
+                            </Box>
+                        ) : null}
+                    </Stack>
+                </DialogContent>
+                <DialogActions
+                    sx={{
+                        px: 2.5,
+                        py: 2,
+                        bgcolor: "#eff6ff",
+                        borderTop: "1px solid #bfdbfe",
+                        justifyContent: "flex-end",
+                    }}
+                >
+                    <Button
+                        variant="contained"
+                        onClick={() => setSelectedRow(null)}
+                        sx={{
+                            textTransform: "none",
+                            fontWeight: 700,
+                            borderRadius: 2,
+                            px: 2.5,
+                            bgcolor: "#2563eb",
+                            boxShadow: "0 6px 14px rgba(37,99,235,0.35)",
+                            "&:hover": { bgcolor: "#1d4ed8" },
+                        }}
+                    >
+                        Đóng
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

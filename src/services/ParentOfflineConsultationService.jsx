@@ -1,6 +1,6 @@
 import axiosClient from "../configs/APIConfig.jsx";
 
-export const COUNSELLOR_OFFLINE_CONSULTATION_STATUSES = [
+export const OFFLINE_CONSULTATION_STATUSES = [
   "pending",
   "confirmed",
   "in-progress",
@@ -9,20 +9,11 @@ export const COUNSELLOR_OFFLINE_CONSULTATION_STATUSES = [
   "no-show",
 ];
 
-export const COUNSELLOR_OFFLINE_TAB_LABELS = {
-  pending: "Chờ xử lý",
-  confirmed: "Đã xác nhận",
-  "in-progress": "Đang diễn ra",
-  completed: "Hoàn tất",
-  cancelled: "Đã hủy",
-  "no-show": "Vắng mặt",
-};
-
-export async function getCounsellorOfflineConsultations(
-  { status = "pending", page = 0, pageSize = 10 } = {},
+export async function getParentOfflineConsultations(
+  { status, page = 0, pageSize = 10 } = {},
   axiosConfig = {}
 ) {
-  return axiosClient.get("/counsellor/consultation/offline", {
+  return axiosClient.get("/parent/consultation/offline", {
     params: {
       status,
       page,
@@ -32,26 +23,7 @@ export async function getCounsellorOfflineConsultations(
   });
 }
 
-export async function updateCounsellorOfflineConsultation(id, payload, axiosConfig = {}) {
-  return axiosClient.put(`/counsellor/consultation/offline/${encodeURIComponent(String(id))}`, payload, axiosConfig);
-}
-
-export async function putCounsellorOfflineConsultation(payload, axiosConfig = {}) {
-  const { id, appointmentDate, note, cancelReason, counsellorSlotId, action } = payload || {};
-  return axiosClient.put("/counsellor/consultation/offline", null, {
-    ...axiosConfig,
-    params: {
-      id,
-      appointmentDate,
-      note: String(note ?? ""),
-      cancelReason: String(cancelReason ?? ""),
-      counsellorSlotId,
-      action,
-    },
-  });
-}
-
-export function parseCounsellorOfflineConsultationsResponse(response) {
+export function parseOfflineConsultationsResponse(response) {
   const payload = response?.data?.body ?? response?.data ?? {};
   const items = Array.isArray(payload?.items)
     ? payload.items
@@ -78,10 +50,7 @@ export function parseCounsellorOfflineConsultationsResponse(response) {
   return {
     items,
     page,
-    pageSize: safePageSize,
     totalPages: totalPages > 0 ? totalPages : totalItems > 0 ? 1 : 0,
     totalItems: Math.max(0, totalItems),
-    hasNext: Boolean(payload?.hasNext),
-    hasPrevious: Boolean(payload?.hasPrevious),
   };
 }

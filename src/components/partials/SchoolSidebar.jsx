@@ -17,6 +17,7 @@ import {
     Typography,
 } from "@mui/material";
 import DashboardIcon from "@mui/icons-material/Dashboard";
+import PeopleAltIcon from "@mui/icons-material/PeopleAlt";
 import ApartmentIcon from "@mui/icons-material/Apartment";
 import SupportAgentIcon from "@mui/icons-material/SupportAgent";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
@@ -28,12 +29,14 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import EventBusyOutlinedIcon from "@mui/icons-material/EventBusyOutlined";
+import BarChartRoundedIcon from "@mui/icons-material/BarChartRounded";
 import CorporateFareOutlinedIcon from "@mui/icons-material/CorporateFareOutlined";
 import CardMembershipIcon from "@mui/icons-material/CardMembership";
 import ContactSupportOutlinedIcon from "@mui/icons-material/ContactSupportOutlined";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useNavigate } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
+import { ROLE_SHELL_HEADER_HEIGHT_PX } from "../../constants/appShellLayout.js";
 import { signout } from "../../services/AccountService.jsx";
 import { useSchool } from "../../contexts/SchoolContext.jsx";
 import { getCampusConversation } from "../../services/ConversationService.jsx";
@@ -136,6 +139,50 @@ const mergeSchoolContactWsPayload = (payload) => {
     return {...base, ...r, ...nestedData};
 };
 
+/** Cùng logic với SchoolContactAdmin — chỉ tăng badge khi thật sự có nội dung tin. */
+const flattenWsForSidebarMessage = (merged) => {
+    const cm = merged?.chatMessage;
+    const msg = merged?.message;
+    return {
+        ...merged,
+        ...(cm && typeof cm === "object" && !Array.isArray(cm) ? cm : {}),
+        ...(msg && typeof msg === "object" && !Array.isArray(msg) ? msg : {}),
+    };
+};
+
+const stripInvisibleAndTrimSidebar = (s) =>
+    String(s ?? "")
+        .replace(/[\u200B-\u200D\uFEFF]/g, "")
+        .trim();
+
+const normalizeSidebarMessage = (m) => {
+    const flat = m && typeof m === "object" && !Array.isArray(m) ? flattenWsForSidebarMessage(m) : m || {};
+    const rawText = flat?.content ?? flat?.message ?? flat?.text ?? "";
+    const text =
+        typeof rawText === "string"
+            ? stripInvisibleAndTrimSidebar(rawText)
+            : stripInvisibleAndTrimSidebar(String(rawText ?? ""));
+    return { text };
+};
+
+const hasRenderableSidebarChatText = (m) => stripInvisibleAndTrimSidebar(m?.text ?? "") !== "";
+
+/** Chỉ số unread số từ BE — không dùng `hasNewMessage` (dễ gây ghost badge khi chưa có tin thật). */
+const explicitUnreadNumericFromPayload = (payload) => {
+    if (!payload || typeof payload !== "object") return 0;
+    const raw =
+        payload.unreadCount ??
+        payload.unreadMessages ??
+        payload.unreadMessageCount ??
+        payload.numberOfUnread ??
+        null;
+    if (raw != null && raw !== "") {
+        const unread = Number(raw);
+        if (Number.isFinite(unread) && unread > 0) return Math.min(99, Math.trunc(unread));
+    }
+    return 0;
+};
+
 const normalizePrincipal = (v) =>
     String(v || "")
         .trim()
@@ -199,6 +246,8 @@ const menuGroupsBase = [
         title: "TỔNG QUAN",
         items: [
             { text: "Bảng thống kê", icon: <DashboardIcon />, path: "/school/dashboard" },
+            { text: "Thống kê tư vấn", icon: <BarChartRoundedIcon />, path: "/school/consultation-stats" },
+            { text: "Phụ huynh quan tâm", icon: <PeopleAltIcon />, path: "/school/parents-interest" },
             { text: "Gói đã mua", icon: <CardMembershipIcon />, path: "/school/purchased-packages" },
         ],
     },
@@ -347,6 +396,21 @@ export default function SchoolSidebar({ currentPath, collapsed = false, onToggle
             /** Tin do chính campus gửi (STOMP echo) — không tăng badge. */
             if (senderLower && myPrincipalLower && senderLower === myPrincipalLower) return;
 
+            const normalized = normalizeSidebarMessage(merged);
+            const hasText = hasRenderableSidebarChatText(normalized);
+            const explicitUnread = explicitUnreadNumericFromPayload(merged);
+            /**
+             * Trước đây mọi frame WS (kể cả rỗng/heartbeat) đều +1 — lệch với trang chat (lọc tin rỗng) → ghost badge.
+             * Chỉ cập nhật khi có số unread từ BE, hoặc khi payload giống tin chat thật (có nội dung).
+             */
+            if (!hasText) {
+                if (explicitUnread > 0) {
+                    setContactUnreadCount(explicitUnread);
+                    writeSchoolContactUnreadCount(explicitUnread);
+                }
+                return;
+            }
+
             const fromApiShape = unreadDisplayFromCampusConversationPayload(merged);
             if (fromApiShape > 0) {
                 setContactUnreadCount(fromApiShape);
@@ -354,7 +418,6 @@ export default function SchoolSidebar({ currentPath, collapsed = false, onToggle
                 return;
             }
 
-            /** Luôn +1 theo WS — trang Liên hệ (SchoolContactAdmin) sẽ queueMicrotask đặt lại 0 khi đang xem chat. */
             const prev = readSchoolContactUnreadCount();
             const next = Math.min(99, prev + 1);
             setContactUnreadCount(next);
@@ -417,16 +480,18 @@ export default function SchoolSidebar({ currentPath, collapsed = false, onToggle
             <Box
                 sx={{
                     flexShrink: 0,
-                    pt: 2.5,
-                    pb: 2.75,
+                    height: ROLE_SHELL_HEADER_HEIGHT_PX,
+                    minHeight: ROLE_SHELL_HEADER_HEIGHT_PX,
+                    maxHeight: ROLE_SHELL_HEADER_HEIGHT_PX,
+                    boxSizing: "border-box",
                     pl: collapsed ? 2 : 3,
                     pr: 1,
-                    borderBottom: "1px solid #f1f5f9",
+                    borderBottom: "1px solid #e0e7ff",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: collapsed ? "center" : "space-between",
-                    minHeight: 48,
                     gap: 0.5,
+                    py: 0,
                 }}
             >
                 <Box sx={{ display: "flex", alignItems: "center", minWidth: 0, flex: collapsed ? 0 : 1, overflow: "hidden" }}>

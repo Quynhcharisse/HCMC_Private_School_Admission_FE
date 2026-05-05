@@ -45,6 +45,7 @@ const SchoolCampus = lazy(() => import("./components/Page/school/SchoolCampus.js
 const UserProfilePage = lazy(() => import("./components/Page/UserProfilePage.jsx"));
 const SchoolCounselors = lazy(() => import("./components/Page/school/SchoolCounselors.jsx"));
 const SchoolCounselorSchedule = lazy(() => import("./components/Page/school/SchoolCounselorSchedule.jsx"));
+const CampusConsultationStats = lazy(() => import("./components/Page/school/CampusConsultationStats.jsx"));
 const SchoolCampaigns = lazy(() => import("./components/Page/school/SchoolCampaigns.jsx"));
 const SchoolCampaignOfferings = lazy(() => import("./components/Page/school/SchoolCampaignOfferings.jsx"));
 const SchoolCampaignDetail = lazy(() => import("./components/Page/school/SchoolCampaignDetail.jsx"));
@@ -60,19 +61,22 @@ const SchoolContactAdmin = lazy(() => import("./components/Page/school/SchoolCon
 const ConfigList = lazy(() => import("./components/Page/school/ConfigList.jsx"));
 
 const CounsellorLayout = lazy(() => import("./components/layouts/CounsellorLayout.jsx"));
-const CounsellorDashboard = lazy(() => import("./components/Page/counsellor/CounsellorDashboard.jsx"));
 const CounsellorParentConsultation = lazy(() => import("./components/Page/counsellor/CounsellorParentConsultation.jsx"));
 const CounsellorProfile = lazy(() => import("./components/Page/counsellor/CounsellorProfile.jsx"));
 const CounsellorCalendar = lazy(() => import("./components/Page/counsellor/CounsellorCalendar.jsx"));
-const CounsellorOfflineConsultationPage = lazy(() =>
-  import("./components/Page/counsellor/CounsellorOfflineConsultationPage.jsx")
+const CounsellorConsultationManagement = lazy(() =>
+  import("./components/Page/counsellor/CounsellorConsultationManagement.jsx")
 );
 const SchoolCurriculums = lazy(() => import("./components/Page/school/SchoolCurriculums.jsx"));
 const SchoolPrograms = lazy(() => import("./components/Page/school/SchoolPrograms.jsx"));
 const SchoolPurchasedPackages = lazy(() => import("./components/Page/school/SchoolPurchasedPackages.jsx"));
+const SchoolParentsInterestPage = lazy(() => import("./components/Page/school/SchoolParentsInterestPage.jsx"));
 const ParentProfile = lazy(() => import("./components/auth/ParentProfile.jsx"));
 const SavedSchoolsPage = lazy(() => import("./components/Page/SavedSchoolsPage.jsx"));
 const CompareSchoolsPage = lazy(() => import("./components/Page/CompareSchoolsPage.jsx"));
+const ParentOfflineConsultationsPage = lazy(() =>
+  import("./components/Page/ParentOfflineConsultationsPage.jsx")
+);
 const ChildrenInfoPage = lazy(() => import("./components/Page/ChildrenInfoPage.jsx"));
 const PackageFeesPage = lazy(() => import("./components/Page/PackageFeesPage.jsx"));
 const VnpayPaymentResultPage = lazy(() => import("./components/Page/payment/VnpayPaymentResultPage.jsx"));
@@ -342,6 +346,22 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <SchoolDashboard/>
+                    </Suspense>
+                )
+            } ,
+            {
+                path: 'consultation-stats',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <CampusConsultationStats/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'parents-interest',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolParentsInterestPage/>
                     </Suspense>
                 )
             },
@@ -643,15 +663,11 @@ const router = createBrowserRouter([
         children: [
             {
                 index: true,
-                element: <Navigate to={'/counsellor/dashboard'}/>
+                element: <Navigate to="/counsellor/calendar" replace/>
             },
             {
                 path: 'dashboard',
-                element: (
-                    <Suspense fallback={<LoadingFallback/>}>
-                        <CounsellorDashboard/>
-                    </Suspense>
-                )
+                element: <Navigate to="/counsellor/calendar" replace/>
             },
             {
                 path: 'parent-consultation',
@@ -670,10 +686,10 @@ const router = createBrowserRouter([
                 )
             },
             {
-                path: 'offline-consultation',
+                path: 'consultation-management',
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
-                        <CounsellorOfflineConsultationPage/>
+                        <CounsellorConsultationManagement/>
                     </Suspense>
                 )
             },
@@ -708,6 +724,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <ParentProfile/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'offline-consultations',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <ParentOfflineConsultationsPage/>
                     </Suspense>
                 )
             }

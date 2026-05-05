@@ -14,7 +14,6 @@ import {
     IconButton,
     Link,
     MenuItem,
-    Rating,
     Select,
     Stack,
     Tab,
@@ -97,6 +96,40 @@ const CONSULT_SLOT_STATUS_CHIP = {
     CANCELLED: "error"
 };
 
+const OFFLINE_CONSULT_REQUEST_STATUS_LABEL = {
+    CONSULTATION_PENDING: "Chờ tư vấn",
+    CONSULTATION_CONFIRMED: "Đã xác nhận",
+    CONSULTATION_APPROVED: "Đã duyệt",
+    CONSULTATION_REJECTED: "Không được duyệt",
+    CONSULTATION_CANCELLED: "Đã hủy",
+    CONSULTATION_COMPLETED: "Đã hoàn thành",
+    CONSULTATION_NO_SHOW: "Không đến"
+};
+
+function offlineConsultRequestStatusVi(slot) {
+    const key = String(slot?.consultationOfflineRequest?.status || "").toUpperCase();
+    if (OFFLINE_CONSULT_REQUEST_STATUS_LABEL[key]) {
+        return OFFLINE_CONSULT_REQUEST_STATUS_LABEL[key];
+    }
+    const raw = String(slot?.consultationOfflineRequest?.status || "").trim();
+    return raw || "Đã đặt";
+}
+
+function offlineConsultRequestChipColor(slot) {
+    const s = String(slot?.consultationOfflineRequest?.status || "").toUpperCase();
+    if (s.includes("CANCEL") || s.includes("REJECT")) return "error";
+    if (s.includes("COMPLETE")) return "success";
+    if (s.includes("CONFIRM") || s.includes("APPROVE")) return "success";
+    return "warning";
+}
+
+const PARENT_OFFLINE_CONSULTATIONS_PATH = "/parent/offline-consultations";
+
+function parentConsultOfflinePendingNavigable(slot) {
+    if (slot?.consultationOfflineRequest == null) return false;
+    return String(slot.consultationOfflineRequest.status || "").toUpperCase() === "CONSULTATION_PENDING";
+}
+
 function consultSlotLooksCompleted(status, statusLabel) {
     const s = String(status || "").toUpperCase();
     if (s === "COMPLETED") return true;
@@ -113,6 +146,33 @@ function consultSlotLooksUpcoming(status, statusLabel) {
         .trim()
         .toLowerCase()
         .includes("sắp diễn ra");
+}
+
+function parentConsultSlotChipLabel(slot) {
+    if (slot?.consultationOfflineRequest != null) {
+        return offlineConsultRequestStatusVi(slot);
+    }
+    const max = Number(slot?.maxBookingPerSlot);
+    const total = Number(slot?.totalRequests);
+    if (Number.isFinite(max) && max >= 0 && Number.isFinite(total) && total >= 0) {
+        return `${total}/${max}`;
+    }
+    return String(slot?.statusLabel || "").trim() || String(slot?.status || "");
+}
+
+function parentConsultSlotInputDisabled(slot, datesWithOfflineBooking) {
+    const date = String(slot?.date || "").slice(0, 10);
+    if (!slot || !date) return {disabled: false, reason: ""};
+    if (slot.consultationOfflineRequest != null) {
+        return {disabled: true, reason: "Bạn đã đặt lịch cho khung giờ này."};
+    }
+    if (datesWithOfflineBooking instanceof Set && datesWithOfflineBooking.has(date)) {
+        return {
+            disabled: true,
+            reason: "Bạn đã đặt lịch trong ngày này — không thể chọn thêm khung giờ khác."
+        };
+    }
+    return {disabled: false, reason: ""};
 }
 
 function consultCalendarSlotChipSx(status, statusLabel) {
@@ -1964,6 +2024,7 @@ export default function SchoolSearchDetailView({
     const [parentSlotsRaw, setParentSlotsRaw] = React.useState([]);
     const [parentSlotsLoading, setParentSlotsLoading] = React.useState(false);
     const [parentSlotsError, setParentSlotsError] = React.useState("");
+    const [parentSlotsRefreshNonce, setParentSlotsRefreshNonce] = React.useState(0);
     const [consultBookingDialogOpen, setConsultBookingDialogOpen] = React.useState(false);
     const [selectedConsultBookingSlot, setSelectedConsultBookingSlot] = React.useState(null);
     const [bookingPhone, setBookingPhone] = React.useState("");
@@ -2351,6 +2412,16 @@ export default function SchoolSearchDetailView({
         (slot) => {
             if (!isParent || !slot) return;
             if (!consultSlotLooksUpcoming(slot.status, slot.statusLabel)) return;
+            const datesWithOffline = new Set();
+            parentSlotsRaw.forEach((item) => {
+                const d = String(item?.date || "").slice(0, 10);
+                if (d && item?.consultationOfflineRequest != null) {
+                    datesWithOffline.add(d);
+                }
+            });
+            if (parentConsultSlotInputDisabled(slot, datesWithOffline).disabled) {
+                return;
+            }
             const selectedCampus = campusListForDetail[campusDetailTabIndex];
             const rawCampusId = selectedCampus?.id ?? selectedCampus?.campusId ?? selectedCampus?.campusID;
             const campusId = Number(rawCampusId);
@@ -2384,7 +2455,7 @@ export default function SchoolSearchDetailView({
             setBookingQuestion("");
             setConsultBookingDialogOpen(true);
         },
-        [isParent, campusListForDetail, campusDetailTabIndex]
+        [isParent, campusListForDetail, campusDetailTabIndex, parentSlotsRaw]
     );
     const closeConsultBookingDialog = React.useCallback(() => {
         if (bookingSubmitting) return;
@@ -2430,6 +2501,7 @@ export default function SchoolSearchDetailView({
             setSelectedConsultBookingSlot(null);
             setBookingPhone("");
             setBookingQuestion("");
+            setParentSlotsRefreshNonce((n) => n + 1);
         } catch (error) {
             const apiMessage =
                 error?.response?.data?.message ||
@@ -2521,7 +2593,7 @@ export default function SchoolSearchDetailView({
             }
         })();
         return () => ac.abort();
-    }, [isParent, school, campusDetailTabIndex, selectedConsultWeek, campusListForDetail]);
+    }, [isParent, school, campusDetailTabIndex, selectedConsultWeek, campusListForDetail, parentSlotsRefreshNonce]);
 
     const parentSlotsNormalized = React.useMemo(() => {
         const dedup = new Map();
@@ -2532,6 +2604,9 @@ export default function SchoolSearchDetailView({
             const status = String(item?.status || "UPCOMING").toUpperCase();
             if (!date || !startTime || !endTime) return;
             const key = `${date}|${startTime}|${endTime}|${status}`;
+            const offlineReq = item?.consultationOfflineRequest ?? null;
+            const tr = Number(item?.totalRequests);
+            const mx = Number(item?.maxBookingPerSlot);
             if (!dedup.has(key)) {
                 dedup.set(key, {
                     date,
@@ -2540,14 +2615,40 @@ export default function SchoolSearchDetailView({
                     endTime,
                     status: status || "UPCOMING",
                     statusLabel: String(item?.statusLabel || "").trim() || status || "UPCOMING",
-                    campusScheduleTemplateId: item?.campusScheduleTemplateId
+                    campusScheduleTemplateId: item?.campusScheduleTemplateId,
+                    totalRequests: Number.isFinite(tr) && tr >= 0 ? tr : 0,
+                    maxBookingPerSlot: Number.isFinite(mx) ? mx : NaN,
+                    consultationOfflineRequest: offlineReq != null ? offlineReq : null
                 });
+            } else if (offlineReq != null) {
+                const prev = dedup.get(key);
+                prev.consultationOfflineRequest = offlineReq;
             }
         });
         return Array.from(dedup.values()).sort((a, b) => {
             if (a.date !== b.date) return a.date.localeCompare(b.date);
             return a.startTime.localeCompare(b.startTime);
         });
+    }, [parentSlotsRaw]);
+
+    const parentConsultDateHasOfflineBooking = React.useMemo(() => {
+        const set = new Set();
+        parentSlotsNormalized.forEach((s) => {
+            if (s.consultationOfflineRequest != null) {
+                set.add(s.date);
+            }
+        });
+        return set;
+    }, [parentSlotsNormalized]);
+
+    const parentConsultAllowBookingBeforeHours = React.useMemo(() => {
+        let min = null;
+        parentSlotsRaw.forEach((item) => {
+            const n = Number(item?.allowBookingBeforeHours);
+            if (!Number.isFinite(n) || n <= 0) return;
+            min = min == null ? n : Math.min(min, n);
+        });
+        return min;
     }, [parentSlotsRaw]);
 
     const consultWeekColumns = React.useMemo(() => {
@@ -2598,8 +2699,8 @@ export default function SchoolSearchDetailView({
     }, [parentSlotsNormalized]);
 
     const showConsultApiGrid = Boolean(isParent && consultDynamicTimeRows.length > 0);
-    const showConsultParentWeekEmpty = Boolean(
-        isParent && !parentSlotsLoading && !parentSlotsError && consultDynamicTimeRows.length === 0
+    const showConsultParentDefaultShiftsGrid = Boolean(
+        isParent && selectedConsultWeek?.start && consultDynamicTimeRows.length === 0
     );
 
     return (
@@ -2892,32 +2993,6 @@ export default function SchoolSearchDetailView({
                                             }}
                                         >
                                             {school.ward}, {school.province}
-                                        </Typography>
-                                    </Stack>
-                                    <Stack
-                                        direction="row"
-                                        alignItems="center"
-                                        spacing={0.6}
-                                        sx={{gap: 0.6, minHeight: 24}}
-                                    >
-                                        <Rating
-                                            value={Math.min(5, Math.max(0, Number(school.averageRating) || 0))}
-                                            precision={0.1}
-                                            readOnly
-                                            size="small"
-                                            sx={{color: "#fbbf24", display: "flex", alignItems: "center"}}
-                                        />
-                                        <Typography
-                                            component="span"
-                                            sx={{
-                                                fontSize: "0.84rem",
-                                                color: "#eff6ff",
-                                                lineHeight: 1.2,
-                                                display: "inline-flex",
-                                                alignItems: "center"
-                                            }}
-                                        >
-                                            {school.averageRating > 0 ? school.averageRating.toFixed(1) : "—"}
                                         </Typography>
                                     </Stack>
                                 </Stack>
@@ -3506,6 +3581,90 @@ export default function SchoolSearchDetailView({
                                                               </Box>
                                                               {consultWeekColumns.map((col) => {
                                                                   const slot = consultSlotByCell.get(`${col.ymd}|${row.key}`);
+                                                                  const {disabled: slotInputDisabled} =
+                                                                      slot != null
+                                                                          ? parentConsultSlotInputDisabled(
+                                                                                slot,
+                                                                                parentConsultDateHasOfflineBooking
+                                                                            )
+                                                                          : {disabled: false, reason: ""};
+                                                                  const slotBookedHere = Boolean(slot?.consultationOfflineRequest);
+                                                                  const slotBlockedSameDayOnly = slotInputDisabled && !slotBookedHere;
+                                                                  const canOpenBooking =
+                                                                      Boolean(slot) &&
+                                                                      consultSlotLooksUpcoming(slot.status, slot.statusLabel) &&
+                                                                      !slotInputDisabled;
+                                                                  const consultPendingNavigable =
+                                                                      Boolean(isParent) &&
+                                                                      typeof navigate === "function" &&
+                                                                      Boolean(slot) &&
+                                                                      parentConsultOfflinePendingNavigable(slot);
+                                                                  const chipWrapSx = {
+                                                                      maxWidth: "100%",
+                                                                      display: "inline-flex",
+                                                                      justifyContent: "center"
+                                                                  };
+                                                                  const chipEl = slot ? (
+                                                                      <Chip
+                                                                          label={parentConsultSlotChipLabel(slot)}
+                                                                          color={
+                                                                              slotBookedHere
+                                                                                  ? offlineConsultRequestChipColor(slot)
+                                                                                  : consultSlotLooksCompleted(
+                                                                                        slot.status,
+                                                                                        slot.statusLabel
+                                                                                    )
+                                                                                    ? undefined
+                                                                                    : CONSULT_SLOT_STATUS_CHIP[slot.status] ||
+                                                                                      "default"
+                                                                          }
+                                                                          size="small"
+                                                                          onClick={
+                                                                              canOpenBooking
+                                                                                  ? () => openConsultBookingDialog(slot)
+                                                                                  : consultPendingNavigable
+                                                                                    ? () => navigate(PARENT_OFFLINE_CONSULTATIONS_PATH)
+                                                                                    : undefined
+                                                                          }
+                                                                          sx={{
+                                                                              ...consultCalendarSlotChipSx(
+                                                                                  slot.status,
+                                                                                  slot.statusLabel
+                                                                              ),
+                                                                              ...(slotBookedHere
+                                                                                  ? {
+                                                                                        fontWeight: 700,
+                                                                                        opacity: 1,
+                                                                                        boxShadow: "0 2px 8px rgba(15,23,42,0.1)",
+                                                                                        ...(consultPendingNavigable
+                                                                                            ? {
+                                                                                                  cursor: "pointer",
+                                                                                                  "&:hover": {
+                                                                                                      boxShadow:
+                                                                                                          "0 4px 14px rgba(15,23,42,0.16)",
+                                                                                                      opacity: 0.94
+                                                                                                  }
+                                                                                              }
+                                                                                            : {cursor: "default"})
+                                                                                    }
+                                                                                  : {}),
+                                                                              ...(slotBlockedSameDayOnly
+                                                                                  ? {
+                                                                                        opacity: 0.58,
+                                                                                        cursor: "not-allowed",
+                                                                                        bgcolor: "rgba(241, 245, 249, 0.95) !important",
+                                                                                        color: "#64748b !important",
+                                                                                        border: "1px solid rgba(148,163,184,0.45)",
+                                                                                        boxShadow: "none",
+                                                                                        fontWeight: 600,
+                                                                                        "&:hover": {
+                                                                                            bgcolor: "rgba(241, 245, 249, 0.98) !important"
+                                                                                        }
+                                                                                    }
+                                                                                  : {})
+                                                                          }}
+                                                                      />
+                                                                  ) : null;
                                                                   return (
                                                                       <Box
                                                                           key={`${row.key}-${col.key}`}
@@ -3520,21 +3679,7 @@ export default function SchoolSearchDetailView({
                                                                           }}
                                                                       >
                                                                           {slot ? (
-                                                                              <Chip
-                                                                                  label={slot.statusLabel || slot.status}
-                                                                                  color={
-                                                                                      consultSlotLooksCompleted(slot.status, slot.statusLabel)
-                                                                                          ? undefined
-                                                                                          : CONSULT_SLOT_STATUS_CHIP[slot.status] || "default"
-                                                                                  }
-                                                                                  size="small"
-                                                                                  onClick={
-                                                                                      consultSlotLooksUpcoming(slot.status, slot.statusLabel)
-                                                                                          ? () => openConsultBookingDialog(slot)
-                                                                                          : undefined
-                                                                                  }
-                                                                                  sx={consultCalendarSlotChipSx(slot.status, slot.statusLabel)}
-                                                                              />
+                                                                              <span style={chipWrapSx}>{chipEl}</span>
                                                                           ) : (
                                                                               <Box sx={{width: "100%", minHeight: 32}} />
                                                                           )}
@@ -3544,22 +3689,7 @@ export default function SchoolSearchDetailView({
                                                           </Box>
                                                       ))
                                                     : null}
-                                                {showConsultParentWeekEmpty ? (
-                                                    <Box
-                                                        sx={{
-                                                            px: 2,
-                                                            py: 2.5,
-                                                            textAlign: "center",
-                                                            bgcolor: "rgba(248,250,252,0.95)",
-                                                            borderTop: CONSULT_GRID_LINE_ROW
-                                                        }}
-                                                    >
-                                                        <Typography sx={{fontSize: "0.88rem", color: "#64748b"}}>
-                                                            Tuần đã chọn chưa có khung giờ tư vấn trên lịch.
-                                                        </Typography>
-                                                    </Box>
-                                                ) : null}
-                                                {!isParent
+                                                {!isParent || showConsultParentDefaultShiftsGrid
                                                     ? CONSULT_CALENDAR_SHIFTS.map((shift) => (
                                                           <Box
                                                               key={shift.key}
@@ -3606,30 +3736,49 @@ export default function SchoolSearchDetailView({
                                                                           minHeight: 36
                                                                       }}
                                                                   >
-                                                                      <Button
-                                                                          variant="text"
-                                                                          size="small"
-                                                                          disabled
-                                                                          sx={{
-                                                                              minWidth: 0,
-                                                                              minHeight: 32,
-                                                                              px: 0.5,
-                                                                              py: 0,
-                                                                              color: "#64748b",
-                                                                              textTransform: "none",
-                                                                              fontSize: "0.8rem",
-                                                                              lineHeight: 1,
-                                                                              cursor: "default"
-                                                                          }}
-                                                                      >
-                                                                          Đặt lịch
-                                                                      </Button>
+                                                                      {isParent ? (
+                                                                          <Box sx={{width: "100%", minHeight: 32}} />
+                                                                      ) : (
+                                                                          <Button
+                                                                              variant="text"
+                                                                              size="small"
+                                                                              disabled
+                                                                              sx={{
+                                                                                  minWidth: 0,
+                                                                                  minHeight: 32,
+                                                                                  px: 0.5,
+                                                                                  py: 0,
+                                                                                  color: "#64748b",
+                                                                                  textTransform: "none",
+                                                                                  fontSize: "0.8rem",
+                                                                                  lineHeight: 1,
+                                                                                  cursor: "default"
+                                                                              }}
+                                                                          >
+                                                                              Đặt lịch
+                                                                          </Button>
+                                                                      )}
                                                                   </Box>
                                                               ))}
                                                           </Box>
                                                       ))
                                                     : null}
                                             </Box>
+                                            {isParent &&
+                                            parentConsultAllowBookingBeforeHours != null &&
+                                            !parentSlotsError ? (
+                                                <Typography
+                                                    sx={{
+                                                        fontSize: "0.8rem",
+                                                        color: "#dc2626",
+                                                        fontWeight: 600,
+                                                        mt: 1,
+                                                        lineHeight: 1.45
+                                                    }}
+                                                >
+                                                    * Phụ huynh vui lòng đặt lịch trước {parentConsultAllowBookingBeforeHours} giờ
+                                                </Typography>
+                                            ) : null}
                                             </Box>
                                         </Box>
                                     </Stack>

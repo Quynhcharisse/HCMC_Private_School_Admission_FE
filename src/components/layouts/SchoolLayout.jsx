@@ -3,6 +3,7 @@ import { Box, Drawer, Fade } from "@mui/material";
 import { ThemeProvider, createTheme, useTheme } from "@mui/material/styles";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { SchoolProvider } from "../../contexts/SchoolContext.jsx";
+import { ROLE_SHELL_HEADER_HEIGHT_PX } from "../../constants/appShellLayout.js";
 import SchoolAuthHeader from "../Page/school/SchoolAuthHeader.jsx";
 import SchoolSidebar from "../partials/SchoolSidebar.jsx";
 
@@ -59,7 +60,7 @@ export default function SchoolLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
 
-  const HEADER_HEIGHT = 65;
+  const HEADER_HEIGHT = ROLE_SHELL_HEADER_HEIGHT_PX;
 
   const toBoolean = (value) => value === true || value === "true" || value === 1 || value === "1";
 

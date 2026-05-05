@@ -15,7 +15,7 @@ import {getCampusConversationsForAdmin} from "../../../services/ConversationServ
 import {getAdminMessagesHistory, markAdminMessagesRead} from "../../../services/MessageService.jsx";
 
 const CONTACT_LABEL_FALLBACK = "Trường học";
-const CONTACT_PRINCIPAL = "School EduBridge";
+const CONTACT_PRINCIPAL = "Trường học EduBridge";
 const ADMIN_CONTACT_CONVERSATION_ID = 1;
 
 const isSameConversationId = (a, b) => a != null && b != null && String(a) === String(b);
@@ -108,21 +108,43 @@ const mergeChatPayload = (payload) => {
   return {...base, ...r, ...nestedData};
 };
 
-const normalizeMessage = (m) => {
-  const id = m?.id ?? m?.messageId ?? m?.clientMessageId ?? `${m?.sentAt || Date.now()}-${Math.random()}`;
-  const text = m?.content ?? m?.message ?? m?.text ?? "";
-  const sender =
-    m?.senderEmail ??
-    m?.sender ??
-    m?.senderName ??
-    m?.from ??
-    m?.username ??
-    m?.createdBy ??
-    m?.senderId ??
-    "";
-  const sentAt = m?.sentAt ?? m?.createdAt ?? m?.timestamp ?? m?.time ?? null;
-  return {id: String(id), text, sender, sentAt, raw: m};
+/** Giống SchoolContactAdmin — BE/STOMP có thể đặt nội dung trong `chatMessage` hoặc `message` object. */
+const flattenWsForNormalize = (merged) => {
+  const cm = merged?.chatMessage;
+  const msg = merged?.message;
+  return {
+    ...merged,
+    ...(cm && typeof cm === "object" && !Array.isArray(cm) ? cm : {}),
+    ...(msg && typeof msg === "object" && !Array.isArray(msg) ? msg : {}),
+  };
 };
+
+const stripInvisibleAndTrim = (s) =>
+  String(s ?? "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .trim();
+
+const normalizeMessage = (m) => {
+  const flat = m && typeof m === "object" && !Array.isArray(m) ? flattenWsForNormalize(m) : m || {};
+  const id = flat?.id ?? flat?.messageId ?? flat?.clientMessageId ?? `${flat?.sentAt || Date.now()}-${Math.random()}`;
+  const rawText = flat?.content ?? flat?.message ?? flat?.text ?? "";
+  const text = typeof rawText === "string" ? stripInvisibleAndTrim(rawText) : stripInvisibleAndTrim(String(rawText ?? ""));
+  const sender =
+    flat?.senderEmail ??
+    flat?.sender ??
+    flat?.senderName ??
+    flat?.from ??
+    flat?.username ??
+    flat?.createdBy ??
+    flat?.senderId ??
+    "";
+  const sentAt = flat?.sentAt ?? flat?.createdAt ?? flat?.timestamp ?? flat?.time ?? null;
+  const schoolName = String(flat?.schoolName ?? flat?.school_name ?? "").trim();
+  const campusName = String(flat?.campusName ?? flat?.campus_name ?? "").trim();
+  return {id: String(id), text, sender, sentAt, schoolName, campusName, raw: m};
+};
+
+const hasRenderableChatText = (m) => stripInvisibleAndTrim(m?.text ?? "") !== "";
 
 const mergeUniqueMessages = (messages) => {
   const map = new Map();
@@ -151,11 +173,85 @@ const formatMessageTime = (value) => {
   }
 };
 
+/** Nhãn cuộc trò chuyện (sidebar / header): ưu tiên tên trường + cơ sở từ WS/API. */
+const formatAdminConversationListLabel = ({schoolName, campusName, campusEmail, campusId}) => {
+  const sn = String(schoolName || "").trim();
+  const cn = String(campusName || "").trim();
+  if (sn && cn) return `${sn} · ${cn}`;
+  if (sn) return sn;
+  if (cn) return cn;
+  const email = String(campusEmail || "").trim();
+  const campusNum = campusId != null && String(campusId).trim() !== "" ? Number(campusId) : NaN;
+  const labelBase =
+    email && email.includes("@") ? email.split("@")[0] : CONTACT_LABEL_FALLBACK;
+  return Number.isFinite(campusNum) && campusNum >= 0 ? `${labelBase} · ${campusNum}` : labelBase;
+};
+
+/** GET /admin/conversation — BE có thể đặt preview tin cuối dưới nhiều tên field. */
+const pickLastMessagePreviewFromConversationItem = (item) => {
+  if (!item || typeof item !== "object") return "";
+  const raw =
+    item.lastMessage ??
+    item.last_message ??
+    item.lastMessageContent ??
+    item.last_message_content ??
+    item.latestMessage ??
+    item.latest_message ??
+    item.preview ??
+    item.messagePreview ??
+    item.message_preview ??
+    item.recentMessage ??
+    item.lastChatMessage ??
+    item.chatMessage?.message ??
+    item.chatMessage?.content ??
+    item.chatMessage?.text ??
+    "";
+  const s = typeof raw === "string" ? raw : raw != null ? String(raw) : "";
+  return stripInvisibleAndTrim(s);
+};
+
 const normalizePrincipal = (v) =>
   String(v || "")
     .trim()
     .toLowerCase()
     .replace(/^["'<\s]+|["'>\s]+$/g, "");
+
+/** Giống SchoolContactAdmin — sender/receiver có thể nằm trong chatMessage / message lồng. */
+const extractPrivateMessageSender = (merged) => {
+  const layers = [merged, merged?.chatMessage, merged?.message, merged?.data, merged?.dto, merged?.payload].filter(
+    (x) => x && typeof x === "object" && !Array.isArray(x)
+  );
+  for (let i = 0; i < layers.length; i += 1) {
+    const o = layers[i];
+    const s =
+      o.senderEmail ??
+      o.senderName ??
+      o.sender ??
+      o.from ??
+      o.username ??
+      o.createdBy ??
+      "";
+    if (String(s).trim()) return String(s);
+  }
+  return "";
+};
+
+const extractPrivateMessageReceiver = (merged) => {
+  const layers = [merged, merged?.chatMessage, merged?.message, merged?.data, merged?.dto, merged?.payload].filter(
+    (x) => x && typeof x === "object" && !Array.isArray(x)
+  );
+  for (let i = 0; i < layers.length; i += 1) {
+    const o = layers[i];
+    const r =
+      o.receiverEmail ??
+      o.receiverName ??
+      o.receiver ??
+      o.to ??
+      "";
+    if (String(r).trim()) return String(r);
+  }
+  return "";
+};
 
 const parseBodyObject = (value) => {
   if (value == null) return {};
@@ -245,6 +341,125 @@ const pickFirstConversationItem = (responseData) => {
   return null;
 };
 
+const rowCampusEmailFromConv = (c) =>
+  normalizePrincipal(
+    c?.campusEmail ?? c?.emailCampus ?? c?.campus_mail ?? c?.campusMail ?? ""
+  );
+
+const matchesAdminConversationRow = (c, convId, campusId, senderNorm) => {
+  if (convId != null && isSameConversationId(c._conversationId, convId)) return true;
+  if (campusId != null && campusId !== "") {
+    const rowC = c.campusId ?? c.campusID;
+    if (rowC != null && String(rowC) === String(campusId)) return true;
+  }
+  const cem = rowCampusEmailFromConv(c);
+  if (cem && senderNorm && cem === senderNorm) return true;
+  return false;
+};
+
+/** Khi GET /admin/conversation trả rỗng nhưng WS đã có tin — tạo dòng danh sách từ payload (không gọi API). */
+const buildSyntheticAdminConversationRow = ({
+  conversationId,
+  campusId,
+  campusEmail,
+  schoolName,
+  campusName,
+  lastMessage,
+  unread = 1,
+}) => {
+  const cid = conversationId;
+  const email = String(campusEmail || "").trim();
+  const campusNum = campusId != null && String(campusId).trim() !== "" ? Number(campusId) : NaN;
+  const label = formatAdminConversationListLabel({
+    schoolName,
+    campusName,
+    campusEmail: email,
+    campusId: Number.isFinite(campusNum) ? campusNum : campusId,
+  });
+  return {
+    campusId: Number.isFinite(campusNum) ? campusNum : campusId,
+    campusID: Number.isFinite(campusNum) ? campusNum : campusId,
+    campusEmail: email,
+    emailCampus: email,
+    schoolName: String(schoolName || "").trim(),
+    campusName: String(campusName || "").trim(),
+    conversationId: cid,
+    conversationID: cid,
+    _conversationId: cid,
+    _label: label,
+    _logo: "",
+    _lastMessage: stripInvisibleAndTrim(String(lastMessage ?? "")),
+    _unreadCount: Math.min(99, unread),
+  };
+};
+
+const upsertAdminConversationsFromWs = (prev, ctx) => {
+  const {
+    incomingConversationId,
+    campusFromPayload,
+    senderLower,
+    senderResolved,
+    receiverIsAdmin,
+    schoolName,
+    campusName,
+    lastMessageText,
+  } = ctx;
+  const arr = Array.isArray(prev) ? prev : [];
+
+  const matchIdx = arr.findIndex((c) =>
+    matchesAdminConversationRow(c, incomingConversationId, campusFromPayload, senderLower)
+  );
+
+  if (matchIdx >= 0) {
+    const c = arr[matchIdx];
+    const sn = String(schoolName || "").trim();
+    const cn = String(campusName || "").trim();
+    const emailForLabel = rowCampusEmailFromConv(c) || String(senderResolved || "").trim();
+    const cidForLabel = c.campusId ?? c.campusID ?? campusFromPayload;
+    const mergedSn = sn || String(c.schoolName || "").trim();
+    const mergedCn = cn || String(c.campusName || "").trim();
+    let nextLabel = c._label;
+    if (sn || cn) {
+      nextLabel = formatAdminConversationListLabel({
+        schoolName: mergedSn,
+        campusName: mergedCn,
+        campusEmail: emailForLabel,
+        campusId: cidForLabel,
+      });
+    }
+    const preview = stripInvisibleAndTrim(String(lastMessageText ?? ""));
+    const updated = {
+      ...c,
+      schoolName: mergedSn,
+      campusName: mergedCn,
+      _label: nextLabel,
+      _lastMessage: preview || c._lastMessage,
+      _unreadCount: Math.min(99, Number(c._unreadCount || 0) + 1),
+    };
+    return {next: arr.map((row, i) => (i === matchIdx ? updated : row)), targetRow: updated};
+  }
+
+  if (
+    receiverIsAdmin &&
+    incomingConversationId != null &&
+    campusFromPayload != null &&
+    String(senderResolved || "").trim() !== ""
+  ) {
+    const newRow = buildSyntheticAdminConversationRow({
+      conversationId: incomingConversationId,
+      campusId: campusFromPayload,
+      campusEmail: senderResolved,
+      schoolName,
+      campusName,
+      lastMessage: lastMessageText,
+      unread: 1,
+    });
+    return {next: [...arr, newRow], targetRow: newRow};
+  }
+
+  return {next: arr, targetRow: null};
+};
+
 export default function AdminContactPage() {
   const userInfo = useMemo(() => {
     try {
@@ -281,12 +496,17 @@ export default function AdminContactPage() {
   const messageNextCursorIdRef = useRef(null);
   const conversationIdRef = useRef(conversationId);
   const selectedConversationRef = useRef(null);
+  const conversationsRef = useRef([]);
   const markReadInFlightRef = useRef(false);
   const lastMarkReadAtRef = useRef(0);
 
   useEffect(() => {
     conversationIdRef.current = conversationId;
   }, [conversationId]);
+
+  useEffect(() => {
+    conversationsRef.current = conversations;
+  }, [conversations]);
 
   useEffect(() => {
     selectedConversationRef.current = selectedConversation;
@@ -354,10 +574,29 @@ export default function AdminContactPage() {
         : Array.isArray(body?.items)
           ? body.items
           : [];
-      const normalized = messagesRaw.map(normalizeMessage);
-      setMessageItems((prev) =>
-        cursorId ? mergeUniqueMessages([...normalized, ...prev]) : mergeUniqueMessages(normalized)
-      );
+      const normalized = messagesRaw.map(normalizeMessage).filter(hasRenderableChatText);
+      setMessageItems((prev) => {
+        const merged = cursorId ? mergeUniqueMessages([...normalized, ...prev]) : mergeUniqueMessages(normalized);
+        const lastPreview =
+          merged.length > 0
+            ? stripInvisibleAndTrim(String(merged[merged.length - 1]?.text ?? ""))
+            : "";
+        if (lastPreview) {
+          const convId = conversation._conversationId;
+          const cidCampus = campusId;
+          queueMicrotask(() => {
+            setConversations((p) =>
+              p.map((c) =>
+                isSameConversationId(c._conversationId, convId) ||
+                String(c.campusId ?? c.campusID ?? "") === String(cidCampus)
+                  ? {...c, _lastMessage: lastPreview}
+                  : c
+              )
+            );
+          });
+        }
+        return merged;
+      });
       setMessageNextCursorId(body?.nextCursorId ?? body?.cursorId ?? null);
       setMessageHasMore(!!body?.hasMore);
       setSenderAdminEmail(String(body?.adminEmail || senderAdminEmail || myPrincipal || "").trim());
@@ -376,7 +615,7 @@ export default function AdminContactPage() {
         const response = await getCampusConversationsForAdmin();
         if (response?.status !== 200) {
           setHasConversation(false);
-          setConversationLoadError("Không tải được conversations");
+          setConversationLoadError("Không tải được danh sách hội thoại.");
           return;
         }
         const sourceItems = extractAdminConversationList(response?.data);
@@ -401,10 +640,15 @@ export default function AdminContactPage() {
             item?.campusTitle ??
             ""
           ).trim();
-          const label =
-            schoolName && campusName
-              ? `${schoolName} - ${campusName}`
-              : schoolName || campusName || CONTACT_LABEL_FALLBACK;
+          const rowCampusEmail = String(
+            item?.campusEmail ?? item?.emailCampus ?? item?.campus_mail ?? item?.campusMail ?? ""
+          ).trim();
+          const label = formatAdminConversationListLabel({
+            schoolName,
+            campusName,
+            campusEmail: rowCampusEmail,
+            campusId: item?.campusId ?? item?.campusID,
+          });
           const logo = String(
             item?.schoolLogoUrl ??
             item?.schoolLogoURL ??
@@ -424,6 +668,7 @@ export default function AdminContactPage() {
             _label: label,
             _logo: logo,
             _conversationId: cid,
+            _lastMessage: pickLastMessagePreviewFromConversationItem(item),
             _unreadCount: readConversationUnreadCount(item),
           };
         });
@@ -444,7 +689,7 @@ export default function AdminContactPage() {
         setHasConversation(false);
         setConversations([]);
         setSelectedConversation(null);
-        setConversationLoadError("Không tải được conversations");
+        setConversationLoadError("Không tải được danh sách hội thoại.");
       } finally {
         setConversationsLoading(false);
         /** Không dispatch admin-contact-conversations-refresh — tránh GET /admin/conversation lần 2; badge sidebar nhận admin-contact-unread-aggregate khi conversations set. */
@@ -473,25 +718,21 @@ export default function AdminContactPage() {
   };
 
   useEffect(() => {
-    const rowCampusEmail = (c) =>
-      normalizePrincipal(
-        c?.campusEmail ?? c?.emailCampus ?? c?.campus_mail ?? c?.campusMail ?? ""
-      );
-
-    const matchesConversationRow = (c, convId, campusId, senderNorm) => {
-      if (convId != null && isSameConversationId(c._conversationId, convId)) return true;
-      if (campusId != null && campusId !== "") {
-        const rowC = c.campusId ?? c.campusID;
-        if (rowC != null && String(rowC) === String(campusId)) return true;
-      }
-      const cem = rowCampusEmail(c);
-      if (cem && senderNorm && cem === senderNorm) return true;
-      return false;
-    };
-
     const onPrivateMessage = (payload) => {
       const merged = mergeChatPayload(payload);
-      const root = merged;
+      const normalizedBase = normalizeMessage(merged);
+      if (!hasRenderableChatText(normalizedBase)) return;
+
+      const senderResolved = extractPrivateMessageSender(merged).trim() || String(normalizedBase.sender || "").trim();
+      const normalized = {...normalizedBase, sender: senderResolved};
+      const senderLower = normalizePrincipal(senderResolved);
+
+      const receiverResolved = extractPrivateMessageReceiver(merged).trim();
+      const receiverLower = normalizePrincipal(receiverResolved);
+
+      const selfSend = !!(myPrincipalLower && senderLower && senderLower === myPrincipalLower);
+      if (selfSend) return;
+
       const incomingConversationId =
         pickIncomingConversationId(merged) ?? pickIncomingConversationId(payload);
       const rawCampus =
@@ -502,87 +743,65 @@ export default function AdminContactPage() {
       const campusFromPayload =
         rawCampus !== undefined && rawCampus !== null && String(rawCampus).trim() !== "" ? rawCampus : null;
 
-      const sender =
-        merged.senderEmail ??
-        merged.senderName ??
-        merged.sender ??
-        merged.from ??
-        merged.username ??
-        "";
-      const senderLower = normalizePrincipal(sender);
-      const selfSend = !!(myPrincipalLower && senderLower && senderLower === myPrincipalLower);
-      if (selfSend) return;
+      const receiverIsAdmin =
+        !!myPrincipalLower && receiverLower !== "" && receiverLower === myPrincipalLower;
 
-      const activeId = conversationIdRef.current;
-      const selected = selectedConversationRef.current;
-      const selectedCampusId =
-        selected?.campusId ?? selected?.campusID ?? selected?.campus_id ?? null;
-      const selectedCampusEmail = rowCampusEmail(selected ?? {});
+      const schoolNameWs = String(merged?.schoolName ?? merged?.school_name ?? "").trim();
+      const campusNameWs = String(merged?.campusName ?? merged?.campus_name ?? "").trim();
 
-      /** Tin thuộc cuộc đang mở: conversationId / campusId / email campus khớp dòng đang chọn. */
-      const openChatMatchesThisMessage =
-        (incomingConversationId != null &&
-          activeId != null &&
-          isSameConversationId(incomingConversationId, activeId)) ||
-        (campusFromPayload != null &&
-          selectedCampusId != null &&
-          String(campusFromPayload) === String(selectedCampusId)) ||
-        (selectedCampusEmail &&
-          senderLower &&
-          selectedCampusEmail === senderLower);
-
-      /**
-       * Luôn tăng _unreadCount để sidebar + emit admin-contact-unread-aggregate cập nhật.
-       * Trước đây nhánh “đang mở đúng cuộc” chỉ append tin → _unreadCount = 0 → badge Liên hệ không đổi.
-       */
-      setConversations((prev) => {
-        let bumped = false;
-        let next = prev.map((c) => {
-          if (!matchesConversationRow(c, incomingConversationId, campusFromPayload, senderLower)) return c;
-          bumped = true;
-          return {
-            ...c,
-            _unreadCount: Math.min(99, Number(c._unreadCount || 0) + 1),
-          };
-        });
-        if (!bumped && prev.length === 1) {
-          const only = prev[0];
-          return [
-            {
-              ...only,
-              _unreadCount: Math.min(99, Number(only._unreadCount || 0) + 1),
-            },
-          ];
-        }
-        if (!bumped && openChatMatchesThisMessage && selected?._conversationId != null) {
-          next = prev.map((c) =>
-            isSameConversationId(c._conversationId, selected._conversationId)
-              ? {
-                  ...c,
-                  _unreadCount: Math.min(99, Number(c._unreadCount || 0) + 1),
-                }
-              : c
-          );
-        }
-        return next;
+      /** Cập nhật danh sách trái: khớp dòng có sẵn hoặc thêm dòng synthetic khi GET trước đó rỗng. */
+      const {next, targetRow} = upsertAdminConversationsFromWs(conversationsRef.current, {
+        incomingConversationId,
+        campusFromPayload,
+        senderLower,
+        senderResolved,
+        receiverIsAdmin,
+        schoolName: schoolNameWs,
+        campusName: campusNameWs,
+        lastMessageText: normalized.text,
       });
-
-      if (!openChatMatchesThisMessage) {
-        return;
+      conversationsRef.current = next;
+      setConversations(next);
+      if (next.length > 0) {
+        setHasConversation(true);
       }
 
-      const normalized = normalizeMessage(root);
-      setMessageItems((prev) => {
-        let replacedOptimistic = false;
-        const withoutMatchingOptimistic = prev.filter((m) => {
-          if (!String(m?.id ?? "").startsWith("optimistic-")) return true;
-          if (!normalized.text || String(m?.text ?? "") !== String(normalized.text ?? "")) return true;
-          if (replacedOptimistic) return true;
-          replacedOptimistic = true;
-          return false;
+      const sel = selectedConversationRef.current;
+      const showMessageInOpenChat =
+        receiverIsAdmin &&
+        targetRow != null &&
+        (!sel || isSameConversationId(sel._conversationId, targetRow._conversationId));
+
+      if (showMessageInOpenChat) {
+        if (!sel || !isSameConversationId(sel._conversationId, targetRow._conversationId)) {
+          selectedConversationRef.current = targetRow;
+          setSelectedConversation(targetRow);
+          setConversationLabel(targetRow._label || CONTACT_LABEL_FALLBACK);
+          setSchoolLogoUrl(String(targetRow._logo || "").trim());
+          setConversationId(targetRow._conversationId);
+          setReceiverCampusEmail(rowCampusEmailFromConv(targetRow) || senderResolved);
+          const scid = targetRow.campusId ?? targetRow.campusID ?? campusFromPayload;
+          setSelectedCampusId(
+            scid != null && String(scid).trim() !== "" && Number.isFinite(Number(scid)) ? Number(scid) : null
+          );
+        } else {
+          selectedConversationRef.current = targetRow;
+          setSelectedConversation(targetRow);
+          setConversationLabel(targetRow._label || CONTACT_LABEL_FALLBACK);
+        }
+
+        setMessageItems((prev) => {
+          let replacedOptimistic = false;
+          const withoutMatchingOptimistic = prev.filter((m) => {
+            if (!String(m?.id ?? "").startsWith("optimistic-")) return true;
+            if (!normalized.text || String(m?.text ?? "") !== String(normalized.text ?? "")) return true;
+            if (replacedOptimistic) return true;
+            replacedOptimistic = true;
+            return false;
+          });
+          return mergeUniqueMessages([...withoutMatchingOptimistic, normalized]);
         });
-        return mergeUniqueMessages([...withoutMatchingOptimistic, normalized]);
-      });
+      }
     };
 
     connectPrivateMessageSocket({onMessage: onPrivateMessage});
@@ -636,6 +855,14 @@ export default function AdminContactPage() {
         sentAt: new Date().toISOString(),
       };
       setMessageItems((prev) => mergeUniqueMessages([...prev, normalizeMessage(optimisticRaw)]));
+      setConversations((prev) =>
+        prev.map((c) =>
+          selectedConversation &&
+          isSameConversationId(c._conversationId, selectedConversation._conversationId)
+            ? {...c, _lastMessage: text}
+            : c
+        )
+      );
     } finally {
       setSending(false);
     }
@@ -707,7 +934,7 @@ export default function AdminContactPage() {
             }}
           >
             <SearchIcon fontSize="small" sx={{color: "#94a3b8", mr: 1}} />
-            <Typography sx={{fontSize: 13, color: "#94a3b8"}}>Search...</Typography>
+            <Typography sx={{fontSize: 13, color: "#94a3b8"}}>Tìm kiếm...</Typography>
           </Paper>
           <Divider sx={{my: 2, borderColor: "rgba(148,163,184,0.35)"}} />
           {hasConversation ? (
@@ -725,7 +952,7 @@ export default function AdminContactPage() {
                       py: 1.25,
                       borderRadius: 3,
                       display: "flex",
-                      alignItems: "center",
+                      alignItems: "flex-start",
                       gap: 1.2,
                       mb: 0.75,
                       cursor: "pointer",
@@ -742,43 +969,101 @@ export default function AdminContactPage() {
                         <ContactSupportOutlinedIcon sx={{color: "#2563eb"}} />
                       )}
                     </Box>
-                    <Box sx={{flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 1, justifyContent: "space-between"}}>
-                      <Typography
+                    <Box sx={{flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 0}}>
+                      <Box
                         sx={{
-                          fontSize: 15,
-                          fontWeight: 700,
-                          color: "#1e293b",
-                          flex: 1,
-                          minWidth: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          display: "-webkit-box",
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: "vertical",
+                          display: "flex",
+                          alignItems: "flex-start",
+                          justifyContent: "space-between",
+                          gap: 1,
                         }}
                       >
-                        {item?._label || CONTACT_LABEL_FALLBACK}
-                      </Typography>
-                      {Number(item?._unreadCount) > 0 ? (
-                        <Box
-                          component="span"
+                        <Typography
                           sx={{
-                            flexShrink: 0,
-                            minWidth: 22,
-                            height: 22,
-                            px: 0.75,
-                            borderRadius: 999,
-                            bgcolor: "#ef4444",
-                            color: "#ffffff",
-                            fontSize: 11,
+                            flex: 1,
+                            minWidth: 0,
+                            fontSize: 15,
                             fontWeight: 700,
-                            lineHeight: 1,
-                            display: "inline-flex",
-                            alignItems: "center",
-                            justifyContent: "center",
+                            color: "#1e293b",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
                           }}
                         >
-                          {Math.min(99, Number(item._unreadCount))}
+                          {item?._label || CONTACT_LABEL_FALLBACK}
+                        </Typography>
+                        {Number(item?._unreadCount) > 0 && !String(item?._lastMessage || "").trim() ? (
+                          <Box
+                            component="span"
+                            sx={{
+                              flexShrink: 0,
+                              minWidth: 22,
+                              height: 22,
+                              px: 0.75,
+                              borderRadius: 999,
+                              bgcolor: "#ef4444",
+                              color: "#ffffff",
+                              fontSize: 11,
+                              fontWeight: 700,
+                              lineHeight: 1,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            {Math.min(99, Number(item._unreadCount))}
+                          </Box>
+                        ) : null}
+                      </Box>
+                      {String(item?._lastMessage || "").trim() ? (
+                        <Box
+                          sx={{
+                            mt: 0.35,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 1,
+                            minWidth: 0,
+                          }}
+                        >
+                          <Typography
+                            sx={{
+                              flex: 1,
+                              minWidth: 0,
+                              fontSize: 12.5,
+                              fontWeight: 400,
+                              color: "#64748b",
+                              lineHeight: 1.35,
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {item._lastMessage}
+                          </Typography>
+                          {Number(item?._unreadCount) > 0 ? (
+                            <Box
+                              component="span"
+                              sx={{
+                                flexShrink: 0,
+                                minWidth: 22,
+                                height: 22,
+                                px: 0.75,
+                                borderRadius: 999,
+                                bgcolor: "#ef4444",
+                                color: "#ffffff",
+                                fontSize: 11,
+                                fontWeight: 700,
+                                lineHeight: 1,
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                              }}
+                            >
+                              {Math.min(99, Number(item._unreadCount))}
+                            </Box>
+                          ) : null}
                         </Box>
                       ) : null}
                     </Box>
@@ -823,7 +1108,7 @@ export default function AdminContactPage() {
                     <Typography sx={{fontSize: 11, color: "#64748b"}}>Đang tải tin nhắn...</Typography>
                   </Box>
                 ) : null}
-                {messageItems.map((m) => {
+                {messageItems.filter(hasRenderableChatText).map((m) => {
                   const mine = isOutgoing(m);
                   return (
                     <Box key={m.id} sx={{display: "flex", justifyContent: mine ? "flex-end" : "flex-start", mb: 1}}>

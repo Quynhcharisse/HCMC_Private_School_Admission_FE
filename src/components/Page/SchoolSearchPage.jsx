@@ -13,7 +13,6 @@ import {
     Link,
     MenuItem,
     Pagination,
-    Rating,
     Stack,
     TextField,
     Typography,
@@ -1002,50 +1001,6 @@ export default function SchoolSearchPage() {
                                         >
                                             {school.school}
                                         </Typography>
-                                        <Box sx={{display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.4}}>
-                                            {(Number(school.averageRating) || 0) > 0 ? (
-                                                <>
-                                                    <Typography
-                                                        component="span"
-                                                        sx={{
-                                                            fontSize: '0.75rem',
-                                                            fontWeight: 600,
-                                                            color: '#000',
-                                                            lineHeight: 1,
-                                                            display: 'inline-block',
-                                                            flexShrink: 0
-                                                        }}
-                                                    >{Number(school.averageRating).toFixed(1)}</Typography>
-                                                    <Rating
-                                                        value={Math.min(5, Math.max(0, Number(school.averageRating) || 0))}
-                                                        precision={0.1}
-                                                        readOnly
-                                                        size="small"
-                                                        sx={{
-                                                            color: '#ffc107',
-                                                            display: 'inline-flex',
-                                                            verticalAlign: 'middle',
-                                                            m: 0,
-                                                            p: 0,
-                                                            '& .MuiRating-iconFilled': {color: '#ffc107'},
-                                                            '& .MuiRating-iconEmpty': {color: 'rgba(0,0,0,0.22)'}
-                                                        }}
-                                                    />
-                                                </>
-                                            ) : (
-                                                <Typography
-                                                    component="span"
-                                                    sx={{
-                                                        fontSize: '0.75rem',
-                                                        fontWeight: 500,
-                                                        color: '#000',
-                                                        lineHeight: 1.2
-                                                    }}
-                                                >
-                                                    —
-                                                </Typography>
-                                            )}
-                                        </Box>
                                         {school.description ? (
                                             <Typography
                                                 sx={{

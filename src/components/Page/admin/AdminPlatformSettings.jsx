@@ -18,6 +18,7 @@ import {
     DialogContent,
     DialogTitle,
     Paper,
+    Popover,
     Stack,
     Tab,
     Table,
@@ -35,9 +36,9 @@ import debounce from "debounce";
 import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
 import AddIcon from "@mui/icons-material/Add";
 import FileUploadOutlinedIcon from "@mui/icons-material/FileUploadOutlined";
-import AssignmentOutlinedIcon from "@mui/icons-material/AssignmentOutlined";
 import EditIcon from "@mui/icons-material/Edit";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import {
     confirmSystemConfigImport,
     getSystemConfig,
@@ -49,6 +50,7 @@ import {
 import { autoFillAdminSchoolQuotas } from "../../../services/AdminService.jsx";
 import { getPublicSchoolList } from "../../../services/SchoolPublicService.jsx";
 import { enqueueSnackbar } from "notistack";
+import { adminSttChipSx } from "../../../constants/adminTableStyles.js";
 import { sanitizeAdmissionSettingsForApi } from "../../../utils/admissionSettingsShared.js";
 function getAdmissionQuotaMap(cfg) {
     if (!cfg || typeof cfg !== "object") return {};
@@ -64,7 +66,6 @@ function getAdmissionQuotaMap(cfg) {
     return raw;
 }
 
-/** Chuẩn hóa giá trị cấu hình từ API: object hoặc chuỗi JSON object (một số BE serialize lồng). */
 function asConfigRecord(raw) {
     if (raw == null) return {};
     if (typeof raw === "string") {
@@ -81,11 +82,6 @@ function asConfigRecord(raw) {
     return {};
 }
 
-/**
- * Map đọc cấu hình doanh nghiệp — khớp body:
- * businessData: { taxRate, serviceRate, minPay, maxPay, subscriptionPricing: { basePrices, featureUnitPrices, packageQuotas, trialRatioCap } } }
- * Hỗ trợ thêm cfg.business (legacy) và trialRatioCap nhầm lên root businessData.
- */
 function getBusinessConfig(cfg) {
     if (!cfg || typeof cfg !== "object") return {};
     const businessData = asConfigRecord(cfg.businessData);
@@ -123,6 +119,26 @@ function getBusinessConfig(cfg) {
     };
 }
 
+const TRIAL_RATIO_CAP_INFO_TOOLTIP = "Tỉ lệ này xác định quy mô của gói Dùng thử so với gói Tiêu chuẩn. Giúp tự động cân đối hạn mức vận hành (tư vấn viên, bài đăng) để bảo vệ quyền lợi của các gói trả phí.";
+
+const TRIAL_RATIO_CAP_INPUT_HINT = "15%: ít tính năng • 30%: vừa đủ • 40%: nhiều tính năng";
+
+function trialRatioCapDecimalToFormPctString(cap) {
+    if (cap == null || cap === "") return "";
+    const n = Number(cap);
+    if (!Number.isFinite(n)) return String(cap).trim();
+    const pct = n * 100;
+    const rounded = Math.round(pct * 100) / 100;
+    if (Number.isInteger(rounded)) return String(Math.trunc(rounded));
+    return String(rounded);
+}
+
+function formPctStringToTrialRatioCapDecimal(pctStr) {
+    const raw = Number(String(pctStr ?? "").trim());
+    if (!Number.isFinite(raw)) return NaN;
+    return Math.round((raw / 100) * 10000) / 10000;
+}
+
 function getMediaConfig(cfg) {
     if (!cfg || typeof cfg !== "object") return {};
     return cfg.mediaData ?? cfg.media ?? {};
@@ -147,7 +163,6 @@ function assertSystemConfigUpdateSuccess(response, fallbackMessage = "Cập nh�
     }
 }
 
-/** Tóm tắt tác động lên gói sau khi BE lưu business (Bước 2–3); các field là gợi ý, không bắt buộc. */
 function extractBusinessConfigSaveSideEffects(response) {
     const root = response?.data;
     const body = root?.body ?? root?.data ?? (root && typeof root === "object" ? root : {});
@@ -198,6 +213,74 @@ const IMPORT_TYPE_LABEL = {
 };
 
 const IMPORT_TYPE_OPTIONS = Object.keys(IMPORT_TYPE_LABEL);
+
+const ADMISSION_IMPORT_COLUMN_LABEL = {
+    index: "STT",
+    code: "Mã",
+    displayName: "Tên hiển thị",
+    display_name: "Tên hiển thị",
+    description: "Mô tả",
+    methodCode: "Mã phương thức",
+    method_code: "Mã phương thức",
+    stepName: "Tên bước",
+    step_name: "Tên bước",
+    stepOrder: "Thứ tự bước",
+    step_order: "Thứ tự bước",
+    name: "Tên",
+    required: "Bắt buộc",
+    isRequired: "Bắt buộc",
+    is_required: "Bắt buộc",
+    documentCode: "Mã hồ sơ",
+    document_code: "Mã hồ sơ",
+    documentName: "Tên hồ sơ",
+    document_name: "Tên hồ sơ",
+    stepCode: "Mã bước",
+    step_code: "Mã bước",
+    processName: "Tên quy trình",
+    process_name: "Tên quy trình",
+    processCode: "Mã quy trình",
+    process_code: "Mã quy trình",
+    order: "Thứ tự",
+    sortOrder: "Thứ tự sắp xếp",
+    sort_order: "Thứ tự sắp xếp",
+    title: "Tiêu đề",
+    notes: "Ghi chú",
+    note: "Ghi chú",
+    remark: "Ghi chú",
+    category: "Danh mục",
+    type: "Loại",
+    url: "Liên kết",
+    link: "Liên kết",
+    fileType: "Định dạng tệp",
+    file_type: "Định dạng tệp",
+    fileTypes: "Định dạng tệp",
+    instruction: "Hướng dẫn",
+    instructions: "Hướng dẫn",
+    minFileSize: "Dung lượng tối thiểu",
+    maxFileSize: "Dung lượng tối đa",
+    methodDocumentCode: "Mã hồ sơ theo phương thức",
+    method_document_code: "Mã hồ sơ theo phương thức",
+    documentType: "Loại hồ sơ",
+    document_type: "Loại hồ sơ",
+    optional: "Tùy chọn",
+    active: "Kích hoạt",
+    enabled: "Bật",
+    disabled: "Tắt",
+};
+
+function getAdmissionImportColumnLabel(columnKey) {
+    const key = String(columnKey ?? "").trim();
+    if (!key) return "—";
+    if (ADMISSION_IMPORT_COLUMN_LABEL[key]) return ADMISSION_IMPORT_COLUMN_LABEL[key];
+    const lower = key.toLowerCase();
+    if (ADMISSION_IMPORT_COLUMN_LABEL[lower]) return ADMISSION_IMPORT_COLUMN_LABEL[lower];
+    const snake = key
+        .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+        .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+        .toLowerCase();
+    if (ADMISSION_IMPORT_COLUMN_LABEL[snake]) return ADMISSION_IMPORT_COLUMN_LABEL[snake];
+    return key;
+}
 
 const normalizeImportErrorText = (error) => {
     if (!error) return "";
@@ -273,15 +356,7 @@ export default function AdminPlatformSettings() {
             trialPostLimit: packageQuotas.trialPostLimit == null ? "" : String(packageQuotas.trialPostLimit),
             standardPostLimit: packageQuotas.standardPostLimit == null ? "" : String(packageQuotas.standardPostLimit),
             enterprisePostLimit: packageQuotas.enterprisePostLimit == null ? "" : String(packageQuotas.enterprisePostLimit),
-            trialRatioCap: (() => {
-                const cap = subscriptionPricing.trialRatioCap;
-                if (cap != null && cap !== "") {
-                    const n = Number(cap);
-                    if (Number.isFinite(n)) return String(Math.round(n * 10000) / 10000);
-                    return String(cap);
-                }
-                return "1";
-            })(),
+            trialRatioCapPct: trialRatioCapDecimalToFormPctString(subscriptionPricing.trialRatioCap),
         };
     };
 
@@ -302,13 +377,14 @@ export default function AdminPlatformSettings() {
         trialPostLimit: "",
         standardPostLimit: "",
         enterprisePostLimit: "",
-        trialRatioCap: "1",
+        trialRatioCapPct: "",
     });
     const [businessErrors, setBusinessErrors] = useState({});
     const [businessPricingTab, setBusinessPricingTab] = useState(0);
     const [businessPricingSubTab, setBusinessPricingSubTab] = useState(0);
 
     const [businessEditing, setBusinessEditing] = useState(false);
+    const [trialRatioCapInfoAnchor, setTrialRatioCapInfoAnchor] = useState(null);
 
     const [mediaEditing, setMediaEditing] = useState(false);
     const [quotaEditing, setQuotaEditing] = useState(false);
@@ -348,7 +424,6 @@ export default function AdminPlatformSettings() {
     const [confirmingAdmissionImport, setConfirmingAdmissionImport] = useState(false);
     const [admissionImportConfirmOpen, setAdmissionImportConfirmOpen] = useState(false);
     const [admissionImportPreviewOpen, setAdmissionImportPreviewOpen] = useState(false);
-    const [validatingImportRow, setValidatingImportRow] = useState(false);
     const [admissionTemplateEditing, setAdmissionTemplateEditing] = useState(false);
     const [admissionImportPreview, setAdmissionImportPreview] = useState(null);
     const [importingAdmissionTemplate, setImportingAdmissionTemplate] = useState(false);
@@ -550,15 +625,17 @@ export default function AdminPlatformSettings() {
         getPositiveInt("standardPostLimit", "Giới hạn bài đăng gói Tiêu chuẩn");
         getPositiveInt("enterprisePostLimit", "Giới hạn bài đăng gói Doanh nghiệp");
 
-        const capStr = String(form.trialRatioCap ?? "").trim();
+        const capStr = String(form.trialRatioCapPct ?? "").trim();
+        let capPctNum = NaN;
         if (!capStr) {
-            errors.trialRatioCap = "Vui lòng nhập Giới hạn tỉ lệ gói Dùng thử (trialRatioCap).";
+            errors.trialRatioCapPct = "Vui lòng nhập Giới hạn tỉ lệ gói Dùng thử (%).";
         } else {
-            const capNum = Number(capStr);
-            if (!Number.isFinite(capNum)) {
-                errors.trialRatioCap = "trialRatioCap phải là số.";
-            } else if (capNum < 0 || capNum > 1) {
-                errors.trialRatioCap = "trialRatioCap phải nằm trong khoảng [0..1] (ví dụ 0.3 = 30%).";
+            capPctNum = Number(capStr);
+            if (!Number.isFinite(capPctNum)) {
+                errors.trialRatioCapPct = "Giá trị phải là số (ví dụ 30 tương đương 30%).";
+            } else if (capPctNum <= 0 || capPctNum >= 100) {
+                errors.trialRatioCapPct =
+                    "Tỉ lệ trần phải lớn hơn 0% và nhỏ hơn 100% (tỷ lệ thập phân trên máy chủ: 0 < … < 1).";
             }
         }
 
@@ -591,22 +668,22 @@ export default function AdminPlatformSettings() {
             }
         }
 
-        const capNum = capStr ? Number(capStr) : NaN;
+        const capDecimal = Number.isFinite(capPctNum) ? capPctNum / 100 : NaN;
         if (
             !errors.trialCounsellor &&
             !errors.standardCounsellor &&
-            !errors.trialRatioCap &&
-            Number.isFinite(capNum) &&
-            capNum >= 0 &&
-            capNum <= 1 &&
+            !errors.trialRatioCapPct &&
+            Number.isFinite(capDecimal) &&
+            capDecimal > 0 &&
+            capDecimal < 1 &&
             Number.isInteger(trialC) &&
             Number.isInteger(standardC) &&
             trialC >= 0 &&
             standardC >= 0
         ) {
-            const maxTrialByCap = Math.floor(standardC * capNum);
+            const maxTrialByCap = Math.floor(standardC * capDecimal);
             if (trialC > maxTrialByCap) {
-                errors.trialCounsellor = `Theo trialRatioCap (${capNum}), gói Dùng thử không được quá ${maxTrialByCap} tư vấn viên (≤ ⌊${standardC} × ${capNum}⌋ so với gói Tiêu chuẩn).`;
+                errors.trialCounsellor = `Theo giới hạn tỉ lệ (${capPctNum}%), gói Dùng thử không được quá ${maxTrialByCap} tư vấn viên (≤ ⌊${standardC} × ${capDecimal}⌋ so với gói Tiêu chuẩn).`;
             }
         }
 
@@ -829,8 +906,6 @@ export default function AdminPlatformSettings() {
                 });
             } catch (error) {
                 void error;
-            } finally {
-                setValidatingImportRow(false);
             }
         }, 500);
         validateRowDebouncedRef.current = debounced;
@@ -1251,8 +1326,7 @@ export default function AdminPlatformSettings() {
             const maxPay = parseFinite(businessForm.maxPay);
             const taxRate = toRateDecimal(businessForm.taxRatePct);
             const serviceRate = toRateDecimal(businessForm.serviceRatePct);
-            const trialRatioCapRaw = Number(String(businessForm.trialRatioCap ?? "").trim());
-            const trialRatioCap = Number.isFinite(trialRatioCapRaw) ? Math.round(trialRatioCapRaw * 10000) / 10000 : 0;
+            const trialRatioCap = formPctStringToTrialRatioCapDecimal(businessForm.trialRatioCapPct);
 
             const updatedBody = {
                 businessData: {
@@ -1351,6 +1425,62 @@ export default function AdminPlatformSettings() {
         admissionImportInputRef.current?.click();
     };
 
+    const getAdmissionImportRowTemplate = (type) => {
+        switch (String(type || "").trim()) {
+            case "ADMISSION_PROCESSES":
+                return {
+                    methodCode: "",
+                    stepName: "",
+                    stepOrder: "",
+                    description: "",
+                };
+            case "METHOD_DOCUMENTS":
+                return {
+                    methodCode: "",
+                    documentCode: "",
+                    documentName: "",
+                    required: "",
+                };
+            case "ALLOWED_METHODS":
+            default:
+                return {
+                    code: "",
+                    displayName: "",
+                    description: "",
+                };
+        }
+    };
+
+    const createAdmissionImportRow = (type) => ({
+        rowData: getAdmissionImportRowTemplate(type),
+        error: null,
+        errorText: "",
+        isError: false,
+    });
+
+    const getRequiredFieldsByImportType = (type) => {
+        switch (String(type || "").trim()) {
+            case "METHOD_DOCUMENTS":
+                return ["methodCode", "documentCode", "documentName"];
+            case "ADMISSION_PROCESSES":
+                return ["methodCode", "stepName"];
+            case "ALLOWED_METHODS":
+            default:
+                return ["code", "displayName"];
+        }
+    };
+
+    const isAdmissionImportRowComplete = (type, rowData) => {
+        if (!rowData || typeof rowData !== "object") return false;
+        const required = getRequiredFieldsByImportType(type);
+        return required.every((field) => String(rowData[field] ?? "").trim() !== "");
+    };
+
+    const handleAddAdmissionImportRow = () => {
+        setAdmissionImportRows((prev) => [...(Array.isArray(prev) ? prev : []), createAdmissionImportRow(importType)]);
+        setAdmissionImportPreviewOpen(true);
+    };
+
     const handleAdmissionTemplateImport = async (event) => {
         const file = event?.target?.files?.[0];
         if (!file) return;
@@ -1362,18 +1492,18 @@ export default function AdminPlatformSettings() {
             setAdmissionImportRows(rows);
             const errorCount = rows.filter((row) => row.isError).length;
             if (rows.length === 0) {
-                enqueueSnackbar("File không có dữ liệu để import.", { variant: "warning" });
+                enqueueSnackbar("File không có dữ liệu để nhập.", { variant: "warning" });
             } else if (errorCount === 0) {
                 enqueueSnackbar("Dữ liệu hợp lệ, bạn có thể xác nhận nhập ngay.", { variant: "success" });
                 setAdmissionImportPreviewOpen(true);
             } else {
-                enqueueSnackbar(`Đã tải preview: ${errorCount}/${rows.length} dòng có lỗi.`, { variant: "warning" });
+                enqueueSnackbar(`Đã tải xem trước: ${errorCount}/${rows.length} dòng có lỗi.`, { variant: "warning" });
                 setAdmissionImportPreviewOpen(true);
             }
             setStatus({ type: "", message: "" });
         } catch (e) {
             console.error("import admission template failed", e);
-            const msg = apiErrorMessage(e, "Import preview thất bại. Vui lòng kiểm tra file mẫu.");
+            const msg = apiErrorMessage(e, "Xem trước nhập dữ liệu thất bại. Vui lòng kiểm tra file mẫu.");
             enqueueSnackbar(msg, { variant: "error" });
             setStatus({ type: "error", message: msg });
         } finally {
@@ -1397,9 +1527,18 @@ export default function AdminPlatformSettings() {
             return next;
         });
         if (!rowPayload) return;
+        const shouldValidate = isAdmissionImportRowComplete(importType, rowPayload);
+        if (!shouldValidate) {
+            setAdmissionImportRows((prev) => {
+                const next = [...(Array.isArray(prev) ? prev : [])];
+                if (!next[rowIndex]) return prev;
+                next[rowIndex] = { ...next[rowIndex], error: null, errorText: "", isError: false };
+                return next;
+            });
+            return;
+        }
         const version = (rowValidationVersionRef.current[rowIndex] || 0) + 1;
         rowValidationVersionRef.current[rowIndex] = version;
-        setValidatingImportRow(true);
         validateRowDebouncedRef.current?.({
             row: rowPayload,
             rowIndex,
@@ -1472,11 +1611,21 @@ export default function AdminPlatformSettings() {
         const rowDisabled = !admissionTemplateEditing || saving;
         const methods = admissionTemplateForm.allowedMethods || [];
         const preview = admissionImportPreview;
-        const docsByMethod = Array.isArray(preview?.documentRequirementsData?.byMethod)
-            ? preview.documentRequirementsData.byMethod
-            : [];
-        const processByMethod = Array.isArray(preview?.admissionProcesses) ? preview.admissionProcesses : [];
-        const processByMethodMap = processByMethod.reduce((acc, group) => {
+        const docsSource = admissionTemplateEditing
+            ? Array.isArray(admissionTemplateForm.methodDocumentRequirements)
+                ? admissionTemplateForm.methodDocumentRequirements
+                : []
+            : Array.isArray(preview?.documentRequirementsData?.byMethod)
+                ? preview.documentRequirementsData.byMethod
+                : [];
+        const processSource = admissionTemplateEditing
+            ? Array.isArray(admissionTemplateForm.methodAdmissionProcess)
+                ? admissionTemplateForm.methodAdmissionProcess
+                : []
+            : Array.isArray(preview?.admissionProcesses)
+                ? preview.admissionProcesses
+                : [];
+        const processByMethodMap = processSource.reduce((acc, group) => {
             const methodCode = String(group?.methodCode ?? "").trim();
             if (!methodCode) return acc;
             acc[methodCode] = Array.isArray(group?.steps)
@@ -1492,12 +1641,19 @@ export default function AdminPlatformSettings() {
         }, {});
         const importRows = Array.isArray(admissionImportRows) ? admissionImportRows : [];
         const importErrorCount = importRows.filter((row) => row?.isError).length;
-        const importValidCount = Math.max(0, importRows.length - importErrorCount);
         const hasImportError = importErrorCount > 0;
         const canConfirmImport = importRows.length > 0 && !hasImportError && !confirmingAdmissionImport && !saving;
         const importColumns = importRows.length
             ? Object.keys(importRows.reduce((acc, row) => ({ ...acc, ...(row?.rowData || {}) }), {}))
             : [];
+        const importDisplayColumns = importColumns.filter((key) => key !== "index");
+        const isBooleanImportColumn = (key) => ["required", "isRequired", "is_required", "optional"].includes(key);
+        const getImportColumnWidth = (key) => {
+            if (["code", "methodCode", "documentCode", "processCode", "stepOrder"].includes(key)) return 120;
+            if (isBooleanImportColumn(key)) return 80;
+            if (["description", "displayName", "documentName", "stepName", "processName", "title", "instructions", "remark", "note"].includes(key)) return 260;
+            return undefined;
+        };
         const admissionInputSx = {
             "& .MuiOutlinedInput-root": {
                 borderRadius: 1.75,
@@ -1531,20 +1687,19 @@ export default function AdminPlatformSettings() {
             px: 1,
             py: 0.9,
             borderRadius: 0.9,
-            borderBottom: "1px solid rgba(148, 163, 184, 0.2)",
+            borderBottom: "1px solid rgba(203, 213, 225, 0.4)",
             bgcolor: "transparent",
-            transition: "all 220ms ease",
+            transition: "background-color 220ms ease, transform 220ms ease",
             "&:hover": {
-                bgcolor: "#eff6ff",
+                bgcolor: "#f8fbff",
                 transform: "translateX(2px)",
             },
         };
         const previewSectionCardSx = {
             p: 1.5,
             borderRadius: 2,
-            border: "1px solid #dbe7fb",
-            bgcolor: "#ffffff",
-            boxShadow: "0 6px 16px rgba(15, 23, 42, 0.04)",
+            bgcolor: "#f7fbff",
+            boxShadow: "none",
         };
         const previewSectionTitleSx = {
             fontWeight: 800,
@@ -1554,7 +1709,6 @@ export default function AdminPlatformSettings() {
             py: 0.6,
             borderRadius: 1,
             bgcolor: "#eff6ff",
-            border: "1px solid #dbeafe",
             display: "block",
         };
 
@@ -1575,7 +1729,7 @@ export default function AdminPlatformSettings() {
                             <TextField
                                 select
                                 size="small"
-                                label="Loại import"
+                                label="Loại nhập liệu"
                                 value={importType}
                                 disabled={saving || importingAdmissionTemplate || confirmingAdmissionImport}
                                 onChange={(e) => setImportType(String(e.target.value || "ALLOWED_METHODS"))}
@@ -1600,37 +1754,6 @@ export default function AdminPlatformSettings() {
                                 }}
                             >
                                 {importingAdmissionTemplate ? "Đang tải lên..." : "Tải lên"}
-                            </Button>
-                            <Button
-                                variant="contained"
-                                size="small"
-                                startIcon={confirmingAdmissionImport ? <CircularProgress size={14} /> : <AssignmentOutlinedIcon />}
-                                disabled={!canConfirmImport}
-                                autoFocus={canConfirmImport}
-                                onClick={openAdmissionImportConfirmModal}
-                                sx={{
-                                    textTransform: "none",
-                                    fontWeight: 700,
-                                    borderRadius: 2,
-                                    boxShadow: "none",
-                                    bgcolor: "#16a34a",
-                                    "&:hover": { bgcolor: "#15803d" },
-                                }}
-                            >
-                                {confirmingAdmissionImport ? "Đang xác nhận..." : "Xác nhận nhập"}
-                            </Button>
-                            <Button
-                                variant="outlined"
-                                size="small"
-                                disabled={importRows.length === 0}
-                                onClick={() => setAdmissionImportPreviewOpen(true)}
-                                sx={{
-                                    textTransform: "none",
-                                    fontWeight: 700,
-                                    borderRadius: 2,
-                                }}
-                            >
-                                Xem preview
                             </Button>
                             <Button
                                 variant="contained"
@@ -1668,16 +1791,31 @@ export default function AdminPlatformSettings() {
                         onClose={() => setAdmissionImportPreviewOpen(false)}
                         fullWidth
                         maxWidth="lg"
-                        PaperProps={{ sx: { borderRadius: 3, border: "1px solid #dbeafe" } }}
+                        PaperProps={{ sx: { borderRadius: 3, border: "1px solid #dbeafe", overflow: "hidden" } }}
                     >
-                        <DialogTitle sx={{ fontWeight: 800, color: "#0f172a" }}>
-                            Review dữ liệu trước khi nhập - {IMPORT_TYPE_LABEL[importType]}
+                        <DialogTitle
+                            sx={{
+                                fontWeight: 900,
+                                color: "#0f172a",
+                                background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 48%, #bfdbfe 100%)",
+                                borderBottom: "1px solid #dbeafe",
+                            }}
+                        >
+                            Kiểm tra dữ liệu trước khi nhập — {IMPORT_TYPE_LABEL[importType]}
                         </DialogTitle>
-                        <DialogContent sx={{ pt: "8px !important" }}>
-                            <Typography variant="body2" sx={{ color: "#475569", mb: 1 }}>
-                                Tổng: {importRows.length} | Hợp lệ: {importValidCount} | Lỗi: {importErrorCount}
-                                {validatingImportRow ? " | Đang kiểm tra..." : ""}
-                            </Typography>
+                        <DialogContent sx={{ pt: 3.5, px: 3, pb: 3, bgcolor: "#f8fafc" }}>
+                            <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 1, mb: 2, gap: 1, flexWrap: "wrap" }}>
+                                <Button
+                                    variant="outlined"
+                                    size="small"
+                                    startIcon={<AddIcon />}
+                                    disabled={saving || confirmingAdmissionImport}
+                                    onClick={handleAddAdmissionImportRow}
+                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                >
+                                    {importType === "ALLOWED_METHODS" ? "Thêm phương thức" : "Thêm hồ sơ"}
+                                </Button>
+                            </Box>
                             {importRows.length > 0 ? (
                                 <TableContainer
                                     sx={{
@@ -1690,38 +1828,89 @@ export default function AdminPlatformSettings() {
                                     <Table stickyHeader size="small">
                                         <TableHead>
                                             <TableRow>
-                                                <TableCell sx={{ fontWeight: 800 }}>STT</TableCell>
-                                                {importColumns.map((key) => (
-                                                    <TableCell key={`modal-col-${key}`} sx={{ fontWeight: 800 }}>
-                                                        {key}
+                                                <TableCell sx={{ fontWeight: 800, width: 66, textAlign: "center" }}>STT</TableCell>
+                                                {importDisplayColumns.map((key) => (
+                                                    <TableCell
+                                                        key={`modal-col-${key}`}
+                                                        sx={{ fontWeight: 800, width: getImportColumnWidth(key), textAlign: "center" }}
+                                                    >
+                                                        {getAdmissionImportColumnLabel(key)}
                                                     </TableCell>
                                                 ))}
-                                                <TableCell sx={{ fontWeight: 800 }}>Trạng thái</TableCell>
+                                                <TableCell sx={{ fontWeight: 800, width: 110, textAlign: "center" }}>Trạng thái</TableCell>
+                                                <TableCell sx={{ fontWeight: 800, width: 72, textAlign: "center" }}>Xóa</TableCell>
                                             </TableRow>
                                         </TableHead>
                                         <TableBody>
                                             {importRows.map((row, rowIdx) => (
                                                 <TableRow key={`modal-import-row-${rowIdx}`} hover>
-                                                    <TableCell>{row?.rowData?.index ?? rowIdx + 1}</TableCell>
-                                                    {importColumns.map((key) => (
-                                                        <TableCell key={`modal-import-row-${rowIdx}-cell-${key}`}>
-                                                            <TextField
-                                                                fullWidth
-                                                                size="small"
-                                                                value={row?.rowData?.[key] ?? ""}
-                                                                disabled={key === "index"}
-                                                                onChange={(e) => handleImportCellChange(rowIdx, key, e.target.value)}
-                                                                error={Boolean(row?.isError)}
-                                                                sx={{ minWidth: 120 }}
-                                                            />
+                                                    <TableCell align="center">
+                                                        <Chip label={rowIdx + 1} size="small" sx={adminSttChipSx} />
+                                                    </TableCell>
+                                                    {importDisplayColumns.map((key) => (
+                                                        <TableCell key={`modal-import-row-${rowIdx}-cell-${key}`} sx={{ width: getImportColumnWidth(key) }}>
+                                                            {isBooleanImportColumn(key) ? (
+                                                                <TextField
+                                                                    fullWidth
+                                                                    size="small"
+                                                                    select
+                                                                    value={String(row?.rowData?.[key] ?? "").trim()}
+                                                                    onChange={(e) => handleImportCellChange(rowIdx, key, e.target.value)}
+                                                                    error={Boolean(row?.isError)}
+                                                                    inputProps={{
+                                                                        "aria-label": getAdmissionImportColumnLabel(key),
+                                                                    }}
+                                                                    sx={{ minWidth: 80 }}
+                                                                >
+                                                                    <MenuItem value="">Chọn</MenuItem>
+                                                                    <MenuItem value="true">Có</MenuItem>
+                                                                    <MenuItem value="false">Không</MenuItem>
+                                                                </TextField>
+                                                            ) : (
+                                                                <TextField
+                                                                    fullWidth
+                                                                    size="small"
+                                                                    multiline={['description','displayName','documentName','stepName','processName','title','instructions','remark','note'].includes(key)}
+                                                                    minRows={['description','displayName','documentName','stepName','processName','title','instructions','remark','note'].includes(key) ? 2 : 1}
+                                                                    maxRows={4}
+                                                                    value={row?.rowData?.[key] ?? ""}
+                                                                    onChange={(e) => handleImportCellChange(rowIdx, key, e.target.value)}
+                                                                    error={Boolean(row?.isError)}
+                                                                    inputProps={{
+                                                                        "aria-label": getAdmissionImportColumnLabel(key),
+                                                                        title: String(row?.rowData?.[key] ?? ""),
+                                                                    }}
+                                                                    sx={{ minWidth: 120 }}
+                                                                />
+                                                            )}
                                                         </TableCell>
                                                     ))}
-                                                    <TableCell>
+                                                    <TableCell sx={{ width: 110, textAlign: "center" }}>
                                                         <Chip
                                                             size="small"
                                                             color={row?.isError ? "error" : "success"}
                                                             label={row?.isError ? (row?.errorText || "Lỗi dữ liệu") : "Hợp lệ"}
                                                         />
+                                                    </TableCell>
+                                                    <TableCell sx={{ width: 72, textAlign: "center" }}>
+                                                        <Tooltip title="Xóa dòng" placement="top">
+                                                            <span>
+                                                                <IconButton
+                                                                    size="small"
+                                                                    color="error"
+                                                                    disabled={saving || confirmingAdmissionImport}
+                                                                    onClick={() => {
+                                                                        setAdmissionImportRows((prev) => {
+                                                                            const next = [...(Array.isArray(prev) ? prev : [])];
+                                                                            next.splice(rowIdx, 1);
+                                                                            return next;
+                                                                        });
+                                                                    }}
+                                                                >
+                                                                    <DeleteOutlineIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </span>
+                                                        </Tooltip>
                                                     </TableCell>
                                                 </TableRow>
                                             ))}
@@ -1730,11 +1919,11 @@ export default function AdminPlatformSettings() {
                                 </TableContainer>
                             ) : (
                                 <Typography variant="body2" sx={{ color: "#64748b" }}>
-                                    Chưa có dữ liệu preview.
+                                    Chưa có dữ liệu xem trước.
                                 </Typography>
                             )}
                         </DialogContent>
-                        <DialogActions sx={{ px: 2, pb: 2 }}>
+                        <DialogActions sx={{ px: 3, pb: 3, pt: 1, gap: 1 }}>
                             <Button variant="outlined" onClick={() => setAdmissionImportPreviewOpen(false)} sx={cancelButtonSx}>
                                 Đóng
                             </Button>
@@ -1809,15 +1998,12 @@ export default function AdminPlatformSettings() {
                                             gridTemplateColumns: { xs: "1fr", md: "0.9fr 1fr 1.5fr 52px" },
                                             gap: 1.25,
                                             p: 1.1,
-                                            borderRadius: 2.25,
-                                            border: "1px solid rgba(148, 163, 184, 0.24)",
-                                            bgcolor: "rgba(255,255,255,0.88)",
-                                            boxShadow: "0 4px 12px rgba(37, 99, 235, 0.08)",
-                                            transition: "all 0.2s ease",
+                                            borderRadius: 1.75,
+                                            border: "1px solid #e2e8f0",
+                                            bgcolor: "#ffffff",
+                                            transition: "border-color 0.2s ease, background-color 0.2s ease",
                                             "&:hover": {
-                                                borderColor: "rgba(59,130,246,0.45)",
-                                                boxShadow: "0 10px 20px rgba(37, 99, 235, 0.14)",
-                                                transform: "translateY(-1px)",
+                                                borderColor: "#c7d2fe",
                                             },
                                         }}
                                     >
@@ -1930,64 +2116,178 @@ export default function AdminPlatformSettings() {
                 {preview ? (
                     <Stack spacing={1.5} sx={{ width: "100%" }}>
                         <Box sx={previewSectionCardSx}>
-                            <Typography sx={previewSectionTitleSx}>Hồ sơ theo phương thức</Typography>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 1, alignItems: "center", mb: 1 }}>
+                                <Typography sx={previewSectionTitleSx}>Hồ sơ theo phương thức</Typography>
+                                {admissionTemplateEditing ? (
+                                    <Button
+                                        size="small"
+                                        variant="contained"
+                                        startIcon={<AddIcon fontSize="small" />}
+                                        onClick={() => {
+                                            setAdmissionTemplateForm((prev) => {
+                                                const nextGroups = Array.isArray(prev.methodDocumentRequirements)
+                                                    ? [...prev.methodDocumentRequirements]
+                                                    : [];
+                                                const targetIndex = nextGroups.length > 0 ? 0 : -1;
+                                                if (targetIndex < 0) {
+                                                    nextGroups.push({ methodCode: "", documents: [{ code: "", name: "", required: false }] });
+                                                } else {
+                                                    const currentGroup = { ...nextGroups[0] };
+                                                    currentGroup.documents = [
+                                                        ...(Array.isArray(currentGroup.documents) ? currentGroup.documents : []),
+                                                        { code: "", name: "", required: false },
+                                                    ];
+                                                    nextGroups[0] = currentGroup;
+                                                }
+                                                return { ...prev, methodDocumentRequirements: nextGroups };
+                                            });
+                                        }}
+                                        sx={{
+                                            textTransform: "none",
+                                            fontWeight: 700,
+                                            borderRadius: 2,
+                                            boxShadow: "none",
+                                            bgcolor: "#2563eb",
+                                            "&:hover": { bgcolor: "#1d4ed8" },
+                                        }}
+                                    >
+                                        Thêm hồ sơ
+                                    </Button>
+                                ) : null}
+                            </Box>
                             <Stack spacing={1.4}>
-                                {docsByMethod.length === 0 ? (
+                                {docsSource.length === 0 ? (
                                     <Typography variant="body2" sx={{ color: "#64748b" }}>Không có dữ liệu hồ sơ theo phương thức.</Typography>
                                 ) : (
-                                    docsByMethod.map((group, idx) => {
+                                    docsSource.map((group, idx) => {
                                         const methodCode = String(group?.methodCode ?? "").trim();
                                         const methodLabel = methodNameMap[methodCode] || methodCode || "Phương thức";
                                         const docs = Array.isArray(group?.documents) ? group.documents : [];
                                         const steps = processByMethodMap[methodCode] || [];
+                                        const canEdit = admissionTemplateEditing;
                                         return (
                                             <Box
                                                 key={`method-doc-group-${idx}`}
                                                 sx={{
                                                     p: 1.1,
                                                     borderRadius: 1.5,
-                                                    bgcolor: "#fcfdff",
-                                                    border: "1px solid #e2e8f0",
-                                                    transition: "all 220ms ease",
-                                                    boxShadow: "0 4px 10px rgba(15, 23, 42, 0.04)",
+                                                    bgcolor: "#ffffff",
+                                                    transition: "border-color 200ms ease, background-color 200ms ease",
+                                                    boxShadow: "none",
                                                     "&:hover": {
-                                                        borderColor: "#bfdbfe",
-                                                        boxShadow: "0 10px 18px rgba(37, 99, 235, 0.12)",
-                                                        transform: "translateY(-1px)",
+                                                        bgcolor: "#f7fbff",
                                                     },
                                                 }}
                                             >
-                                                <Typography
-                                                    sx={{
-                                                        fontWeight: 800,
-                                                        color: "#1f2937",
-                                                        mb: 0.9,
-                                                        px: 0.9,
-                                                        py: 0.4,
-                                                        borderRadius: 1,
-                                                        bgcolor: "#eef2ff",
-                                                        display: "inline-block",
-                                                        border: "1px solid #dbeafe",
-                                                    }}
-                                                >
-                                                    {methodLabel}
-                                                </Typography>
+                                                <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 1, mb: 1 }}>
+                                                    <Typography
+                                                        sx={{
+                                                            fontWeight: 800,
+                                                            color: "#0f172a",
+                                                            px: 0.9,
+                                                            py: 0.4,
+                                                            borderRadius: 1,
+                                                            display: "inline-block",
+                                                        }}
+                                                    >
+                                                        {`${idx + 1}. ${methodLabel}`}
+                                                    </Typography>
+                                                </Box>
                                                 <Box sx={previewHeaderRowSx}>
                                                     <Typography sx={{ fontWeight: 800, color: "#374151", fontSize: 13 }}>Tên hồ sơ</Typography>
                                                     <Typography sx={{ fontWeight: 800, color: "#374151", fontSize: 13, textAlign: "center" }}>Trạng thái</Typography>
                                                 </Box>
                                                 {docs.length === 0 ? (
                                                     <Typography variant="body2" sx={{ color: "#64748b" }}>Không có hồ sơ.</Typography>
+                                                ) : canEdit ? (
+                                                    <Stack spacing={0.8}>
+                                                        {docs.map((doc, dIdx) => (
+                                                            <Box
+                                                                key={`method-doc-${idx}-${dIdx}`}
+                                                                sx={{
+                                                                    display: "grid",
+                                                                    gridTemplateColumns: "1fr 120px 40px",
+                                                                    gap: 1,
+                                                                    alignItems: "center",
+                                                                    borderRadius: 1,
+                                                                    p: 0.75,
+                                                                    bgcolor: "#f8fbff",
+                                                                }}
+                                                            >
+                                                                <TextField
+                                                                    size="small"
+                                                                    fullWidth
+                                                                    value={doc?.name ?? ""}
+                                                                    onChange={(e) => {
+                                                                        const value = e.target.value;
+                                                                        setAdmissionTemplateForm((prev) => {
+                                                                            const nextGroups = [...(prev.methodDocumentRequirements || [])];
+                                                                            const currentGroup = { ...nextGroups[idx] };
+                                                                            currentGroup.documents = [...(Array.isArray(currentGroup.documents) ? currentGroup.documents : [])];
+                                                                            currentGroup.documents[dIdx] = { ...currentGroup.documents[dIdx], name: value };
+                                                                            nextGroups[idx] = currentGroup;
+                                                                            return { ...prev, methodDocumentRequirements: nextGroups };
+                                                                        });
+                                                                    }}
+                                                                    placeholder="Tên hồ sơ"
+                                                                    sx={{ minWidth: 0 }}
+                                                                />
+                                                                <TextField
+                                                                    size="small"
+                                                                    select
+                                                                    value={doc?.required === true ? "true" : doc?.required === false ? "false" : ""}
+                                                                    onChange={(e) => {
+                                                                        const value = e.target.value;
+                                                                        setAdmissionTemplateForm((prev) => {
+                                                                            const nextGroups = [...(prev.methodDocumentRequirements || [])];
+                                                                            const currentGroup = { ...nextGroups[idx] };
+                                                                            currentGroup.documents = [...(Array.isArray(currentGroup.documents) ? currentGroup.documents : [])];
+                                                                            currentGroup.documents[dIdx] = {
+                                                                                ...currentGroup.documents[dIdx],
+                                                                                required: value === "true" ? true : value === "false" ? false : null,
+                                                                            };
+                                                                            nextGroups[idx] = currentGroup;
+                                                                            return { ...prev, methodDocumentRequirements: nextGroups };
+                                                                        });
+                                                                    }}
+                                                                    sx={{ minWidth: 0 }}
+                                                                >
+                                                                    <MenuItem value="">Chọn</MenuItem>
+                                                                    <MenuItem value="true">Bắt buộc</MenuItem>
+                                                                    <MenuItem value="false">Tùy chọn</MenuItem>
+                                                                </TextField>
+                                                                <Tooltip title="Xóa hồ sơ" placement="top">
+                                                                    <span>
+                                                                        <IconButton
+                                                                            size="small"
+                                                                            color="error"
+                                                                            onClick={() => {
+                                                                                setAdmissionTemplateForm((prev) => {
+                                                                                    const nextGroups = [...(prev.methodDocumentRequirements || [])];
+                                                                                    const currentGroup = { ...nextGroups[idx] };
+                                                                                    currentGroup.documents = [...(Array.isArray(currentGroup.documents) ? currentGroup.documents : [])];
+                                                                                    currentGroup.documents.splice(dIdx, 1);
+                                                                                    nextGroups[idx] = currentGroup;
+                                                                                    return { ...prev, methodDocumentRequirements: nextGroups };
+                                                                                });
+                                                                            }}
+                                                                        >
+                                                                            <DeleteOutlineIcon fontSize="small" />
+                                                                        </IconButton>
+                                                                    </span>
+                                                                </Tooltip>
+                                                            </Box>
+                                                        ))}
+                                                    </Stack>
                                                 ) : (
                                                     <Stack spacing={0.8}>
                                                         {docs.map((doc, dIdx) => {
                                                             const isRequired = doc?.required === true;
                                                             return (
-                                                                <Box
-                                                                    key={`method-doc-${idx}-${dIdx}`}
-                                                                    sx={previewDataRowSx}
-                                                                >
-                                                                    <Typography variant="body2" sx={{ color: "#1e293b", fontWeight: 600 }}>{doc?.name || "-"}</Typography>
+                                                                <Box key={`method-doc-${idx}-${dIdx}`} sx={previewDataRowSx}>
+                                                                    <Typography variant="body2" sx={{ color: "#1e293b", fontWeight: 600 }}>
+                                                                        {doc?.name || "-"}
+                                                                    </Typography>
                                                                     <Chip
                                                                         size="small"
                                                                         label={isRequired ? "Bắt buộc" : "Tùy chọn"}
@@ -2011,15 +2311,144 @@ export default function AdminPlatformSettings() {
                                                         mt: 1.25,
                                                         p: 0.8,
                                                         borderRadius: 1.5,
-                                                        bgcolor: "#ffffff",
-                                                        border: "1px dashed #dbeafe",
+                                                        bgcolor: "#f8fbff",
+                                                        border: "1px dashed rgba(226, 232, 240, 0.8)",
                                                     }}
                                                 >
-                                                    <Typography sx={{ fontWeight: 800, color: "#1d4ed8", mb: 1, fontSize: 13.5 }}>
-                                                        Quy trình tuyển sinh
-                                                    </Typography>
+                                                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 1 }}>
+                                                        <Typography sx={{ fontWeight: 800, color: "#1d4ed8", fontSize: 13.5 }}>
+                                                            Quy trình tuyển sinh
+                                                        </Typography>
+                                                        {canEdit ? (
+                                                            <Button
+                                                                size="small"
+                                                                variant="contained"
+                                                                startIcon={<AddIcon fontSize="small" />}
+                                                                onClick={() => {
+                                                                    setAdmissionTemplateForm((prev) => {
+                                                                        const nextGroups = Array.isArray(prev.methodAdmissionProcess)
+                                                                            ? [...prev.methodAdmissionProcess]
+                                                                            : [];
+                                                                        const currentGroup = nextGroups[idx] || { methodCode, steps: [] };
+                                                                        currentGroup.steps = [
+                                                                            ...(Array.isArray(currentGroup.steps) ? currentGroup.steps : []),
+                                                                            { stepOrder: (currentGroup.steps?.length ?? 0) + 1, stepName: "", description: "" },
+                                                                        ];
+                                                                        nextGroups[idx] = currentGroup;
+                                                                        return { ...prev, methodAdmissionProcess: nextGroups };
+                                                                    });
+                                                                }}
+                                                                sx={{
+                                                                    textTransform: "none",
+                                                                    fontWeight: 700,
+                                                                    borderRadius: 2,
+                                                                    boxShadow: "none",
+                                                                    bgcolor: "#2563eb",
+                                                                    "&:hover": { bgcolor: "#1d4ed8" },
+                                                                }}
+                                                            >
+                                                                Thêm bước
+                                                            </Button>
+                                                        ) : null}
+                                                    </Box>
                                                     {steps.length === 0 ? (
                                                         <Typography variant="body2" sx={{ color: "#64748b" }}>Không có bước.</Typography>
+                                                    ) : canEdit ? (
+                                                        <Stack spacing={0.75}>
+                                                            {steps.map((step, sIdx) => {
+                                                                const stepNumber = step?.stepOrder ?? sIdx + 1;
+                                                                return (
+                                                                    <Box
+                                                                        key={`method-step-inline-${idx}-${sIdx}`}
+                                                                        sx={{
+                                                                            display: "grid",
+                                                                            gridTemplateColumns: "64px 1fr 1fr 40px",
+                                                                            gap: 1,
+                                                                            alignItems: "center",
+                                                                            borderRadius: 1,
+                                                                            p: 0.75,
+                                                                            border: "1px solid #e2e8f0",
+                                                                        }}
+                                                                    >
+                                                                        <TextField
+                                                                            size="small"
+                                                                            value={String(step?.stepOrder ?? stepNumber)}
+                                                                            onChange={(e) => {
+                                                                                const value = e.target.value;
+                                                                                setAdmissionTemplateForm((prev) => {
+                                                                                    const nextGroups = [...(prev.methodAdmissionProcess || [])];
+                                                                                    const currentGroup = { ...nextGroups[idx] };
+                                                                                    currentGroup.steps = [...(Array.isArray(currentGroup.steps) ? currentGroup.steps : [])];
+                                                                                    currentGroup.steps[sIdx] = {
+                                                                                        ...currentGroup.steps[sIdx],
+                                                                                        stepOrder: value === "" ? "" : Number(value),
+                                                                                    };
+                                                                                    nextGroups[idx] = currentGroup;
+                                                                                    return { ...prev, methodAdmissionProcess: nextGroups };
+                                                                                });
+                                                                            }}
+                                                                            sx={{ minWidth: 0 }}
+                                                                        />
+                                                                        <TextField
+                                                                            size="small"
+                                                                            fullWidth
+                                                                            value={step?.stepName ?? ""}
+                                                                            onChange={(e) => {
+                                                                                const value = e.target.value;
+                                                                                setAdmissionTemplateForm((prev) => {
+                                                                                    const nextGroups = [...(prev.methodAdmissionProcess || [])];
+                                                                                    const currentGroup = { ...nextGroups[idx] };
+                                                                                    currentGroup.steps = [...(Array.isArray(currentGroup.steps) ? currentGroup.steps : [])];
+                                                                                    currentGroup.steps[sIdx] = { ...currentGroup.steps[sIdx], stepName: value };
+                                                                                    nextGroups[idx] = currentGroup;
+                                                                                    return { ...prev, methodAdmissionProcess: nextGroups };
+                                                                                });
+                                                                            }}
+                                                                            sx={{ minWidth: 0 }}
+                                                                            placeholder="Tên bước"
+                                                                        />
+                                                                        <TextField
+                                                                            size="small"
+                                                                            fullWidth
+                                                                            value={step?.description ?? ""}
+                                                                            onChange={(e) => {
+                                                                                const value = e.target.value;
+                                                                                setAdmissionTemplateForm((prev) => {
+                                                                                    const nextGroups = [...(prev.methodAdmissionProcess || [])];
+                                                                                    const currentGroup = { ...nextGroups[idx] };
+                                                                                    currentGroup.steps = [...(Array.isArray(currentGroup.steps) ? currentGroup.steps : [])];
+                                                                                    currentGroup.steps[sIdx] = { ...currentGroup.steps[sIdx], description: value };
+                                                                                    nextGroups[idx] = currentGroup;
+                                                                                    return { ...prev, methodAdmissionProcess: nextGroups };
+                                                                                });
+                                                                            }}
+                                                                            sx={{ minWidth: 0 }}
+                                                                            placeholder="Mô tả"
+                                                                        />
+                                                                        <Tooltip title="Xóa bước" placement="top">
+                                                                            <span>
+                                                                                <IconButton
+                                                                                    size="small"
+                                                                                    color="error"
+                                                                                    onClick={() => {
+                                                                                        setAdmissionTemplateForm((prev) => {
+                                                                                            const nextGroups = [...(prev.methodAdmissionProcess || [])];
+                                                                                            const currentGroup = { ...nextGroups[idx] };
+                                                                                            currentGroup.steps = [...(Array.isArray(currentGroup.steps) ? currentGroup.steps : [])];
+                                                                                            currentGroup.steps.splice(sIdx, 1);
+                                                                                            nextGroups[idx] = currentGroup;
+                                                                                            return { ...prev, methodAdmissionProcess: nextGroups };
+                                                                                        });
+                                                                                    }}
+                                                                                >
+                                                                                    <DeleteOutlineIcon fontSize="small" />
+                                                                                </IconButton>
+                                                                            </span>
+                                                                        </Tooltip>
+                                                                    </Box>
+                                                                );
+                                                            })}
+                                                        </Stack>
                                                     ) : (
                                                         <Stack spacing={0.2}>
                                                             {steps.map((step, sIdx) => {
@@ -2317,12 +2746,12 @@ export default function AdminPlatformSettings() {
                                 }}
                             >
                                 <Tab label="Giá nền gói cước" />
-                                <Tab label="Đơn giá tính năng mua thêm" />
                                 <Tab label="Định mức theo gói" />
+                                <Tab label="Đơn giá tính năng mua thêm" />
                             </Tabs>
                             <Box sx={{ border: "1px solid #d0d7de", borderRadius: 2, p: 1.25, bgcolor: "#ffffff" }}>
                                 <Typography sx={{ fontSize: 12, fontWeight: 700, color: "#2563eb", mb: 1.25 }}>
-                                    {businessPricingSubTab === 0 ? "Nhóm A - Giá nền gói cước" : businessPricingSubTab === 1 ? "Nhóm B - Đơn giá tính năng mua thêm" : "Nhóm C - Định mức theo gói"}
+                                    {businessPricingSubTab === 0 ? "Giá nền gói cước" : businessPricingSubTab === 1 ? "Định mức theo gói" : "Đơn giá tính năng mua thêm"}
                                 </Typography>
                                 {businessPricingSubTab === 0 ? (
                                     <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr))" }, gap: 1.5 }}>
@@ -2332,37 +2761,102 @@ export default function AdminPlatformSettings() {
                                     </Box>
                                 ) : null}
                                 {businessPricingSubTab === 1 ? (
-                                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
-                                        {moneyField("Phí Chatbot AI (tháng)", "aiChatbotMonthlyFee")}
-                                        {moneyField("Phí hỗ trợ ưu tiên", "premiumSupportFee")}
-                                    </Box>
-                                ) : null}
-                                {businessPricingSubTab === 2 ? (
-                                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
+                                    <Box
+                                        sx={{
+                                            display: "grid",
+                                            gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+                                            gap: 1.5,
+                                            alignItems: "stretch",
+                                        }}
+                                    >
                                         {integerField("Thời hạn gói dùng thử", "durationDays", "ngày")}
-                                        {integerField("Số tư vấn viên (Gói dùng thử)", "trialCounsellor", "người")}
-                                        {integerField("Số tư vấn viên (Gói tiêu chuẩn)", "standardCounsellor", "người")}
-                                        {integerField("Số tư vấn viên (Gói doanh nghiệp)", "enterpriseCounsellor", "người")}
-                                        {integerField("Giới hạn bài đăng (Gói dùng thử)", "trialPostLimit", "bài")}
-                                        {integerField("Giới hạn bài đăng (Gói tiêu chuẩn)", "standardPostLimit", "bài")}
-                                        {integerField("Giới hạn bài đăng (Gói doanh nghiệp)", "enterprisePostLimit", "bài")}
-                                        <Box sx={{ ...settingsFieldCardSx, gridColumn: { xs: "1", md: "1 / -1" } }}>
-                                            <Typography sx={settingsFieldLabelSx}>
-                                                Giới hạn tỉ lệ gói Dùng thử (trialRatioCap)
-                                            </Typography>
+                                        <Box sx={{ ...settingsFieldCardSx }}>
+                                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.25, mb: 0.75 }}>
+                                                <Typography
+                                                    component="span"
+                                                    sx={{ fontSize: 12, fontWeight: 500, color: "#1d4ed8" }}
+                                                >
+                                                    Trial được dùng bao nhiêu % so với gói Tiêu chuẩn
+                                                </Typography>
+                                                <IconButton
+                                                    type="button"
+                                                    size="small"
+                                                    onClick={(e) => setTrialRatioCapInfoAnchor(e.currentTarget)}
+                                                    aria-label="Ví dụ: % trial so với gói Tiêu chuẩn"
+                                                    sx={{ p: 0.25, color: "#1d4ed8" }}
+                                                >
+                                                    <InfoOutlinedIcon sx={{ fontSize: 18 }} />
+                                                </IconButton>
+                                            </Box>
+                                            <Popover
+                                                open={Boolean(trialRatioCapInfoAnchor)}
+                                                anchorEl={trialRatioCapInfoAnchor}
+                                                onClose={() => setTrialRatioCapInfoAnchor(null)}
+                                                anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+                                                transformOrigin={{ vertical: "top", horizontal: "left" }}
+                                                slotProps={{
+                                                    paper: {
+                                                        sx: {
+                                                            minWidth: { xs: "min(92vw, 360px)", sm: 420 },
+                                                            maxWidth: { xs: "92vw", sm: 560 },
+                                                            p: { xs: 1.75, sm: 2.25 },
+                                                            border: "1px solid #e2e8f0",
+                                                            boxShadow: "0 4px 14px rgba(15, 23, 42, 0.12)",
+                                                        },
+                                                    },
+                                                }}
+                                            >
+                                                <Typography
+                                                    variant="body2"
+                                                    sx={{
+                                                        fontSize: { xs: 14, sm: 15 },
+                                                        lineHeight: 1.55,
+                                                        fontWeight: 600,
+                                                        color: "#0f172a",
+                                                    }}
+                                                >
+                                                    {TRIAL_RATIO_CAP_INFO_TOOLTIP}
+                                                </Typography>
+                                            </Popover>
                                             <TextField
                                                 size="small"
                                                 fullWidth
                                                 type="number"
                                                 disabled={businessDisabled}
-                                                value={businessForm.trialRatioCap}
-                                                onChange={(e) => handleBusinessFieldChange("trialRatioCap", e.target.value)}
-                                                error={Boolean(businessErrors.trialRatioCap)}
-                                                helperText={businessErrors.trialRatioCap || ""}
-                                                inputProps={{ min: 0, max: 1, step: 0.01 }}
+                                                value={businessForm.trialRatioCapPct}
+                                                onChange={(e) => handleBusinessFieldChange("trialRatioCapPct", e.target.value)}
+                                                error={Boolean(businessErrors.trialRatioCapPct)}
+                                                {...(businessErrors.trialRatioCapPct ? { helperText: businessErrors.trialRatioCapPct } : {})}
+                                                InputProps={{
+                                                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                                                }}
+                                                inputProps={{ min: 0, max: 100, step: 0.01 }}
                                                 sx={settingsInputSx}
                                             />
+                                            <Typography
+                                                variant="body2"
+                                                sx={{
+                                                    mt: 0.5,
+                                                    fontSize: 12,
+                                                    lineHeight: 1.45,
+                                                    color: "#64748b",
+                                                }}
+                                            >
+                                                {TRIAL_RATIO_CAP_INPUT_HINT}
+                                            </Typography>
                                         </Box>
+                                        {integerField("Số tư vấn viên (Gói dùng thử)", "trialCounsellor", "người")}
+                                        {integerField("Giới hạn bài đăng (Gói dùng thử)", "trialPostLimit", "bài")}
+                                        {integerField("Số tư vấn viên (Gói tiêu chuẩn)", "standardCounsellor", "người")}
+                                        {integerField("Giới hạn bài đăng (Gói tiêu chuẩn)", "standardPostLimit", "bài")}
+                                        {integerField("Số tư vấn viên (Gói doanh nghiệp)", "enterpriseCounsellor", "người")}
+                                        {integerField("Giới hạn bài đăng (Gói doanh nghiệp)", "enterprisePostLimit", "bài")}
+                                    </Box>
+                                ) : null}
+                                {businessPricingSubTab === 2 ? (
+                                    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "repeat(2, minmax(0, 1fr))" }, gap: 1.5 }}>
+                                        {moneyField("Phí Chatbot AI (tháng)", "aiChatbotMonthlyFee")}
+                                        {moneyField("Phí hỗ trợ ưu tiên", "premiumSupportFee")}
                                     </Box>
                                 ) : null}
                             </Box>
@@ -3085,7 +3579,7 @@ export default function AdminPlatformSettings() {
                                                     disabled
                                                     multiline
                                                     minRows={2}
-                                                    value={row.schoolName || `School #${row.schoolId}`}
+                                                    value={row.schoolName || `Trường #${row.schoolId}`}
                                                     InputProps={{
                                                         sx: { alignItems: "flex-start" },
                                                     }}
@@ -3442,17 +3936,27 @@ export default function AdminPlatformSettings() {
                     sx: {
                         borderRadius: 3,
                         border: "1px solid #dbeafe",
+                        overflow: "hidden",
                     },
                 }}
             >
-                <DialogTitle sx={{ fontWeight: 800, color: "#0f172a" }}>Xác nhận nhập dữ liệu</DialogTitle>
-                <DialogContent sx={{ pt: "8px !important" }}>
+                <DialogTitle
+                    sx={{
+                        fontWeight: 900,
+                        color: "#0f172a",
+                        background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 48%, #bfdbfe 100%)",
+                        borderBottom: "1px solid #dbeafe",
+                    }}
+                >
+                    Xác nhận nhập dữ liệu
+                </DialogTitle>
+                <DialogContent sx={{ pt: 2, px: 3, pb: 2, bgcolor: "#f8fafc" }}>
                     <Typography variant="body2" sx={{ color: "#334155" }}>
                         Bạn có chắc muốn nhập dữ liệu cho loại{" "}
                         <strong>{IMPORT_TYPE_LABEL[importType] || importType}</strong>?
                     </Typography>
                 </DialogContent>
-                <DialogActions sx={{ px: 2, pb: 2 }}>
+                <DialogActions sx={{ px: 3, pb: 3, pt: 1, gap: 1 }}>
                     <Button
                         variant="outlined"
                         disabled={confirmingAdmissionImport}

@@ -22,6 +22,7 @@ import ArrowForwardRoundedIcon from "@mui/icons-material/ArrowForwardRounded";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import { enqueueSnackbar } from "notistack";
+import { useNavigate } from "react-router-dom";
 import { BRAND_NAVY } from "../../constants/homeLandingTheme";
 import { getAdminPackageFees } from "../../services/AdminService.jsx";
 import {
@@ -92,14 +93,24 @@ function SubscriptionPreviewModal({
     fullScreen,
 }) {
     const action = String(previewData?.action || "").toUpperCase();
-    const isUpgrade = action === "UPGRADE";
-    const title = isUpgrade ? "Xác nhận nâng cấp gói" : "Xác nhận gia hạn gói";
-    const actionBadgeLabel = isUpgrade ? "Nâng cấp" : "Gia hạn";
-    const badgeBg = isUpgrade ? "rgba(13,100,222,0.12)" : "rgba(14,165,233,0.14)";
-    const badgeColor = isUpgrade ? "#0D64DE" : "#0369a1";
+    const isSwitchPlan = action === "SWITCH_PLAN";
+    const isRenew = action === "RENEW";
+    const isBuyNew = action === "BUY_NEW";
+    const title = isBuyNew
+        ? "Xác nhận mua gói mới"
+        : isSwitchPlan
+          ? "Xác nhận chuyển gói"
+          : isRenew
+            ? "Xác nhận gia hạn gói"
+            : "Xác nhận thay đổi gói";
+    const actionBadgeLabel = isBuyNew ? "Mua mới" : isSwitchPlan ? "Chuyển gói" : isRenew ? "Gia hạn" : "Thanh toán";
+    const badgeBg = isRenew ? "rgba(14,165,233,0.14)" : "rgba(13,100,222,0.12)";
+    const badgeColor = isRenew ? "#0369a1" : "#0D64DE";
     const totalAmount = Number(previewData?.breakdown?.finalPrice ?? 0);
-    const remainingDaysValue = Number(previewData?.target?.remainingDays);
+    const remainingDaysValue = Number(previewData?.current?.remainingDays);
     const hasRemainingDays = Number.isFinite(remainingDaysValue) && remainingDaysValue >= 0;
+    const bonusDays = Number(previewData?.target?.bonusDays);
+    const hasBonusDays = Number.isFinite(bonusDays) && bonusDays > 0;
     const canConfirm = !previewLoading && !submitLoading && !previewError && previewData;
 
     return (
@@ -143,7 +154,13 @@ function SubscriptionPreviewModal({
                                 <Typography sx={{ fontSize: { xs: "1.05rem", sm: "1.2rem" }, fontWeight: 800, color: "#0f172a" }}>{title}</Typography>
                                 <Chip label={actionBadgeLabel} size="small" sx={{ fontWeight: 700, bgcolor: badgeBg, color: badgeColor }} />
                             </Box>
-                            <Typography sx={{ mt: 0.5, color: "#64748b", fontSize: "0.875rem" }}>Giữ nguyên ngày hết hạn hiện tại</Typography>
+                            <Typography sx={{ mt: 0.5, color: "#64748b", fontSize: "0.875rem" }}>
+                                {isBuyNew
+                                    ? "Gói mới có hiệu lực từ thời điểm thanh toán thành công"
+                                    : isSwitchPlan
+                                      ? "Gói hiện tại sẽ bị thay thế ngay khi thanh toán thành công"
+                                      : "Gia hạn sẽ cộng dồn thời gian sử dụng"}
+                            </Typography>
                             <Stepper activeStep={0} sx={{ pt: 1.5, pb: 0.2 }}>
                                 <Step>
                                     <StepLabel>Xem trước</StepLabel>
@@ -165,25 +182,7 @@ function SubscriptionPreviewModal({
 
                         {previewData ? (
                             <>
-                                <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "1fr auto 1fr" }, alignItems: "stretch" }}>
-                                    <Box sx={{ p: 2, borderRadius: "14px", bgcolor: "#f8fafc", border: "1px solid #e2e8f0" }}>
-                                        <Typography sx={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase", mb: 1 }}>
-                                            Gói hiện tại
-                                        </Typography>
-                                        <Typography sx={{ fontWeight: 700, color: "#0f172a" }}>{previewData?.current?.packageName || "—"}</Typography>
-                                        <Typography sx={{ mt: 1, color: "#334155", fontSize: "0.875rem" }}>Giá: {formatVnd(previewData?.current?.price)}</Typography>
-                                        <Typography sx={{ color: "#334155", fontSize: "0.875rem" }}>
-                                            Thời hạn: {previewData?.current?.durationDays ?? 0} ngày
-                                        </Typography>
-                                        <Typography sx={{ color: "#334155", fontSize: "0.875rem" }}>
-                                            Hết hạn: {formatDateDDMMYYYY(previewData?.current?.expiryDate)}
-                                        </Typography>
-                                    </Box>
-
-                                    <Box sx={{ display: { xs: "none", md: "grid" }, placeItems: "center", px: 0.5 }}>
-                                        <ArrowForwardRoundedIcon sx={{ color: "#0D64DE" }} />
-                                    </Box>
-
+                                {isBuyNew ? (
                                     <Box sx={{ p: 2, borderRadius: "14px", bgcolor: "rgba(13,100,222,0.06)", border: "1px solid rgba(13,100,222,0.35)" }}>
                                         <Typography sx={{ fontSize: "0.75rem", color: "#0D64DE", fontWeight: 700, textTransform: "uppercase", mb: 1 }}>
                                             Gói mục tiêu
@@ -198,38 +197,93 @@ function SubscriptionPreviewModal({
                                         <Typography sx={{ color: "#334155", fontSize: "0.875rem" }}>
                                             Hết hạn mới: {formatDateDDMMYYYY(previewData?.target?.newExpiryDate)}
                                         </Typography>
-                                        <Typography sx={{ mt: 0.75, color: "#0D64DE", fontSize: "0.8125rem", fontWeight: 600 }}>
-                                            Còn lại: {hasRemainingDays ? remainingDaysValue : "—"} ngày
-                                        </Typography>
+                                        {previewData?.target?.newStartDate ? (
+                                            <Typography sx={{ color: "#334155", fontSize: "0.875rem" }}>
+                                                Bắt đầu: {formatDateDDMMYYYY(previewData?.target?.newStartDate)}
+                                            </Typography>
+                                        ) : null}
                                     </Box>
-                                </Box>
+                                ) : (
+                                    <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", md: "1fr auto 1fr" }, alignItems: "stretch" }}>
+                                        <Box sx={{ p: 2, borderRadius: "14px", bgcolor: "#f8fafc", border: "1px solid #e2e8f0" }}>
+                                            <Typography sx={{ fontSize: "0.75rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase", mb: 1 }}>
+                                                Gói hiện tại
+                                            </Typography>
+                                            <Typography sx={{ fontWeight: 700, color: "#0f172a" }}>{previewData?.current?.packageName || "—"}</Typography>
+                                            <Typography sx={{ mt: 1, color: "#334155", fontSize: "0.875rem" }}>Giá: {formatVnd(previewData?.current?.price)}</Typography>
+                                            <Typography sx={{ color: "#334155", fontSize: "0.875rem" }}>
+                                                Hết hạn: {formatDateDDMMYYYY(previewData?.current?.expiryDate)}
+                                            </Typography>
+                                            {hasRemainingDays ? (
+                                                <Typography sx={{ color: "#334155", fontSize: "0.875rem" }}>
+                                                    Còn lại: {remainingDaysValue} ngày
+                                                </Typography>
+                                            ) : null}
+                                        </Box>
+
+                                        <Box sx={{ display: { xs: "none", md: "grid" }, placeItems: "center", px: 0.5 }}>
+                                            <ArrowForwardRoundedIcon sx={{ color: "#0D64DE" }} />
+                                        </Box>
+
+                                        <Box sx={{ p: 2, borderRadius: "14px", bgcolor: "rgba(13,100,222,0.06)", border: "1px solid rgba(13,100,222,0.35)" }}>
+                                            <Typography sx={{ fontSize: "0.75rem", color: "#0D64DE", fontWeight: 700, textTransform: "uppercase", mb: 1 }}>
+                                                Gói mục tiêu
+                                            </Typography>
+                                            <Typography sx={{ fontWeight: 700, color: "#0f172a" }}>
+                                                {previewData?.target?.packageName || selectedPackageName || "—"}
+                                            </Typography>
+                                            <Typography sx={{ mt: 1, color: "#334155", fontSize: "0.875rem" }}>Giá: {formatVnd(previewData?.target?.price)}</Typography>
+                                            <Typography sx={{ color: "#334155", fontSize: "0.875rem" }}>
+                                                Thời hạn: {previewData?.target?.durationDays ?? 0} ngày
+                                            </Typography>
+                                            <Typography sx={{ color: "#334155", fontSize: "0.875rem" }}>
+                                                Hết hạn mới: {formatDateDDMMYYYY(previewData?.target?.newExpiryDate)}
+                                            </Typography>
+                                            {previewData?.target?.newStartDate ? (
+                                                <Typography sx={{ color: "#334155", fontSize: "0.875rem" }}>
+                                                    Bắt đầu: {formatDateDDMMYYYY(previewData?.target?.newStartDate)}
+                                                </Typography>
+                                            ) : null}
+                                            {previewData?.target?.baseDate ? (
+                                                <Typography sx={{ color: "#334155", fontSize: "0.875rem" }}>
+                                                    Gia hạn từ: {formatDateDDMMYYYY(previewData?.target?.baseDate)}
+                                                </Typography>
+                                            ) : null}
+                                            {hasBonusDays ? (
+                                                <Typography sx={{ mt: 0.75, color: "#0D64DE", fontSize: "0.8125rem", fontWeight: 600 }}>
+                                                    Cộng thêm: {bonusDays} ngày
+                                                </Typography>
+                                            ) : null}
+                                        </Box>
+                                    </Box>
+                                )}
 
                                 <Box sx={{ p: { xs: 2, sm: 2.25 }, borderRadius: "14px", bgcolor: "#fff", border: "1px solid #e2e8f0" }}>
                                     <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 1.25 }}>
                                         <Typography sx={{ fontSize: "0.95rem", fontWeight: 800, color: "#0f172a" }}>
                                             Chi tiết thanh toán
                                         </Typography>
-                                        <Tooltip title="Tiền chênh lệch được tính theo thời gian còn lại (proration)">
+                                        <Tooltip title="Số liệu được tính theo cấu hình phí dịch vụ và thuế hiện tại">
                                             <InfoOutlinedIcon sx={{ fontSize: 17, color: "#64748b", cursor: "help" }} />
                                         </Tooltip>
                                     </Box>
                                     <Box sx={{ display: "flex", flexDirection: "column", gap: 0.9 }}>
                                         <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
-                                            <Typography sx={{ color: "#334155", fontSize: "0.9rem" }}>Giá trị còn lại từ gói cũ</Typography>
-                                            <Typography sx={{ color: "#16a34a", fontSize: "0.9rem", fontWeight: 700 }}>
-                                                -{formatVnd(previewData?.target?.creditOld)}
+                                            <Typography sx={{ color: "#334155", fontSize: "0.9rem" }}>Giá gói cơ bản</Typography>
+                                            <Typography sx={{ color: "#0f172a", fontSize: "0.9rem", fontWeight: 700 }}>
+                                                {formatVnd(previewData?.breakdown?.basePrice)}
                                             </Typography>
                                         </Box>
                                         <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
-                                            <Typography sx={{ color: "#334155", fontSize: "0.9rem" }}>Chi phí gói mới cho thời gian còn lại</Typography>
+                                            <Typography sx={{ color: "#334155", fontSize: "0.9rem" }}>Phụ phí tính năng</Typography>
                                             <Typography sx={{ color: "#0f172a", fontSize: "0.9rem", fontWeight: 700 }}>
-                                                {formatVnd(previewData?.target?.chargeNew)}
+                                                {formatVnd(previewData?.breakdown?.totalFeatureAmount)}
                                             </Typography>
                                         </Box>
                                         <Box sx={{ display: "flex", justifyContent: "space-between", gap: 1 }}>
-                                            <Typography sx={{ color: "#334155", fontSize: "0.9rem" }}>Chênh lệch trước phí & thuế</Typography>
+                                            <Typography sx={{ color: "#334155", fontSize: "0.9rem" }}>Tạm tính</Typography>
                                             <Typography sx={{ color: "#0f172a", fontSize: "0.9rem", fontWeight: 700 }}>
-                                                {formatVnd(previewData?.netAmount)}
+                                                {formatVnd(previewData?.breakdown?.netPrice ?? previewData?.netAmount)}
                                             </Typography>
                                         </Box>
                                         <Divider sx={{ my: 0.5 }} />
@@ -339,6 +393,7 @@ function SubscriptionPreviewModal({
 export default function PackageFeesPage() {
     const theme = useTheme();
     const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+    const navigate = useNavigate();
     const [isSchoolRole, setIsSchoolRole] = React.useState(() => readSchoolRoleFromStorage());
     const [schoolServicePackages, setSchoolServicePackages] = React.useState([]);
     const [servicePackagesLoading, setServicePackagesLoading] = React.useState(false);
@@ -348,7 +403,7 @@ export default function PackageFeesPage() {
     const [paymentLoadingPackageId, setPaymentLoadingPackageId] = React.useState(null);
     const [previewPayload, setPreviewPayload] = React.useState(null);
     const [previewError, setPreviewError] = React.useState("");
-    const [previewActionType, setPreviewActionType] = React.useState("RENEW");
+    const [previewActionType, setPreviewActionType] = React.useState("BUY_NEW");
     const [selectedPackage, setSelectedPackage] = React.useState(null);
     const hasCurrentSubscription = React.useMemo(() => {
         return !!(
@@ -421,6 +476,7 @@ export default function PackageFeesPage() {
 
     const resolveActionType = React.useCallback(
         (pkg) => {
+            if (!hasCurrentSubscription) return "BUY_NEW";
             const currentPackageId = Number(currentSubscription?.packageId);
             const targetPackageId = Number(pkg?.id);
             if (Number.isFinite(currentPackageId) && Number.isFinite(targetPackageId) && currentPackageId === targetPackageId) {
@@ -429,9 +485,9 @@ export default function PackageFeesPage() {
             const currentName = String(currentSubscription?.packageName || "").trim().toLowerCase();
             const targetName = String(pkg?.name || "").trim().toLowerCase();
             if (currentName && targetName && currentName === targetName) return "RENEW";
-            return "UPGRADE";
+            return "SWITCH_PLAN";
         },
-        [currentSubscription]
+        [currentSubscription, hasCurrentSubscription]
     );
 
     const closePreviewModal = React.useCallback(() => {
@@ -449,14 +505,20 @@ export default function PackageFeesPage() {
             enqueueSnackbar("Không xác định được gói dịch vụ.", { variant: "error" });
             return;
         }
+        const isTrialPackage = String(pkg?.packageType || "").toUpperCase() === "TRIAL";
         const actionLabel =
-            actionType === "UPGRADE" ? "nâng cấp" : actionType === "RENEW" ? "gia hạn" : "mua mới";
+            actionType === "SWITCH_PLAN" ? "chuyển gói" : actionType === "RENEW" ? "gia hạn" : "mua mới";
         const description = pkg?.name?.trim()
             ? `Thanh toán ${actionLabel} gói ${pkg.name.trim()}`
             : `Thanh toán ${actionLabel} gói dịch vụ`;
         setPaymentLoadingPackageId(packageId);
         try {
             const res = await createSchoolSubscriptionPayment({ packageId, description });
+            if (isTrialPackage) {
+                enqueueSnackbar("Đăng ký gói dùng thử thành công.", { variant: "success" });
+                navigate("/school/purchased-packages");
+                return;
+            }
             const paymentUrl = res?.data?.body;
             if (typeof paymentUrl === "string" && /^https?:\/\//i.test(paymentUrl.trim())) {
                 const url = paymentUrl.trim();
@@ -483,16 +545,12 @@ export default function PackageFeesPage() {
         } finally {
             setPaymentLoadingPackageId(null);
         }
-    }, []);
+    }, [navigate]);
 
     const handleSchoolPackageBuyNow = React.useCallback(async (pkg) => {
         const packageId = Number(pkg?.id);
         if (!Number.isFinite(packageId) || packageId <= 0) {
             enqueueSnackbar("Không xác định được gói dịch vụ.", { variant: "error" });
-            return;
-        }
-        if (!hasCurrentSubscription) {
-            await createPaymentAndRedirect(pkg, "NEW_PURCHASE");
             return;
         }
         const actionType = resolveActionType(pkg);
@@ -512,7 +570,7 @@ export default function PackageFeesPage() {
         } finally {
             setPreviewLoadingPackageId(null);
         }
-    }, [createPaymentAndRedirect, hasCurrentSubscription, resolveActionType]);
+    }, [resolveActionType]);
 
     const handleConfirmPayment = React.useCallback(async () => {
         if (!selectedPackage) return;

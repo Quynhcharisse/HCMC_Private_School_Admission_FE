@@ -2,6 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Box, Drawer, Fade } from "@mui/material";
 import { ThemeProvider, createTheme, useTheme } from "@mui/material/styles";
 import { Outlet, useLocation } from "react-router-dom";
+import { ROLE_SHELL_HEADER_HEIGHT_PX } from "../../constants/appShellLayout.js";
 import CounsellorAuthHeader from "../Page/counsellor/CounsellorAuthHeader.jsx";
 import CounsellorSidebar from "../partials/CounsellorSidebar.jsx";
 
@@ -27,7 +28,7 @@ export default function CounsellorLayout() {
   const location = useLocation();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const sidebarWidth = sidebarCollapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED;
-  const HEADER_HEIGHT = 65;
+  const HEADER_HEIGHT = ROLE_SHELL_HEADER_HEIGHT_PX;
 
   return (
     <ThemeProvider theme={counsellorTheme}>
