@@ -119,11 +119,11 @@ export const getAdminPackageFees = async () => {
     return response || null;
 };
 
-export const getAdminRevenueSummary = async ({ year, month, packageType }) => {
+export const getAdminRevenueSummary = async ({ startDate, endDate, packageType }) => {
     const response = await axiosClient.get("/admin/revenues/summary", {
         params: {
-            year,
-            ...(month ? { month } : {}),
+            startDate,
+            endDate,
             ...(packageType ? { packageType } : {}),
         },
     });
