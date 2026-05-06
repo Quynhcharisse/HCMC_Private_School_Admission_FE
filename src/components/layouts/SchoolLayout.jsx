@@ -6,6 +6,7 @@ import { SchoolProvider } from "../../contexts/SchoolContext.jsx";
 import { ROLE_SHELL_HEADER_HEIGHT_PX } from "../../constants/appShellLayout.js";
 import SchoolAuthHeader from "../Page/school/SchoolAuthHeader.jsx";
 import SchoolSidebar from "../partials/SchoolSidebar.jsx";
+import SchoolChatbot from "../ui/SchoolChatbot.jsx";
 
 const SIDEBAR_WIDTH_EXPANDED = 240;
 const SIDEBAR_WIDTH_COLLAPSED = 72;
@@ -147,6 +148,7 @@ export default function SchoolLayout() {
       </Box>
     </Box>
       </SchoolProvider>
+      <SchoolChatbot />
     </ThemeProvider>
   );
 }

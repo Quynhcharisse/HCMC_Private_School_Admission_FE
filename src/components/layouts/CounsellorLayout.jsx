@@ -5,6 +5,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { ROLE_SHELL_HEADER_HEIGHT_PX } from "../../constants/appShellLayout.js";
 import CounsellorAuthHeader from "../Page/counsellor/CounsellorAuthHeader.jsx";
 import CounsellorSidebar from "../partials/CounsellorSidebar.jsx";
+import CounsellorChatbot from "../ui/CounsellorChatbot.jsx";
 
 const SIDEBAR_WIDTH_EXPANDED = 240;
 const SIDEBAR_WIDTH_COLLAPSED = 72;
@@ -94,6 +95,7 @@ export default function CounsellorLayout() {
           </Fade>
         </Box>
       </Box>
+      <CounsellorChatbot />
     </ThemeProvider>
   );
 }
