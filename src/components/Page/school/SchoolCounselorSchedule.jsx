@@ -563,6 +563,8 @@ export default function SchoolCounselorSchedule() {
         maxBookingPerSlot: 1,
         workShifts: [],
         regularDays: [],
+        weekendDays: [],
+        isOpenSunday: false,
         workingNote: "",
         academicCalendar: normalizeAcademicCalendarShape(null),
         academicSemesterLimitActive: false,
@@ -740,6 +742,8 @@ export default function SchoolCounselorSchedule() {
                         maxBookingPerSlot: 1,
                         workShifts: [],
                         regularDays: [],
+                        weekendDays: [],
+                        isOpenSunday: false,
                         workingNote: "",
                         academicCalendar: normalizeAcademicCalendarShape(null),
                         academicSemesterLimitActive: false,
@@ -1213,7 +1217,13 @@ export default function SchoolCounselorSchedule() {
 
     const isEditing = (form.templateId || 0) > 0;
 
-    const openDaySet = useMemo(() => new Set(schedulePolicy.regularDays || []), [schedulePolicy.regularDays]);
+    const openDaySet = useMemo(() => {
+        const set = new Set();
+        (Array.isArray(schedulePolicy.regularDays) ? schedulePolicy.regularDays : []).forEach((d) => set.add(String(d).toUpperCase()));
+        (Array.isArray(schedulePolicy.weekendDays) ? schedulePolicy.weekendDays : []).forEach((d) => set.add(String(d).toUpperCase()));
+        if (schedulePolicy.isOpenSunday) set.add("SUN");
+        return set;
+    }, [schedulePolicy.regularDays, schedulePolicy.weekendDays, schedulePolicy.isOpenSunday]);
 
     const sessionWindowPreview = useMemo(
         () => resolveSessionWindowFromWorkShifts(schedulePolicy.workShifts, form.sessionType),

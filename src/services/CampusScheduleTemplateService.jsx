@@ -33,6 +33,8 @@ export function normalizeScheduleTimeHHmm(t) {
  *   maxBookingPerSlot: number,
  *   workShifts: Array<Record<string, unknown>>,
  *   regularDays: string[],
+ *   weekendDays: string[],
+ *   isOpenSunday: boolean,
  *   workingNote: string,
  *   academicCalendar: { term1: { start: string, end: string }, term2: { start: string, end: string } },
  *   academicSemesterLimitActive: boolean
@@ -137,6 +139,11 @@ export function parseCampusSchedulePolicyFromConfigResponse(res) {
   const regularDays = Array.isArray(rdRaw)
     ? rdRaw.map((d) => String(d || "").toUpperCase()).filter((d) => DAYS.includes(d))
     : [];
+  const wdRaw = wc.weekendDays ?? wc.weekend_days;
+  const weekendDays = Array.isArray(wdRaw)
+    ? wdRaw.map((d) => String(d || "").toUpperCase()).filter((d) => DAYS.includes(d))
+    : [];
+  const isOpenSunday = Boolean(wc.isOpenSunday ?? wc.is_open_sunday);
 
   const workingNote =
     wc.note != null && String(wc.note).trim() !== ""
@@ -166,6 +173,8 @@ export function parseCampusSchedulePolicyFromConfigResponse(res) {
     maxBookingPerSlot,
     workShifts,
     regularDays,
+    weekendDays,
+    isOpenSunday,
     workingNote,
     academicCalendar,
     academicSemesterLimitActive,
