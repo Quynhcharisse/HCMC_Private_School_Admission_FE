@@ -30,8 +30,6 @@ import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import SchoolIcon from "@mui/icons-material/School";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import TimelineIcon from "@mui/icons-material/Timeline";
-import BarChartIcon from "@mui/icons-material/BarChart";
-import PieChartIcon from "@mui/icons-material/PieChart";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutline";
 import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
@@ -316,48 +314,11 @@ export default function SchoolDashboard() {
                             alignItems: {xs: "flex-start", md: "flex-end"},
                         }}
                     >
-                        <Typography variant="body2" sx={{opacity: 0.9}}>
-                            Truy cập nhanh
-                        </Typography>
                         <Stack
                             direction={{xs: "column", sm: "row"}}
                             spacing={1.5}
                             sx={{alignItems: {xs: "stretch", sm: "center"}}}
                         >
-                            <Button
-                                variant="contained"
-                                startIcon={<AddCircleOutlineIcon/>}
-                                sx={{
-                                    textTransform: "none",
-                                    borderRadius: 999,
-                                    px: 3,
-                                    py: 1,
-                                    bgcolor: "rgba(51,65,85,0.9)",
-                                    "&:hover": {
-                                        bgcolor: "rgba(51,65,85,1)",
-                                    },
-                                }}
-                            >
-                                Tạo chiến dịch mới
-                            </Button>
-                            <Button
-                                variant="outlined"
-                                sx={{
-                                    textTransform: "none",
-                                    borderRadius: 999,
-                                    px: 2.5,
-                                    py: 1,
-                                    borderColor: "rgba(255,255,255,0.7)",
-                                    color: "white",
-                                    "&:hover": {
-                                        borderColor: "white",
-                                        bgcolor: "rgba(51,65,85,0.25)",
-                                    },
-                                }}
-                                endIcon={<ArrowForwardIosIcon sx={{fontSize: 14}}/>}
-                            >
-                                Xem yêu cầu tư vấn
-                            </Button>
                         </Stack>
                     </Box>
                 </CardContent>
@@ -569,159 +530,6 @@ export default function SchoolDashboard() {
                     </Card>
                 </Grid>
 
-                <Grid item xs={12} md={6} lg={4}>
-                    <Card
-                        elevation={0}
-                        sx={{
-                            borderRadius: 3,
-                            border: "1px solid #e2e8f0",
-                            bgcolor: "#ffffff",
-                        }}
-                    >
-                        <CardContent sx={{p: 3}}>
-                            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-                                <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
-                                    Học sinh đăng ký theo cơ sở
-                                </Typography>
-                                <IconButton size="small" sx={{color: "#64748b"}}>
-                                    <BarChartIcon fontSize="small"/>
-                                </IconButton>
-                            </Stack>
-                            <Typography variant="body2" sx={{mb: 2, color: "#94a3b8"}}>
-                                Biểu đồ cột minh họa cho số lượng học sinh ở từng cơ sở.
-                            </Typography>
-                            <Box
-                                sx={{
-                                    mt: 1,
-                                    height: 180,
-                                    borderRadius: 2,
-                                    bgcolor: "#f8fafc",
-                                    display: "flex",
-                                    alignItems: "flex-end",
-                                    justifyContent: "space-around",
-                                    px: 1,
-                                }}
-                            >
-                                {[
-                                    {label: "Chính", value: 80},
-                                    {label: "Cơ sở 2", value: 55},
-                                    {label: "Cơ sở 3", value: 40},
-                                ].map((bar) => (
-                                    <Box
-                                        key={bar.label}
-                                        sx={{
-                                            display: "flex",
-                                            flexDirection: "column",
-                                            alignItems: "center",
-                                            gap: 0.5,
-                                        }}
-                                    >
-                                        <Box
-                                            sx={{
-                                                width: 26,
-                                                borderRadius: 1.5,
-                                                bgcolor: "#0D64DE",
-                                                height: `${bar.value}%`,
-                                            }}
-                                        />
-                                        <Typography variant="caption" sx={{color: "#64748b"}}>
-                                            {bar.label}
-                                        </Typography>
-                                    </Box>
-                                ))}
-                            </Box>
-                        </CardContent>
-                    </Card>
-                </Grid>
-
-                <Grid item xs={12} lg={4}>
-                    <Card
-                        elevation={0}
-                        sx={{
-                            borderRadius: 3,
-                            border: "1px solid #e2e8f0",
-                            bgcolor: "#ffffff",
-                            height: "100%",
-                        }}
-                    >
-                        <CardContent sx={{p: 3}}>
-                            <Stack direction="row" justifyContent="space-between" alignItems="center" mb={1.5}>
-                                <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
-                                    Phân bố học sinh theo chiến dịch
-                                </Typography>
-                                <IconButton size="small" sx={{color: "#64748b"}}>
-                                    <PieChartIcon fontSize="small"/>
-                                </IconButton>
-                            </Stack>
-                            <Typography variant="body2" sx={{mb: 2, color: "#94a3b8"}}>
-                                Biểu đồ tròn minh họa tỉ lệ học sinh tham gia từng chiến dịch tuyển sinh.
-                            </Typography>
-                            <Stack
-                                direction="row"
-                                alignItems="center"
-                                spacing={2.5}
-                                sx={{mt: 1, flexWrap: "wrap"}}
-                            >
-                                <Box
-                                    sx={{
-                                        width: 140,
-                                        height: 140,
-                                        borderRadius: "50%",
-                                        background:
-                                            "conic-gradient(#0D64DE 0 40%, #22c55e 40% 70%, #f97316 70% 100%)",
-                                        position: "relative",
-                                    }}
-                                >
-                                    <Box
-                                        sx={{
-                                            position: "absolute",
-                                            inset: 14,
-                                            borderRadius: "50%",
-                                            bgcolor: "#ffffff",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            flexDirection: "column",
-                                        }}
-                                    >
-                                        <Typography variant="caption" sx={{color: "#64748b"}}>
-                                            Tổng
-                                        </Typography>
-                                        <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b"}}>
-                                            100%
-                                        </Typography>
-                                    </Box>
-                                </Box>
-                                <Stack spacing={1}>
-                                    <Stack direction="row" alignItems="center" spacing={1}>
-                                        <Box
-                                            sx={{width: 10, height: 10, borderRadius: "50%", bgcolor: "#0D64DE"}}
-                                        />
-                                        <Typography variant="body2" sx={{color: "#1e293b"}}>
-                                            Chiến dịch lớp 10 · 40%
-                                        </Typography>
-                                    </Stack>
-                                    <Stack direction="row" alignItems="center" spacing={1}>
-                                        <Box
-                                            sx={{width: 10, height: 10, borderRadius: "50%", bgcolor: "#22c55e"}}
-                                        />
-                                        <Typography variant="body2" sx={{color: "#1e293b"}}>
-                                            Chiến dịch lớp 6 · 30%
-                                        </Typography>
-                                    </Stack>
-                                    <Stack direction="row" alignItems="center" spacing={1}>
-                                        <Box
-                                            sx={{width: 10, height: 10, borderRadius: "50%", bgcolor: "#f97316"}}
-                                        />
-                                        <Typography variant="body2" sx={{color: "#1e293b"}}>
-                                            Khác · 30%
-                                        </Typography>
-                                    </Stack>
-                                </Stack>
-                            </Stack>
-                        </CardContent>
-                    </Card>
-                </Grid>
             </Grid>
 
             <Grid container spacing={2.5}>
@@ -953,86 +761,6 @@ export default function SchoolDashboard() {
                                     </TableContainer>
                                 </>
                             )}
-                        </CardContent>
-                    </Card>
-                </Grid>
-
-                <Grid item xs={12} md={4}>
-                    <Card
-                        elevation={0}
-                        sx={{
-                            borderRadius: 3,
-                            border: "1px solid #e2e8f0",
-                            bgcolor: "#ffffff",
-                            height: "100%",
-                        }}
-                    >
-                        <CardContent sx={{p: 3}}>
-                            <Typography variant="h6" sx={{fontWeight: 700, color: "#1e293b", mb: 2}}>
-                                Thao tác nhanh
-                            </Typography>
-                            <Stack spacing={1.5}>
-                                <Button
-                                    fullWidth
-                                    variant="outlined"
-                                    startIcon={<ApartmentIcon/>}
-                                    sx={{
-                                        justifyContent: "flex-start",
-                                        borderRadius: 2,
-                                        textTransform: "none",
-                                        borderColor: "#e2e8f0",
-                                        color: "#1e293b",
-                                        "&:hover": {borderColor: "#0D64DE", bgcolor: "#eff6ff"},
-                                    }}
-                                >
-                                    Tạo cơ sở
-                                </Button>
-                                <Button
-                                    fullWidth
-                                    variant="outlined"
-                                    startIcon={<PeopleAltIcon/>}
-                                    sx={{
-                                        justifyContent: "flex-start",
-                                        borderRadius: 2,
-                                        textTransform: "none",
-                                        borderColor: "#e2e8f0",
-                                        color: "#1e293b",
-                                        "&:hover": {borderColor: "#0D64DE", bgcolor: "#eff6ff"},
-                                    }}
-                                >
-                                    Thêm tư vấn viên
-                                </Button>
-                                <Button
-                                    fullWidth
-                                    variant="outlined"
-                                    startIcon={<CampaignIcon/>}
-                                    sx={{
-                                        justifyContent: "flex-start",
-                                        borderRadius: 2,
-                                        textTransform: "none",
-                                        borderColor: "#e2e8f0",
-                                        color: "#1e293b",
-                                        "&:hover": {borderColor: "#0D64DE", bgcolor: "#eff6ff"},
-                                    }}
-                                >
-                                    Tạo chiến dịch tuyển sinh
-                                </Button>
-                                <Button
-                                    fullWidth
-                                    variant="outlined"
-                                    startIcon={<ChatBubbleOutlineIcon/>}
-                                    sx={{
-                                        justifyContent: "flex-start",
-                                        borderRadius: 2,
-                                        textTransform: "none",
-                                        borderColor: "#e2e8f0",
-                                        color: "#1e293b",
-                                        "&:hover": {borderColor: "#0D64DE", bgcolor: "#eff6ff"},
-                                    }}
-                                >
-                                    Xem yêu cầu tư vấn
-                                </Button>
-                            </Stack>
                         </CardContent>
                     </Card>
                 </Grid>
