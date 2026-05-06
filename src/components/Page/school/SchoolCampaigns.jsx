@@ -55,11 +55,6 @@ import {
     cloneCampaignTemplate,
     cancelCampaignTemplate,
 } from "../../../services/CampaignService.jsx";
-import {
-    getSchoolConfigByKey,
-    parseSchoolConfigResponseBody,
-    SCHOOL_CONFIG_KEY,
-} from "../../../services/SchoolFacilityService.jsx";
 import CreatePostRichTextEditor from "../../ui/CreatePostRichTextEditor.jsx";
 import { ConfirmHighlight } from "../../ui/ConfirmDialog.jsx";
 
@@ -123,7 +118,45 @@ function mapTemplate(row) {
         status,
         numberOfOfferings: row.numberOfOfferings ?? 0,
         admissionMethodTimelines: normalizedTimelines,
+        mandatoryAll: Array.isArray(row.mandatoryAll) ? row.mandatoryAll : [],
     };
+}
+
+function parseCampaignTemplateResponse(res) {
+    const raw = res?.data?.body ?? res?.data;
+    if (Array.isArray(raw)) {
+        return { campaignConfig: null, campaigns: raw };
+    }
+    if (raw && typeof raw === "object") {
+        if (Array.isArray(raw.campaigns)) {
+            return {
+                campaignConfig: raw.campaignConfig && typeof raw.campaignConfig === "object" ? raw.campaignConfig : null,
+                campaigns: raw.campaigns,
+            };
+        }
+        if (raw.id != null || raw.admissionCampaignTemplateId != null) {
+            return {
+                campaignConfig: raw.campaignConfig && typeof raw.campaignConfig === "object" ? raw.campaignConfig : null,
+                campaigns: [raw],
+            };
+        }
+    }
+    return { campaignConfig: null, campaigns: [] };
+}
+
+function mapCampaignsWithConfig(campaigns, campaignConfig) {
+    const configMandatoryAll = Array.isArray(campaignConfig?.mandatoryAll) ? campaignConfig.mandatoryAll : [];
+    return (Array.isArray(campaigns) ? campaigns : [])
+        .map((row) => {
+            const mapped = mapTemplate(row);
+            if (!mapped) return null;
+            const rowMandatoryAll = Array.isArray(mapped.mandatoryAll) ? mapped.mandatoryAll : [];
+            return {
+                ...mapped,
+                mandatoryAll: rowMandatoryAll.length > 0 ? rowMandatoryAll : configMandatoryAll,
+            };
+        })
+        .filter(Boolean);
 }
 
 const emptyForm = {
@@ -371,14 +404,12 @@ export default function SchoolCampaigns() {
 
     useEffect(() => {
         let cancelled = false;
-        getSchoolConfigByKey(SCHOOL_CONFIG_KEY.ADMISSION_SETTINGS_DATA)
+        const selectedYear = Number(formValues.year);
+        getCampaignTemplatesByYear(Number.isFinite(selectedYear) ? selectedYear : CURRENT_YEAR)
             .then((res) => {
                 if (cancelled) return;
-                const body = parseSchoolConfigResponseBody(res);
-                const adm = body?.admissionSettingsData && typeof body.admissionSettingsData === "object"
-                    ? body.admissionSettingsData
-                    : body;
-                const methods = Array.isArray(adm?.allowedMethods) ? adm.allowedMethods : [];
+                const parsed = parseCampaignTemplateResponse(res);
+                const methods = Array.isArray(parsed.campaignConfig?.allowedMethods) ? parsed.campaignConfig.allowedMethods : [];
                 const options = methods
                     .map((m) => {
                         const value = String(m?.code ?? "").trim();
@@ -388,7 +419,7 @@ export default function SchoolCampaigns() {
                     })
                     .filter(Boolean);
                 setAdmissionMethodOptions(options);
-                const tq = Number(adm?.totalQuota ?? adm?.quota ?? adm?.maxQuota ?? 0);
+                const tq = Number(parsed.campaignConfig?.totalQuota ?? parsed.campaignConfig?.quota ?? parsed.campaignConfig?.maxQuota ?? 0);
                 setTotalConfiguredQuota(Number.isFinite(tq) && tq > 0 ? tq : 0);
             })
             .catch(() => {
@@ -398,17 +429,15 @@ export default function SchoolCampaigns() {
         return () => {
             cancelled = true;
         };
-    }, []);
+    }, [formValues.year]);
 
     useEffect(() => {
         let cancelled = false;
         setLoading(true);
 
         const parseBody = (res) => {
-            const raw = res?.data?.body ?? res?.data;
-            if (Array.isArray(raw)) return raw;
-            if (raw) return [raw];
-            return [];
+            const parsed = parseCampaignTemplateResponse(res);
+            return mapCampaignsWithConfig(parsed.campaigns, parsed.campaignConfig);
         };
 
         if (campaignTab === CAMPAIGN_TAB_CURRENT || campaignTab === CAMPAIGN_TAB_UPCOMING) {
@@ -777,14 +806,8 @@ export default function SchoolCampaigns() {
                 const refetch = await getCampaignTemplatesByYear(
                     Number.isFinite(createdYear) ? createdYear : CURRENT_YEAR
                 );
-                const raw = refetch?.data?.body ?? refetch?.data;
-                let list = [];
-                if (Array.isArray(raw)) {
-                    list = raw;
-                } else if (raw) {
-                    list = [raw];
-                }
-                const mapped = list.map(mapTemplate).filter(Boolean);
+                const parsed = parseCampaignTemplateResponse(refetch);
+                const mapped = mapCampaignsWithConfig(parsed.campaigns, parsed.campaignConfig);
                 setCampaigns(mapped);
             } else {
                 enqueueSnackbar(
@@ -938,12 +961,11 @@ export default function SchoolCampaigns() {
     };
 
     const openCancelConfirm = (campaign) => {
-        const status = String(campaign.status || "").toUpperCase();
         setCancelTargetCampaign(campaign);
         setCancelReason("");
         setCancelReasonError("");
         setCancelBlockedMessage("");
-        setCancelFlowPhase(status === "OPEN" ? "reason" : "confirm");
+        setCancelFlowPhase("reason");
         setConfirmCancelOpen(true);
     };
 
@@ -958,9 +980,8 @@ export default function SchoolCampaigns() {
 
     const handleCancelCampaign = async () => {
         if (!cancelTargetCampaign?.id || cancelLoading) return;
-        const isOpen = String(cancelTargetCampaign.status || "").toUpperCase() === "OPEN";
         const reason = cancelReason.trim();
-        if (isOpen && !reason) {
+        if (!reason) {
             setCancelReasonError("Vui lòng nhập lý do hủy");
             return;
         }
@@ -1695,9 +1716,6 @@ export default function SchoolCampaigns() {
                                         <Typography variant="subtitle1" sx={{fontWeight: 900, color: "#1e293b"}}>
                                             Thông tin chính
                                         </Typography>
-                                        <Typography variant="body2" sx={{color: "#64748b", mt: 0.4}}>
-                                            Nhập tên, năm học và mô tả ngắn gọn cho chiến dịch.
-                                        </Typography>
                                     </Box>
                                     <Stack direction={{xs: "column", sm: "row"}} spacing={2}>
                                         <TextField
@@ -1763,9 +1781,6 @@ export default function SchoolCampaigns() {
                                         <Typography variant="subtitle1" sx={{fontWeight: 900, color: "#1e293b"}}>
                                             Thời gian chiến dịch
                                         </Typography>
-                                        <Typography variant="body2" sx={{color: "#64748b", mt: 0.4}}>
-                                            Chọn mốc mở và đóng của toàn chiến dịch.
-                                        </Typography>
                                     </Box>
                                     <Stack direction={{xs: "column", sm: "row"}} spacing={2}>
                                         <TextField
@@ -1808,7 +1823,7 @@ export default function SchoolCampaigns() {
                                                 Mốc theo phương thức tuyển sinh
                                             </Typography>
                                             <Typography variant="body2" sx={{color: "#64748b", mt: 0.4}}>
-                                                Thiết lập từng phương thức, thời gian áp dụng và quota.
+                                                Thiết lập từng phương thức, thời gian áp dụng và chỉ tiêu.
                                             </Typography>
                                         </Box>
                                         <Button
@@ -1831,6 +1846,18 @@ export default function SchoolCampaigns() {
                                     const rowErr = Array.isArray(formErrors.admissionMethodTimelines)
                                         ? formErrors.admissionMethodTimelines[idx] || {}
                                         : {};
+                                    const rowHasError = Boolean(
+                                        rowErr.methodCode || rowErr.quota || rowErr.startDate || rowErr.endDate
+                                    );
+                                    const start = parseLocalDate(String(row?.startDate ?? "").trim());
+                                    const end = parseLocalDate(String(row?.endDate ?? "").trim());
+                                    const now = startOfLocalToday();
+                                    const timelineBadge = (() => {
+                                        if (!start || !end) return null;
+                                        if (now < start) return { label: "Sắp diễn ra", color: "#1d4ed8", bg: "rgba(59,130,246,0.12)" };
+                                        if (now > end) return { label: "Đã kết thúc", color: "#64748b", bg: "rgba(148,163,184,0.16)" };
+                                        return { label: "Đang mở", color: "#166534", bg: "rgba(34,197,94,0.14)" };
+                                    })();
                                     return (
                                         <Grow in={true} style={{ transformOrigin: "0 0 0" }} key={`timeline-${idx}`}>
                                             <Box
@@ -1838,17 +1865,46 @@ export default function SchoolCampaigns() {
                                                     timelineItemRefs.current[idx] = el;
                                                 }}
                                                 sx={{
-                                                    border: "1px solid #dbeafe",
-                                                    borderRadius: 2,
-                                                    bgcolor: "#f8fbff",
-                                                    px: 2,
-                                                    py: 1.5,
+                                                    border: "1px solid #e2e8f0",
+                                                    borderColor: rowHasError ? "rgba(220, 38, 38, 0.35)" : "#e2e8f0",
+                                                    borderRadius: "10px",
+                                                    bgcolor: "#fff",
+                                                    px: 2.25,
+                                                    py: 2,
+                                                    transition: "box-shadow .2s ease, border-color .2s ease, transform .2s ease",
+                                                    "&:hover": {
+                                                        boxShadow: "0 8px 18px rgba(15, 23, 42, 0.06)",
+                                                    },
                                                 }}
                                             >
-                                                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
-                                                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800 }}>
-                                                        Mốc {idx + 1}
-                                                    </Typography>
+                                                <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2.5}>
+                                                    <Box sx={{ minWidth: 0 }}>
+                                                        <Typography variant="subtitle2" sx={{ color: "#1e293b", fontWeight: 800 }}>
+                                                            Mốc {idx + 1}
+                                                        </Typography>
+                                                        <Typography variant="caption" sx={{ color: "#64748b", display: "block", mt: 0.25 }}>
+                                                            {admissionMethodOptions.find((opt) => opt.value === row.methodCode)?.label || "Chưa chọn phương thức"}
+                                                        </Typography>
+                                                    </Box>
+                                                    <Stack direction="row" spacing={0.8} alignItems="center">
+                                                        {timelineBadge ? (
+                                                            <Box
+                                                                component="span"
+                                                                sx={{
+                                                                    px: 1,
+                                                                    py: 0.35,
+                                                                    borderRadius: 999,
+                                                                    bgcolor: timelineBadge.bg,
+                                                                    color: timelineBadge.color,
+                                                                    fontSize: 11,
+                                                                    fontWeight: 700,
+                                                                    lineHeight: 1.2,
+                                                                    whiteSpace: "nowrap",
+                                                                }}
+                                                            >
+                                                                {timelineBadge.label}
+                                                            </Box>
+                                                        ) : null}
                                                     <IconButton
                                                         size="small"
                                                         onClick={() => removeTimelineRow(idx)}
@@ -1864,118 +1920,95 @@ export default function SchoolCampaigns() {
                                                     >
                                                         <CloseIcon fontSize="small" />
                                                     </IconButton>
+                                                    </Stack>
                                                 </Stack>
 
-                                                
-                                                <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mt: 1.2 }}>
-                                                        
-                                                         <Card
-                                                        variant="outlined"
-                                                        sx={{
-                                                            flex: 1.6,
-                                                            borderRadius: 2,
-                                                            borderColor: "#dbeafe",
-                                                            bgcolor: "#ffffff",
-                                                            boxShadow: "0 6px 16px rgba(15, 23, 42, 0.03)",
-                                                        }}
-                                                    >
-                                                        <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
-                                                            <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800, display: "block", mb: 1 }}>
-                                                                Phương thức
-                                                            </Typography>
-                                                            <FormControl fullWidth error={!!rowErr.methodCode}>
-                                                                <InputLabel>Phương thức</InputLabel>
-                                                                <Select
-                                                                    value={row.methodCode || ""}
-                                                                    label="Phương thức"
-                                                                    onChange={(e) => handleTimelineChange(idx, "methodCode", e.target.value)}
-                                                                >
-                                                                    {admissionMethodOptions
-                                                                        .filter((opt) => {
-                                                                            const selectedCodes = (formValues.admissionMethodTimelines || [])
-                                                                                .map((r, rIdx) =>
-                                                                                    rIdx === idx ? "" : String(r?.methodCode ?? "").trim()
-                                                                                )
-                                                                                .filter(Boolean);
-                                                                            return !selectedCodes.includes(opt.value);
-                                                                        })
-                                                                        .map((opt) => (
-                                                                            <MenuItem key={opt.value} value={opt.value}>
-                                                                                {opt.label}
-                                                                            </MenuItem>
-                                                                        ))}
-                                                                </Select>
-                                                                {!!rowErr.methodCode && (
-                                                                    <Typography
-                                                                        variant="caption"
-                                                                        sx={{ color: "#d32f2f", ml: 1.2, mt: 0.5, display: "block" }}
-                                                                    >
-                                                                        {rowErr.methodCode}
-                                                                    </Typography>
-                                                                )}
-                                                            </FormControl>
-                                                        </CardContent>
-                                                    </Card>
-                                                        
-                                                        <Card
-                                                        variant="outlined"
-                                                        sx={{
-                                                            flex: 1,
-                                                            borderRadius: 2,
-                                                            borderColor: "#dbeafe",
-                                                            bgcolor: "#ffffff",
-                                                            boxShadow: "0 6px 16px rgba(15, 23, 42, 0.03)",
-                                                        }}
-                                                    >
-                                                        <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
-                                                            <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800, display: "block", mb: 1 }}>
-                                                                Chỉ tiêu và giữ chỗ
-                                                            </Typography>
-                                                            <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }}>
-                                                                <TextField
-                                                                    label="Quota"
-                                                                    type="number"
-                                                                    value={row.quota ?? ""}
-                                                                    onChange={(e) => handleTimelineChange(idx, "quota", e.target.value)}
-                                                                    inputProps={{ min: 1, step: 1 }}
-                                                                    error={!!rowErr.quota}
-                                                                    helperText={rowErr.quota}
-                                                                    fullWidth
-                                                                />
-                                                                
-                                                                <FormControlLabel
-                                                                    sx={{ m: 0, flexShrink: 0 }}
-                                                                    control={
-                                                                        <Checkbox
-                                                                            size="small"
-                                                                            checked={!!row.allowReservationSubmission}
-                                                                            onChange={(e) =>
-                                                                                handleTimelineChange(idx, "allowReservationSubmission", e.target.checked)
-                                                                            }
-                                                                        />
-                                                                    }
-                                                                    label="Cho phép nộp hồ sơ giữ chỗ"
-                                                                />
-                                                            </Stack>
-                                                        </CardContent>
-                                                    </Card>
-                                                </Stack>
+                                                <Divider sx={{ my: 1.5 }} />
 
-                                                <Card
-                                                    variant="outlined"
-                                                    sx={{
-                                                        mt: 1.5,
-                                                        borderRadius: 2,
-                                                        borderColor: "#dbeafe",
-                                                        bgcolor: "#ffffff",
-                                                        boxShadow: "0 6px 16px rgba(15, 23, 42, 0.03)",
-                                                    }}
+                                                <Stack
+                                                    direction={{ xs: "column", md: "row" }}
+                                                    spacing={1.5}
+                                                    alignItems={{ md: "flex-start" }}
                                                 >
-                                                    <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
-                                                        <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800, display: "block", mb: 1 }}>
-                                                            Thời gian
-                                                        </Typography>
-                                                        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                                                    <FormControl fullWidth error={!!rowErr.methodCode} sx={{ flex: 1.8 }}>
+                                                        <InputLabel>Phương thức</InputLabel>
+                                                        <Select
+                                                            value={row.methodCode || ""}
+                                                            label="Phương thức"
+                                                            onChange={(e) => handleTimelineChange(idx, "methodCode", e.target.value)}
+                                                        >
+                                                            {admissionMethodOptions
+                                                                .filter((opt) => {
+                                                                    const selectedCodes = (formValues.admissionMethodTimelines || [])
+                                                                        .map((r, rIdx) =>
+                                                                            rIdx === idx ? "" : String(r?.methodCode ?? "").trim()
+                                                                        )
+                                                                        .filter(Boolean);
+                                                                    return !selectedCodes.includes(opt.value);
+                                                                })
+                                                                .map((opt) => (
+                                                                    <MenuItem key={opt.value} value={opt.value}>
+                                                                        {opt.label}
+                                                                    </MenuItem>
+                                                                ))}
+                                                        </Select>
+                                                        {!!rowErr.methodCode && (
+                                                            <Typography
+                                                                variant="caption"
+                                                                sx={{ color: "#d32f2f", ml: 1.2, mt: 0.5, display: "block" }}
+                                                            >
+                                                                {rowErr.methodCode}
+                                                            </Typography>
+                                                        )}
+                                                    </FormControl>
+                                                    <TextField
+                                                        label="Chỉ tiêu"
+                                                        type="number"
+                                                        value={row.quota ?? ""}
+                                                        onChange={(e) => handleTimelineChange(idx, "quota", e.target.value)}
+                                                        inputProps={{ min: 1, step: 1 }}
+                                                        error={!!rowErr.quota}
+                                                        helperText={rowErr.quota}
+                                                        sx={{ flex: { md: 0.8 } }}
+                                                        fullWidth
+                                                    />
+                                                    <FormControlLabel
+                                                        sx={{
+                                                            m: 0,
+                                                            minHeight: 56,
+                                                            px: 1.2,
+                                                            borderRadius: 1.5,
+                                                            bgcolor: "rgba(248,250,252,0.9)",
+                                                            border: "1px solid #e2e8f0",
+                                                            whiteSpace: "nowrap",
+                                                        }}
+                                                        control={
+                                                            <Checkbox
+                                                                size="small"
+                                                                checked={!!row.allowReservationSubmission}
+                                                                onChange={(e) =>
+                                                                    handleTimelineChange(idx, "allowReservationSubmission", e.target.checked)
+                                                                }
+                                                            />
+                                                        }
+                                                        label="Cho phép giữ chỗ"
+                                                    />
+                                                </Stack>
+
+                                                <Stack spacing={1} sx={{ mt: 1.5 }}>
+                                                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700 }}>
+                                                        Thời gian
+                                                    </Typography>
+                                                    <Box
+                                                        sx={{
+                                                            p: 1.25,
+                                                            borderRadius: 1.5,
+                                                            border: "1px solid #e2e8f0",
+                                                            borderColor: rowErr.startDate || rowErr.endDate ? "rgba(220,38,38,0.35)" : "#e2e8f0",
+                                                            bgcolor: rowErr.startDate || rowErr.endDate ? "rgba(254,242,242,0.65)" : "rgba(248,250,252,0.8)",
+                                                        }}
+                                                    >
+                                                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} alignItems={{ sm: "center" }}>
                                                             <TextField
                                                                 label="Bắt đầu"
                                                                 type="date"
@@ -1986,6 +2019,9 @@ export default function SchoolCampaigns() {
                                                                 helperText={rowErr.startDate}
                                                                 fullWidth
                                                             />
+                                                            <Typography sx={{ color: "#94a3b8", fontWeight: 700, px: 0.5, display: { xs: "none", sm: "block" } }}>
+                                                                →
+                                                            </Typography>
                                                             <TextField
                                                                 label="Kết thúc"
                                                                 type="date"
@@ -1997,8 +2033,8 @@ export default function SchoolCampaigns() {
                                                                 fullWidth
                                                             />
                                                         </Stack>
-                                                    </CardContent>
-                                                </Card>
+                                                    </Box>
+                                                </Stack>
                                             </Box>
                                         </Grow>
                                     );
@@ -2022,7 +2058,7 @@ export default function SchoolCampaigns() {
                             <Box sx={{ flex: 1, mr: 1 }}>
                                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
                                     <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
-                                        Quota đã phân bổ
+                                        Chỉ tiêu đã phân bổ
                                     </Typography>
                                     <Typography variant="caption" sx={{ fontWeight: 700, color: textColor }}>
                                         {allocated.toLocaleString("vi-VN")}{max > 0 ? ` / ${max.toLocaleString("vi-VN")}` : ""}
@@ -2209,10 +2245,10 @@ export default function SchoolCampaigns() {
                                 <WarningAmberIcon sx={{ fontSize: 44, color: "#d97706" }} />
                                 <Box>
                                     <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b" }}>
-                                        Bạn đang hủy chiến dịch ĐANG MỞ
+                                        Xác nhận hủy chiến dịch
                                     </Typography>
                                     <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75, lineHeight: 1.6 }}>
-                                        Toàn bộ gói tuyển sinh sẽ bị đóng.{" "}
+                                        Bạn sắp hủy chiến dịch <ConfirmHighlight>{cancelTargetCampaign?.name}</ConfirmHighlight>.{" "}
                                         <Box component="span" sx={{ fontWeight: 700, color: "#b91c1c" }}>
                                             Hành động này không thể hoàn tác.
                                         </Box>

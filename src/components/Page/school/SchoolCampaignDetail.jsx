@@ -1447,7 +1447,7 @@ export default function SchoolCampaignDetail() {
                                     </Button>
                                     <Tooltip
                                         title={
-                                            isFormDirty
+                                            isInfoEditing && isFormDirty
                                                 ? "Vui lòng lưu thay đổi trước khi công bố chiến dịch."
                                                 : publishBlockedByPastEndDate
                                                 ? "Chiến dịch đã hết hạn, vui lòng cập nhật ngày kết thúc trước khi công bố."
@@ -1458,7 +1458,7 @@ export default function SchoolCampaignDetail() {
                                             <Button
                                                 variant="contained"
                                                 onClick={() => setConfirmPublishOpen(true)}
-                                                disabled={submitLoading || publishBlockedByPastEndDate || isFormDirty}
+                                                disabled={submitLoading || publishBlockedByPastEndDate || (isInfoEditing && isFormDirty)}
                                                 sx={{
                                                     textTransform: "none",
                                                     fontWeight: 600,
