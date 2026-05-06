@@ -25,6 +25,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import CloseIcon from "@mui/icons-material/Close";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
@@ -349,7 +350,13 @@ export default function SchoolCampaignDetail() {
             try {
                 const res = await getCampaignTemplatesByYear(y);
                 const raw = res?.data?.body ?? res?.data;
-                const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+                const list = Array.isArray(raw)
+                    ? raw
+                    : Array.isArray(raw?.campaigns)
+                      ? raw.campaigns
+                      : raw
+                        ? [raw]
+                        : [];
                 const found = list.find((row) => Number(row?.id ?? row?.admissionCampaignTemplateId) === idNum);
                 if (found) return mapTemplate(found);
             } catch {
@@ -1071,7 +1078,7 @@ export default function SchoolCampaignDetail() {
                         gap: 1.5,
                     }}
                 >
-                    <Typography sx={{ fontSize: 20, lineHeight: 1, mt: 0.1 }}>ℹ️</Typography>
+                    <InfoOutlinedIcon sx={{ fontSize: 20, mt: 0.1, color: "#1d4ed8" }} />
                     <Box>
                         <Typography variant="body2" sx={{ fontWeight: 700, color: "#1d4ed8" }}>
                             Bản nhân bản từ chiến dịch {clonedFromYear}
