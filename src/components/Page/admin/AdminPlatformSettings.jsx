@@ -9,6 +9,7 @@ import {
     CardContent,
     Chip,
     CircularProgress,
+    LinearProgress,
     IconButton,
     InputAdornment,
     Link,
@@ -783,6 +784,7 @@ export default function AdminPlatformSettings() {
     };
 
     const fetchConfig = async () => {
+        const isRefresh = !!configBody;
         setLoadingConfig(true);
         try {
             const res = await getSystemConfig();
@@ -794,7 +796,11 @@ export default function AdminPlatformSettings() {
             enqueueSnackbar("Không thể tải cấu hình nền tảng.", { variant: "error" });
             setConfigBody(null);
         } finally {
-            setLoadingConfig(false);
+            if (isRefresh) {
+                setTimeout(() => setLoadingConfig(false), 2000);
+            } else {
+                setLoadingConfig(false);
+            }
         }
     };
 
@@ -1182,6 +1188,31 @@ export default function AdminPlatformSettings() {
             quotas: schoolOptions.map((school) => createQuotaEntry({ schoolId: school.schoolId, value: "" })),
         };
         setQuotaMode("add");
+        setQuotaForm(form);
+        setQuotaErrors({});
+        setQuotaEditing(true);
+    };
+
+    const startQuotaEdit = (group) => {
+        const sourceInfo = group.source || {};
+        const existingBySchoolId = new Map(
+            (group.rows || []).map((r) => [Number(r.schoolId), r.value])
+        );
+        const year = sourceInfo.year || group.yearKey || "";
+        const form = {
+            year,
+            sourceName: sourceInfo.sourceName || "",
+            sourceType: sourceInfo.sourceType || "NEWS_ARTICLE",
+            sourceUrl: sourceInfo.sourceUrl || "",
+            quotas: schoolOptions.map((school) =>
+                createQuotaEntry({
+                    schoolId: school.schoolId,
+                    value: existingBySchoolId.get(Number(school.schoolId)) ?? "",
+                })
+            ),
+        };
+        setQuotaMode("edit");
+        setSelectedQuotaYear(year);
         setQuotaForm(form);
         setQuotaErrors({});
         setQuotaEditing(true);
@@ -1715,70 +1746,6 @@ export default function AdminPlatformSettings() {
         return (
             <Stack spacing={2.5} sx={{ width: "100%" }}>
                 <Box>
-                    <Box
-                        sx={{
-                            px: 0.5,
-                            py: 0.5,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "flex-end",
-                            gap: 1,
-                        }}
-                    >
-                        <Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-                            <TextField
-                                select
-                                size="small"
-                                label="Loại nhập liệu"
-                                value={importType}
-                                disabled={saving || importingAdmissionTemplate || confirmingAdmissionImport}
-                                onChange={(e) => setImportType(String(e.target.value || "ALLOWED_METHODS"))}
-                                sx={{ minWidth: 240 }}
-                            >
-                                {IMPORT_TYPE_OPTIONS.map((typeKey) => (
-                                    <MenuItem key={typeKey} value={typeKey}>
-                                        {IMPORT_TYPE_LABEL[typeKey]}
-                                    </MenuItem>
-                                ))}
-                            </TextField>
-                            <Button
-                                variant="outlined"
-                                size="small"
-                                startIcon={importingAdmissionTemplate ? <CircularProgress size={14} /> : <FileUploadOutlinedIcon />}
-                                disabled={saving || importingAdmissionTemplate || confirmingAdmissionImport}
-                                onClick={handleSelectAdmissionTemplateFile}
-                                sx={{
-                                    textTransform: "none",
-                                    fontWeight: 700,
-                                    borderRadius: 2,
-                                }}
-                            >
-                                {importingAdmissionTemplate ? "Đang tải lên..." : "Tải lên"}
-                            </Button>
-                            <Button
-                                variant="contained"
-                                size="small"
-                                startIcon={<AddIcon />}
-                                disabled={rowDisabled}
-                                onClick={() =>
-                                    setAdmissionTemplateForm((p) => ({
-                                        ...p,
-                                        allowedMethods: [...(p.allowedMethods || []), { code: "", displayName: "", description: "" }],
-                                    }))
-                                }
-                                sx={{
-                                    textTransform: "none",
-                                    fontWeight: 700,
-                                    borderRadius: 2,
-                                    boxShadow: "none",
-                                    bgcolor: "#2563eb",
-                                    "&:hover": { bgcolor: "#1d4ed8" },
-                                }}
-                            >
-                                Thêm phương thức
-                            </Button>
-                        </Stack>
-                    </Box>
                     <input
                         ref={admissionImportInputRef}
                         type="file"
@@ -1813,7 +1780,7 @@ export default function AdminPlatformSettings() {
                                     onClick={handleAddAdmissionImportRow}
                                     sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
                                 >
-                                    {importType === "ALLOWED_METHODS" ? "Thêm phương thức" : "Thêm hồ sơ"}
+                                    {importType === "ALLOWED_METHODS" ? "Thêm phương thức" : importType === "ADMISSION_PROCESSES" ? "Thêm bước" : "Thêm hồ sơ"}
                                 </Button>
                             </Box>
                             {importRows.length > 0 ? (
@@ -1951,9 +1918,36 @@ export default function AdminPlatformSettings() {
                             },
                         }}
                     >
-                        <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1d4ed8", mb: 1 }}>
-                            Phương thức tuyển sinh
-                        </Typography>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1, mb: 1 }}>
+                            <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1d4ed8" }}>
+                                Phương thức tuyển sinh
+                            </Typography>
+                            {admissionTemplateEditing ? (
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    startIcon={<FileUploadOutlinedIcon fontSize="small" />}
+                                    disabled={saving || importingAdmissionTemplate || confirmingAdmissionImport}
+                                    onClick={() => {
+                                        setImportType("ALLOWED_METHODS");
+                                        setTimeout(() => admissionImportInputRef.current?.click(), 0);
+                                    }}
+                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                >
+                                    Tải lên
+                                </Button>
+                            ) : (
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    disabled={saving}
+                                    onClick={() => setAdmissionTemplateEditing(true)}
+                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, borderColor: "#93c5fd", color: "#2563eb", bgcolor: "#ffffff", "&:hover": { borderColor: "#60a5fa", bgcolor: "#eff6ff" } }}
+                                >
+                                    Chỉnh sửa
+                                </Button>
+                            )}
+                        </Box>
                         <Box
                             sx={{
                                 display: "grid",
@@ -1985,7 +1979,7 @@ export default function AdminPlatformSettings() {
                                 }}
                             >
                                 <Typography variant="body2" sx={{ color: "#374151" }}>
-                                    Chưa có phương thức. Nhấn <strong>Thêm phương thức</strong> phía trên để tạo dòng đầu tiên trong mẫu hệ thống.
+                                    Chưa có phương thức. Nhấn <strong>Thêm phương thức</strong> để tạo dòng đầu tiên trong mẫu hệ thống.
                                 </Typography>
                             </Box>
                         ) : (
@@ -2110,6 +2104,28 @@ export default function AdminPlatformSettings() {
                                 ))}
                             </Stack>
                         )}
+                        {admissionTemplateEditing ? (
+                            <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 2 }}>
+                                <Button
+                                    size="small"
+                                    variant="outlined"
+                                    disabled={saving}
+                                    onClick={() => { cancelAdmissionTemplate(); setAdmissionTemplateEditing(false); }}
+                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, borderColor: "#93c5fd", color: "#2563eb", bgcolor: "#ffffff", "&:hover": { borderColor: "#60a5fa", bgcolor: "#eff6ff" } }}
+                                >
+                                    Hủy
+                                </Button>
+                                <Button
+                                    size="small"
+                                    variant="contained"
+                                    disabled={saving}
+                                    onClick={() => void saveAdmissionTemplate()}
+                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, bgcolor: "#2563eb", color: "#ffffff", boxShadow: "none", "&:hover": { bgcolor: "#1d4ed8", boxShadow: "none" } }}
+                                >
+                                    Lưu
+                                </Button>
+                            </Box>
+                        ) : null}
                     </Box>
                 </Box>
 
@@ -2119,51 +2135,44 @@ export default function AdminPlatformSettings() {
                             <Box sx={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 1, alignItems: "center", mb: 1 }}>
                                 <Typography sx={previewSectionTitleSx}>Hồ sơ theo phương thức</Typography>
                                 {admissionTemplateEditing ? (
+                                    <Tooltip
+                                        title={methods.length === 0 ? "Phải upload danh sách phương thức tuyển sinh đầu tiên" : ""}
+                                        arrow
+                                    >
+                                        <span>
+                                            <Button
+                                                size="small"
+                                                variant="outlined"
+                                                startIcon={<FileUploadOutlinedIcon fontSize="small" />}
+                                                disabled={methods.length === 0}
+                                                onClick={() => {
+                                                    setImportType("METHOD_DOCUMENTS");
+                                                    setTimeout(() => admissionImportInputRef.current?.click(), 0);
+                                                }}
+                                                sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                            >
+                                                Tải lên
+                                            </Button>
+                                        </span>
+                                    </Tooltip>
+                                ) : (
                                     <Button
                                         size="small"
-                                        variant="contained"
-                                        startIcon={<AddIcon fontSize="small" />}
-                                        onClick={() => {
-                                            setAdmissionTemplateForm((prev) => {
-                                                const nextGroups = Array.isArray(prev.methodDocumentRequirements)
-                                                    ? [...prev.methodDocumentRequirements]
-                                                    : [];
-                                                const targetIndex = nextGroups.length > 0 ? 0 : -1;
-                                                if (targetIndex < 0) {
-                                                    nextGroups.push({ methodCode: "", documents: [{ code: "", name: "", required: false }] });
-                                                } else {
-                                                    const currentGroup = { ...nextGroups[0] };
-                                                    currentGroup.documents = [
-                                                        ...(Array.isArray(currentGroup.documents) ? currentGroup.documents : []),
-                                                        { code: "", name: "", required: false },
-                                                    ];
-                                                    nextGroups[0] = currentGroup;
-                                                }
-                                                return { ...prev, methodDocumentRequirements: nextGroups };
-                                            });
-                                        }}
-                                        sx={{
-                                            textTransform: "none",
-                                            fontWeight: 700,
-                                            borderRadius: 2,
-                                            boxShadow: "none",
-                                            bgcolor: "#2563eb",
-                                            "&:hover": { bgcolor: "#1d4ed8" },
-                                        }}
+                                        variant="outlined"
+                                        disabled={saving}
+                                        onClick={() => setAdmissionTemplateEditing(true)}
+                                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, borderColor: "#93c5fd", color: "#2563eb", bgcolor: "#ffffff", "&:hover": { borderColor: "#60a5fa", bgcolor: "#eff6ff" } }}
                                     >
-                                        Thêm hồ sơ
+                                        Chỉnh sửa
                                     </Button>
-                                ) : null}
+                                )}
                             </Box>
                             <Stack spacing={1.4}>
-                                {docsSource.length === 0 ? (
-                                    <Typography variant="body2" sx={{ color: "#64748b" }}>Không có dữ liệu hồ sơ theo phương thức.</Typography>
-                                ) : (
-                                    docsSource.map((group, idx) => {
-                                        const methodCode = String(group?.methodCode ?? "").trim();
-                                        const methodLabel = methodNameMap[methodCode] || methodCode || "Phương thức";
-                                        const docs = Array.isArray(group?.documents) ? group.documents : [];
-                                        const steps = processByMethodMap[methodCode] || [];
+                                {methods.map((method, idx) => {
+                                        const methodCode = String(method?.code ?? "").trim();
+                                        const methodLabel = String(method?.displayName || methodCode || "Phương thức");
+                                        const docGroup = docsSource.find(g => String(g?.methodCode ?? "").trim() === methodCode);
+                                        const docs = Array.isArray(docGroup?.documents) ? docGroup.documents : [];
                                         const canEdit = admissionTemplateEditing;
                                         return (
                                             <Box
@@ -2192,6 +2201,40 @@ export default function AdminPlatformSettings() {
                                                     >
                                                         {`${idx + 1}. ${methodLabel}`}
                                                     </Typography>
+                                                    {canEdit ? (
+                                                        <Button
+                                                            size="small"
+                                                            variant="contained"
+                                                            startIcon={<AddIcon fontSize="small" />}
+                                                            onClick={() => {
+                                                                setAdmissionTemplateForm((prev) => {
+                                                                    const nextGroups = [...(prev.methodDocumentRequirements || [])];
+                                                                    const gIdx = nextGroups.findIndex(g => String(g?.methodCode ?? "").trim() === methodCode);
+                                                                    if (gIdx < 0) {
+                                                                        nextGroups.push({ methodCode, documents: [{ code: "", name: "", required: false }] });
+                                                                    } else {
+                                                                        const currentGroup = { ...nextGroups[gIdx] };
+                                                                        currentGroup.documents = [
+                                                                            ...(Array.isArray(currentGroup.documents) ? currentGroup.documents : []),
+                                                                            { code: "", name: "", required: false },
+                                                                        ];
+                                                                        nextGroups[gIdx] = currentGroup;
+                                                                    }
+                                                                    return { ...prev, methodDocumentRequirements: nextGroups };
+                                                                });
+                                                            }}
+                                                            sx={{
+                                                                textTransform: "none",
+                                                                fontWeight: 700,
+                                                                borderRadius: 2,
+                                                                boxShadow: "none",
+                                                                bgcolor: "#2563eb",
+                                                                "&:hover": { bgcolor: "#1d4ed8" },
+                                                            }}
+                                                        >
+                                                            Thêm hồ sơ
+                                                        </Button>
+                                                    ) : null}
                                                 </Box>
                                                 <Box sx={previewHeaderRowSx}>
                                                     <Typography sx={{ fontWeight: 800, color: "#374151", fontSize: 13 }}>Tên hồ sơ</Typography>
@@ -2222,10 +2265,12 @@ export default function AdminPlatformSettings() {
                                                                         const value = e.target.value;
                                                                         setAdmissionTemplateForm((prev) => {
                                                                             const nextGroups = [...(prev.methodDocumentRequirements || [])];
-                                                                            const currentGroup = { ...nextGroups[idx] };
+                                                                            const gIdx = nextGroups.findIndex(g => String(g?.methodCode ?? "").trim() === methodCode);
+                                                                            if (gIdx < 0) return prev;
+                                                                            const currentGroup = { ...nextGroups[gIdx] };
                                                                             currentGroup.documents = [...(Array.isArray(currentGroup.documents) ? currentGroup.documents : [])];
                                                                             currentGroup.documents[dIdx] = { ...currentGroup.documents[dIdx], name: value };
-                                                                            nextGroups[idx] = currentGroup;
+                                                                            nextGroups[gIdx] = currentGroup;
                                                                             return { ...prev, methodDocumentRequirements: nextGroups };
                                                                         });
                                                                     }}
@@ -2240,13 +2285,15 @@ export default function AdminPlatformSettings() {
                                                                         const value = e.target.value;
                                                                         setAdmissionTemplateForm((prev) => {
                                                                             const nextGroups = [...(prev.methodDocumentRequirements || [])];
-                                                                            const currentGroup = { ...nextGroups[idx] };
+                                                                            const gIdx = nextGroups.findIndex(g => String(g?.methodCode ?? "").trim() === methodCode);
+                                                                            if (gIdx < 0) return prev;
+                                                                            const currentGroup = { ...nextGroups[gIdx] };
                                                                             currentGroup.documents = [...(Array.isArray(currentGroup.documents) ? currentGroup.documents : [])];
                                                                             currentGroup.documents[dIdx] = {
                                                                                 ...currentGroup.documents[dIdx],
                                                                                 required: value === "true" ? true : value === "false" ? false : null,
                                                                             };
-                                                                            nextGroups[idx] = currentGroup;
+                                                                            nextGroups[gIdx] = currentGroup;
                                                                             return { ...prev, methodDocumentRequirements: nextGroups };
                                                                         });
                                                                     }}
@@ -2264,10 +2311,12 @@ export default function AdminPlatformSettings() {
                                                                             onClick={() => {
                                                                                 setAdmissionTemplateForm((prev) => {
                                                                                     const nextGroups = [...(prev.methodDocumentRequirements || [])];
-                                                                                    const currentGroup = { ...nextGroups[idx] };
+                                                                                    const gIdx = nextGroups.findIndex(g => String(g?.methodCode ?? "").trim() === methodCode);
+                                                                                    if (gIdx < 0) return prev;
+                                                                                    const currentGroup = { ...nextGroups[gIdx] };
                                                                                     currentGroup.documents = [...(Array.isArray(currentGroup.documents) ? currentGroup.documents : [])];
                                                                                     currentGroup.documents.splice(dIdx, 1);
-                                                                                    nextGroups[idx] = currentGroup;
+                                                                                    nextGroups[gIdx] = currentGroup;
                                                                                     return { ...prev, methodDocumentRequirements: nextGroups };
                                                                                 });
                                                                             }}
@@ -2306,229 +2355,342 @@ export default function AdminPlatformSettings() {
                                                         })}
                                                     </Stack>
                                                 )}
-                                                <Box
-                                                    sx={{
-                                                        mt: 1.25,
-                                                        p: 0.8,
-                                                        borderRadius: 1.5,
-                                                        bgcolor: "#f8fbff",
-                                                        border: "1px dashed rgba(226, 232, 240, 0.8)",
-                                                    }}
-                                                >
-                                                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 1 }}>
-                                                        <Typography sx={{ fontWeight: 800, color: "#1d4ed8", fontSize: 13.5 }}>
-                                                            Quy trình tuyển sinh
-                                                        </Typography>
-                                                        {canEdit ? (
-                                                            <Button
-                                                                size="small"
-                                                                variant="contained"
-                                                                startIcon={<AddIcon fontSize="small" />}
-                                                                onClick={() => {
-                                                                    setAdmissionTemplateForm((prev) => {
-                                                                        const nextGroups = Array.isArray(prev.methodAdmissionProcess)
-                                                                            ? [...prev.methodAdmissionProcess]
-                                                                            : [];
-                                                                        const currentGroup = nextGroups[idx] || { methodCode, steps: [] };
+                                            </Box>
+                                        );
+                                })}
+                            </Stack>
+                            {admissionTemplateEditing ? (
+                                <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 2 }}>
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        disabled={saving}
+                                        onClick={() => { cancelAdmissionTemplate(); setAdmissionTemplateEditing(false); }}
+                                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, borderColor: "#93c5fd", color: "#2563eb", bgcolor: "#ffffff", "&:hover": { borderColor: "#60a5fa", bgcolor: "#eff6ff" } }}
+                                    >
+                                        Hủy
+                                    </Button>
+                                    <Button
+                                        size="small"
+                                        variant="contained"
+                                        disabled={saving}
+                                        onClick={() => void saveAdmissionTemplate()}
+                                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, bgcolor: "#2563eb", color: "#ffffff", boxShadow: "none", "&:hover": { bgcolor: "#1d4ed8", boxShadow: "none" } }}
+                                    >
+                                        Lưu
+                                    </Button>
+                                </Box>
+                            ) : null}
+                        </Box>
+                        <Box sx={previewSectionCardSx}>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 1, alignItems: "center", mb: 1 }}>
+                                <Typography sx={previewSectionTitleSx}>Quy trình tuyển sinh</Typography>
+                                {admissionTemplateEditing ? (
+                                    <Tooltip title={methods.length === 0 ? "Phải upload danh sách phương thức tuyển sinh đầu tiên" : ""} arrow>
+                                        <span>
+                                            <Button
+                                                size="small"
+                                                variant="outlined"
+                                                startIcon={<FileUploadOutlinedIcon fontSize="small" />}
+                                                disabled={methods.length === 0}
+                                                onClick={() => {
+                                                    setImportType("ADMISSION_PROCESSES");
+                                                    setTimeout(() => admissionImportInputRef.current?.click(), 0);
+                                                }}
+                                                sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                            >
+                                                Tải lên
+                                            </Button>
+                                        </span>
+                                    </Tooltip>
+                                ) : (
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        disabled={saving}
+                                        onClick={() => setAdmissionTemplateEditing(true)}
+                                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, borderColor: "#93c5fd", color: "#2563eb", bgcolor: "#ffffff", "&:hover": { borderColor: "#60a5fa", bgcolor: "#eff6ff" } }}
+                                    >
+                                        Chỉnh sửa
+                                    </Button>
+                                )}
+                            </Box>
+                            <Stack spacing={1.4}>
+                                {methods.map((method, idx) => {
+                                        const methodCode = String(method?.code ?? "").trim();
+                                        const methodLabel = String(method?.displayName || methodCode || "Phương thức");
+                                        const steps = processByMethodMap[methodCode] || [];
+                                        const canEdit = admissionTemplateEditing;
+                                        return (
+                                            <Box
+                                                key={`method-process-group-${idx}`}
+                                                sx={{
+                                                    p: 1.1,
+                                                    borderRadius: 1.5,
+                                                    bgcolor: "#ffffff",
+                                                    transition: "border-color 200ms ease, background-color 200ms ease",
+                                                    boxShadow: "none",
+                                                    "&:hover": {
+                                                        bgcolor: "#f7fbff",
+                                                    },
+                                                }}
+                                            >
+                                                <Box sx={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 1, mb: 1 }}>
+                                                    <Typography
+                                                        sx={{
+                                                            fontWeight: 800,
+                                                            color: "#0f172a",
+                                                            px: 0.9,
+                                                            py: 0.4,
+                                                            borderRadius: 1,
+                                                            display: "inline-block",
+                                                        }}
+                                                    >
+                                                        {`${idx + 1}. ${methodLabel}`}
+                                                    </Typography>
+                                                    {canEdit ? (
+                                                        <Button
+                                                            size="small"
+                                                            variant="contained"
+                                                            startIcon={<AddIcon fontSize="small" />}
+                                                            onClick={() => {
+                                                                setAdmissionTemplateForm((prev) => {
+                                                                    const nextGroups = Array.isArray(prev.methodAdmissionProcess)
+                                                                        ? [...prev.methodAdmissionProcess]
+                                                                        : [];
+                                                                    const gIdx = nextGroups.findIndex(g => String(g?.methodCode ?? "").trim() === methodCode);
+                                                                    if (gIdx < 0) {
+                                                                        nextGroups.push({ methodCode, steps: [{ stepOrder: 1, stepName: "", description: "" }] });
+                                                                    } else {
+                                                                        const currentGroup = { ...nextGroups[gIdx] };
                                                                         currentGroup.steps = [
                                                                             ...(Array.isArray(currentGroup.steps) ? currentGroup.steps : []),
                                                                             { stepOrder: (currentGroup.steps?.length ?? 0) + 1, stepName: "", description: "" },
                                                                         ];
-                                                                        nextGroups[idx] = currentGroup;
-                                                                        return { ...prev, methodAdmissionProcess: nextGroups };
-                                                                    });
-                                                                }}
-                                                                sx={{
-                                                                    textTransform: "none",
-                                                                    fontWeight: 700,
-                                                                    borderRadius: 2,
-                                                                    boxShadow: "none",
-                                                                    bgcolor: "#2563eb",
-                                                                    "&:hover": { bgcolor: "#1d4ed8" },
-                                                                }}
-                                                            >
-                                                                Thêm bước
-                                                            </Button>
-                                                        ) : null}
-                                                    </Box>
-                                                    {steps.length === 0 ? (
-                                                        <Typography variant="body2" sx={{ color: "#64748b" }}>Không có bước.</Typography>
-                                                    ) : canEdit ? (
-                                                        <Stack spacing={0.75}>
-                                                            {steps.map((step, sIdx) => {
-                                                                const stepNumber = step?.stepOrder ?? sIdx + 1;
-                                                                return (
-                                                                    <Box
-                                                                        key={`method-step-inline-${idx}-${sIdx}`}
-                                                                        sx={{
-                                                                            display: "grid",
-                                                                            gridTemplateColumns: "64px 1fr 1fr 40px",
-                                                                            gap: 1,
-                                                                            alignItems: "center",
-                                                                            borderRadius: 1,
-                                                                            p: 0.75,
-                                                                            border: "1px solid #e2e8f0",
+                                                                        nextGroups[gIdx] = currentGroup;
+                                                                    }
+                                                                    return { ...prev, methodAdmissionProcess: nextGroups };
+                                                                });
+                                                            }}
+                                                            sx={{
+                                                                textTransform: "none",
+                                                                fontWeight: 700,
+                                                                borderRadius: 2,
+                                                                boxShadow: "none",
+                                                                bgcolor: "#2563eb",
+                                                                "&:hover": { bgcolor: "#1d4ed8" },
+                                                            }}
+                                                        >
+                                                            Thêm bước
+                                                        </Button>
+                                                    ) : null}
+                                                </Box>
+                                                {steps.length === 0 ? (
+                                                    <Typography variant="body2" sx={{ color: "#64748b" }}>Không có bước.</Typography>
+                                                ) : canEdit ? (
+                                                    <Stack spacing={0.75}>
+                                                        {steps.map((step, sIdx) => {
+                                                            const stepNumber = step?.stepOrder ?? sIdx + 1;
+                                                            return (
+                                                                <Box
+                                                                    key={`method-step-card-${idx}-${sIdx}`}
+                                                                    sx={{
+                                                                        display: "grid",
+                                                                        gridTemplateColumns: "64px 1fr 1fr 40px",
+                                                                        gap: 1,
+                                                                        alignItems: "center",
+                                                                        borderRadius: 1,
+                                                                        p: 0.75,
+                                                                        border: "1px solid #e2e8f0",
+                                                                    }}
+                                                                >
+                                                                    <TextField
+                                                                        size="small"
+                                                                        value={String(step?.stepOrder ?? stepNumber)}
+                                                                        onChange={(e) => {
+                                                                            const value = e.target.value;
+                                                                            setAdmissionTemplateForm((prev) => {
+                                                                                const nextGroups = [...(prev.methodAdmissionProcess || [])];
+                                                                                const gIdx = nextGroups.findIndex(g => String(g?.methodCode ?? "").trim() === methodCode);
+                                                                                if (gIdx < 0) return prev;
+                                                                                const currentGroup = { ...nextGroups[gIdx] };
+                                                                                currentGroup.steps = [...(Array.isArray(currentGroup.steps) ? currentGroup.steps : [])];
+                                                                                currentGroup.steps[sIdx] = {
+                                                                                    ...currentGroup.steps[sIdx],
+                                                                                    stepOrder: value === "" ? "" : Number(value),
+                                                                                };
+                                                                                nextGroups[gIdx] = currentGroup;
+                                                                                return { ...prev, methodAdmissionProcess: nextGroups };
+                                                                            });
                                                                         }}
-                                                                    >
-                                                                        <TextField
-                                                                            size="small"
-                                                                            value={String(step?.stepOrder ?? stepNumber)}
-                                                                            onChange={(e) => {
-                                                                                const value = e.target.value;
-                                                                                setAdmissionTemplateForm((prev) => {
-                                                                                    const nextGroups = [...(prev.methodAdmissionProcess || [])];
-                                                                                    const currentGroup = { ...nextGroups[idx] };
-                                                                                    currentGroup.steps = [...(Array.isArray(currentGroup.steps) ? currentGroup.steps : [])];
-                                                                                    currentGroup.steps[sIdx] = {
-                                                                                        ...currentGroup.steps[sIdx],
-                                                                                        stepOrder: value === "" ? "" : Number(value),
-                                                                                    };
-                                                                                    nextGroups[idx] = currentGroup;
-                                                                                    return { ...prev, methodAdmissionProcess: nextGroups };
-                                                                                });
-                                                                            }}
-                                                                            sx={{ minWidth: 0 }}
-                                                                        />
-                                                                        <TextField
-                                                                            size="small"
-                                                                            fullWidth
-                                                                            value={step?.stepName ?? ""}
-                                                                            onChange={(e) => {
-                                                                                const value = e.target.value;
-                                                                                setAdmissionTemplateForm((prev) => {
-                                                                                    const nextGroups = [...(prev.methodAdmissionProcess || [])];
-                                                                                    const currentGroup = { ...nextGroups[idx] };
-                                                                                    currentGroup.steps = [...(Array.isArray(currentGroup.steps) ? currentGroup.steps : [])];
-                                                                                    currentGroup.steps[sIdx] = { ...currentGroup.steps[sIdx], stepName: value };
-                                                                                    nextGroups[idx] = currentGroup;
-                                                                                    return { ...prev, methodAdmissionProcess: nextGroups };
-                                                                                });
-                                                                            }}
-                                                                            sx={{ minWidth: 0 }}
-                                                                            placeholder="Tên bước"
-                                                                        />
-                                                                        <TextField
-                                                                            size="small"
-                                                                            fullWidth
-                                                                            value={step?.description ?? ""}
-                                                                            onChange={(e) => {
-                                                                                const value = e.target.value;
-                                                                                setAdmissionTemplateForm((prev) => {
-                                                                                    const nextGroups = [...(prev.methodAdmissionProcess || [])];
-                                                                                    const currentGroup = { ...nextGroups[idx] };
-                                                                                    currentGroup.steps = [...(Array.isArray(currentGroup.steps) ? currentGroup.steps : [])];
-                                                                                    currentGroup.steps[sIdx] = { ...currentGroup.steps[sIdx], description: value };
-                                                                                    nextGroups[idx] = currentGroup;
-                                                                                    return { ...prev, methodAdmissionProcess: nextGroups };
-                                                                                });
-                                                                            }}
-                                                                            sx={{ minWidth: 0 }}
-                                                                            placeholder="Mô tả"
-                                                                        />
-                                                                        <Tooltip title="Xóa bước" placement="top">
-                                                                            <span>
-                                                                                <IconButton
-                                                                                    size="small"
-                                                                                    color="error"
-                                                                                    onClick={() => {
-                                                                                        setAdmissionTemplateForm((prev) => {
-                                                                                            const nextGroups = [...(prev.methodAdmissionProcess || [])];
-                                                                                            const currentGroup = { ...nextGroups[idx] };
-                                                                                            currentGroup.steps = [...(Array.isArray(currentGroup.steps) ? currentGroup.steps : [])];
-                                                                                            currentGroup.steps.splice(sIdx, 1);
-                                                                                            nextGroups[idx] = currentGroup;
-                                                                                            return { ...prev, methodAdmissionProcess: nextGroups };
-                                                                                        });
-                                                                                    }}
-                                                                                >
-                                                                                    <DeleteOutlineIcon fontSize="small" />
-                                                                                </IconButton>
-                                                                            </span>
-                                                                        </Tooltip>
-                                                                    </Box>
-                                                                );
-                                                            })}
-                                                        </Stack>
-                                                    ) : (
-                                                        <Stack spacing={0.2}>
-                                                            {steps.map((step, sIdx) => {
-                                                                const isLast = sIdx === steps.length - 1;
-                                                                const stepNumber = step?.stepOrder ?? sIdx + 1;
-                                                                return (
-                                                                    <Box
-                                                                        key={`method-step-inline-${idx}-${sIdx}`}
-                                                                        sx={{
-                                                                            display: "grid",
-                                                                            gridTemplateColumns: "32px 1fr",
-                                                                            gap: 1.1,
-                                                                            minHeight: 64,
-                                                                            borderRadius: 1.5,
-                                                                            px: 0.5,
-                                                                            py: 0.45,
-                                                                            transition: "all 200ms ease",
-                                                                            "&:hover": {
-                                                                                bgcolor: "#f1f7ff",
-                                                                                transform: "translateX(2px)",
-                                                                            },
+                                                                        sx={{ minWidth: 0 }}
+                                                                    />
+                                                                    <TextField
+                                                                        size="small"
+                                                                        fullWidth
+                                                                        value={step?.stepName ?? ""}
+                                                                        onChange={(e) => {
+                                                                            const value = e.target.value;
+                                                                            setAdmissionTemplateForm((prev) => {
+                                                                                const nextGroups = [...(prev.methodAdmissionProcess || [])];
+                                                                                const gIdx = nextGroups.findIndex(g => String(g?.methodCode ?? "").trim() === methodCode);
+                                                                                if (gIdx < 0) return prev;
+                                                                                const currentGroup = { ...nextGroups[gIdx] };
+                                                                                currentGroup.steps = [...(Array.isArray(currentGroup.steps) ? currentGroup.steps : [])];
+                                                                                currentGroup.steps[sIdx] = { ...currentGroup.steps[sIdx], stepName: value };
+                                                                                nextGroups[gIdx] = currentGroup;
+                                                                                return { ...prev, methodAdmissionProcess: nextGroups };
+                                                                            });
                                                                         }}
-                                                                    >
-                                                                        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-                                                                            <Box
-                                                                                sx={{
-                                                                                    width: 30,
-                                                                                    height: 30,
-                                                                                    borderRadius: "50%",
-                                                                                    bgcolor: "#2563eb",
-                                                                                    color: "#ffffff",
-                                                                                    fontWeight: 600,
-                                                                                    fontSize: 12,
-                                                                                    display: "flex",
-                                                                                    alignItems: "center",
-                                                                                    justifyContent: "center",
-                                                                                    boxShadow: "0 6px 14px rgba(37, 99, 235, 0.35)",
+                                                                        sx={{ minWidth: 0 }}
+                                                                        placeholder="Tên bước"
+                                                                    />
+                                                                    <TextField
+                                                                        size="small"
+                                                                        fullWidth
+                                                                        value={step?.description ?? ""}
+                                                                        onChange={(e) => {
+                                                                            const value = e.target.value;
+                                                                            setAdmissionTemplateForm((prev) => {
+                                                                                const nextGroups = [...(prev.methodAdmissionProcess || [])];
+                                                                                const gIdx = nextGroups.findIndex(g => String(g?.methodCode ?? "").trim() === methodCode);
+                                                                                if (gIdx < 0) return prev;
+                                                                                const currentGroup = { ...nextGroups[gIdx] };
+                                                                                currentGroup.steps = [...(Array.isArray(currentGroup.steps) ? currentGroup.steps : [])];
+                                                                                currentGroup.steps[sIdx] = { ...currentGroup.steps[sIdx], description: value };
+                                                                                nextGroups[gIdx] = currentGroup;
+                                                                                return { ...prev, methodAdmissionProcess: nextGroups };
+                                                                            });
+                                                                        }}
+                                                                        sx={{ minWidth: 0 }}
+                                                                        placeholder="Mô tả"
+                                                                    />
+                                                                    <Tooltip title="Xóa bước" placement="top">
+                                                                        <span>
+                                                                            <IconButton
+                                                                                size="small"
+                                                                                color="error"
+                                                                                onClick={() => {
+                                                                                    setAdmissionTemplateForm((prev) => {
+                                                                                        const nextGroups = [...(prev.methodAdmissionProcess || [])];
+                                                                                        const gIdx = nextGroups.findIndex(g => String(g?.methodCode ?? "").trim() === methodCode);
+                                                                                        if (gIdx < 0) return prev;
+                                                                                        const currentGroup = { ...nextGroups[gIdx] };
+                                                                                        currentGroup.steps = [...(Array.isArray(currentGroup.steps) ? currentGroup.steps : [])];
+                                                                                        currentGroup.steps.splice(sIdx, 1);
+                                                                                        nextGroups[gIdx] = currentGroup;
+                                                                                        return { ...prev, methodAdmissionProcess: nextGroups };
+                                                                                    });
                                                                                 }}
                                                                             >
-                                                                                {stepNumber}
-                                                                            </Box>
-                                                                            {!isLast ? (
-                                                                                <Box
-                                                                                    sx={{
-                                                                                        width: "2px",
-                                                                                        flex: 1,
-                                                                                        borderRadius: 999,
-                                                                                        bgcolor: "rgba(148, 163, 184, 0.45)",
-                                                                                        mt: 0.5,
-                                                                                        mb: -0.2,
-                                                                                    }}
-                                                                                />
-                                                                            ) : null}
-                                                                        </Box>
+                                                                                <DeleteOutlineIcon fontSize="small" />
+                                                                            </IconButton>
+                                                                        </span>
+                                                                    </Tooltip>
+                                                                </Box>
+                                                            );
+                                                        })}
+                                                    </Stack>
+                                                ) : (
+                                                    <Stack spacing={0.2}>
+                                                        {steps.map((step, sIdx) => {
+                                                            const isLast = sIdx === steps.length - 1;
+                                                            const stepNumber = step?.stepOrder ?? sIdx + 1;
+                                                            return (
+                                                                <Box
+                                                                    key={`method-step-card-view-${idx}-${sIdx}`}
+                                                                    sx={{
+                                                                        display: "grid",
+                                                                        gridTemplateColumns: "32px 1fr",
+                                                                        gap: 1.1,
+                                                                        minHeight: 64,
+                                                                        borderRadius: 1.5,
+                                                                        px: 0.5,
+                                                                        py: 0.45,
+                                                                        transition: "all 200ms ease",
+                                                                        "&:hover": {
+                                                                            bgcolor: "#f1f7ff",
+                                                                            transform: "translateX(2px)",
+                                                                        },
+                                                                    }}
+                                                                >
+                                                                    <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
                                                                         <Box
                                                                             sx={{
-                                                                                pt: 0.15,
-                                                                                minWidth: 0,
-                                                                                px: 0.2,
-                                                                                py: 0.45,
+                                                                                width: 30,
+                                                                                height: 30,
+                                                                                borderRadius: "50%",
+                                                                                bgcolor: "#2563eb",
+                                                                                color: "#ffffff",
+                                                                                fontWeight: 600,
+                                                                                fontSize: 12,
+                                                                                display: "flex",
+                                                                                alignItems: "center",
+                                                                                justifyContent: "center",
+                                                                                boxShadow: "0 6px 14px rgba(37, 99, 235, 0.35)",
                                                                             }}
                                                                         >
-                                                                            <Typography sx={{ color: "#0f172a", fontWeight: 600, lineHeight: 1.3, fontSize: 14 }}>
-                                                                                {step?.stepName || `Bước ${stepNumber}`}
-                                                                            </Typography>
-                                                                            <Typography variant="body2" sx={{ color: "#475569", mt: 0.35, lineHeight: 1.45 }}>
-                                                                                {step?.description || "Không có mô tả"}
-                                                                            </Typography>
+                                                                            {stepNumber}
                                                                         </Box>
+                                                                        {!isLast ? (
+                                                                            <Box
+                                                                                sx={{
+                                                                                    width: "2px",
+                                                                                    flex: 1,
+                                                                                    borderRadius: 999,
+                                                                                    bgcolor: "rgba(148, 163, 184, 0.45)",
+                                                                                    mt: 0.5,
+                                                                                    mb: -0.2,
+                                                                                }}
+                                                                            />
+                                                                        ) : null}
                                                                     </Box>
-                                                                );
-                                                            })}
-                                                        </Stack>
-                                                    )}
-                                                </Box>
+                                                                    <Box
+                                                                        sx={{
+                                                                            pt: 0.15,
+                                                                            minWidth: 0,
+                                                                            px: 0.2,
+                                                                            py: 0.45,
+                                                                        }}
+                                                                    >
+                                                                        <Typography sx={{ color: "#0f172a", fontWeight: 600, lineHeight: 1.3, fontSize: 14 }}>
+                                                                            {step?.stepName || `Bước ${stepNumber}`}
+                                                                        </Typography>
+                                                                        <Typography variant="body2" sx={{ color: "#475569", mt: 0.35, lineHeight: 1.45 }}>
+                                                                            {step?.description || "Không có mô tả"}
+                                                                        </Typography>
+                                                                    </Box>
+                                                                </Box>
+                                                            );
+                                                        })}
+                                                    </Stack>
+                                                )}
                                             </Box>
                                         );
-                                    })
-                                )}
+                                })}
                             </Stack>
+                            {admissionTemplateEditing ? (
+                                <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 2 }}>
+                                    <Button
+                                        size="small"
+                                        variant="outlined"
+                                        disabled={saving}
+                                        onClick={() => { cancelAdmissionTemplate(); setAdmissionTemplateEditing(false); }}
+                                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, borderColor: "#93c5fd", color: "#2563eb", bgcolor: "#ffffff", "&:hover": { borderColor: "#60a5fa", bgcolor: "#eff6ff" } }}
+                                    >
+                                        Hủy
+                                    </Button>
+                                    <Button
+                                        size="small"
+                                        variant="contained"
+                                        disabled={saving}
+                                        onClick={() => void saveAdmissionTemplate()}
+                                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, bgcolor: "#2563eb", color: "#ffffff", boxShadow: "none", "&:hover": { bgcolor: "#1d4ed8", boxShadow: "none" } }}
+                                    >
+                                        Lưu
+                                    </Button>
+                                </Box>
+                            ) : null}
                         </Box>
                     </Stack>
                 ) : null}
@@ -3265,19 +3427,10 @@ export default function AdminPlatformSettings() {
 
         return (
             <Box>
-                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
-                    <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#1d4ed8", px: { xs: 0.5, md: 1 } }}>
+                <Box sx={{ mb: 1, px: { xs: 0.5, md: 1 } }}>
+                    <Typography sx={{ fontSize: 13, fontWeight: 800, color: "#1d4ed8" }}>
                         Dữ liệu hạn mức hiện tại
                     </Typography>
-                    <Button
-                        variant="outlined"
-                        startIcon={<AddIcon />}
-                        onClick={startQuotaAdd}
-                        disabled={saving}
-                        sx={cancelButtonSx}
-                    >
-                        Thêm năm học
-                    </Button>
                 </Box>
 
                 <Box sx={{ px: { xs: 0.5, md: 1 } }}>
@@ -3297,7 +3450,8 @@ export default function AdminPlatformSettings() {
                                 {quotaPreviewGroups.map((group) => {
                                     const sourceInfo = group.source || {};
                                     const quotaRows = group.rows || [];
-                                    const yearLabel = sourceInfo?.year || group.yearKey;
+                                    const rawYear = sourceInfo?.year || group.yearKey;
+                                    const yearLabel = (rawYear && rawYear !== "current") ? rawYear : "N/A";
                                     return (
                                         <Box
                                             key={`preview-group-${yearLabel}`}
@@ -3306,9 +3460,20 @@ export default function AdminPlatformSettings() {
                                                 bgcolor: "transparent",
                                             }}
                                         >
-                                            <Typography sx={{ fontWeight: 800, color: "#1d4ed8", fontSize: 13, mb: 0.8 }}>
-                                                Năm học {yearLabel}
-                                            </Typography>
+                                            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 0.8 }}>
+                                                <Typography sx={{ fontWeight: 800, color: "#1d4ed8", fontSize: 13 }}>
+                                                    Năm học {yearLabel}
+                                                </Typography>
+                                                <Tooltip title="Chỉnh sửa năm học này" placement="left">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => startQuotaEdit(group)}
+                                                        sx={{ color: "#2563eb", "&:hover": { bgcolor: "#eff6ff" } }}
+                                                    >
+                                                        <EditIcon fontSize="small" />
+                                                    </IconButton>
+                                                </Tooltip>
+                                            </Box>
                                             <Stack spacing={0.55} sx={{ mb: 0.95 }}>
                                                 <Box sx={{ display: "grid", gridTemplateColumns: "110px 1fr", gap: 1.5 }}>
                                                     <Typography variant="body2" sx={{ color: "#334155", fontWeight: 700 }}>
@@ -3420,9 +3585,7 @@ export default function AdminPlatformSettings() {
                                     background: "linear-gradient(135deg, #f8fbff 0%, #eef6ff 100%)",
                                 }}
                             >
-                                {quotaMode === "add"
-                                    ? "Thêm năm học mới"
-                                    : `Cập nhật nguồn dữ liệu – Năm học ${selectedYear}`}
+                               Cập nhật hạn mức tuyển sinh
                             </DialogTitle>
                             <DialogContent sx={{ pt: 2, bgcolor: "#f8fafc" }}>
                                 <Box
@@ -3448,7 +3611,7 @@ export default function AdminPlatformSettings() {
                                             fullWidth
                                             size="small"
                                             label="Năm học"
-                                            disabled={saving || quotaMode !== "add"}
+                                            disabled={saving}
                                             value={quotaForm.year}
                                             onChange={(e) => {
                                                 const next = { ...quotaForm, year: e.target.value };
@@ -3460,14 +3623,19 @@ export default function AdminPlatformSettings() {
                                             sx={quotaFieldSx}
                                         />
                                         <TextField
+                                            select
                                             fullWidth
                                             size="small"
                                             label="Loại nguồn"
-                                            disabled
-                                            value="TRANG TIN TỨC"
-                                            helperText="Loại nguồn cố định."
+                                            disabled={saving}
+                                            value={quotaForm.sourceType || "NEWS_ARTICLE"}
+                                            onChange={(e) => setQuotaForm({ ...quotaForm, sourceType: e.target.value })}
+                                            helperText=" "
                                             sx={quotaFieldSx}
-                                        />
+                                        >
+                                            <MenuItem value="NEWS_ARTICLE">Trang tin tức</MenuItem>
+                                          
+                                        </TextField>
                                         <TextField
                                             fullWidth
                                             size="small"
@@ -3782,6 +3950,45 @@ export default function AdminPlatformSettings() {
                 </Tabs>
 
                 <Box sx={{ pt: 1 }}>
+                    {loadingConfig && configBody ? (
+                        <Box
+                            sx={{
+                                position: "fixed",
+                                inset: 0,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                bgcolor: "rgba(255,255,255,0.55)",
+                                zIndex: 1400,
+                            }}
+                        >
+                            <Box sx={{ position: "relative", width: 48, height: 48 }}>
+                                {[...Array(12)].map((_, i) => {
+                                    const angle = (i * 30 * Math.PI) / 180;
+                                    return (
+                                        <Box
+                                            key={i}
+                                            sx={{
+                                                position: "absolute",
+                                                width: 5,
+                                                height: 5,
+                                                borderRadius: "50%",
+                                                bgcolor: "#1e3a8a",
+                                                left: 24 + 17 * Math.sin(angle) - 2.5,
+                                                top: 24 - 17 * Math.cos(angle) - 2.5,
+                                                animation: "dotFade 1.2s linear infinite",
+                                                animationDelay: `${-(i / 12) * 1.2}s`,
+                                                "@keyframes dotFade": {
+                                                    "0%": { opacity: 1 },
+                                                    "100%": { opacity: 0.1 },
+                                                },
+                                            }}
+                                        />
+                                    );
+                                })}
+                            </Box>
+                        </Box>
+                    ) : null}
                     {loadingConfig && !configBody ? (
                         <Box sx={{ display: "flex", justifyContent: "center", py: 5 }}>
                             <CircularProgress />
@@ -3793,42 +4000,6 @@ export default function AdminPlatformSettings() {
                             {activeTabKey === "media" ? renderMediaTab() : null}
                             {activeTabKey === "limits" ? renderLimitsTab() : null}
 
-                            {activeTabKey === "admission" ? (
-                                <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
-                                    {admissionTemplateEditing ? (
-                                        <>
-                                            <Button
-                                                variant="outlined"
-                                                onClick={() => {
-                                                    cancelAdmissionTemplate();
-                                                    setAdmissionTemplateEditing(false);
-                                                }}
-                                                disabled={saving}
-                                                sx={cancelButtonSx}
-                                            >
-                                                Hủy
-                                            </Button>
-                                            <Button
-                                                variant="contained"
-                                                disabled={saving}
-                                                onClick={() => void saveAdmissionTemplate()}
-                                                sx={saveButtonSx}
-                                            >
-                                                Lưu
-                                            </Button>
-                                        </>
-                                    ) : (
-                                        <Button
-                                            variant="outlined"
-                                            onClick={() => setAdmissionTemplateEditing(true)}
-                                            disabled={saving}
-                                            sx={cancelButtonSx}
-                                        >
-                                            Chỉnh sửa
-                                        </Button>
-                                    )}
-                                </Box>
-                            ) : null}
 
                             {activeTabKey === "business" ? (
                                 <Box sx={{ mt: 2, display: "flex", justifyContent: "flex-end", gap: 1 }}>
