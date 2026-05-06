@@ -347,6 +347,8 @@ export default function SchoolCampaigns() {
     const [cloneLoading, setCloneLoading] = useState(false);
     const [confirmCloneOpen, setConfirmCloneOpen] = useState(false);
     const [cloneTargetCampaign, setCloneTargetCampaign] = useState(null);
+    const [cloneTargetYear, setCloneTargetYear] = useState("");
+    const [cloneYearError, setCloneYearError] = useState("");
     const [cancelLoading, setCancelLoading] = useState(false);
     const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
     const [cancelTargetCampaign, setCancelTargetCampaign] = useState(null);
@@ -894,23 +896,33 @@ export default function SchoolCampaigns() {
 
     const openCloneConfirm = (campaign) => {
         setCloneTargetCampaign(campaign);
+        setCloneTargetYear(String(Number(campaign?.year) + 1));
+        setCloneYearError("");
         setConfirmCloneOpen(true);
     };
 
     const handleCloneCampaign = async () => {
         if (!cloneTargetCampaign?.id || cloneLoading) return;
+        const targetYear = Number.parseInt(String(cloneTargetYear), 10);
+        if (!Number.isFinite(targetYear) || targetYear <= 0) {
+            setCloneYearError("Vui lòng nhập năm học mục tiêu hợp lệ");
+            return;
+        }
         setCloneLoading(true);
         try {
-            const res = await cloneCampaignTemplate(cloneTargetCampaign.id);
+            const res = await cloneCampaignTemplate(cloneTargetCampaign.id, targetYear);
             if (res?.status >= 200 && res?.status < 300) {
                 const body = res?.data?.body ?? res?.data ?? {};
                 const newId = Number(body?.id ?? body?.admissionCampaignTemplateId ?? body?.data?.id ?? body?.data?.admissionCampaignTemplateId);
                 enqueueSnackbar(res?.data?.message || "Đã nhân bản chiến dịch sang bản nháp mới.", { variant: "success" });
                 setConfirmCloneOpen(false);
                 setCloneTargetCampaign(null);
+                setCloneTargetYear("");
+                setCloneYearError("");
                 if (Number.isFinite(newId) && newId > 0) {
                     navigate(`/school/campaigns/detail/${newId}`, {
-                        state: { clonedFrom: Number(cloneTargetCampaign?.year) },
+                        replace: true,
+                        state: { clonedFrom: Number(cloneTargetCampaign?.year), openEdit: true },
                     });
                 } else {
                     window.location.reload();
@@ -1569,7 +1581,6 @@ export default function SchoolCampaigns() {
                                                                         <IconButton
                                                                             size="small"
                                                                             onClick={() => openCloneConfirm(row)}
-                                                                            disabled={!!cloneDisabledMap[row.id]}
                                                                             aria-label="Nhân bản chiến dịch"
                                                                             sx={{
                                                                                 color: "#64748b",
@@ -1591,7 +1602,6 @@ export default function SchoolCampaigns() {
                                                                     <IconButton
                                                                         size="small"
                                                                         onClick={() => openCloneConfirm(row)}
-                                                                        disabled={!!cloneDisabledMap[row.id]}
                                                                         aria-label="Nhân bản chiến dịch"
                                                                         sx={{
                                                                             color: "#64748b",
@@ -2113,13 +2123,26 @@ export default function SchoolCampaigns() {
                         Nhân bản chiến dịch?
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        Bạn có chắc chắn muốn <ConfirmHighlight>nhân bản chiến dịch này</ConfirmHighlight> để tạo{" "}
-                        <ConfirmHighlight>một bản nháp mới</ConfirmHighlight> không?
+                        Chọn <ConfirmHighlight>năm học mục tiêu</ConfirmHighlight> trước khi nhân bản.
                     </Typography>
+                    <TextField
+                        label="Năm học mục tiêu"
+                        type="number"
+                        fullWidth
+                        value={cloneTargetYear}
+                        onChange={(e) => {
+                            setCloneTargetYear(e.target.value);
+                            if (cloneYearError) setCloneYearError("");
+                        }}
+                        error={!!cloneYearError}
+                        helperText={cloneYearError || `Mặc định: ${Number(cloneTargetCampaign?.year) + 1}`}
+                        inputProps={{ min: 1, step: 1 }}
+                        sx={{ mt: 2.5, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
+                    />
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2.5 }}>
                     <Button
-                        onClick={() => { setConfirmCloneOpen(false); setCloneTargetCampaign(null); }}
+                        onClick={() => { setConfirmCloneOpen(false); setCloneTargetCampaign(null); setCloneTargetYear(""); setCloneYearError(""); }}
                         disabled={cloneLoading}
                         sx={{ textTransform: "none" }}
                     >

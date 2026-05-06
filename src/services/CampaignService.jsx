@@ -118,9 +118,12 @@ export const cancelCampaignTemplate = async (id, reason, options = {}) => {
 /**
  * POST clone campaign template
  * @param {number} id
+ * @param {number} targetYear
  */
-export const cloneCampaignTemplate = async (id) => {
-    const response = await axiosClient.post(`/school/${id}/campaign/template/clone`, null);
+export const cloneCampaignTemplate = async (id, targetYear) => {
+    const response = await axiosClient.post(`/school/${id}/campaign/template/clone`, null, {
+        params: { targetYear: Number(targetYear) },
+    });
     return response || null;
 };
 
