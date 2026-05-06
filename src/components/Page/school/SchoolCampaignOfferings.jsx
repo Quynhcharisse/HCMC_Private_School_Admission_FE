@@ -5,7 +5,6 @@ import CampaignIcon from "@mui/icons-material/Campaign";
 import AddIcon from "@mui/icons-material/Add";
 import { enqueueSnackbar } from "notistack";
 import { getCampaignTemplatesByYear } from "../../../services/CampaignService.jsx";
-import { useSchool } from "../../../contexts/SchoolContext.jsx";
 import CampaignOfferingsSection from "./CampaignOfferingsSection.jsx";
 
 function normalizeCampaignStatus(rawStatus) {
@@ -26,13 +25,13 @@ function mapTemplate(row) {
         name: String(row.name ?? "").trim() || `Chiến dịch #${id}`,
         year: Number(row.year) || new Date().getFullYear(),
         status: normalizeCampaignStatus(row.status),
+        admissionMethodTimelines: Array.isArray(row.admissionMethodTimelines) ? row.admissionMethodTimelines : [],
     };
 }
 
 export default function SchoolCampaignOfferings() {
     const { campaignId: campaignIdFromPath } = useParams();
     const [searchParams, setSearchParams] = useSearchParams();
-    const { isPrimaryBranch } = useSchool();
     const [campaigns, setCampaigns] = useState([]);
     const [loading, setLoading] = useState(false);
     const [openCreateSignal, setOpenCreateSignal] = useState(0);
@@ -50,7 +49,13 @@ export default function SchoolCampaignOfferings() {
                 const all = [];
                 for (const res of responses) {
                     const raw = res?.data?.body ?? res?.data;
-                    const rows = Array.isArray(raw) ? raw : raw ? [raw] : [];
+                    const rows = Array.isArray(raw)
+                        ? raw
+                        : Array.isArray(raw?.campaigns)
+                          ? raw.campaigns
+                          : raw
+                            ? [raw]
+                            : [];
                     for (const r of rows) all.push(r);
                 }
                 const mapped = all.map(mapTemplate).filter(Boolean);
@@ -87,9 +92,7 @@ export default function SchoolCampaignOfferings() {
     );
 
     const canMutateOfferings =
-        Boolean(isPrimaryBranch) &&
-        selectedCampaign != null &&
-        selectedCampaign.status === "OPEN";
+        selectedCampaign != null && selectedCampaign.status === "OPEN";
 
     return (
         <Box
@@ -171,6 +174,7 @@ export default function SchoolCampaignOfferings() {
                     campaignId={selectedCampaign.id}
                     campaignPaused={selectedCampaign.status !== "OPEN"}
                     canMutate={canMutateOfferings}
+                    selectedCampaign={selectedCampaign}
                     campaignOptions={campaigns}
                     selectedCampaignId={selectedCampaign.id}
                     onCampaignChange={(id) => setSearchParams({ campaignId: id })}
