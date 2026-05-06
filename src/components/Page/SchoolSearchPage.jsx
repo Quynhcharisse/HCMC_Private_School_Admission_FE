@@ -41,6 +41,7 @@ import {
     HOME_PAGE_SURFACE_GRADIENT,
     landingSectionShadow
 } from "../../constants/homeLandingTheme";
+import {parseBoardingType} from "../../constants/schoolBoardingType";
 import {
     getCompareSchools,
     MAX_COMPARE_SCHOOLS,
@@ -285,7 +286,17 @@ export default function SchoolSearchPage() {
         const matchProvince = selectedProvince ? normalizeProvinceName(s.province) === selectedProvince : true;
         const matchWard = selectedDistrict ? s.ward === selectedDistrict : true;
         const matchKeyword = normalizedKeyword ? s.school.toLowerCase().includes(normalizedKeyword) : true;
-        return matchProvince && matchWard && matchKeyword;
+        const campusBoardingType = parseBoardingType(s?.boardingType);
+        const matchBoardingType = selectedBoardingType
+            ? selectedBoardingType === "Nội trú"
+                ? campusBoardingType === "FULL_BOARDING"
+                : selectedBoardingType === "Bán trú"
+                    ? campusBoardingType === "SEMI_BOARDING"
+                    : selectedBoardingType === "Cả hai (Nội trú & Bán trú)"
+                        ? campusBoardingType === "BOTH"
+                        : true
+            : true;
+        return matchProvince && matchWard && matchKeyword && matchBoardingType;
     });
     const shownSchools = filteredSchools.slice(0, 20);
     const totalCount = filteredSchools.length;
@@ -778,7 +789,13 @@ export default function SchoolSearchPage() {
                             <Box>
                                 <Typography sx={{fontWeight: 700, fontSize: 13, mb: 1, color: BRAND_NAVY, letterSpacing: '0.02em'}}>Nội trú/Bán trú</Typography>
                                 <Box sx={{display: 'flex', gap: 1, flexWrap: 'wrap'}}>
-                                    {['Nội trú', 'Bán trú'].map((boardingType) => (
+                                    <Chip
+                                        label="Tất cả"
+                                        size="small"
+                                        onClick={() => setSelectedBoardingType(null)}
+                                        sx={filterChipSx(!selectedBoardingType)}
+                                    />
+                                    {['Nội trú', 'Bán trú', 'Cả hai (Nội trú & Bán trú)'].map((boardingType) => (
                                         <Chip
                                             key={boardingType}
                                             label={boardingType}
