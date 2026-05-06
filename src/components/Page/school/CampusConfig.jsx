@@ -3868,7 +3868,7 @@ export default function CampusConfig() {
                             }))
                           }
                           size="small"
-                          helperText="Dành cho phụ huynh khi đặt lịch: tối đa bao nhiêu lượt đặt hoặc chờ trong một khung giờ. Không phải số tư vấn viên — xem hai ô bên phải."
+                          helperText="Dành cho phụ huynh khi đặt lịch: tối đa bao nhiêu lượt đặt hoặc chờ trong một khung giờ."
                           FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
@@ -3904,7 +3904,7 @@ export default function CampusConfig() {
                             }))
                           }
                           size="small"
-                          helperText="Khi gán lịch cho tư vấn viên: mỗi khung giờ và khoảng ngày phải có ít nhất số người này. Không liên quan tới lượt đặt của phụ huynh."
+                          helperText="Khi gán lịch cho tư vấn viên: mỗi khung giờ và khoảng ngày phải có ít nhất số người này."
                           FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
@@ -3941,7 +3941,7 @@ export default function CampusConfig() {
                             }))
                           }
                           size="small"
-                          helperText="Giới hạn nhân sự: tối đa bao nhiêu tư vấn viên được gán chung một khung giờ và cùng khoảng ngày. 0 = không giới hạn. Khác với lượt đặt của phụ huynh."
+                          helperText="Giới hạn nhân sự: tối đa bao nhiêu tư vấn viên được gán chung một khung giờ và cùng khoảng ngày. 0 = không giới hạn."
                           FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth

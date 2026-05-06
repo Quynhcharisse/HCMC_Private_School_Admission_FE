@@ -1685,8 +1685,7 @@ export default function SchoolPrograms() {
                     <Table>
                         <TableHead>
                             <TableRow sx={{bgcolor: "#f1f5f9"}}>
-                                <TableCell sx={{fontWeight: 800, color: "#1e293b", py: 2}}>Program / Khung
-                                    CT</TableCell>
+                                <TableCell sx={{fontWeight: 800, color: "#1e293b", py: 2}}>Chương trình đào tạo</TableCell>
                                 <TableCell sx={{fontWeight: 800, color: "#1e293b", py: 2}}>Loại khung chương
                                     trình</TableCell>
                                 <TableCell sx={{fontWeight: 800, color: "#1e293b", py: 2}}>Học phí gốc</TableCell>
