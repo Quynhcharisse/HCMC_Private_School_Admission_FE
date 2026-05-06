@@ -1,9 +1,5 @@
 import axiosClient from "../configs/APIConfig.jsx";
 
-/**
- * GET /api/v1/school/public/list
- * Công khai — có hoặc không đăng nhập đều gọi được.
- */
 export async function getPublicSchoolList() {
     const response = await axiosClient.get("/school/public/list");
     const body = response?.data?.body;
@@ -11,33 +7,62 @@ export async function getPublicSchoolList() {
     return [];
 }
 
-/**
- * GET /api/v1/school/{schoolId}/public/detail
- * Công khai — có hoặc không đăng nhập đều gọi được.
- */
+
 export async function getPublicSchoolDetail(schoolId) {
     if (schoolId === undefined || schoolId === null) return null;
     const response = await axiosClient.get(`/school/${schoolId}/public/detail`);
     return response?.data?.body ?? null;
 }
 
-/**
- * GET /api/v1/school/{schoolId}/campaign/template/public?year=...
- * Lấy danh sách chiến dịch tuyển sinh public của trường.
- */
 export async function getPublicSchoolCampaignTemplates(schoolId, year = 0) {
     if (schoolId === undefined || schoolId === null) return [];
     const response = await axiosClient.get(`/school/${schoolId}/campaign/template/public`, {
         params: {year: Number(year) || 0}
     });
     const body = response?.data?.body;
-    return Array.isArray(body) ? body : [];
+    const normalizeMethodTimeline = (item) => {
+        if (!item || typeof item !== "object") return null;
+        return {
+            ...item,
+            methodCode: item?.methodCode ?? item?.code ?? "",
+            displayName: item?.displayName ?? item?.name ?? item?.methodCode ?? "",
+            description: item?.description ?? "",
+            admissionProcessSteps: Array.isArray(item?.admissionProcessSteps) ? item.admissionProcessSteps : [],
+            methodDocumentRequirements: Array.isArray(item?.methodDocumentRequirements)
+                ? item.methodDocumentRequirements
+                : []
+        };
+    };
+
+    const normalizeCampaign = (campaign, mandatoryAll) => {
+        if (!campaign || typeof campaign !== "object") return null;
+        const mappedTimelines = Array.isArray(campaign?.admissionMethodTimelines)
+            ? campaign.admissionMethodTimelines.map(normalizeMethodTimeline).filter(Boolean)
+            : [];
+        return {
+            ...campaign,
+            admissionMethodDetails: mappedTimelines,
+            mandatoryAll: Array.isArray(campaign?.mandatoryAll)
+                ? campaign.mandatoryAll
+                : Array.isArray(mandatoryAll)
+                    ? mandatoryAll
+                    : []
+        };
+    };
+
+    if (Array.isArray(body)) {
+        return body.map((campaign) => normalizeCampaign(campaign, campaign?.mandatoryAll)).filter(Boolean);
+    }
+    if (body && typeof body === "object") {
+        const campaigns = Array.isArray(body?.campaigns) ? body.campaigns : [];
+        const mandatoryAll = Array.isArray(body?.campaignConfig?.mandatoryAll)
+            ? body.campaignConfig.mandatoryAll
+            : [];
+        return campaigns.map((campaign) => normalizeCampaign(campaign, mandatoryAll)).filter(Boolean);
+    }
+    return [];
 }
 
-/**
- * GET /api/v1/school/campus/search/nearby?lat=...&lng=...&radius=...
- * Tìm các campus lân cận dựa trên tọa độ phụ huynh.
- */
 export async function searchNearbyCampuses({lat, lng, radius = 10}) {
     if (!Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) return [];
     const params = {
