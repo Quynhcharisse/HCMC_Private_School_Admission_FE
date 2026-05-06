@@ -130,6 +130,16 @@ function campaignIdOf(row) {
   return Number.isFinite(id) && id > 0 ? id : null;
 }
 
+function extractCampaignTemplateRows(res) {
+  const raw = res?.data?.body ?? res?.data;
+  if (Array.isArray(raw)) return raw;
+  if (raw && typeof raw === "object") {
+    if (Array.isArray(raw.campaigns)) return raw.campaigns;
+    if (raw.id != null || raw.admissionCampaignTemplateId != null) return [raw];
+  }
+  return [];
+}
+
 function assignedRowsForTemplateDay(assignedRows, templateId, dayOfWeekKey) {
   const tid = Number(templateId);
   if (!Number.isFinite(tid) || tid <= 0 || !dayOfWeekKey) return [];
@@ -266,10 +276,7 @@ export default function CounsellorAssignModal({
         .then((res) => {
           const st = res?.status ?? 0;
           if (st < 200 || st >= 300) return [];
-          const body = res?.data?.body ?? res?.data;
-          if (Array.isArray(body)) return body;
-          if (body && typeof body === "object") return [body];
-          return [];
+          return extractCampaignTemplateRows(res);
         })
         .catch(() => []),
     ])
