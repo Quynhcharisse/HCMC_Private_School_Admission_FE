@@ -104,7 +104,10 @@ function mapTemplate(row) {
               quota: Number(d?.quota ?? 0),
               allowReservationSubmission: Boolean(d?.allowReservationSubmission),
           }));
-    const mandatoryAll = Array.isArray(row.mandatoryAll) ? row.mandatoryAll : [];
+    const configMandatoryAll = Array.isArray(row.campaignConfig?.mandatoryAll) ? row.campaignConfig.mandatoryAll : [];
+    const mandatoryAll = Array.isArray(row.mandatoryAll) && row.mandatoryAll.length > 0
+        ? row.mandatoryAll
+        : configMandatoryAll;
     return {
         ...row,
         id: row.admissionCampaignTemplateId ?? row.id,
@@ -114,6 +117,28 @@ function mapTemplate(row) {
         admissionMethodDetails: details,
         mandatoryAll,
     };
+}
+
+function parseCampaignTemplateResponse(res) {
+    const raw = res?.data?.body ?? res?.data;
+    if (Array.isArray(raw)) {
+        return { campaignConfig: null, campaigns: raw };
+    }
+    if (raw && typeof raw === "object") {
+        if (Array.isArray(raw.campaigns)) {
+            return {
+                campaignConfig: raw.campaignConfig && typeof raw.campaignConfig === "object" ? raw.campaignConfig : null,
+                campaigns: raw.campaigns,
+            };
+        }
+        if (raw.id != null || raw.admissionCampaignTemplateId != null) {
+            return {
+                campaignConfig: raw.campaignConfig && typeof raw.campaignConfig === "object" ? raw.campaignConfig : null,
+                campaigns: [raw],
+            };
+        }
+    }
+    return { campaignConfig: null, campaigns: [] };
 }
 
 function formatDate(dateStr) {
@@ -177,8 +202,11 @@ export default function SchoolCampaignViewDetail() {
             })
         );
         for (const res of responses) {
-            const raw = res?.data?.body ?? res?.data;
-            const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+            const parsed = parseCampaignTemplateResponse(res);
+            const list = parsed.campaigns.map((row) => ({
+                ...row,
+                campaignConfig: parsed.campaignConfig,
+            }));
             const found = list.find((row) => Number(row?.id ?? row?.admissionCampaignTemplateId) === idNum);
             if (found) return mapTemplate(found);
         }
@@ -217,8 +245,8 @@ export default function SchoolCampaignViewDetail() {
         getCampaignTemplatesByYear(nextYear)
             .then((res) => {
                 if (cancelled) return;
-                const raw = res?.data?.body ?? res?.data;
-                const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+                const parsed = parseCampaignTemplateResponse(res);
+                const list = parsed.campaigns;
                 const hasActive = list.some((r) => {
                     const s = normalizeCampaignStatus(r.status);
                     return s === "DRAFT" || s === "OPEN";
@@ -281,9 +309,8 @@ export default function SchoolCampaignViewDetail() {
 
     const handleCancelCampaign = useCallback(async () => {
         if (!campaign?.id || cancelLoading) return;
-        const isOpen = normalizeCampaignStatus(campaign.status) === "OPEN";
         const reason = cancelReason.trim();
-        if (isOpen && !reason) {
+        if (!reason) {
             setCancelReasonError("Vui lòng nhập lý do hủy");
             return;
         }
@@ -420,7 +447,7 @@ export default function SchoolCampaignViewDetail() {
                                     <Button
                                         startIcon={<EditIcon />}
                                         variant="contained"
-                                        onClick={() => navigate(`/school/campaigns/detail/${campaign.id}`)}
+                                        onClick={() => navigate(`/school/campaigns/detail/${campaign.id}`, { state: { campaign, openEdit: true } })}
                                         sx={{
                                             textTransform: "none",
                                             borderRadius: 999,
@@ -1065,17 +1092,36 @@ export default function SchoolCampaignViewDetail() {
                 ) : (
                     <>
                         <DialogContent sx={{ pt: 3 }}>
-                            <Typography variant="h6" sx={{ fontWeight: 700 }}>Hủy chiến dịch?</Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                                Bạn có chắc muốn hủy chiến dịch <ConfirmHighlight>{campaign?.name}</ConfirmHighlight>?
-                            </Typography>
+                            <Stack spacing={1.5} alignItems="flex-start">
+                                <Typography sx={{ fontSize: 40, lineHeight: 1 }}>⚠️</Typography>
+                                <Typography variant="h6" sx={{ fontWeight: 700 }}>Hủy chiến dịch?</Typography>
+                                <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+                                    Bạn có chắc muốn hủy chiến dịch <ConfirmHighlight>{campaign?.name}</ConfirmHighlight>?{" "}
+                                    <Box component="span" sx={{ fontWeight: 700, color: "#b91c1c" }}>
+                                        Hành động này không thể hoàn tác.
+                                    </Box>
+                                </Typography>
+                            </Stack>
+                            <TextField
+                                label="Lý do hủy"
+                                placeholder="Nhập lý do hủy chiến dịch…"
+                                multiline
+                                minRows={3}
+                                fullWidth
+                                required
+                                value={cancelReason}
+                                onChange={(e) => { setCancelReason(e.target.value); if (cancelReasonError) setCancelReasonError(""); }}
+                                error={!!cancelReasonError}
+                                helperText={cancelReasonError}
+                                sx={{ mt: 2.5, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
+                            />
                         </DialogContent>
                         <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
                             <Button onClick={resetCancelFlow} disabled={cancelLoading} sx={{ textTransform: "none", color: "#64748b" }}>Đóng</Button>
                             <Button
                                 variant="contained"
                                 onClick={handleCancelCampaign}
-                                disabled={cancelLoading}
+                                disabled={cancelLoading || !cancelReason.trim()}
                                 sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px", bgcolor: "#991b1b", "&:hover": { bgcolor: "#7f1d1d" } }}
                             >
                                 {cancelLoading ? "Đang xử lý…" : "Hủy chiến dịch"}
