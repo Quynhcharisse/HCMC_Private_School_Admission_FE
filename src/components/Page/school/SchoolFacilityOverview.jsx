@@ -3730,7 +3730,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                             }))
                           }
                           size="small"
-                          helperText="Khi gán lịch cho tư vấn viên: mỗi khung giờ và khoảng ngày phải có ít nhất số người này. Không liên quan tới lượt đặt của phụ huynh."
+                          helperText="Khi gán lịch cho tư vấn viên: mỗi khung giờ và khoảng ngày phải có ít nhất số người này."
                           FormHelperTextProps={{sx: {fontWeight: 700, color: "red"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
@@ -3767,7 +3767,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                             }))
                           }
                           size="small"
-                          helperText="Giới hạn nhân sự: tối đa bao nhiêu tư vấn viên được gán chung một khung giờ và cùng khoảng ngày. 0 = không giới hạn. Khác với lượt đặt của phụ huynh."
+                          helperText="Giới hạn nhân sự: tối đa bao nhiêu tư vấn viên được gán chung một khung giờ và cùng khoảng ngày. 0 = không giới hạn."
                           FormHelperTextProps={{sx: {fontWeight: 700, color: "red"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth

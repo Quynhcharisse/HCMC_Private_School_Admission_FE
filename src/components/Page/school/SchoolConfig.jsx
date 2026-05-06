@@ -4540,7 +4540,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                             }))
                           }
                           size="small"
-                          helperText="Giới hạn nhân sự: tối đa bao nhiêu tư vấn viên được gán chung một khung giờ và cùng khoảng ngày. 0 = không giới hạn. Khác với lượt đặt của phụ huynh."
+                          helperText="Giới hạn nhân sự: tối đa bao nhiêu tư vấn viên được gán chung một khung giờ và cùng khoảng ngày. 0 = không giới hạn."
                           FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
