@@ -21,7 +21,21 @@ export const getCampaignTemplatesByYear = async (year) => {
 
 /**
  * POST create campaign template
- * @param {{ name: string, description?: string, year: number, startDate: string, endDate: string }} body
+ * @param {{
+ *   admissionCampaignTemplateId?: number,
+ *   name: string,
+ *   description?: string,
+ *   year: number,
+ *   startDate: string,
+ *   endDate: string,
+ *   admissionMethodTimelines?: Array<{
+ *     methodCode: string,
+ *     startDate: string,
+ *     endDate: string,
+ *     allowReservationSubmission?: boolean,
+ *     quota?: number
+ *   }>
+ * }} body
  */
 export const createCampaignTemplate = async (body) => {
     const timelines = Array.isArray(body.admissionMethodTimelines)
@@ -29,9 +43,14 @@ export const createCampaignTemplate = async (body) => {
               methodCode: String(t?.methodCode ?? "").trim(),
               startDate: String(t?.startDate ?? "").trim(),
               endDate: String(t?.endDate ?? "").trim(),
+              allowReservationSubmission: Boolean(t?.allowReservationSubmission),
+              quota: Number(t?.quota ?? 0),
           }))
         : [];
     const response = await axiosClient.post("/school/campaign/template", {
+        ...(body.admissionCampaignTemplateId != null
+            ? { admissionCampaignTemplateId: Number(body.admissionCampaignTemplateId) }
+            : {}),
         name: body.name?.trim() ?? "",
         description: body.description?.trim() ?? "",
         year: Number(body.year),
@@ -44,7 +63,7 @@ export const createCampaignTemplate = async (body) => {
 
 /**
  * PUT update campaign template
- * @param {{ admissionCampaignTemplateId: number, name: string, description?: string, year?: number, startDate: string, endDate: string }} body
+ * @param {{ admissionCampaignTemplateId: number, name: string, description?: string, year?: number, startDate: string, endDate: string, admissionMethodTimelines?: Array<{ methodCode: string, startDate: string, endDate: string, allowReservationSubmission?: boolean, quota?: number }> }} body
  */
 export const updateCampaignTemplate = async (body) => {
     const timelines = Array.isArray(body.admissionMethodTimelines)
@@ -52,6 +71,8 @@ export const updateCampaignTemplate = async (body) => {
               methodCode: String(t?.methodCode ?? "").trim(),
               startDate: String(t?.startDate ?? "").trim(),
               endDate: String(t?.endDate ?? "").trim(),
+              allowReservationSubmission: Boolean(t?.allowReservationSubmission),
+              quota: Number(t?.quota ?? 0),
           }))
         : [];
     const response = await axiosClient.put("/school/campaign/template", {
