@@ -877,8 +877,6 @@ function SchoolCampusInfoCard({school, isParent, onMessageCampus, activeCampusIn
                     const emails = Array.isArray(campus?.consultantEmails)
                         ? campus.consultantEmails.map((e) => String(e || "").trim()).filter(Boolean)
                         : [];
-                    const policy = campus?.policyDetail != null ? String(campus.policyDetail).trim() : "";
-                    const facility = campus?.facility != null ? String(campus.facility).trim() : "";
                     const statusRaw = campus?.status;
                     const imgUrl = resolveCampusImageUrl(campus?.imageJson);
                     const hasStatus = statusRaw != null && String(statusRaw).trim() !== "";
@@ -886,18 +884,13 @@ function SchoolCampusInfoCard({school, isParent, onMessageCampus, activeCampusIn
                         Boolean(phone) ||
                         boardingTags.length > 0 ||
                         emails.length > 0 ||
-                        hasStatus ||
-                        Boolean(facility) ||
-                        Boolean(policy);
+                        hasStatus;
                     const hasAfterPhone =
                         boardingTags.length > 0 ||
                         emails.length > 0 ||
-                        hasStatus ||
-                        Boolean(facility) ||
-                        Boolean(policy);
-                    const hasAfterBoarding =
-                        emails.length > 0 || hasStatus || Boolean(facility) || Boolean(policy);
-                    const hasAfterEmails = hasStatus || Boolean(facility) || Boolean(policy);
+                        hasStatus;
+                    const hasAfterBoarding = emails.length > 0 || hasStatus;
+                    const hasAfterEmails = hasStatus;
 
                             return (
                                 <Box key={campus?.id ?? `${name}-${idx}`}>
@@ -1015,43 +1008,13 @@ function SchoolCampusInfoCard({school, isParent, onMessageCampus, activeCampusIn
                             ) : null}
 
                             {statusRaw != null && String(statusRaw).trim() !== "" ? (
-                                <>
-                                    <Box sx={contactRowSx}>
-                                        <CheckCircleIcon sx={contactIconSx}/>
-                                        <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY}}>
-                                            Trạng thái:{" "}
-                                            <Box component="span" sx={{fontWeight: 700, color: "#334155"}}>
-                                                {formatCampusStatus(statusRaw)}
-                                            </Box>
-                                        </Typography>
-                                    </Box>
-                                    {(facility || policy) && <Divider sx={contactDividerSx}/>}
-                                </>
-                            ) : null}
-
-                            {facility ? (
-                                <>
-                                    <Box sx={{...contactRowSx, alignItems: "flex-start"}}>
-                                        <BusinessIcon sx={contactIconSx}/>
-                                        <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.5}}>
-                                            <Box component="span" sx={{fontWeight: 600}}>
-                                                Cơ sở vật chất:{" "}
-                                            </Box>
-                                            {facility}
-                                        </Typography>
-                                    </Box>
-                                    {policy ? <Divider sx={contactDividerSx}/> : null}
-                                </>
-                            ) : null}
-
-                            {policy ? (
-                                <Box sx={{...contactRowSx, alignItems: "flex-start"}}>
-                                    <ChatBubbleOutlineIcon sx={contactIconSx}/>
-                                    <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.5}}>
-                                        <Box component="span" sx={{fontWeight: 600}}>
-                                            Chính sách:{" "}
+                                <Box sx={contactRowSx}>
+                                    <CheckCircleIcon sx={contactIconSx}/>
+                                    <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY}}>
+                                        Trạng thái:{" "}
+                                        <Box component="span" sx={{fontWeight: 700, color: "#334155"}}>
+                                            {formatCampusStatus(statusRaw)}
                                         </Box>
-                                        {policy}
                                     </Typography>
                                 </Box>
                             ) : null}
@@ -1091,12 +1054,354 @@ function SchoolCampusInfoCard({school, isParent, onMessageCampus, activeCampusIn
     );
 }
 
-function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignError, curriculumList}) {
+function getCampusFacilityItems(campus) {
+    const list = Array.isArray(campus?.facility?.itemList) ? campus.facility.itemList : [];
+    return list
+        .map((item) => ({
+            name: String(item?.name || "").trim(),
+            value: item?.value,
+            unit: String(item?.unit || "").trim(),
+            category: String(item?.category || "").trim()
+        }))
+        .filter((item) => Boolean(item.name));
+}
+
+function getCampusFacilityImages(campus) {
+    const imageData = campus?.facility?.imageData || {};
+    const coverUrl = String(imageData?.coverUrl || "").trim();
+    const imageList = Array.isArray(imageData?.imageList) ? imageData.imageList : [];
+    const normalizedList = imageList
+        .map((img, idx) => ({
+            key: `${String(img?.url || "").trim()}-${idx}`,
+            url: String(img?.url || "").trim(),
+            name: String(img?.name || img?.altName || `Ảnh ${idx + 1}`).trim()
+        }))
+        .filter((img) => Boolean(img.url));
+    return {
+        coverUrl,
+        imageList: normalizedList
+    };
+}
+
+function getCampusPolicyText(campus) {
+    const fullText = String(campus?.policyDetail?.fullTextRendered || "").trim();
+    if (fullText) return fullText;
+    return String(campus?.policyDetail || "").trim();
+}
+
+function SchoolFacilityInfoCard({school, activeCampusIndex, embedded = false}) {
+    const campuses = Array.isArray(school?.campusList) ? school.campusList : [];
+    const activeCampus = campuses[activeCampusIndex] || campuses[0] || null;
+    const facilityItems = getCampusFacilityItems(activeCampus);
+    const facilityImages = getCampusFacilityImages(activeCampus);
+    const facilityByCategory = facilityItems.reduce((acc, item) => {
+        const category = item.category || "Khác";
+        if (!acc[category]) acc[category] = [];
+        acc[category].push(item);
+        return acc;
+    }, {});
+    const facilityCategories = Object.entries(facilityByCategory);
+    const campusName = String(activeCampus?.name || "").trim();
+    const hasFacilitySection = facilityItems.length > 0 || facilityImages.coverUrl || facilityImages.imageList.length > 0;
+
+    const rootSx = embedded
+        ? {p: 0, border: "none", background: "transparent", boxShadow: "none"}
+        : detailMainColumnCardSx;
+
+    return (
+        <Box sx={rootSx}>
+            <Typography sx={mainDetailSectionTitleSx}>Cơ sở vật chất</Typography>
+            {campusName ? (
+                <Typography sx={{fontSize: "0.85rem", color: "#64748b", mb: 1.2}}>
+                    Áp dụng cho: {campusName}
+                </Typography>
+            ) : null}
+
+            {!hasFacilitySection ? (
+                <Typography sx={{fontSize: "0.92rem", color: CONTACT_BODY, lineHeight: 1.6}}>
+                    Chưa có thông tin cơ sở vật chất.
+                </Typography>
+            ) : null}
+
+            {hasFacilitySection ? (
+                <Box
+                    sx={{
+                        p: {xs: 1.2, sm: 1.4},
+                        borderRadius: 2,
+                        border: "1px solid rgba(191,219,254,0.75)",
+                        bgcolor: "rgba(239,246,255,0.65)"
+                    }}
+                >
+                    <Box sx={{display: "flex", alignItems: "center", gap: 0.9, mb: 1}}>
+                        <BusinessIcon sx={{fontSize: 20, color: BRAND_NAVY}}/>
+                        <Typography sx={{fontSize: "1rem", fontWeight: 800, color: BRAND_NAVY}}>
+                            Cơ sở vật chất
+                        </Typography>
+                    </Box>
+
+                    {facilityImages.coverUrl ? (
+                        <CardMedia
+                            component="img"
+                            image={facilityImages.coverUrl}
+                            alt={`Ảnh đại diện cơ sở vật chất ${campusName || ""}`.trim()}
+                            sx={{
+                                width: "100%",
+                                height: {xs: 180, sm: 220},
+                                objectFit: "cover",
+                                borderRadius: 2,
+                                mb: 1.2
+                            }}
+                        />
+                    ) : null}
+
+                    {facilityCategories.length > 0 ? (
+                        <Stack spacing={1}>
+                            {facilityCategories.map(([category, items]) => (
+                                <Box key={category}>
+                                    <Typography sx={{fontSize: "0.86rem", fontWeight: 700, color: "#334155", mb: 0.55}}>
+                                        {category}
+                                    </Typography>
+                                    <Stack spacing={0.5}>
+                                        {items.map((item, idx) => {
+                                            const hasNumericValue = Number.isFinite(Number(item.value));
+                                            const valueLabel = hasNumericValue ? `${Number(item.value)}${item.unit ? ` ${item.unit}` : ""}` : "";
+                                            return (
+                                                <Typography key={`${item.name}-${idx}`} sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.5}}>
+                                                    - {item.name}{valueLabel ? `: ${valueLabel}` : ""}
+                                                </Typography>
+                                            );
+                                        })}
+                                    </Stack>
+                                </Box>
+                            ))}
+                        </Stack>
+                    ) : (
+                        <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.5}}>
+                            Chưa có danh sách hạng mục cơ sở vật chất.
+                        </Typography>
+                    )}
+
+                    {facilityImages.imageList.length > 0 ? (
+                        <Box
+                            sx={{
+                                mt: 1.4,
+                                display: "grid",
+                                gridTemplateColumns: {xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(3, minmax(0, 1fr))"},
+                                gap: 0.9
+                            }}
+                        >
+                            {facilityImages.imageList.slice(0, 6).map((img) => (
+                                <Card key={img.key} sx={{borderRadius: 1.5, border: "1px solid rgba(203,213,225,0.9)"}}>
+                                    <CardMedia component="img" image={img.url} alt={img.name} sx={{height: 110, objectFit: "cover"}}/>
+                                    <Typography sx={{fontSize: "0.74rem", color: "#475569", px: 0.8, py: 0.5}}>{img.name}</Typography>
+                                </Card>
+                            ))}
+                        </Box>
+                    ) : null}
+                </Box>
+            ) : null}
+        </Box>
+    );
+}
+
+function SchoolPolicyInfoCard({school, activeCampusIndex, embedded = false}) {
+    const campuses = Array.isArray(school?.campusList) ? school.campusList : [];
+    const activeCampus = campuses[activeCampusIndex] || campuses[0] || null;
+    const policyText = getCampusPolicyText(activeCampus);
+    const policyDetail = activeCampus?.policyDetail && typeof activeCampus.policyDetail === "object" ? activeCampus.policyDetail : null;
+    const workingConfig = policyDetail?.workingConfig && typeof policyDetail.workingConfig === "object" ? policyDetail.workingConfig : null;
+    const shiftList = Array.isArray(workingConfig?.workShifts) ? workingConfig.workShifts : [];
+    const weekdayMap = {
+        MON: "Thứ Hai",
+        TUE: "Thứ Ba",
+        WED: "Thứ Tư",
+        THU: "Thứ Năm",
+        FRI: "Thứ Sáu",
+        SAT: "Thứ Bảy",
+        SUN: "Chủ Nhật"
+    };
+    const mapWeekdays = (days) =>
+        Array.isArray(days)
+            ? days
+                  .map((day) => weekdayMap[String(day || "").toUpperCase()] || String(day || "").trim())
+                  .filter(Boolean)
+                  .join(", ")
+            : "";
+    const regularDaysLabel = mapWeekdays(workingConfig?.regularDays);
+    const weekendDaysLabel = mapWeekdays(workingConfig?.weekendDays);
+    const policyRows = [
+        {label: "Đường dây nóng", value: String(activeCampus?.phoneNumber || "").trim()},
+        {label: "Email hỗ trợ", value: String(activeCampus?.email || "").trim()},
+        {
+            label: "Số tư vấn viên tối thiểu mỗi ca",
+            value: Number.isFinite(Number(policyDetail?.minCounsellorPerSlot))
+                ? `${Number(policyDetail.minCounsellorPerSlot)} người`
+                : ""
+        },
+        {
+            label: "Thời lượng mỗi ca tư vấn",
+            value: Number.isFinite(Number(policyDetail?.slotDurationInMinutes))
+                ? `${Number(policyDetail.slotDurationInMinutes)} phút`
+                : ""
+        },
+        {
+            label: "Số khách tối đa mỗi ca",
+            value: Number.isFinite(Number(policyDetail?.maxBookingPerSlot))
+                ? `${Number(policyDetail.maxBookingPerSlot)} người`
+                : ""
+        },
+        {
+            label: "Yêu cầu đặt lịch trước",
+            value: Number.isFinite(Number(policyDetail?.allowBookingBeforeHours))
+                ? `${Number(policyDetail.allowBookingBeforeHours)} giờ`
+                : ""
+        }
+    ].filter((item) => Boolean(item.value));
+
+    const workingRows = [
+        {
+            label: "Ghi chú",
+            value: String(workingConfig?.note || "").trim()
+        },
+        ...shiftList.map((shift) => ({
+            label: `Ca ${String(shift?.name || "").toUpperCase() === "MORNING" ? "sáng" : String(shift?.name || "").toUpperCase() === "AFTERNOON" ? "chiều" : String(shift?.name || "").toLowerCase()}`,
+            value: `${String(shift?.startTime || "--:--")} - ${String(shift?.endTime || "--:--")}`
+        })),
+        {label: "Các ngày trong tuần", value: regularDaysLabel},
+        {label: "Ngày cuối tuần", value: weekendDaysLabel},
+        {
+            label: "Mở cửa Chủ Nhật",
+            value: typeof workingConfig?.isOpenSunday === "boolean" ? (workingConfig.isOpenSunday ? "Có" : "Nghỉ") : ""
+        }
+    ].filter((item) => Boolean(item.value));
+
+    const hasStructuredPolicy =
+        policyRows.length > 0 || workingRows.length > 0;
+    const hasPolicySection = hasStructuredPolicy || Boolean(policyText);
+    const renderValueWithBoldNumbers = (value) => {
+        const text = String(value || "");
+        const parts = text.split(/(\d+)/g);
+        return parts.map((part, idx) =>
+            /^\d+$/.test(part) ? (
+                <Box component="span" key={`${part}-${idx}`} sx={{fontWeight: 800, color: "#0f172a"}}>
+                    {part}
+                </Box>
+            ) : (
+                <React.Fragment key={`${part}-${idx}`}>{part}</React.Fragment>
+            )
+        );
+    };
+
+    const rootSx = embedded
+        ? {p: 0, border: "none", background: "transparent", boxShadow: "none"}
+        : detailMainColumnCardSx;
+
+    return (
+        <Box sx={rootSx}>
+            <Typography sx={mainDetailSectionTitleSx}>Chính sách</Typography>
+            {hasPolicySection ? (
+                <Box
+                    sx={{
+                        borderTop: "1px solid rgba(203,213,225,0.85)",
+                        borderBottom: "1px solid rgba(203,213,225,0.85)"
+                    }}
+                >
+                    {hasStructuredPolicy ? (
+                        <>
+                            <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", sm: "minmax(190px, 240px) 1fr"}, rowGap: 1.35, columnGap: 1.8, py: 1.2}}>
+                                {policyRows.map((row) => (
+                                    <React.Fragment key={row.label}>
+                                        <Typography sx={{fontSize: "0.83rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em"}}>
+                                            {row.label}
+                                        </Typography>
+                                        <Typography
+                                            sx={{
+                                                fontSize: row.label === "Đường dây nóng" ? "1.04rem" : "0.96rem",
+                                                color: row.label === "Đường dây nóng" ? BRAND_NAVY : "#0f172a",
+                                                fontWeight: row.label === "Đường dây nóng" ? 800 : 600,
+                                                lineHeight: 1.65
+                                            }}
+                                        >
+                                            {renderValueWithBoldNumbers(row.value)}
+                                        </Typography>
+                                    </React.Fragment>
+                                ))}
+                            </Box>
+
+                            <Box sx={{mt: 1.2, pt: 1.1, borderTop: "1px solid rgba(203,213,225,0.95)"}}>
+                                <Typography sx={{fontSize: "0.82rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", mb: 0.7}}>
+                                    Giờ làm việc
+                                </Typography>
+                                <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", sm: "minmax(190px, 240px) 1fr"}, rowGap: 1.2, columnGap: 1.8}}>
+                                    {workingRows.map((row) => (
+                                        <React.Fragment key={row.label}>
+                                            <Typography sx={{fontSize: "0.84rem", color: "#64748b", fontWeight: 600}}>
+                                                {row.label}
+                                            </Typography>
+                                            <Typography
+                                                sx={{
+                                                    fontSize: "0.94rem",
+                                                    color:
+                                                        row.label === "Mở cửa Chủ Nhật" && String(row.value).trim().toLowerCase() === "nghỉ"
+                                                            ? "#b91c1c"
+                                                            : "#0f172a",
+                                                    fontWeight:
+                                                        row.label === "Mở cửa Chủ Nhật" && String(row.value).trim().toLowerCase() === "nghỉ"
+                                                            ? 700
+                                                            : 500,
+                                                    lineHeight: 1.65
+                                                }}
+                                            >
+                                                {renderValueWithBoldNumbers(row.value)}
+                                            </Typography>
+                                        </React.Fragment>
+                                    ))}
+                                </Box>
+                            </Box>
+                        </>
+                    ) : (
+                        <Typography
+                            component="pre"
+                            sx={{
+                                m: 0,
+                                fontFamily: "inherit",
+                                whiteSpace: "pre-wrap",
+                                wordBreak: "break-word",
+                                fontSize: "0.9rem",
+                                color: CONTACT_BODY,
+                                lineHeight: 1.5
+                            }}
+                        >
+                            {policyText}
+                        </Typography>
+                    )}
+                </Box>
+            ) : (
+                <Typography sx={{fontSize: "0.92rem", color: CONTACT_BODY, lineHeight: 1.6}}>
+                    Chưa có thông tin chính sách.
+                </Typography>
+            )}
+        </Box>
+    );
+}
+
+function SchoolCurriculumInfoCard({
+    campaignTemplates,
+    campaignLoading,
+    campaignError,
+    curriculumList,
+    embedded = false,
+    curriculumSectionRef
+}) {
     const list = Array.isArray(campaignTemplates) ? campaignTemplates : [];
     const curriculumDataList = Array.isArray(curriculumList) ? curriculumList : [];
 
+    const rootSx = embedded
+        ? {p: 0, border: "none", background: "transparent", boxShadow: "none"}
+        : detailMainColumnCardSx;
+
     return (
-        <Box sx={detailMainColumnCardSx}>
+        <Box sx={rootSx}>
             <Typography sx={mainDetailSectionTitleSx}>Chiến dịch tuyển sinh</Typography>
 
             {campaignLoading ? (
@@ -1547,9 +1852,6 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                         const orderedGroups = [groups.academic, groups.personal, groups.form].filter(
                                             (group) => group.items.length > 0
                                         );
-                                        const totalDocs = mandatoryAll.length;
-                                        const preparedDocs = 0;
-                                        const progressPercent = totalDocs > 0 ? Math.round((preparedDocs / totalDocs) * 100) : 0;
                                         return (
                                             <Stack spacing={1.8}>
                                                 {orderedGroups.map((group) => (
@@ -1588,21 +1890,33 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                                                         <Stack
                                                                             key={`${group.title}-${doc?.code || docIdx}`}
                                                                             direction="row"
-                                                                            alignItems="flex-start"
+                                                                            alignItems="center"
                                                                             spacing={0.75}
                                                                             sx={{
                                                                                 py: 0.1,
                                                                                 pr: 0.3
                                                                             }}
                                                                         >
-                                                                            <CheckCircleIcon sx={{fontSize: 15, color: "#cbd5e1", mt: 0.2, flexShrink: 0}}/>
+                                                                            <Typography
+                                                                                sx={{
+                                                                                    fontSize: "0.96rem",
+                                                                                    color: "#64748b",
+                                                                                    lineHeight: 1.7,
+                                                                                    flexShrink: 0
+                                                                                }}
+                                                                            >
+                                                                                -
+                                                                            </Typography>
                                                                             <Box sx={{minWidth: 0}}>
                                                                                 <Typography
                                                                                     sx={{
                                                                                         fontSize: "0.86rem",
                                                                                         color: "#374151",
                                                                                         lineHeight: 1.7,
-                                                                                        fontWeight: 500
+                                                                                        fontWeight: 500,
+                                                                                        whiteSpace: "nowrap",
+                                                                                        overflow: "hidden",
+                                                                                        textOverflow: "ellipsis"
                                                                                     }}
                                                                                 >
                                                                                     {primary || name}{" "}
@@ -1622,11 +1936,6 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                                                                         </Box>
                                                                                     ) : null}
                                                                                 </Typography>
-                                                                                {note && !copyBadge ? (
-                                                                                    <Typography sx={{fontSize: "0.76rem", color: "#9ca3af", lineHeight: 1.55}}>
-                                                                                        {note}
-                                                                                    </Typography>
-                                                                                ) : null}
                                                                             </Box>
                                                                         </Stack>
                                                                     );
@@ -1635,42 +1944,6 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                                                         </Box>
                                                     </Box>
                                                 ))}
-                                                <Box
-                                                    sx={{
-                                                        mt: 0.25
-                                                    }}
-                                                >
-                                                    <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{mb: 0.45}}>
-                                                        <Typography sx={{fontSize: "0.78rem", color: "#475569", fontWeight: 600}}>
-                                                            Đã chuẩn bị {preparedDocs}/{totalDocs} loại giấy tờ
-                                                        </Typography>
-                                                        <Typography sx={{fontSize: "0.74rem", color: "#64748b", fontWeight: 700}}>
-                                                            {progressPercent}%
-                                                        </Typography>
-                                                    </Stack>
-                                                    <Box
-                                                        sx={{
-                                                            width: "100%",
-                                                            height: 6,
-                                                            borderRadius: 999,
-                                                            bgcolor: "rgba(148,163,184,0.24)",
-                                                            overflow: "hidden"
-                                                        }}
-                                                    >
-                                                        <Box
-                                                            sx={{
-                                                                width: `${progressPercent}%`,
-                                                                height: "100%",
-                                                                borderRadius: 999,
-                                                                bgcolor: "#2563eb",
-                                                                transition: "width 0.25s ease"
-                                                            }}
-                                                        />
-                                                    </Box>
-                                                    <Typography sx={{fontSize: "0.72rem", color: "#94a3b8", mt: 0.45}}>
-                                                        Tích chọn từng giấy tờ sau khi chuẩn bị để cập nhật tiến độ.
-                                                    </Typography>
-                                                </Box>
                                             </Stack>
                                         );
                                     })()}
@@ -1681,7 +1954,9 @@ function SchoolCurriculumInfoCard({campaignTemplates, campaignLoading, campaignE
                 })}
 
             <Divider sx={{...contactDividerSx, mt: list.length > 0 ? 3 : 2, mb: 2.5}}/>
-            <Typography sx={mainDetailSectionTitleSx}>Chương trình đào tạo</Typography>
+            <Box ref={curriculumSectionRef} id="school-detail-curriculum" sx={{scrollMarginTop: {xs: 56, sm: 52}}}>
+                <Typography sx={mainDetailSectionTitleSx}>Chương trình đào tạo</Typography>
+            </Box>
 
             {curriculumDataList.length === 0 ? (
                 <Typography sx={{fontSize: "1.06rem", color: CONTACT_BODY, lineHeight: 1.65}}>
@@ -2050,7 +2325,10 @@ export default function SchoolSearchDetailView({
     const detailScrollRef = React.useRef(null);
     const detailIntroRef = React.useRef(null);
     const detailCampusRef = React.useRef(null);
+    const detailCampaignRef = React.useRef(null);
     const detailCurriculumRef = React.useRef(null);
+    const detailFacilityRef = React.useRef(null);
+    const detailPolicyRef = React.useRef(null);
     const detailLocationRef = React.useRef(null);
     const detailConsultRef = React.useRef(null);
     const detailGeneralRef = React.useRef(null);
@@ -2278,8 +2556,14 @@ export default function SchoolSearchDetailView({
                 ? "school-detail-intro"
                 : section === "campus"
                   ? "school-detail-campus"
-                  : section === "curriculum"
+                  : section === "campaign"
+                    ? "school-detail-campaign"
+                    : section === "curriculum"
                     ? "school-detail-curriculum"
+                    : section === "facility"
+                      ? "school-detail-facility"
+                      : section === "policy"
+                        ? "school-detail-policy"
                     : section === "location"
                       ? "school-detail-location"
                       : "school-detail-consult";
@@ -2311,14 +2595,20 @@ export default function SchoolSearchDetailView({
 
     const detailTabIndex =
         detailActiveSection === "location"
-            ? 4
+            ? 7
             : detailActiveSection === "consult"
-              ? 3
-              : detailActiveSection === "curriculum"
-                ? 2
-                : detailActiveSection === "campus"
-                  ? 1
-                  : 0;
+              ? 6
+              : detailActiveSection === "policy"
+                ? 5
+                : detailActiveSection === "facility"
+                  ? 4
+                  : detailActiveSection === "curriculum"
+                    ? 3
+                    : detailActiveSection === "campaign"
+                      ? 2
+                      : detailActiveSection === "campus"
+                        ? 1
+                        : 0;
 
     React.useEffect(() => {
         const root = detailScrollRef.current;
@@ -2331,17 +2621,23 @@ export default function SchoolSearchDetailView({
             raf = requestAnimationFrame(() => {
                 const intro = detailIntroRef.current;
                 const campus = detailCampusRef.current;
+                const campaign = detailCampaignRef.current;
                 const curriculum = detailCurriculumRef.current;
+                const facility = detailFacilityRef.current;
+                const policy = detailPolicyRef.current;
                 const loc = detailLocationRef.current;
                 const consult = detailConsultRef.current;
-                if (!intro || !campus || !curriculum || !loc || !consult) return;
+                if (!intro || !campus || !campaign || !curriculum || !facility || !policy || !loc || !consult) return;
                 const rootRect = root.getBoundingClientRect();
                 const anchor = rootRect.top + DETAIL_SCROLL_HEADROOM;
                 const activationLine = anchor + 24;
                 const sectionOrder = [
                     ["intro", intro],
                     ["campus", campus],
+                    ["campaign", campaign],
                     ["curriculum", curriculum],
+                    ["facility", facility],
+                    ["policy", policy],
                     ["consult", consult],
                     ["location", loc]
                 ];
@@ -3183,10 +3479,16 @@ export default function SchoolSearchDetailView({
                                         : v === 1
                                           ? "campus"
                                           : v === 2
-                                            ? "curriculum"
+                                            ? "campaign"
                                             : v === 3
-                                              ? "consult"
-                                              : "location"
+                                              ? "curriculum"
+                                              : v === 4
+                                                ? "facility"
+                                                : v === 5
+                                                  ? "policy"
+                                                  : v === 6
+                                                    ? "consult"
+                                                    : "location"
                                 )
                             }
                             variant="scrollable"
@@ -3228,7 +3530,10 @@ export default function SchoolSearchDetailView({
                         >
                             <Tab label="Giới thiệu" disableRipple/>
                             <Tab label="Thông tin cơ sở" disableRipple/>
+                            <Tab label="Chiến dịch tuyển sinh" disableRipple/>
                             <Tab label="Chương trình đào tạo" disableRipple/>
+                            <Tab label="Cơ sở vật chất" disableRipple/>
+                            <Tab label="Chính sách" disableRipple/>
                             <Tab label="Đặt lịch tư vấn" disableRipple/>
                             <Tab label="Vị trí & bản đồ" disableRipple/>
                         </Tabs>
@@ -3339,16 +3644,36 @@ export default function SchoolSearchDetailView({
                             </Box>
 
                             <Box
-                                ref={detailCurriculumRef}
-                                id="school-detail-curriculum"
+                                ref={detailCampaignRef}
+                                id="school-detail-campaign"
                                 sx={{scrollMarginTop: {xs: 56, sm: 52}, mb: 3}}
                             >
-                                <SchoolCurriculumInfoCard
-                                    campaignTemplates={campaignTemplates}
-                                    campaignLoading={campaignLoading}
-                                    campaignError={campaignError}
-                                    curriculumList={school?.curriculumList}
-                                />
+                                <Box sx={detailMainColumnCardSx}>
+                                    <SchoolCurriculumInfoCard
+                                        campaignTemplates={campaignTemplates}
+                                        campaignLoading={campaignLoading}
+                                        campaignError={campaignError}
+                                        curriculumList={school?.curriculumList}
+                                        curriculumSectionRef={detailCurriculumRef}
+                                        embedded
+                                    />
+                                    <Divider sx={{...contactDividerSx, my: 2.5}}/>
+                                    <Box ref={detailFacilityRef} id="school-detail-facility" sx={{scrollMarginTop: {xs: 56, sm: 52}}}>
+                                        <SchoolFacilityInfoCard
+                                            school={school}
+                                            activeCampusIndex={campusDetailTabIndex}
+                                            embedded
+                                        />
+                                    </Box>
+                                    <Divider sx={{...contactDividerSx, my: 2.5}}/>
+                                    <Box ref={detailPolicyRef} id="school-detail-policy" sx={{scrollMarginTop: {xs: 56, sm: 52}}}>
+                                        <SchoolPolicyInfoCard
+                                            school={school}
+                                            activeCampusIndex={campusDetailTabIndex}
+                                            embedded
+                                        />
+                                    </Box>
+                                </Box>
                             </Box>
 
                             <Box

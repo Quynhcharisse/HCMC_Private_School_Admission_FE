@@ -4,10 +4,12 @@ import {
     Button,
     Card,
     CardContent,
+    Checkbox,
     Dialog,
     DialogActions,
     DialogContent,
     FormControl,
+    FormControlLabel,
     IconButton,
     InputLabel,
     LinearProgress,
@@ -131,6 +133,8 @@ function mapTemplate(row) {
               methodCode: String(t?.methodCode ?? "").trim(),
               startDate: normalizeDateLikeToIso(t?.startDate),
               endDate: normalizeDateLikeToIso(t?.endDate),
+              allowReservationSubmission: Boolean(t?.allowReservationSubmission),
+              quota: Number(t?.quota ?? 0),
           }))
         : [];
     return {
@@ -307,7 +311,7 @@ export default function SchoolCampaignDetail() {
         description: "",
         startDate: "",
         endDate: "",
-        admissionMethodTimelines: [{ methodCode: "", startDate: "", endDate: "" }],
+        admissionMethodTimelines: [{ methodCode: "", startDate: "", endDate: "", allowReservationSubmission: false, quota: "" }],
     });
     const [formErrors, setFormErrors] = useState({});
     /** Chiến dịch khác cùng năm đang OPEN (để đồng bộ validationUpdateAdmissionCampaignTemplate). */
@@ -320,12 +324,17 @@ export default function SchoolCampaignDetail() {
     const [cancelBlockedMessage, setCancelBlockedMessage] = useState("");
     const [postCancelChoiceOpen, setPostCancelChoiceOpen] = useState(false);
     const [selectedPostCancelOption, setSelectedPostCancelOption] = useState("");
-    const [confirmCloneOpen, setConfirmCloneOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
     const [cancelReasonError, setCancelReasonError] = useState("");
+    const [confirmCloneOpen, setConfirmCloneOpen] = useState(false);
+    const [cloneTargetYear, setCloneTargetYear] = useState("");
+    const [cloneYearError, setCloneYearError] = useState("");
     const [isInfoEditing, setIsInfoEditing] = useState(false);
     const [descriptionFieldKey, setDescriptionFieldKey] = useState(0);
     const [admissionMethodOptions, setAdmissionMethodOptions] = useState([]);
+    const [configuredTotalQuota, setConfiguredTotalQuota] = useState(0);
+    const clonedFromYear = location.state?.clonedFrom;
+    const openEditAfterClone = !!location.state?.openEdit;
 
     const idNum = campaignId ? parseInt(campaignId, 10) : NaN;
 
@@ -364,8 +373,10 @@ export default function SchoolCampaignDetail() {
                               methodCode: String(t?.methodCode ?? "").trim(),
                               startDate: String(t?.startDate ?? "").slice(0, 10),
                               endDate: String(t?.endDate ?? "").slice(0, 10),
+                              allowReservationSubmission: Boolean(t?.allowReservationSubmission),
+                              quota: t?.quota != null ? String(t?.quota) : "",
                           }))
-                        : [{ methodCode: "", startDate: "", endDate: "" }],
+                        : [{ methodCode: "", startDate: "", endDate: "", allowReservationSubmission: false, quota: "" }],
             });
             setLoadingCampaign(false);
             return;
@@ -387,8 +398,10 @@ export default function SchoolCampaignDetail() {
                                   methodCode: String(t?.methodCode ?? "").trim(),
                                   startDate: String(t?.startDate ?? "").slice(0, 10),
                                   endDate: String(t?.endDate ?? "").slice(0, 10),
+                                  allowReservationSubmission: Boolean(t?.allowReservationSubmission),
+                                  quota: t?.quota != null ? String(t?.quota) : "",
                               }))
-                            : [{ methodCode: "", startDate: "", endDate: "" }],
+                            : [{ methodCode: "", startDate: "", endDate: "", allowReservationSubmission: false, quota: "" }],
                 });
             } else setCampaign(null);
             setLoadingCampaign(false);
@@ -434,6 +447,8 @@ export default function SchoolCampaignDetail() {
                         methodCode: String(t?.methodCode ?? "").trim(),
                         startDate: String(t?.startDate ?? "").trim(),
                         endDate: String(t?.endDate ?? "").trim(),
+                        allowReservationSubmission: Boolean(t?.allowReservationSubmission),
+                        quota: String(t?.quota ?? "").trim(),
                     })
                 )
             ) !==
@@ -442,6 +457,8 @@ export default function SchoolCampaignDetail() {
                         methodCode: String(t?.methodCode ?? "").trim(),
                         startDate: String(t?.startDate ?? "").slice(0, 10),
                         endDate: String(t?.endDate ?? "").slice(0, 10),
+                        allowReservationSubmission: Boolean(t?.allowReservationSubmission),
+                        quota: String(t?.quota ?? "").trim(),
                     }))
                 )
         );
@@ -461,7 +478,13 @@ export default function SchoolCampaignDetail() {
     const handleTimelineChange = (index, field, value) => {
         setFormValues((prev) => {
             const next = Array.isArray(prev.admissionMethodTimelines) ? [...prev.admissionMethodTimelines] : [];
-            const row = next[index] || { methodCode: "", startDate: "", endDate: "" };
+            const row = next[index] || {
+                methodCode: "",
+                startDate: "",
+                endDate: "",
+                allowReservationSubmission: false,
+                quota: "",
+            };
             next[index] = { ...row, [field]: value };
             return { ...prev, admissionMethodTimelines: next };
         });
@@ -473,7 +496,7 @@ export default function SchoolCampaignDetail() {
             ...prev,
             admissionMethodTimelines: [
                 ...(Array.isArray(prev.admissionMethodTimelines) ? prev.admissionMethodTimelines : []),
-                { methodCode: "", startDate: "", endDate: "" },
+                { methodCode: "", startDate: "", endDate: "", allowReservationSubmission: false, quota: "" },
             ],
         }));
     };
@@ -484,7 +507,10 @@ export default function SchoolCampaignDetail() {
             const next = current.filter((_, i) => i !== index);
             return {
                 ...prev,
-                admissionMethodTimelines: next.length > 0 ? next : [{ methodCode: "", startDate: "", endDate: "" }],
+                admissionMethodTimelines:
+                    next.length > 0
+                        ? next
+                        : [{ methodCode: "", startDate: "", endDate: "", allowReservationSubmission: false, quota: "" }],
             };
         });
         setFormErrors((prev) => ({ ...prev, admissionMethodTimelines: undefined }));
@@ -539,6 +565,8 @@ export default function SchoolCampaignDetail() {
                     })
                     .filter(Boolean);
                 setAdmissionMethodOptions(options);
+                const tq = Number(adm?.totalQuota ?? adm?.quota ?? adm?.maxQuota ?? 0);
+                setConfiguredTotalQuota(Number.isFinite(tq) && tq > 0 ? tq : 0);
             })
             .catch(() => {
                 if (cancelled) return;
@@ -623,9 +651,11 @@ export default function SchoolCampaignDetail() {
                 const methodCode = String(row?.methodCode ?? "").trim();
                 const rowStartIso = String(row?.startDate ?? "").trim();
                 const rowEndIso = String(row?.endDate ?? "").trim();
+                const quotaNum = Number(row?.quota);
                 if (!methodCode) rowErr.methodCode = "Chọn phương thức tuyển sinh";
                 if (!rowStartIso) rowErr.startDate = "Chọn ngày bắt đầu";
                 if (!rowEndIso) rowErr.endDate = "Chọn ngày kết thúc";
+                if (!Number.isFinite(quotaNum) || quotaNum <= 0) rowErr.quota = "Nhập quota lớn hơn 0";
                 const rowStart = parseLocalDate(rowStartIso);
                 const rowEnd = parseLocalDate(rowEndIso);
                 if (rowStartIso && !rowStart) rowErr.startDate = "Ngày bắt đầu không hợp lệ";
@@ -672,8 +702,10 @@ export default function SchoolCampaignDetail() {
                               methodCode: String(t?.methodCode ?? "").trim(),
                               startDate: String(t?.startDate ?? "").slice(0, 10),
                               endDate: String(t?.endDate ?? "").slice(0, 10),
+                              allowReservationSubmission: Boolean(t?.allowReservationSubmission),
+                              quota: t?.quota != null ? String(t?.quota) : "",
                           }))
-                        : [{ methodCode: "", startDate: "", endDate: "" }],
+                        : [{ methodCode: "", startDate: "", endDate: "", allowReservationSubmission: false, quota: "" }],
             });
             return c;
         }
@@ -739,14 +771,17 @@ export default function SchoolCampaignDetail() {
 
     const runCancelCampaign = async () => {
         if (!templateId || isPastYearCampaign) return;
-        const reason = cancelReason.trim();
-        if (!reason) {
-            setCancelReasonError("Vui lòng nhập lý do hủy");
-            return;
-        }
+            // OPEN status requires reason, DRAFT does not
+            if (status === "OPEN") {
+                const reason = cancelReason.trim();
+                if (!reason) {
+                    setCancelReasonError("Vui lòng nhập lý do hủy");
+                    return;
+                }
+            }
         setSubmitLoading(true);
         try {
-            const res = await cancelCampaignTemplate(templateId, reason);
+                const res = await cancelCampaignTemplate(templateId, cancelReason.trim());
             if (res?.status >= 200 && res?.status < 300) {
                 enqueueSnackbar("Đã hủy chiến dịch thành công.", { variant: "success" });
                 resetCancelFlow();
@@ -787,11 +822,22 @@ export default function SchoolCampaignDetail() {
         }
     };
 
+    const openCloneConfirm = () => {
+        setCloneTargetYear(String(Number(campaign?.year) + 1));
+        setCloneYearError("");
+        setConfirmCloneOpen(true);
+    };
+
     const runCloneCampaign = async () => {
         if (!templateId || isPastYearCampaign) return;
+        const targetYear = Number.parseInt(String(cloneTargetYear), 10);
+        if (!Number.isFinite(targetYear) || targetYear <= 0) {
+            setCloneYearError("Vui lòng nhập năm học mục tiêu hợp lệ");
+            return;
+        }
         setSubmitLoading(true);
         try {
-            const res = await cloneCampaignTemplate(templateId);
+            const res = await cloneCampaignTemplate(templateId, targetYear);
             if (res?.status >= 200 && res?.status < 300) {
                 const body = res?.data?.body ?? res?.data ?? {};
                 const newId = Number(
@@ -803,8 +849,14 @@ export default function SchoolCampaignDetail() {
                 enqueueSnackbar(res?.data?.message || "Đã sao chép chiến dịch sang bản nháp mới.", {
                     variant: "success",
                 });
+                setConfirmCloneOpen(false);
+                setCloneTargetYear("");
+                setCloneYearError("");
                 if (Number.isFinite(newId) && newId > 0) {
-                    navigate(`/school/campaigns/detail/${newId}`);
+                    navigate(`/school/campaigns/detail/${newId}`, {
+                        replace: true,
+                        state: { clonedFrom: Number(campaign?.year), openEdit: true },
+                    });
                 } else {
                     await refreshCampaign();
                 }
@@ -840,6 +892,8 @@ export default function SchoolCampaignDetail() {
                     methodCode: String(t?.methodCode ?? "").trim(),
                     startDate: String(t?.startDate ?? "").trim(),
                     endDate: String(t?.endDate ?? "").trim(),
+                    allowReservationSubmission: Boolean(t?.allowReservationSubmission),
+                    quota: Number(t?.quota ?? 0),
                 })),
             });
             if (res?.status === 200 || res?.data) {
@@ -871,6 +925,12 @@ export default function SchoolCampaignDetail() {
     useEffect(() => {
         if (formLocked) setIsInfoEditing(false);
     }, [formLocked]);
+
+    useEffect(() => {
+        if (openEditAfterClone && campaign && !formLocked) {
+            setIsInfoEditing(true);
+        }
+    }, [openEditAfterClone, campaign, formLocked]);
 
     if (loadingCampaign) {
         return (
@@ -990,6 +1050,30 @@ export default function SchoolCampaignDetail() {
                     </Box>
                 </Box>
             </Card>
+
+            {clonedFromYear && (
+                <Box
+                    sx={{
+                        p: 2,
+                        borderRadius: "12px",
+                        bgcolor: "rgba(59, 130, 246, 0.08)",
+                        border: "1px solid rgba(59, 130, 246, 0.28)",
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 1.5,
+                    }}
+                >
+                    <Typography sx={{ fontSize: 20, lineHeight: 1, mt: 0.1 }}>ℹ️</Typography>
+                    <Box>
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: "#1d4ed8" }}>
+                            Bản nhân bản từ chiến dịch {clonedFromYear}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: "#374151", mt: 0.3 }}>
+                            Kiểm tra lại ngày và quota trước khi công bố.
+                        </Typography>
+                    </Box>
+                </Box>
+            )}
 
             <Card
                 elevation={0}
@@ -1112,16 +1196,21 @@ export default function SchoolCampaignDetail() {
                     </Stack>
                     <Box sx={{ mt: 2 }}>
                         <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
-                            <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
-                                Mốc theo phương thức tuyển sinh
-                            </Typography>
+                            <Box>
+                                <Typography variant="subtitle1" sx={{ fontWeight: 900, color: "#1e293b" }}>
+                                    Mốc theo phương thức tuyển sinh
+                                </Typography>
+                                <Typography variant="body2" sx={{ color: "#64748b", mt: 0.4 }}>
+                                    Thiết lập từng phương thức, thời gian áp dụng và quota.
+                                </Typography>
+                            </Box>
                             {isCampaignInfoEditable && (
                                 <Button
                                     size="small"
                                     variant="outlined"
                                     startIcon={<AddIcon />}
                                     onClick={addTimelineRow}
-                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2, whiteSpace: "nowrap" }}
                                 >
                                     Thêm phương thức
                                 </Button>
@@ -1145,11 +1234,11 @@ export default function SchoolCampaignDetail() {
                                     <Box
                                         key={`detail-timeline-${idx}`}
                                         sx={{
-                                            border: "1px solid #e2e8f0",
+                                            border: "1px solid #dbeafe",
                                             borderRadius: 2,
-                                            bgcolor: "#f8fafc",
+                                            bgcolor: "#f8fbff",
                                             px: 2,
-                                            py: 1.6,
+                                            py: 1.5,
                                         }}
                                     >
                                         <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
@@ -1171,60 +1260,172 @@ export default function SchoolCampaignDetail() {
                                                 </IconButton>
                                             )}
                                         </Stack>
-                                        <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ mt: 1 }}>
-                                            <FormControl fullWidth error={!!rowErr.methodCode}>
-                                                <InputLabel>Phương thức</InputLabel>
-                                                <Select
-                                                    value={row.methodCode || ""}
-                                                    label="Phương thức"
-                                                    onChange={(e) => handleTimelineChange(idx, "methodCode", e.target.value)}
-                                                    disabled={!isCampaignInfoEditable}
-                                                >
-                                                    {admissionMethodOptions
-                                                        .filter((opt) => !selectedCodes.includes(opt.value))
-                                                        .map((opt) => (
-                                                            <MenuItem key={opt.value} value={opt.value}>
-                                                                {opt.label}
-                                                            </MenuItem>
-                                                        ))}
-                                                </Select>
-                                                {!!rowErr.methodCode && (
-                                                    <Typography
-                                                        variant="caption"
-                                                        sx={{ color: "#d32f2f", ml: 1.2, mt: 0.5, display: "block" }}
-                                                    >
-                                                        {rowErr.methodCode}
+
+                                        <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mt: 1.2 }}>
+                                            <Card
+                                                variant="outlined"
+                                                sx={{
+                                                    flex: 1.6,
+                                                    borderRadius: 2,
+                                                    borderColor: "#dbeafe",
+                                                    bgcolor: "#ffffff",
+                                                    boxShadow: "0 6px 16px rgba(15, 23, 42, 0.03)",
+                                                }}
+                                            >
+                                                <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+                                                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800, display: "block", mb: 1 }}>
+                                                        Phương thức
                                                     </Typography>
-                                                )}
-                                            </FormControl>
-                                            <TextField
-                                                label="Bắt đầu"
-                                                type="date"
-                                                value={row.startDate || ""}
-                                                onChange={(e) => handleTimelineChange(idx, "startDate", e.target.value)}
-                                                InputLabelProps={{ shrink: true }}
-                                                error={!!rowErr.startDate}
-                                                helperText={rowErr.startDate}
-                                                fullWidth
-                                                InputProps={{ readOnly: !isCampaignInfoEditable }}
-                                            />
-                                            <TextField
-                                                label="Kết thúc"
-                                                type="date"
-                                                value={row.endDate || ""}
-                                                onChange={(e) => handleTimelineChange(idx, "endDate", e.target.value)}
-                                                InputLabelProps={{ shrink: true }}
-                                                error={!!rowErr.endDate}
-                                                helperText={rowErr.endDate}
-                                                fullWidth
-                                                InputProps={{ readOnly: !isCampaignInfoEditable }}
-                                            />
+                                                    <FormControl fullWidth error={!!rowErr.methodCode}>
+                                                        <InputLabel>Phương thức</InputLabel>
+                                                        <Select
+                                                            value={row.methodCode || ""}
+                                                            label="Phương thức"
+                                                            onChange={(e) => handleTimelineChange(idx, "methodCode", e.target.value)}
+                                                            disabled={!isCampaignInfoEditable}
+                                                        >
+                                                            {admissionMethodOptions
+                                                                .filter((opt) => !selectedCodes.includes(opt.value))
+                                                                .map((opt) => (
+                                                                    <MenuItem key={opt.value} value={opt.value}>
+                                                                        {opt.label}
+                                                                    </MenuItem>
+                                                                ))}
+                                                        </Select>
+                                                        {!!rowErr.methodCode && (
+                                                            <Typography
+                                                                variant="caption"
+                                                                sx={{ color: "#d32f2f", ml: 1.2, mt: 0.5, display: "block" }}
+                                                            >
+                                                                {rowErr.methodCode}
+                                                            </Typography>
+                                                        )}
+                                                    </FormControl>
+                                                </CardContent>
+                                            </Card>
+
+                                            <Card
+                                                variant="outlined"
+                                                sx={{
+                                                    flex: 1,
+                                                    borderRadius: 2,
+                                                    borderColor: "#dbeafe",
+                                                    bgcolor: "#ffffff",
+                                                    boxShadow: "0 6px 16px rgba(15, 23, 42, 0.03)",
+                                                }}
+                                            >
+                                                <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+                                                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800, display: "block", mb: 1 }}>
+                                                        Chỉ tiêu và giữ chỗ
+                                                    </Typography>
+                                                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }}>
+                                                        <TextField
+                                                            label="Quota"
+                                                            type="number"
+                                                            value={row.quota ?? ""}
+                                                            onChange={(e) => handleTimelineChange(idx, "quota", e.target.value)}
+                                                            inputProps={{ min: 1, step: 1 }}
+                                                            error={!!rowErr.quota}
+                                                            helperText={rowErr.quota}
+                                                            fullWidth
+                                                            InputProps={{ readOnly: !isCampaignInfoEditable }}
+                                                        />
+                                                        <FormControlLabel
+                                                            sx={{ m: 0, flexShrink: 0 }}
+                                                            control={
+                                                                <Checkbox
+                                                                    size="small"
+                                                                    checked={!!row.allowReservationSubmission}
+                                                                    onChange={(e) => handleTimelineChange(idx, "allowReservationSubmission", e.target.checked)}
+                                                                    disabled={!isCampaignInfoEditable}
+                                                                />
+                                                            }
+                                                            label="Cho phép nộp hồ sơ giữ chỗ"
+                                                        />
+                                                    </Stack>
+                                                </CardContent>
+                                            </Card>
                                         </Stack>
+
+                                        <Card
+                                            variant="outlined"
+                                            sx={{
+                                                mt: 1.5,
+                                                borderRadius: 2,
+                                                borderColor: "#dbeafe",
+                                                bgcolor: "#ffffff",
+                                                boxShadow: "0 6px 16px rgba(15, 23, 42, 0.03)",
+                                            }}
+                                        >
+                                            <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
+                                                <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800, display: "block", mb: 1 }}>
+                                                    Thời gian
+                                                </Typography>
+                                                <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                                                    <TextField
+                                                        label="Bắt đầu"
+                                                        type="date"
+                                                        value={row.startDate || ""}
+                                                        onChange={(e) => handleTimelineChange(idx, "startDate", e.target.value)}
+                                                        InputLabelProps={{ shrink: true }}
+                                                        error={!!rowErr.startDate}
+                                                        helperText={rowErr.startDate}
+                                                        fullWidth
+                                                        InputProps={{ readOnly: !isCampaignInfoEditable }}
+                                                    />
+                                                    <TextField
+                                                        label="Kết thúc"
+                                                        type="date"
+                                                        value={row.endDate || ""}
+                                                        onChange={(e) => handleTimelineChange(idx, "endDate", e.target.value)}
+                                                        InputLabelProps={{ shrink: true }}
+                                                        error={!!rowErr.endDate}
+                                                        helperText={rowErr.endDate}
+                                                        fullWidth
+                                                        InputProps={{ readOnly: !isCampaignInfoEditable }}
+                                                    />
+                                                </Stack>
+                                            </CardContent>
+                                        </Card>
                                     </Box>
                                 );
                             })}
                         </Stack>
                     </Box>
+                        {!formLocked && (() => {
+                            const allocated = (Array.isArray(formValues.admissionMethodTimelines) ? formValues.admissionMethodTimelines : [])
+                                .reduce((s, t) => s + (Number(t?.quota) || 0), 0);
+                            const max = configuredTotalQuota;
+                            const pct = max > 0 ? Math.min((allocated / max) * 100, 100) : 0;
+                            const barColor = max === 0 ? HEADER_ACCENT : allocated === max ? "#16a34a" : allocated < max ? "#d97706" : "#dc2626";
+                            const textColor = max === 0 ? HEADER_ACCENT : allocated === max ? "#16a34a" : allocated < max ? "#d97706" : "#dc2626";
+                            return (
+                                <Box sx={{ mt: 2.5, p: 2, borderRadius: 2, bgcolor: "rgba(13, 100, 222, 0.06)", border: "1px solid #dbeafe" }}>
+                                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: max > 0 ? 1 : 0.5 }}>
+                                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#1e293b" }}>
+                                            Tổng quota đã phân bổ
+                                        </Typography>
+                                        <Typography variant="subtitle2" sx={{ fontWeight: 700, color: textColor }}>
+                                            {allocated.toLocaleString("vi-VN")}{max > 0 ? ` / ${max.toLocaleString("vi-VN")}` : ""}
+                                        </Typography>
+                                    </Stack>
+                                    {max > 0 && (
+                                        <Box sx={{ height: 8, borderRadius: 4, bgcolor: "rgba(0,0,0,0.08)", overflow: "hidden", mb: 1 }}>
+                                            <Box sx={{ height: "100%", width: `${pct}%`, bgcolor: barColor, borderRadius: 4, transition: "width .3s ease, background-color .3s ease" }} />
+                                        </Box>
+                                    )}
+                                    <Typography variant="caption" sx={{ color: textColor, display: "block" }}>
+                                        {max === 0
+                                            ? "Tổng quota từ tất cả phương thức phải bằng tổng chỉ tiêu hệ thống"
+                                            : allocated === max
+                                            ? "✓ Đã phân bổ đủ quota"
+                                            : allocated < max
+                                            ? `Còn thiếu ${(max - allocated).toLocaleString("vi-VN")} chỉ tiêu`
+                                            : `Vượt quá ${(allocated - max).toLocaleString("vi-VN")} chỉ tiêu`}
+                                    </Typography>
+                                </Box>
+                            );
+                        })()}
                     <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 2 }}>
                         <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
                             {isPrimaryBranch && isDraft && !isPastYearCampaign && (
@@ -1246,7 +1447,7 @@ export default function SchoolCampaignDetail() {
                                     </Button>
                                     <Tooltip
                                         title={
-                                            isFormDirty
+                                            isInfoEditing && isFormDirty
                                                 ? "Vui lòng lưu thay đổi trước khi công bố chiến dịch."
                                                 : publishBlockedByPastEndDate
                                                 ? "Chiến dịch đã hết hạn, vui lòng cập nhật ngày kết thúc trước khi công bố."
@@ -1257,7 +1458,7 @@ export default function SchoolCampaignDetail() {
                                             <Button
                                                 variant="contained"
                                                 onClick={() => setConfirmPublishOpen(true)}
-                                                disabled={submitLoading || publishBlockedByPastEndDate || isFormDirty}
+                                                disabled={submitLoading || publishBlockedByPastEndDate || (isInfoEditing && isFormDirty)}
                                                 sx={{
                                                     textTransform: "none",
                                                     fontWeight: 600,
@@ -1272,26 +1473,41 @@ export default function SchoolCampaignDetail() {
                                 </>
                             )}
                             {isPrimaryBranch && status === "OPEN" && !isPastYearCampaign && (
-                                <Button
-                                    variant="outlined"
-                                    onClick={handleOpenCancelFlow}
-                                    disabled={submitLoading}
-                                    color="primary"
-                                    sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px" }}
-                                >
-                                    Cập nhật
-                                </Button>
+                                   <Tooltip title="Chiến dịch đang mở — chỉ có thể hủy">
+                                       <span>
+                                           <Button
+                                               variant="outlined"
+                                               onClick={handleOpenCancelFlow}
+                                               disabled={submitLoading}
+                                               color="error"
+                                               sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px" }}
+                                           >
+                                               Hủy
+                                           </Button>
+                                       </span>
+                                   </Tooltip>
                             )}
-                            {isPrimaryBranch && isCancelled && !isPastYearCampaign && (
-                                <Button
-                                    variant="outlined"
-                                    onClick={() => setConfirmCloneOpen(true)}
-                                    disabled={submitLoading}
-                                    sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px" }}
-                                >
-                                    Clone chiến dịch
-                                </Button>
-                            )}
+                                {isPrimaryBranch && isDraft && !isPastYearCampaign && (
+                                    <Button
+                                        variant="outlined"
+                                        onClick={handleOpenCancelFlow}
+                                        disabled={submitLoading}
+                                        color="error"
+                                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px" }}
+                                    >
+                                        Hủy
+                                    </Button>
+                                )}
+                                {isPrimaryBranch && (status === "OPEN" || isCancelled) && !isPastYearCampaign && (
+                                    <Button
+                                        variant="outlined"
+                                        onClick={openCloneConfirm}
+                                        disabled={submitLoading}
+                                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px", whiteSpace: "nowrap" }}
+                                    >
+                                        Nhân bản → {Number(campaign?.year) + 1}
+                                    </Button>
+                                )}
                         </Stack>
                     </Box>
                     {formErrors.year && (
@@ -1343,6 +1559,18 @@ export default function SchoolCampaignDetail() {
                         Bạn có chắc chắn muốn <ConfirmHighlight>công bố chiến dịch này</ConfirmHighlight>? Sau khi công bố sẽ{" "}
                         <ConfirmHighlight>không thể chỉnh sửa thông tin cơ bản</ConfirmHighlight>.
                     </Typography>
+                        <Box sx={{ mt: 2.5, p: 1.5, borderRadius: 1.5, bgcolor: "rgba(13, 100, 222, 0.06)", border: "1px solid #dbeafe" }}>
+                            <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                <Typography variant="body2" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                                    Tổng chỉ tiêu tuyển sinh:
+                                </Typography>
+                                <Typography variant="body2" sx={{ fontWeight: 700, color: HEADER_ACCENT }}>
+                                    {(Array.isArray(formValues.admissionMethodTimelines) ? formValues.admissionMethodTimelines : [])
+                                        .reduce((sum, t) => sum + (Number(t?.quota) || 0), 0)
+                                        .toLocaleString("vi-VN")}
+                                </Typography>
+                            </Stack>
+                        </Box>
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2 }}>
                     <Button
@@ -1425,9 +1653,23 @@ export default function SchoolCampaignDetail() {
                 {cancelFlowPhase === "confirm" && (
                     <>
                         <DialogContent sx={{ pt: 2.5 }}>
-                            <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                                Không thể cập nhật khi chiến dịch đang trong trạng thái mở. Vui lòng Huỷ trước khi cập nhật.
-                            </Typography>
+                                {isDraft ? (
+                                    <Typography variant="h6" sx={{ fontWeight: 700, textAlign: "center", color: "#1e293b" }}>
+                                        Bạn có chắc muốn hủy chiến dịch này?
+                                    </Typography>
+                                ) : (
+                                    <Stack spacing={1.5}>
+                                        <Typography variant="h6" sx={{ fontWeight: 700, color: "red" }}>
+                                            ⚠️ Bạn đang hủy chiến dịch ĐANG MỞ
+                                        </Typography>
+                                        <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6 }}>
+                                            Toàn bộ gói tuyển sinh sẽ bị đóng.
+                                        </Typography>
+                                        <Typography variant="body2" sx={{ fontWeight: 700, color: "#991b1b", lineHeight: 1.6 }}>
+                                            Hành động này không thể hoàn tác.
+                                        </Typography>
+                                    </Stack>
+                                )}
                         </DialogContent>
                         <DialogActions sx={{ px: 3, pb: 2.5, gap: 1, flexWrap: "wrap" }}>
                             <Button
@@ -1443,21 +1685,38 @@ export default function SchoolCampaignDetail() {
                             >
                                 Đóng
                             </Button>
-                            <Button
-                                variant="contained"
-                                onClick={() => {
-                                    setCancelReasonError("");
-                                    setCancelFlowPhase("reason");
-                                }}
-                                sx={{
-                                    textTransform: "none",
-                                    fontWeight: 600,
-                                    borderRadius: "12px",
-                                    bgcolor: HEADER_ACCENT,
-                                }}
-                            >
-                                Đã hiểu và tiếp tục Huỷ
-                            </Button>
+                                {isDraft ? (
+                                    <Button
+                                        variant="contained"
+                                        onClick={runCancelCampaign}
+                                        disabled={submitLoading}
+                                        sx={{
+                                            textTransform: "none",
+                                            fontWeight: 600,
+                                            borderRadius: "12px",
+                                            bgcolor: "#991b1b",
+                                            "&:hover": { bgcolor: "#7f1d1d" },
+                                        }}
+                                    >
+                                        Hủy chiến dịch
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        variant="contained"
+                                        onClick={() => {
+                                            setCancelReasonError("");
+                                            setCancelFlowPhase("reason");
+                                        }}
+                                        sx={{
+                                            textTransform: "none",
+                                            fontWeight: 600,
+                                            borderRadius: "12px",
+                                            bgcolor: HEADER_ACCENT,
+                                        }}
+                                    >
+                                        Đã hiểu và tiếp tục Huỷ
+                                    </Button>
+                                )}
                         </DialogActions>
                     </>
                 )}
@@ -1468,8 +1727,8 @@ export default function SchoolCampaignDetail() {
                             <Typography variant="h6" sx={{ fontWeight: 700 }}>
                                 Nhập lý do hủy
                             </Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.6 }}>
-                                Vui lòng nhập lý do hủy chiến dịch. Thông tin này được gửi kèm yêu cầu hủy tới hệ thống.
+                            <Typography variant="body2" color="text.secondary" sx={{ mt: 1, lineHeight: 1.6, color: "red" }}>
+                                Vui lòng nhập lý do hủy chiến dịch. Thông tin này được gửi kèm yêu cầu hủy tới hệ thống
                             </Typography>
                             <TextField
                                 label="Lý do hủy"
@@ -1517,6 +1776,64 @@ export default function SchoolCampaignDetail() {
                         </DialogActions>
                     </>
                 )}
+            </Dialog>
+
+            <Dialog
+                open={confirmCloneOpen}
+                onClose={(event, reason) => {
+                    if (reason === "backdropClick") return;
+                    if (submitLoading) return;
+                    setConfirmCloneOpen(false);
+                    setCloneTargetYear("");
+                    setCloneYearError("");
+                }}
+                fullWidth
+                maxWidth="sm"
+                PaperProps={{ sx: { borderRadius: "16px" } }}
+            >
+                <DialogContent sx={{ pt: 2.5 }}>
+                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
+                        Nhân bản chiến dịch?
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25, lineHeight: 1.6 }}>
+                        Chọn <ConfirmHighlight>năm học mục tiêu</ConfirmHighlight> để tạo một bản nháp mới từ chiến dịch này.
+                    </Typography>
+                    <TextField
+                        label="Năm học mục tiêu"
+                        type="number"
+                        fullWidth
+                        value={cloneTargetYear}
+                        onChange={(e) => {
+                            setCloneTargetYear(e.target.value);
+                            if (cloneYearError) setCloneYearError("");
+                        }}
+                        error={!!cloneYearError}
+                        helperText={cloneYearError || `Mặc định: ${Number(campaign?.year) + 1}`}
+                        inputProps={{ min: 1, step: 1 }}
+                        sx={{ mt: 2.5, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
+                    />
+                </DialogContent>
+                <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
+                    <Button
+                        onClick={() => {
+                            setConfirmCloneOpen(false);
+                            setCloneTargetYear("");
+                            setCloneYearError("");
+                        }}
+                        disabled={submitLoading}
+                        sx={{ textTransform: "none" }}
+                    >
+                        Đóng
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={runCloneCampaign}
+                        disabled={submitLoading}
+                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px", bgcolor: HEADER_ACCENT }}
+                    >
+                        {submitLoading ? "Đang nhân bản..." : "Xác nhận nhân bản"}
+                    </Button>
+                </DialogActions>
             </Dialog>
 
             <Dialog
@@ -1629,46 +1946,6 @@ export default function SchoolCampaignDetail() {
                 </DialogActions>
             </Dialog>
 
-            <Dialog
-                open={confirmCloneOpen}
-                onClose={(event, reason) => {
-                    if (reason === "backdropClick") return;
-                    if (!submitLoading) setConfirmCloneOpen(false);
-                }}
-                fullWidth
-                maxWidth="sm"
-                PaperProps={{ sx: { borderRadius: "16px" } }}
-            >
-                <DialogContent sx={{ pt: 2.5 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                        Xác nhận clone chiến dịch?
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25 }}>
-                        Bạn có chắc chắn muốn <ConfirmHighlight>sao chép chiến dịch này</ConfirmHighlight> để tạo{" "}
-                        <ConfirmHighlight>một bản nháp mới</ConfirmHighlight> không?
-                    </Typography>
-                </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2.5 }}>
-                    <Button
-                        onClick={() => setConfirmCloneOpen(false)}
-                        disabled={submitLoading}
-                        sx={{ textTransform: "none" }}
-                    >
-                        Đóng
-                    </Button>
-                    <Button
-                        variant="contained"
-                        onClick={async () => {
-                            await runCloneCampaign();
-                            setConfirmCloneOpen(false);
-                        }}
-                        disabled={submitLoading}
-                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px", bgcolor: HEADER_ACCENT }}
-                    >
-                        Xác nhận clone
-                    </Button>
-                </DialogActions>
-            </Dialog>
         </Box>
     );
 }
