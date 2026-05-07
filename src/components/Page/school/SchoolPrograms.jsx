@@ -1628,7 +1628,7 @@ export default function SchoolPrograms() {
         ? (originalCurriculumId ? curriculumOptions.find((c) => c.id === originalCurriculumId) : selectedCurriculum)
         : selectedCurriculum;
 
-    const coreLockedByActive =
+    const programLockedByActive =
         modalMode === "edit" && selectedProgram != null && normalizeStatus(selectedProgram.status) !== "PRO_DRAFT";
 
     return (
@@ -3239,21 +3239,12 @@ export default function SchoolPrograms() {
                                     return;
                                 }
 
-                                const rawBody = res?.data?.body ?? res?.data ?? {};
-                                const mapped = mapProgramFromApi(rawBody);
-                                if (!mapped) {
-                                    enqueueSnackbar("Đã nhân bản nhưng không đọc được dữ liệu bản sao mới.", {variant: "warning"});
-                                    return;
-                                }
-
-                                enqueueSnackbar(
-                                    "Thành công! Đã tạo bản sao mới. Bạn đang ở chế độ chỉnh sửa bản nháp.",
-                                    {variant: "success"}
-                                );
+                                enqueueSnackbar("Thành công! Đã tạo bản sao mới.", {variant: "success"});
                                 setCloneConfirmOpen(false);
                                 setCloneTargetProgram(null);
-
-                                await handleOpenEdit(mapped, {startStep: 0, markAsClonedDraft: true});
+                                setProgramModalOpen(false);
+                                setSelectedProgram(null);
+                                await loadData(page, rowsPerPage);
                             } catch (err) {
                                 console.error("Clone program error:", err);
                                 enqueueSnackbar(
