@@ -151,3 +151,25 @@ export const postParentAdmissionReservationForm = async (payload) => {
     const response = await axiosClient.post('/parent/admission/reservation/form', payload);
     return response || null;
 };
+
+export const getParentAdmissionReservationForms = async () => {
+    const response = await axiosClient.get('/parent/admission/reservation/form');
+    return response || null;
+};
+
+export function pickAdmissionReservationFormsFromResponse(response) {
+    const data = response?.data;
+    if (data == null) return [];
+    let inner = data.body ?? data;
+    if (typeof inner === 'string') {
+        try {
+            inner = JSON.parse(inner);
+        } catch {
+            return [];
+        }
+    }
+    if (inner && typeof inner === 'object' && !Array.isArray(inner) && Array.isArray(inner.body)) {
+        inner = inner.body;
+    }
+    return Array.isArray(inner) ? inner : [];
+}
