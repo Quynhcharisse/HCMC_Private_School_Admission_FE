@@ -843,67 +843,68 @@ export default function SchoolCurriculums() {
             handleOpenView(curriculum);
             return;
         }
-        if (normalizeStatus(curriculum?.curriculumStatus) === "CUR_ARCHIVED") {
+        const statusKey = normalizeStatus(curriculum?.curriculumStatus);
+        if (statusKey === "CUR_ACTIVE") {
             enqueueSnackbar(
-                "Không thể cập nhật khung chương trình đã được lưu trữ. Vui lòng tạo phiên bản mới hoặc sử dụng bản đang hoạt động.",
+                "Không thể chỉnh sửa khung đang hoạt động. Vui lòng dùng chức năng Nhân bản để tạo bản nháp mới.",
                 { variant: "warning" }
             );
             return;
         }
-        const statusKey = normalizeStatus(curriculum?.curriculumStatus);
-
-        if (statusKey === "CUR_ACTIVE") {
-            setCurriculumToEditAfterConfirm(curriculum);
-            setSelectedActiveLockedOption("");
-            setActiveLockedChoiceOpen(true);
+        if (statusKey === "CUR_ARCHIVED") {
+            enqueueSnackbar(
+                "Không thể cập nhật khung chương trình đã lưu trữ.",
+                { variant: "warning" }
+            );
             return;
         }
         handleOpenEdit(curriculum);
     };
 
-    const runReviseForCurriculum = async (base) => {
+    const runCloneForCurriculum = async (base, { closeViewModal = false } = {}) => {
         if (!isPrimaryBranch || !base) return;
         setEvolveLoading(true);
         try {
-            const reviseRes = await activateCurriculum(base.id, "REVISE");
-            const newDraftId = extractCurriculumIdFromResponse(reviseRes) ?? reviseRes?.data?.body;
+            const cloneRes = await activateCurriculum(base.id, "CLONE");
+            const newDraftId = extractCurriculumIdFromResponse(cloneRes) ?? cloneRes?.data?.body;
             if (!newDraftId) {
                 enqueueSnackbar(
-                    toVietnameseValidationMessage(getCurriculumApiMessage(reviseRes)) ||
+                    toVietnameseValidationMessage(getCurriculumApiMessage(cloneRes)) ||
                         "Đã tạo bản nháp mới nhưng không lấy được ID để mở chỉnh sửa.",
                     { variant: "warning" }
                 );
+                if (closeViewModal) {
+                    setViewModalOpen(false);
+                    setViewCurriculum(null);
+                }
                 await loadData(page, rowsPerPage);
                 return;
             }
-            const draftCurriculum = { ...base, id: Number(newDraftId), curriculumStatus: "CUR_DRAFT" };
-            setViewModalOpen(false);
-            setViewCurriculum(null);
-            handleOpenEdit(draftCurriculum);
-            enqueueSnackbar(
-                toVietnameseValidationMessage(getCurriculumApiMessage(reviseRes)) ||
-                    "Đã tạo bản nháp mới. Chỉnh sửa rồi công bố — khi đó bản đang chạy cùng loại + năm sẽ được lưu trữ và thay thế.",
-                { variant: "success" }
-            );
+            if (closeViewModal) {
+                setViewModalOpen(false);
+                setViewCurriculum(null);
+            }
+            enqueueSnackbar("Đã tạo bản nháp mới.", { variant: "success" });
             setCurriculumToEditAfterConfirm(null);
             await loadData(page, rowsPerPage);
         } catch (err) {
-            console.error("Evolve curriculum error:", err);
+            console.error("Clone curriculum error:", err);
             handleCurriculumActivateHttpError(err, {
                 on404: async (msg) => {
                     setCurriculumToEditAfterConfirm(null);
-                    setViewModalOpen(false);
-                    setViewCurriculum(null);
+                    if (closeViewModal) {
+                        setViewModalOpen(false);
+                        setViewCurriculum(null);
+                    }
                     await loadData(page, rowsPerPage);
                     enqueueSnackbar(msg || "Không tìm thấy khung chương trình.", { variant: "warning" });
                 },
                 on409: (raw) => {
-                    setActivateConflictText(
+                    enqueueSnackbar(
                         toVietnameseValidationMessage(raw) ||
-                            raw ||
-                            "Không thể thực hiện do xung đột dữ liệu. Kiểm tra chương trình đào tạo liên kết hoặc thử lại."
+                            "Đã tồn tại bản nháp. Vui lòng cập nhật bản nháp đó.",
+                        { variant: "warning" }
                     );
-                    setActivateConflictOpen(true);
                 },
             });
         } finally {
@@ -911,16 +912,10 @@ export default function SchoolCurriculums() {
         }
     };
 
-    const handleConfirmEvolve = async () => {
-        if (!curriculumToEditAfterConfirm) return;
-        await runReviseForCurriculum(curriculumToEditAfterConfirm);
-        setActiveLockedChoiceOpen(false);
-    };
-
-    const openReviseFromView = () => {
+    const openCloneFromView = () => {
         if (!isPrimaryBranch || !viewCurriculum) return;
         if (normalizeStatus(viewCurriculum.curriculumStatus) !== "CUR_ACTIVE") return;
-        void runReviseForCurriculum(viewCurriculum);
+        void runCloneForCurriculum(viewCurriculum, { closeViewModal: true });
     };
 
     const handleCloseCreate = () => {
@@ -1435,7 +1430,8 @@ export default function SchoolCurriculums() {
         }
     };
 
-    const isEditFieldsLocked = selectedCurriculum?.canEditIdentity === false || (selectedCurriculum?.programCount ?? 0) > 0;
+    const isStatusLocked = editModalOpen && selectedCurriculum != null && normalizeStatus(selectedCurriculum.curriculumStatus) !== "CUR_DRAFT";
+    const isEditFieldsLocked = isStatusLocked || selectedCurriculum?.canEditIdentity === false || (selectedCurriculum?.programCount ?? 0) > 0;
 
     const tableColSpan = isPrimaryBranch ? 7 : 6;
 
@@ -1764,23 +1760,24 @@ export default function SchoolCurriculums() {
                                                     >
                                                         <VisibilityIcon fontSize="small" />
                                                     </IconButton>
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleEditClick(row);
-                                                        }}
-                                                        sx={{
-                                                            color: "#64748b",
-                                                            "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" },
-                                                        }}
-                                                        title="Sửa / phiên bản"
-                                                    >
-                                                        <EditIcon fontSize="small" />
-                                                    </IconButton>
                                                     {normalizeStatus(row.curriculumStatus) === "CUR_DRAFT" && (
-                                                        <Tooltip title={PUBLISH_REPLACE_HINT} arrow>
-                                                            <span>
+                                                        <>
+                                                            <Tooltip title="Chỉnh sửa" arrow>
+                                                                <IconButton
+                                                                    size="small"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleEditClick(row);
+                                                                    }}
+                                                                    sx={{
+                                                                        color: "#64748b",
+                                                                        "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" },
+                                                                    }}
+                                                                >
+                                                                    <EditIcon fontSize="small" />
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                            <Tooltip title={PUBLISH_REPLACE_HINT} arrow>
                                                                 <IconButton
                                                                     size="small"
                                                                     onClick={(e) => {
@@ -1792,40 +1789,58 @@ export default function SchoolCurriculums() {
                                                                         color: "#64748b",
                                                                         "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" },
                                                                     }}
-                                                                    title="Công bố"
                                                                 >
                                                                     <FileUploadOutlinedIcon fontSize="small" />
                                                                 </IconButton>
-                                                            </span>
-                                                        </Tooltip>
+                                                            </Tooltip>
+                                                        </>
                                                     )}
                                                     {normalizeStatus(row.curriculumStatus) === "CUR_ACTIVE" && (
-                                                        <Tooltip
-                                                            title={
-                                                                row.programCount > 0
-                                                                    ? ARCHIVE_DISABLED_TOOLTIP
-                                                                    : "Lưu trữ khung (thủ công)"
-                                                            }
-                                                            arrow
-                                                        >
-                                                            <span>
-                                                                <IconButton
-                                                                    size="small"
-                                                                    disabled={row.programCount > 0}
+                                                        <>
+                                                            <Tooltip title="Nhân bản" arrow>
+                                                                <span
                                                                     onClick={(e) => {
                                                                         e.stopPropagation();
-                                                                        openArchiveConfirm(row);
                                                                     }}
-                                                                    sx={{
-                                                                        color: "#64748b",
-                                                                        "&:hover": { color: "#c2410c", bgcolor: "rgba(234, 88, 12, 0.1)" },
-                                                                    }}
-                                                                    title="Lưu trữ"
                                                                 >
-                                                                    <ArchiveOutlinedIcon fontSize="small" />
-                                                                </IconButton>
-                                                            </span>
-                                                        </Tooltip>
+                                                                    <IconButton
+                                                                        size="small"
+                                                                        disabled={evolveLoading}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            void runCloneForCurriculum(row);
+                                                                        }}
+                                                                        sx={{
+                                                                            color: "#64748b",
+                                                                            "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" },
+                                                                        }}
+                                                                    >
+                                                                        <DescriptionIcon fontSize="small" />
+                                                                    </IconButton>
+                                                                </span>
+                                                            </Tooltip>
+                                                            <Tooltip
+                                                                title={row.programCount > 0 ? ARCHIVE_DISABLED_TOOLTIP : "Lưu trữ"}
+                                                                arrow
+                                                            >
+                                                                <span>
+                                                                    <IconButton
+                                                                        size="small"
+                                                                        disabled={row.programCount > 0}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            openArchiveConfirm(row);
+                                                                        }}
+                                                                        sx={{
+                                                                            color: "#64748b",
+                                                                            "&:hover": { color: "#c2410c", bgcolor: "rgba(234, 88, 12, 0.1)" },
+                                                                        }}
+                                                                    >
+                                                                        <ArchiveOutlinedIcon fontSize="small" />
+                                                                    </IconButton>
+                                                                </span>
+                                                            </Tooltip>
+                                                        </>
                                                     )}
                                                 </Stack>
                                             </TableCell>
@@ -1860,113 +1875,7 @@ export default function SchoolCurriculums() {
                     )}
             </Card>
 
-            {/* Active Curriculum Update Options */}
-            <Dialog
-                open={activeLockedChoiceOpen}
-                onClose={(event, reason) => {
-                    if (reason === "backdropClick") return;
-                    if (evolveLoading) return;
-                    setActiveLockedChoiceOpen(false);
-                    setSelectedActiveLockedOption("");
-                    setCurriculumToEditAfterConfirm(null);
-                }}
-                fullWidth
-                maxWidth="sm"
-                PaperProps={{ sx: { borderRadius: "16px" } }}
-            >
-                <DialogContent sx={{ pt: 2.5 }}>
-                    <Typography variant="h6" sx={{ fontWeight: 700 }}>
-                        Không thể cập nhật Curriculum
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mt: 1.25, lineHeight: 1.6 }}>
-                        Không thể sửa trực tiếp khung đang hoạt động. Chọn tạo khung mới hoặc tạo bản nháp (Revise) từ bản đang chạy — sau
-                        khi chỉnh sửa, công bố bản nháp sẽ kích hoạt khung đó và lưu trữ bản đang chạy trước đó (cùng loại + năm áp dụng).
-                    </Typography>
-                    <Stack spacing={1.5} sx={{ mt: 2 }}>
-                        <Card
-                            elevation={0}
-                            onClick={() => setSelectedActiveLockedOption("create")}
-                            sx={{
-                                p: 2,
-                                borderRadius: "12px",
-                                border: "2px solid",
-                                borderColor: selectedActiveLockedOption === "create" ? HEADER_ACCENT : "transparent",
-                                cursor: "pointer",
-                                backgroundColor: selectedActiveLockedOption === "create" ? "rgba(13, 100, 222, 0.08)" : "#fff",
-                                boxShadow:
-                                    selectedActiveLockedOption === "create"
-                                        ? "0 0 0 1px rgba(13, 100, 222, 0.15)"
-                                        : "0 0 0 1px #e2e8f0",
-                                transition: "all 0.2s ease",
-                            }}
-                        >
-                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#1e293b" }}>
-                                Option 1
-                            </Typography>
-                            <Typography variant="body2" sx={{ mt: 0.5, color: "#475569" }}>
-                                Bạn có muốn Tạo khung chương trình mới
-                            </Typography>
-                        </Card>
-                        <Card
-                            elevation={0}
-                            onClick={() => setSelectedActiveLockedOption("revise")}
-                            sx={{
-                                p: 2,
-                                borderRadius: "12px",
-                                border: "2px solid",
-                                borderColor: selectedActiveLockedOption === "revise" ? HEADER_ACCENT : "transparent",
-                                cursor: "pointer",
-                                backgroundColor: selectedActiveLockedOption === "revise" ? "rgba(13, 100, 222, 0.08)" : "#fff",
-                                boxShadow:
-                                    selectedActiveLockedOption === "revise"
-                                        ? "0 0 0 1px rgba(13, 100, 222, 0.15)"
-                                        : "0 0 0 1px #e2e8f0",
-                                transition: "all 0.2s ease",
-                            }}
-                        >
-                            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#1e293b" }}>
-                                Option 2
-                            </Typography>
-                            <Typography variant="body2" sx={{ mt: 0.5, color: "#475569" }}>
-                                Bạn vẫn muốn giữ dữ liệu của khung chương trình hiện tại để clone cập nhật
-                            </Typography>
-                        </Card>
-                    </Stack>
-                </DialogContent>
-                <DialogActions sx={{ px: 3, pb: 2.5, gap: 1, flexWrap: "wrap" }}>
-                    <Button
-                        onClick={() => {
-                            if (evolveLoading) return;
-                            setActiveLockedChoiceOpen(false);
-                            setSelectedActiveLockedOption("");
-                            setCurriculumToEditAfterConfirm(null);
-                        }}
-                        disabled={evolveLoading}
-                        sx={{ textTransform: "none", color: "#64748b" }}
-                    >
-                        Đóng
-                    </Button>
-                    <Button
-                        variant="contained"
-                        onClick={async () => {
-                            if (!selectedActiveLockedOption) return;
-                            if (selectedActiveLockedOption === "create") {
-                                setActiveLockedChoiceOpen(false);
-                                setSelectedActiveLockedOption("");
-                                setCurriculumToEditAfterConfirm(null);
-                                handleOpenCreate();
-                                return;
-                            }
-                            await handleConfirmEvolve();
-                            setSelectedActiveLockedOption("");
-                        }}
-                        disabled={evolveLoading || !selectedActiveLockedOption}
-                        sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px", bgcolor: HEADER_ACCENT }}
-                    >
-                        {evolveLoading ? "Đang xử lý..." : "Tiếp tục"}
-                    </Button>
-                </DialogActions>
-            </Dialog>
+            {/* activeLockedChoiceOpen dialog removed — ACTIVE edit now blocked with toast; Clone is direct action */}
 
             {/* View Curriculum Dialog */}
             <Dialog
@@ -2385,73 +2294,71 @@ export default function SchoolCurriculums() {
                     >
                         Đóng
                     </Button>
-                    {isPrimaryBranch && normalizeStatus(viewCurriculum?.curriculumStatus) === "CUR_ACTIVE" && (
-                        <Button
-                            onClick={openReviseFromView}
-                            variant="outlined"
-                            disabled={evolveLoading || publishLoading}
-                            sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
-                        >
-                            {evolveLoading ? "Đang tạo nháp…" : "Phiên bản mới (Revise)"}
-                        </Button>
-                    )}
                     {isPrimaryBranch && normalizeStatus(viewCurriculum?.curriculumStatus) === "CUR_DRAFT" && (
-                        <Button
-                            onClick={() => {
-                                setViewModalOpen(false);
-                                setConfirmPublishOpen(false);
-                                setPublishPendingCurriculum(null);
-                                handleEditClick(viewCurriculum);
-                            }}
-                            variant="outlined"
-                            disabled={publishLoading || archiveLoading || evolveLoading}
-                            sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
-                        >
-                            Chỉnh sửa
-                        </Button>
+                        <>
+                            <Button
+                                onClick={() => {
+                                    setViewModalOpen(false);
+                                    setConfirmPublishOpen(false);
+                                    setPublishPendingCurriculum(null);
+                                    handleEditClick(viewCurriculum);
+                                }}
+                                variant="outlined"
+                                disabled={publishLoading || archiveLoading || evolveLoading}
+                                sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                            >
+                                Chỉnh sửa
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    setPublishPendingCurriculum(viewCurriculum);
+                                    setConfirmPublishOpen(true);
+                                }}
+                                variant="contained"
+                                disabled={publishLoading || evolveLoading}
+                                sx={{
+                                    textTransform: "none",
+                                    fontWeight: 900,
+                                    borderRadius: 2,
+                                    px: 3,
+                                    background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
+                                }}
+                            >
+                                Công bố
+                            </Button>
+                        </>
                     )}
                     {isPrimaryBranch && normalizeStatus(viewCurriculum?.curriculumStatus) === "CUR_ACTIVE" && (
-                        <Tooltip
-                            title={
-                                Number(viewCurriculum?.programCount || 0) > 0
-                                    ? ARCHIVE_DISABLED_TOOLTIP
-                                    : "Đưa khung vào trạng thái lưu trữ (do trường quản lý)"
-                            }
-                            arrow
-                        >
-                            <span>
-                                <Button
-                                    onClick={() => openArchiveConfirm(viewCurriculum)}
-                                    variant="outlined"
-                                    color="warning"
-                                    disabled={
-                                        Number(viewCurriculum?.programCount || 0) > 0 || archiveLoading || evolveLoading
-                                    }
-                                    sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
-                                >
-                                    Lưu trữ
-                                </Button>
-                            </span>
-                        </Tooltip>
-                    )}
-                    {isPrimaryBranch && normalizeStatus(viewCurriculum?.curriculumStatus) === "CUR_DRAFT" && (
-                        <Button
-                            onClick={() => {
-                                setPublishPendingCurriculum(viewCurriculum);
-                                setConfirmPublishOpen(true);
-                            }}
-                            variant="contained"
-                            disabled={publishLoading || evolveLoading}
-                            sx={{
-                                textTransform: "none",
-                                fontWeight: 900,
-                                borderRadius: 2,
-                                px: 3,
-                                background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
-                            }}
-                        >
-                            Công bố
-                        </Button>
+                        <>
+                            <Button
+                                onClick={openCloneFromView}
+                                variant="outlined"
+                                disabled={evolveLoading || publishLoading}
+                                sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                            >
+                                {evolveLoading ? "Đang tạo nháp…" : "Nhân bản"}
+                            </Button>
+                            <Tooltip
+                                title={
+                                    Number(viewCurriculum?.programCount || 0) > 0
+                                        ? ARCHIVE_DISABLED_TOOLTIP
+                                        : "Đưa khung vào trạng thái lưu trữ"
+                                }
+                                arrow
+                            >
+                                <span>
+                                    <Button
+                                        onClick={() => openArchiveConfirm(viewCurriculum)}
+                                        variant="outlined"
+                                        color="warning"
+                                        disabled={Number(viewCurriculum?.programCount || 0) > 0 || archiveLoading || evolveLoading}
+                                        sx={{ textTransform: "none", fontWeight: 700, borderRadius: 2 }}
+                                    >
+                                        Lưu trữ
+                                    </Button>
+                                </span>
+                            </Tooltip>
+                        </>
                     )}
                 </DialogActions>
             </Dialog>
