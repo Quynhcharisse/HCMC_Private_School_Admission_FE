@@ -32,6 +32,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import PersonIcon from '@mui/icons-material/Person';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import EventAvailableIcon from '@mui/icons-material/EventAvailable';
+import AssignmentTurnedInRoundedIcon from '@mui/icons-material/AssignmentTurnedInRounded';
 import ChatBubbleRoundedIcon from "@mui/icons-material/ChatBubbleRounded";
 import NotificationsNoneRoundedIcon from "@mui/icons-material/NotificationsNoneRounded";
 import SearchIcon from "@mui/icons-material/Search";
@@ -3929,6 +3930,27 @@ function MainHeader() {
                                             <MenuItem
                                                 onClick={() => {
                                                     handleUserMenuClose();
+                                                    goTo('/parent/admission-reservations');
+                                                }}
+                                                sx={{
+                                                    fontSize: 15,
+                                                    fontWeight: 500,
+                                                    color: BRAND_NAVY,
+                                                    borderRadius: 1,
+                                                    gap: 1.5,
+                                                    mt: 0.5,
+                                                    '&:hover': {
+                                                        bgcolor: 'rgba(59,130,246,0.08)',
+                                                        color: APP_PRIMARY_DARK,
+                                                    },
+                                                    transition: 'background 0.2s, color 0.2s',
+                                                }}
+                                            >
+                                                <AssignmentTurnedInRoundedIcon sx={{color: BRAND_NAVY, fontSize: 20}}/> Quản lý đơn đăng ký
+                                            </MenuItem>
+                                            <MenuItem
+                                                onClick={() => {
+                                                    handleUserMenuClose();
                                                     goTo('/parent/offline-consultations');
                                                 }}
                                                 sx={{
@@ -4206,6 +4228,24 @@ function MainHeader() {
                                             >
                                                 <ListItemText 
                                                     primary="Thông tin con"
+                                                    sx={{color: BRAND_NAVY, fontWeight: 600}}
+                                                />
+                                            </ListItem>
+                                            <ListItem
+                                                onClick={() => goTo('/parent/admission-reservations')}
+                                                sx={{cursor: 'pointer'}}
+                                            >
+                                                <ListItemText
+                                                    primary="Quản lý đơn đăng ký"
+                                                    sx={{color: BRAND_NAVY, fontWeight: 600}}
+                                                />
+                                            </ListItem>
+                                            <ListItem
+                                                onClick={() => goTo('/parent/offline-consultations')}
+                                                sx={{cursor: 'pointer'}}
+                                            >
+                                                <ListItemText
+                                                    primary="Lịch tư vấn trực tiếp"
                                                     sx={{color: BRAND_NAVY, fontWeight: 600}}
                                                 />
                                             </ListItem>

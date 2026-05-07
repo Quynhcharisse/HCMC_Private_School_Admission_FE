@@ -60,6 +60,7 @@ export const isRouteAllowedForRole = (path, role) => {
             '/posts',
             '/parent/profile',
             '/parent/offline-consultations',
+            '/parent/admission-reservations',
             '/children-info',
             '/saved-schools',
             '/compare-schools',

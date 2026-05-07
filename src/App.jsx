@@ -78,6 +78,9 @@ const CompareSchoolsPage = lazy(() => import("./components/Page/CompareSchoolsPa
 const ParentOfflineConsultationsPage = lazy(() =>
   import("./components/Page/ParentOfflineConsultationsPage.jsx")
 );
+const ParentAdmissionReservationsPage = lazy(() =>
+  import("./components/Page/ParentAdmissionReservationsPage.jsx")
+);
 const ChildrenInfoPage = lazy(() => import("./components/Page/ChildrenInfoPage.jsx"));
 const PackageFeesPage = lazy(() => import("./components/Page/PackageFeesPage.jsx"));
 const VnpayPaymentResultPage = lazy(() => import("./components/Page/payment/VnpayPaymentResultPage.jsx"));
@@ -741,6 +744,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <ParentOfflineConsultationsPage/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'admission-reservations',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <ParentAdmissionReservationsPage/>
                     </Suspense>
                 )
             }
