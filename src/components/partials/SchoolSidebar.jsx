@@ -22,6 +22,7 @@ import ApartmentIcon from "@mui/icons-material/Apartment";
 import SupportAgentIcon from "@mui/icons-material/SupportAgent";
 import EventAvailableIcon from "@mui/icons-material/EventAvailable";
 import CampaignIcon from "@mui/icons-material/Campaign";
+import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import ViewAgendaIcon from "@mui/icons-material/ViewAgenda";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
@@ -264,6 +265,7 @@ const menuGroupsBase = [
         items: [
             { text: "Chiến dịch tuyển sinh", icon: <CampaignIcon />, path: "/school/campaigns" },
             { text: "Chỉ tiêu tuyển sinh", icon: <ViewAgendaIcon />, path: "/school/campaign-offerings" },
+            { text: "Duyệt hồ sơ nhập học", icon: <FactCheckOutlinedIcon />, path: "/school/admission-reservations" },
         ],
     },
     {

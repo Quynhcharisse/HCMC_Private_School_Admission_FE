@@ -873,8 +873,8 @@ export default function CampaignOfferingsSection({
                         )}
                     </Box>
                 </Box>
-                <CardContent sx={{ p: 2.5, pt: 1.5, pb: 2 }}>
-                    <Stack direction={{ xs: "column", md: "row" }} spacing={2} flexWrap="wrap">
+                <CardContent sx={{ p: 2.5, pt: 1.5, pb: 2, overflowX: "auto" }}>
+                    <Stack direction="row" spacing={2} flexWrap="nowrap" sx={{ minWidth: "max-content" }}>
                         {typeof onCampaignChange === "function" ? (
                             <FormControl size="small" sx={{ minWidth: 260 }} disabled={campaignOptionsLoading}>
                                 <InputLabel>Chiến dịch tuyển sinh</InputLabel>
