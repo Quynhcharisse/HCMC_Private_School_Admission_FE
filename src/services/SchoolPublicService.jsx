@@ -94,3 +94,10 @@ export async function searchNearbyCampuses({lat, lng, radius = 10}) {
     }
     throw lastError ?? new Error("Không gọi được API tìm campus lân cận.");
 }
+
+export async function getLanguageOptions() {
+    const response = await axiosClient.get("/school/public/language-options");
+    const body = response?.data?.body;
+    if (Array.isArray(body)) return body;
+    return [];
+}
