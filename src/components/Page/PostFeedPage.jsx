@@ -23,7 +23,9 @@ import {
     ChevronRight as ChevronRightIcon,
     Close as CloseIcon,
     ZoomIn as ZoomInIcon,
-    ZoomOut as ZoomOutIcon
+    ZoomOut as ZoomOutIcon,
+    InsertDriveFileOutlined as FileIcon,
+    OpenInNew as OpenInNewIcon
 } from "@mui/icons-material";
 import {disablePostStatus, getPostList} from "../../services/PostService.jsx";
 import {APP_PRIMARY_MAIN, BRAND_NAVY} from "../../constants/homeLandingTheme";
@@ -176,6 +178,22 @@ function extractPostImageUrls(raw) {
     return deepUrls.filter((u) => u !== thumbnail);
 }
 
+function getFileDisplayName(url) {
+    try {
+        const pathname = new URL(url).pathname;
+        const name = decodeURIComponent(pathname.split("/").pop() || "");
+        return name || "Tải file đính kèm";
+    } catch {
+        return "Tải file đính kèm";
+    }
+}
+
+function getFileTypeLabel(url) {
+    const m = String(url || "").match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|csv|zip|rar)(\?|#|$)/i);
+    if (!m) return "FILE";
+    return m[1].toUpperCase();
+}
+
 function mapApiPostToFeedItem(raw) {
     const title = removeGmtPlus7(String(raw?.content?.shortDescription ?? "").trim()) || "Không có tiêu đề";
     const list = raw?.content?.contentDataList;
@@ -200,6 +218,8 @@ function mapApiPostToFeedItem(raw) {
     const authorName = String(raw?.author?.name ?? "").trim();
     const isAdminPost = authorName.toLowerCase() === "hệ thống edubridge";
 
+    const fileUrl = String(raw?.fileUrl ?? raw?.content?.fileUrl ?? "").trim() || null;
+
     return {
         id: raw?.id,
         title,
@@ -211,7 +231,8 @@ function mapApiPostToFeedItem(raw) {
         tags,
         heroImage,
         detailImages,
-        contentBlocks
+        contentBlocks,
+        fileUrl,
     };
 }
 
@@ -295,6 +316,41 @@ function FeedPostCard({post, onOpen, onDisable, disableLoading = false, canDisab
                     dangerouslySetInnerHTML={{__html: post.captionHtml || post.caption || "Bài viết chưa có mô tả."}}
                 />
                 <Typography sx={{fontSize: "0.86rem", color: APP_PRIMARY_MAIN, fontWeight: 700, mb: 1.25}}>{firstTagLine}</Typography>
+
+                {post.fileUrl ? (
+                    <Box
+                        component="a"
+                        href={post.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        sx={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 1,
+                            mb: 1.25,
+                            px: 1.5,
+                            py: 0.9,
+                            borderRadius: 2,
+                            border: "1px solid #e2e8f0",
+                            bgcolor: "#f8fafc",
+                            textDecoration: "none",
+                            color: "#1e293b",
+                            transition: "background-color 150ms ease, border-color 150ms ease",
+                            "&:hover": {bgcolor: "#eef4ff", borderColor: "#93c5fd"},
+                        }}
+                    >
+                        <FileIcon sx={{fontSize: 20, color: APP_PRIMARY_MAIN, flexShrink: 0}} />
+                        <Box sx={{minWidth: 0}}>
+                            <Typography sx={{fontWeight: 700, fontSize: "0.85rem", color: "#1e293b", lineHeight: 1.3}} noWrap>
+                                {getFileDisplayName(post.fileUrl)}
+                            </Typography>
+                            <Typography sx={{fontSize: "0.75rem", color: "#64748b", fontWeight: 600}}>
+                                {getFileTypeLabel(post.fileUrl)} · Nhấn để mở
+                            </Typography>
+                        </Box>
+                        <OpenInNewIcon sx={{fontSize: 15, color: "#94a3b8", flexShrink: 0, ml: "auto"}} />
+                    </Box>
+                ) : null}
 
                 {heroImage ? (
                     <Box
