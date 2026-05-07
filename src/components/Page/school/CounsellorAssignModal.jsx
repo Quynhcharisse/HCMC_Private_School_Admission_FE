@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Alert,
   Avatar,
@@ -20,6 +21,7 @@ import {
   Stack,
   Switch,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
@@ -215,6 +217,8 @@ export default function CounsellorAssignModal({
   const [submitting, setSubmitting] = useState(false);
   const [rangeError, setRangeError] = useState("");
   const [holidayWarningLabels, setHolidayWarningLabels] = useState([]);
+  const [holidayLoaded, setHolidayLoaded] = useState(false);
+  const navigate = useNavigate();
   const [campaignOptions, setCampaignOptions] = useState([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState("");
   /** Chế độ «trọn phạm vi học kỳ trên máy chủ» vs nhập tay — chỉ ASSIGN khi đã bật HK đủ term */
@@ -248,6 +252,7 @@ export default function CounsellorAssignModal({
     setRowConflict({});
     setRangeError("");
     setHolidayWarningLabels([]);
+    setHolidayLoaded(false);
     setCampaignOptions([]);
     setSelectedCampaignId("");
 
@@ -285,6 +290,7 @@ export default function CounsellorAssignModal({
         const pre = counsellorIntersectionAcrossPairs(assignedRows, schedulePairs);
         setSelected(pre);
         setHolidayWarningLabels(Array.isArray(holidays) ? holidays : []);
+        setHolidayLoaded(true);
         const normalizedCampaigns = (Array.isArray(campaigns) ? campaigns : [])
           .map((raw) => {
             const id = campaignIdOf(raw);
@@ -310,6 +316,7 @@ export default function CounsellorAssignModal({
       .catch(() => {
         setList([]);
         setSelected(new Set());
+        setHolidayLoaded(true); // fail-open: không block UI khi lỗi mạng
         enqueueSnackbar("Không tải được danh sách tư vấn viên hoặc lịch gán.", { variant: "error" });
       })
       .finally(() => setLoading(false));
@@ -457,7 +464,31 @@ export default function CounsellorAssignModal({
         }
       }
     } catch (e) {
+      const status = e?.response?.status ?? 0;
       const raw = e?.response?.data?.message ?? e?.message ?? "";
+      const isHolidayError =
+        status === 400 &&
+        /ngh[iỉ].*l[eễ]|holiday|ng[àa]y ngh[iỉ]/i.test(raw);
+      if (isHolidayError) {
+        enqueueSnackbar(
+          raw || "Lịch gán trùng ngày nghỉ lễ. Vui lòng thiết lập lịch nghỉ trước.",
+          {
+            variant: "warning",
+            action: (key) => (
+              <Button
+                size="small"
+                sx={{ color: "#fff", fontWeight: 600, textTransform: "none" }}
+                onClick={() => {
+                  navigate("../holiday-settings", { state: { needsHoliday: true } });
+                }}
+              >
+                Thiết lập lịch nghỉ
+              </Button>
+            ),
+          }
+        );
+        return;
+      }
       const hints = parseBusyCounsellorHints(raw);
       const next = {};
       for (const c of list) {
@@ -758,21 +789,32 @@ export default function CounsellorAssignModal({
         <Button onClick={() => !submitting && onClose()} sx={{ textTransform: "none", color: "#64748B" }}>
           Hủy
         </Button>
-        <Button
-          variant="contained"
-          onClick={handleAssign}
-          disabled={submitting || loading}
-          sx={{
-            textTransform: "none",
-            fontWeight: 600,
-            borderRadius: "10px",
-            bgcolor: PRIMARY,
-            boxShadow: "none",
-            "&:hover": { bgcolor: "#0a52bd", boxShadow: "none" },
-          }}
+        <Tooltip
+          title={
+            holidayLoaded && holidayWarningLabels.length === 0
+              ? "Chưa cấu hình lịch nghỉ lễ. Vui lòng thiết lập trước khi gán."
+              : ""
+          }
+          disableHoverListener={!holidayLoaded || holidayWarningLabels.length > 0}
         >
-          Gán ngay
-        </Button>
+          <span>
+            <Button
+              variant="contained"
+              onClick={handleAssign}
+              disabled={submitting || loading || (holidayLoaded && holidayWarningLabels.length === 0)}
+              sx={{
+                textTransform: "none",
+                fontWeight: 600,
+                borderRadius: "10px",
+                bgcolor: PRIMARY,
+                boxShadow: "none",
+                "&:hover": { bgcolor: "#0a52bd", boxShadow: "none" },
+              }}
+            >
+              Gán ngay
+            </Button>
+          </span>
+        </Tooltip>
       </DialogActions>
     </Dialog>
   );

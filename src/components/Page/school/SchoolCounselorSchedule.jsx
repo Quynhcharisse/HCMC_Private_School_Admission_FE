@@ -1450,8 +1450,8 @@ export default function SchoolCounselorSchedule() {
         const renderGridCell = (slot, day) => {
             if (!slot) {
                 return (
-                    <Box sx={{minHeight: 46, display: "flex", alignItems: "center", justifyContent: "center"}}>
-                        <Typography variant="caption" sx={{color: "#94A3B8", fontWeight: 600}}>
+                    <Box sx={{minHeight: 52, display: "flex", alignItems: "center", justifyContent: "center"}}>
+                        <Typography variant="caption" sx={{color: "#CBD5E1", fontWeight: 500, letterSpacing: "0.04em"}}>
                             —
                         </Typography>
                     </Box>
@@ -1461,7 +1461,6 @@ export default function SchoolCounselorSchedule() {
             const tipCampus =
                 campusLabel ||
                 displayCampusConfigName(activeCampus?.campusName ?? activeCampus?.campus_name, activeCampusIndex);
-            const tip = [`${slot.startTime} – ${slot.endTime}`, sessionTypeLabel(slot.sessionType), tipCampus].join(" · ");
             const tplId = Number(slot.id ?? slot.templateId);
             const mapKey = Number.isFinite(tplId) && tplId > 0 ? `${tplId}|${day}` : null;
             const assigns = counsellor && mapKey && counsellor.map?.has(mapKey) ? [...counsellor.map.get(mapKey)] : [];
@@ -1469,6 +1468,11 @@ export default function SchoolCounselorSchedule() {
             const selKey = slotGridSelectionKey(slot, day);
             const isSlotSelected = Boolean(multiSelectMode && selKey && selectedFrameKeys.has(selKey));
             const cellAssignSummary = assigns.length > 0 ? summarizeGridCellAssignments(assigns) : null;
+            const hasAssign = assigns.length > 0;
+            // Số TV duy nhất được gán vào slot này (nhiều range có thể cùng TV)
+            const uniqueCounsellorCount = hasAssign
+                ? new Set(assigns.map((r) => r?.counsellorId ?? r?.counsellor?.id ?? r?.id)).size
+                : 0;
             const activate = () => {
                 if (showCounsellorUi) {
                     setScheduleDetail({open: true, slot, day});
@@ -1476,6 +1480,27 @@ export default function SchoolCounselorSchedule() {
                 }
                 if (!readOnly) openEdit(slot, day);
             };
+            const tip = [
+                `${slot.startTime} – ${slot.endTime}`,
+                sessionTypeLabel(slot.sessionType),
+                tipCampus,
+                hasAssign
+                    ? `${cellAssignSummary?.distinctRangeCount ?? 1} khoảng gán · ${uniqueCounsellorCount} tư vấn viên`
+                    : "Chưa có tư vấn viên",
+            ].join(" · ");
+
+            // Màu border & badge dựa trên trạng thái gán
+            const assignBorderColor = isSlotSelected
+                ? PRIMARY
+                : hasAssign
+                ? "rgba(22, 163, 74, 0.55)"
+                : colors.border;
+            const assignBg = isSlotSelected
+                ? `linear-gradient(145deg, ${PRIMARY_SOFT} 0%, rgba(13,100,222,0.05) 100%)`
+                : hasAssign
+                ? "linear-gradient(145deg, #F0FDF4 0%, #DCFCE7 100%)"
+                : colors.bg;
+
             return (
                 <Tooltip title={tip} placement="top" arrow>
                     <Box
@@ -1515,40 +1540,74 @@ export default function SchoolCounselorSchedule() {
                                 }
                         }
                         sx={{
-                            px: 0.7,
-                            py: 0.5,
-                            borderRadius: "8px",
-                            background: colors.bg,
-                            border: isSlotSelected ? `2px solid ${PRIMARY}` : `1px solid ${colors.border}`,
+                            px: 1,
+                            py: 0.75,
+                            minHeight: 52,
+                            borderRadius: "10px",
+                            background: assignBg,
+                            border: isSlotSelected ? `2px solid ${assignBorderColor}` : `1.5px solid ${assignBorderColor}`,
                             cursor: readOnly ? "default" : "pointer",
                             transition: "all .2s ease",
-                            "&:hover": readOnly ? {} : {boxShadow: SHADOW_SM, transform: "translateY(-1px)"},
+                            position: "relative",
+                            "&:hover": readOnly ? {} : {
+                                boxShadow: SHADOW_SM,
+                                transform: "translateY(-1px)",
+                                borderColor: hasAssign ? "rgba(22,163,74,0.8)" : PRIMARY,
+                            },
                         }}
                     >
-                        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={0.5}>
-                            <Typography sx={{fontSize: "0.7rem", fontWeight: 700, color: "#0f172a"}}>
-                                {sessionTypeLabel(slot.sessionType)}
-                            </Typography>
-                            {showCounsellorUi && slotIsActive(slot) ? (
-                                <IconButton
-                                    size="small"
-                                    aria-label="Menu khung giờ"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setSlotActionsMenu({anchorEl: e.currentTarget, slot, day});
-                                    }}
-                                    sx={{p: 0.25, color: "#64748B"}}
-                                >
-                                    <MoreVertIcon sx={{fontSize: 16}}/>
-                                </IconButton>
-                            ) : null}
-                        </Stack>
-                        <Typography sx={{fontSize: "0.68rem", color: "#475569", mt: 0.15}}>
+                        {/* Thời gian khung giờ */}
+                        <Typography sx={{fontSize: "0.72rem", fontWeight: 700, color: "#0f172a", lineHeight: 1.3}}>
                             {slot.startTime} – {slot.endTime}
                         </Typography>
+
+                        {/* Trạng thái tư vấn viên */}
                         {showCounsellorUi ? (
-                            <Typography variant="caption" sx={{display: "block", mt: 0.25, color: "#334155", fontWeight: 600}}>
-                                {assigns.length === 0 ? "Chưa gán" : `${cellAssignSummary?.assignmentCount || assigns.length} lượt`}
+                            <Stack direction="row" alignItems="center" justifyContent="space-between" mt={0.5}>
+                                {hasAssign ? (
+                                    <Stack direction="row" alignItems="center" spacing={0.4}>
+                                        <Box sx={{
+                                            width: 7, height: 7, borderRadius: "50%",
+                                            bgcolor: "#16A34A", flexShrink: 0,
+                                        }}/>
+                                        <Typography sx={{fontSize: "0.68rem", fontWeight: 700, color: "#15803D"}}>
+                                            {uniqueCounsellorCount} TV
+                                        </Typography>
+                                        {(cellAssignSummary?.distinctRangeCount ?? 0) > 1 && (
+                                            <Typography sx={{fontSize: "0.62rem", color: "#6B7280"}}>
+                                                · {cellAssignSummary.distinctRangeCount} đợt
+                                            </Typography>
+                                        )}
+                                    </Stack>
+                                ) : (
+                                    <Typography sx={{fontSize: "0.66rem", color: "#94A3B8", fontStyle: "italic"}}>
+                                        Chưa gán
+                                    </Typography>
+                                )}
+                                {slotIsActive(slot) ? (
+                                    <IconButton
+                                        size="small"
+                                        aria-label="Menu khung giờ"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setSlotActionsMenu({anchorEl: e.currentTarget, slot, day});
+                                        }}
+                                        sx={{p: 0.2, color: "#94A3B8", "&:hover": {color: PRIMARY}}}
+                                    >
+                                        <MoreVertIcon sx={{fontSize: 14}}/>
+                                    </IconButton>
+                                ) : null}
+                            </Stack>
+                        ) : null}
+
+                        {/* Call-to-action khi chưa gán và không ở readOnly */}
+                        {showCounsellorUi && !hasAssign && slotIsActive(slot) && !multiSelectMode ? (
+                            <Typography sx={{
+                                fontSize: "0.62rem", color: PRIMARY, fontWeight: 600, mt: 0.25,
+                                opacity: 0, transition: "opacity .15s ease",
+                                ".MuiBox-root:hover > &": {opacity: 1},
+                            }}>
+                                + Gán tư vấn viên
                             </Typography>
                         ) : null}
                     </Box>
@@ -1586,22 +1645,53 @@ export default function SchoolCounselorSchedule() {
             });
         }
 
+        // Ngày hôm nay dạng YYYY-MM-DD để highlight cột
+        const _now = new Date();
+        const todayYMD = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,"0")}-${String(_now.getDate()).padStart(2,"0")}`;
+        const todayDayKey = ["SUN","MON","TUE","WED","THU","FRI","SAT"][_now.getDay()];
+        const isTodayCol = (day) => {
+            const d = headerDates?.[day];
+            if (!d) return day === todayDayKey;
+            const ymd = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+            return ymd === todayYMD;
+        };
+
         return (
             <TableContainer component={Paper} elevation={0} sx={{borderRadius: RADIUS_INNER, border: `1px solid ${BORDER_SOFT}`, overflow: "auto"}}>
                 <Table size="small" stickyHeader sx={{minWidth: 980}}>
                     <TableHead>
                         <TableRow>
-                            <TableCell sx={{minWidth: 160, bgcolor: "#5E81BE", color: "#fff", borderRight: "1px solid rgba(255,255,255,0.35)"}}>
-                                <Typography sx={{fontSize: "0.78rem", fontWeight: 800}}>Thời gian</Typography>
+                            <TableCell sx={{minWidth: 155, bgcolor: "#3B5998", color: "#fff", borderRight: "1px solid rgba(255,255,255,0.2)", py: 1.25}}>
+                                <Typography sx={{fontSize: "0.75rem", fontWeight: 700, opacity: 0.9}}>Khung giờ</Typography>
                             </TableCell>
-                            {DAYS.map((day) => (
-                                <TableCell key={day} align="center" sx={{minWidth: 120, bgcolor: "#5E81BE", color: "#fff", borderRight: "1px solid rgba(255,255,255,0.35)"}}>
-                                    <Typography sx={{fontSize: "0.73rem", fontWeight: 800}}>{DAY_LABELS[day]}</Typography>
-                                    <Typography sx={{fontSize: "0.7rem", opacity: 0.95}}>
-                                        {headerDates?.[day] ? formatColumnHeaderDate(headerDates[day]) : ""}
-                                    </Typography>
-                                </TableCell>
-                            ))}
+                            {DAYS.map((day) => {
+                                const isToday = isTodayCol(day);
+                                return (
+                                    <TableCell key={day} align="center" sx={{
+                                        minWidth: 128,
+                                        bgcolor: isToday ? PRIMARY : "#3B5998",
+                                        color: "#fff",
+                                        borderRight: "1px solid rgba(255,255,255,0.2)",
+                                        py: 1.25,
+                                        position: "relative",
+                                    }}>
+                                        <Typography sx={{fontSize: "0.75rem", fontWeight: 800, letterSpacing: "0.01em"}}>
+                                            {DAY_LABELS[day]}
+                                        </Typography>
+                                        <Typography sx={{fontSize: "0.68rem", opacity: 0.85, mt: 0.15}}>
+                                            {headerDates?.[day] ? formatColumnHeaderDate(headerDates[day]) : ""}
+                                        </Typography>
+                                        {isToday && (
+                                            <Box sx={{
+                                                position: "absolute", bottom: 0, left: "50%",
+                                                transform: "translateX(-50%)",
+                                                width: 28, height: 3, borderRadius: "3px 3px 0 0",
+                                                bgcolor: "#FDE68A",
+                                            }}/>
+                                        )}
+                                    </TableCell>
+                                );
+                            })}
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -1609,27 +1699,44 @@ export default function SchoolCounselorSchedule() {
                             const surface = sessionZoneSurface(row.sessionType);
                             return (
                                 <TableRow key={row.rowKey} hover>
-                                    <TableCell sx={{bgcolor: surface.bg, borderRight: `1px solid ${BORDER_SOFT}`}}>
-                                        <Typography sx={{fontSize: "0.83rem", fontWeight: 800, color: "#0f172a"}}>
-                                            {row.startTime} - {row.endTime}
-                                        </Typography>
-                                        <Typography sx={{fontSize: "0.7rem", color: surface.accent, fontWeight: 700}}>
-                                            {sessionTypeLabel(row.sessionType)}
-                                        </Typography>
+                                    <TableCell sx={{bgcolor: surface.bg, borderRight: `1px solid ${BORDER_SOFT}`, py: 1}}>
+                                        <Stack direction="row" alignItems="center" spacing={0.75}>
+                                            <Box sx={{
+                                                width: 3, height: 32, borderRadius: 4,
+                                                bgcolor: surface.accent, flexShrink: 0,
+                                            }}/>
+                                            <Box>
+                                                <Typography sx={{fontSize: "0.82rem", fontWeight: 800, color: "#0f172a", lineHeight: 1.25}}>
+                                                    {row.startTime} – {row.endTime}
+                                                </Typography>
+                                                <Typography sx={{fontSize: "0.68rem", color: surface.accent, fontWeight: 600, mt: 0.1}}>
+                                                    {sessionTypeLabel(row.sessionType)}
+                                                </Typography>
+                                            </Box>
+                                        </Stack>
                                     </TableCell>
-                                    {DAYS.map((day) => (
-                                        <TableCell
-                                            key={`${row.rowKey}-${day}`}
-                                            sx={{
-                                                verticalAlign: "top",
-                                                borderRight: `1px solid ${BORDER_SOFT}`,
-                                                py: 0.5,
-                                                bgcolor: surface.bg,
-                                            }}
-                                        >
-                                            {renderGridCell(lookupSlotByDay[day]?.get(row.rowKey) || null, day)}
-                                        </TableCell>
-                                    ))}
+                                    {DAYS.map((day) => {
+                                        const isToday = isTodayCol(day);
+                                        return (
+                                            <TableCell
+                                                key={`${row.rowKey}-${day}`}
+                                                sx={{
+                                                    verticalAlign: "top",
+                                                    borderRight: `1px solid ${BORDER_SOFT}`,
+                                                    py: 0.75,
+                                                    px: 0.75,
+                                                    bgcolor: isToday
+                                                        ? `rgba(13,100,222,0.04)`
+                                                        : surface.bg,
+                                                    boxShadow: isToday
+                                                        ? "inset 0 0 0 1.5px rgba(13,100,222,0.12)"
+                                                        : "none",
+                                                }}
+                                            >
+                                                {renderGridCell(lookupSlotByDay[day]?.get(row.rowKey) || null, day)}
+                                            </TableCell>
+                                        );
+                                    })}
                                 </TableRow>
                             );
                         })}

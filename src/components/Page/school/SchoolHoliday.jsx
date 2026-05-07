@@ -293,7 +293,7 @@ function formatConflictBookingRow(item, index) {
     return parts.length ? parts.join(" · ") : JSON.stringify(item);
 }
 
-export default function SchoolHoliday() {
+export default function SchoolHoliday({onHolidayCreated} = {}) {
     const {isPrimaryBranch, currentCampusId} = useSchool();
     const [openCreateModal, setOpenCreateModal] = useState(false);
     const [campuses, setCampuses] = useState([]);
@@ -611,6 +611,7 @@ export default function SchoolHoliday() {
         try {
             await createHoliday(formValues);
             enqueueSnackbar("Tạo ngày nghỉ thành công", {variant: "success"});
+            onHolidayCreated?.();
             handleCloseCreate();
             await loadHolidayList();
         } catch (error) {
