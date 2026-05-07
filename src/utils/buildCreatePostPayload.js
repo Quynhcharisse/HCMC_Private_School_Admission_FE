@@ -52,6 +52,17 @@ export function buildCreatePostPayload({
         }))
         .filter((d) => d.fileName || d.storagePath);
 
+    const normalizedTypeFile = String(typeFile || "").trim();
+    const thumbnailUrl = String(thumbnail || "").trim();
+    const firstDocumentFileUrl = documentItemList
+        .map((d) => String(d.fileUrl || "").trim())
+        .find(Boolean);
+    const resolvedTypeFile =
+        firstDocumentFileUrl ||
+        (/^https?:\/\//i.test(normalizedTypeFile) || normalizedTypeFile.startsWith("/")
+            ? normalizedTypeFile
+            : "");
+
     return {
         hashTagList,
         totalPosition,
@@ -62,8 +73,8 @@ export function buildCreatePostPayload({
         },
         image: {imageItemList},
         ...(documentItemList.length > 0 ? {document: {documentItemList}} : {}),
-        thumbnail: String(thumbnail || "").trim(),
-        typeFile: String(typeFile || "").trim(),
+        thumbnail: thumbnailUrl,
+        typeFile: resolvedTypeFile,
         categoryPost: String(categoryPost || "").trim(),
         publishedDate: String(publishedDate || "").trim()
     };
