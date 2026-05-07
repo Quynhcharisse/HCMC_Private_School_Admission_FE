@@ -34,7 +34,18 @@ export async function getPublicSchoolCampaignTemplates(schoolId, year = 0) {
         };
     };
 
-    const normalizeCampaign = (campaign, mandatoryAll) => {
+    const normalizeAllowedMethod = (item) => {
+        if (!item || typeof item !== "object") return null;
+        const code = String(item?.code ?? item?.methodCode ?? "").trim();
+        if (!code) return null;
+        return {
+            code,
+            displayName: String(item?.displayName ?? item?.name ?? code).trim(),
+            description: String(item?.description ?? "").trim()
+        };
+    };
+
+    const normalizeCampaign = (campaign, mandatoryAll, allowedMethods) => {
         if (!campaign || typeof campaign !== "object") return null;
         const mappedTimelines = Array.isArray(campaign?.admissionMethodTimelines)
             ? campaign.admissionMethodTimelines.map(normalizeMethodTimeline).filter(Boolean)
@@ -46,19 +57,25 @@ export async function getPublicSchoolCampaignTemplates(schoolId, year = 0) {
                 ? campaign.mandatoryAll
                 : Array.isArray(mandatoryAll)
                     ? mandatoryAll
-                    : []
+                    : [],
+            schoolAllowedMethods: Array.isArray(allowedMethods) ? allowedMethods : []
         };
     };
 
     if (Array.isArray(body)) {
-        return body.map((campaign) => normalizeCampaign(campaign, campaign?.mandatoryAll)).filter(Boolean);
+        return body.map((campaign) => normalizeCampaign(campaign, campaign?.mandatoryAll, [])).filter(Boolean);
     }
     if (body && typeof body === "object") {
         const campaigns = Array.isArray(body?.campaigns) ? body.campaigns : [];
         const mandatoryAll = Array.isArray(body?.campaignConfig?.mandatoryAll)
             ? body.campaignConfig.mandatoryAll
             : [];
-        return campaigns.map((campaign) => normalizeCampaign(campaign, mandatoryAll)).filter(Boolean);
+        const allowedMethods = Array.isArray(body?.campaignConfig?.allowedMethods)
+            ? body.campaignConfig.allowedMethods.map(normalizeAllowedMethod).filter(Boolean)
+            : [];
+        return campaigns
+            .map((campaign) => normalizeCampaign(campaign, mandatoryAll, allowedMethods))
+            .filter(Boolean);
     }
     return [];
 }
