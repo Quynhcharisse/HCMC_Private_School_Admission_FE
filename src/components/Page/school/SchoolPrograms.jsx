@@ -143,6 +143,7 @@ const methodLearningIconMap = {
 };
 
 const normalizeStatus = (status) => String(status || "").toUpperCase();
+const isProgramActiveStatus = (status) => normalizeStatus(status) === "PRO_ACTIVE";
 
 const toCurriculumTypeLabel = (value) => curriculumTypeI18N[value] ?? value ?? "—";
 const toMethodLearningLabel = (value) => methodLearningI18N[value] ?? value ?? "—";
@@ -921,6 +922,44 @@ export default function SchoolPrograms() {
     const [actionType, setActionType] = useState("ACTIVATE"); // "ACTIVATE" | "DEACTIVATE"
     const [actionLoading, setActionLoading] = useState(false);
 
+    const executeDeactivate = async (program) => {
+        if (!program || actionLoading) return;
+        setActionLoading(true);
+        try {
+            const res = await handleProgramAction(program.id, "DEACTIVATE");
+            const ok = res?.status >= 200 && res?.status < 300;
+            if (ok) {
+                enqueueSnackbar("Chương trình đã chuyển sang Không hoạt động. Dùng Nhân bản nếu cần tạo chương trình mới.", {variant: "success"});
+                setActionConfirmOpen(false);
+                setActionTargetProgram(null);
+                setProgramModalOpen(false);
+                setSelectedProgram(null);
+                setIsClonedDraftEdit(false);
+                setShouldAutoSelectClonedName(false);
+                await loadData(0, rowsPerPage);
+            } else {
+                enqueueSnackbar(res?.data?.message || "Hành động không hợp lệ hoặc chương trình đã ở trạng thái Inactive.", {variant: "error"});
+            }
+        } catch (err) {
+            console.error("Program deactivate error:", err);
+            enqueueSnackbar(err?.response?.data?.message || "Hành động không hợp lệ hoặc chương trình đã ở trạng thái Inactive.", {variant: "error"});
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
+    const handleDeactivateClick = (program) => {
+        if (!program || !isPrimaryBranch) return;
+        const activeOfferingCount = Number(program.effectiveOfferingCount ?? 0);
+        if (activeOfferingCount === 0) {
+            executeDeactivate(program);
+        } else {
+            setActionTargetProgram(program);
+            setActionType("DEACTIVATE");
+            setActionConfirmOpen(true);
+        }
+    };
+
     const [formValues, setFormValues] = useState({
         name: "",
         languageOfInstructionList: [],
@@ -1155,6 +1194,15 @@ export default function SchoolPrograms() {
 
     const handleOpenEdit = async (program, {startStep = 0, markAsClonedDraft = false} = {}) => {
         if (!isPrimaryBranch) return;
+        if (!markAsClonedDraft && normalizeStatus(program?.status) !== "PRO_DRAFT") {
+            enqueueSnackbar(
+                normalizeStatus(program?.status) === "PRO_ACTIVE"
+                    ? "Không thể chỉnh sửa chương trình đang hoạt động. Vui lòng dùng chức năng Nhân bản."
+                    : "Chỉ chương trình ở trạng thái Nháp mới có thể chỉnh sửa.",
+                {variant: "warning"}
+            );
+            return;
+        }
         setModalMode("edit");
         setProgramWizardReviewTab(0);
         setActiveStep(startStep);
@@ -1162,7 +1210,7 @@ export default function SchoolPrograms() {
         setIsClonedDraftEdit(!!markAsClonedDraft);
         setShouldAutoSelectClonedName(!!markAsClonedDraft);
         setOriginalCurriculumId(program.curriculumId ?? null);
-        const isActiveProgram = normalizeStatus(program.status) === "PRO_ACTIVE";
+        const isActiveProgram = isProgramActiveStatus(program.status);
         const hasOfferingHistory = Number(program.offeringCount) > 0;
         const shouldDisableCurriculum = isActiveProgram || hasOfferingHistory;
         setDisableCurriculumSelection(shouldDisableCurriculum);
@@ -1468,6 +1516,10 @@ export default function SchoolPrograms() {
     const handleSubmit = async () => {
         if (submitLoading) return;
         if (!isPrimaryBranch) return;
+        if (modalMode === "edit" && isProgramActiveStatus(selectedProgram?.status)) {
+            enqueueSnackbar("Chương trình đang hoạt động không thể chỉnh sửa.", {variant: "info"});
+            return;
+        }
 
         // Validate before submit always
         if (activeStep === 0) {
@@ -1514,7 +1566,7 @@ export default function SchoolPrograms() {
                 else if (status === 403)
                     backendMsg = "Không có quyền (chỉ cơ sở chính mới thực hiện được, hoặc tài khoản bị hạn chế).";
                 else if (status === 404) backendMsg = "Không tìm thấy Program hoặc Curriculum trong phạm vi trường.";
-                else if (status === 409) backendMsg = "Chuẩn đầu ra đã tồn tại trong khung chương trình này";
+                else if (status === 409) backendMsg = err?.response?.data?.message || "Không thể sửa chương trình này. Vui lòng dùng chức năng Nhân bản.";
                 else backendMsg = "Lỗi khi lưu program";
             }
             const normalized = String(backendMsg || "").toLowerCase();
@@ -1576,8 +1628,8 @@ export default function SchoolPrograms() {
         ? (originalCurriculumId ? curriculumOptions.find((c) => c.id === originalCurriculumId) : selectedCurriculum)
         : selectedCurriculum;
 
-    const coreLockedByActive =
-        modalMode === "edit" && selectedProgram != null && normalizeStatus(selectedProgram.status) === "PRO_ACTIVE";
+    const programLockedByActive =
+        modalMode === "edit" && selectedProgram != null && normalizeStatus(selectedProgram.status) !== "PRO_DRAFT";
 
     return (
         <Box sx={{display: "flex", flexDirection: "column", gap: 3, width: "100%"}}>
@@ -1864,67 +1916,77 @@ export default function SchoolPrograms() {
                                                     >
                                                         <VisibilityIcon fontSize="small"/>
                                                     </IconButton>
-                                                    {normalizeStatus(row.status) !== "PRO_ACTIVE" ? (
-                                                        <Tooltip title="Công bố chương trình" arrow>
+                                                    {normalizeStatus(row.status) === "PRO_DRAFT" ? (
+                                                        <>
+                                                            <Tooltip title="Công bố chương trình" arrow>
+                                                                <IconButton
+                                                                    size="small"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setActionTargetProgram(row);
+                                                                        setActionType("ACTIVATE");
+                                                                        setActionConfirmOpen(true);
+                                                                    }}
+                                                                    sx={{
+                                                                        color: "#64748b",
+                                                                        "&:hover": {color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)"},
+                                                                    }}
+                                                                >
+                                                                    <FileUploadOutlinedIcon fontSize="small"/>
+                                                                </IconButton>
+                                                            </Tooltip>
                                                             <IconButton
                                                                 size="small"
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    setActionTargetProgram(row);
-                                                                    setActionType("ACTIVATE");
-                                                                    setActionConfirmOpen(true);
+                                                                    handleOpenEdit(row);
                                                                 }}
                                                                 sx={{
                                                                     color: "#64748b",
-                                                                    "&:hover": {
-                                                                        color: "#0D64DE",
-                                                                        bgcolor: "rgba(13, 100, 222, 0.08)"
-                                                                    },
+                                                                    "&:hover": {color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)"},
                                                                 }}
-                                                                title="Công bố"
+                                                                title="Chỉnh sửa"
                                                             >
-                                                                <FileUploadOutlinedIcon fontSize="small"/>
+                                                                <EditIcon fontSize="small"/>
                                                             </IconButton>
-                                                        </Tooltip>
+                                                        </>
                                                     ) : null}
                                                     {normalizeStatus(row.status) === "PRO_ACTIVE" ? (
-                                                        <IconButton
-                                                            size="small"
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                if (!isPrimaryBranch) return;
-                                                                setCloneTargetProgram(row);
-                                                                setCloneConfirmOpen(true);
-                                                            }}
-                                                            sx={{
-                                                                color: "#64748b",
-                                                                "&:hover": {
-                                                                    color: "#0D64DE",
-                                                                    bgcolor: "rgba(13, 100, 222, 0.08)"
-                                                                },
-                                                            }}
-                                                            title="Nhân bản chương trình này"
-                                                        >
-                                                            <ContentCopyRoundedIcon fontSize="small"/>
-                                                        </IconButton>
+                                                        <>
+                                                            <Tooltip title="Nhân bản chương trình" arrow>
+                                                                <IconButton
+                                                                    size="small"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        if (!isPrimaryBranch) return;
+                                                                        setCloneTargetProgram(row);
+                                                                        setCloneConfirmOpen(true);
+                                                                    }}
+                                                                    sx={{
+                                                                        color: "#64748b",
+                                                                        "&:hover": {color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)"},
+                                                                    }}
+                                                                >
+                                                                    <ContentCopyRoundedIcon fontSize="small"/>
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                            <Tooltip title="Ngừng hoạt động" arrow>
+                                                                <IconButton
+                                                                    size="small"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleDeactivateClick(row);
+                                                                    }}
+                                                                    sx={{
+                                                                        color: "#64748b",
+                                                                        "&:hover": {color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)"},
+                                                                    }}
+                                                                >
+                                                                    <PowerSettingsNewRoundedIcon fontSize="small"/>
+                                                                </IconButton>
+                                                            </Tooltip>
+                                                        </>
                                                     ) : null}
-                                                    <IconButton
-                                                        size="small"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleOpenEdit(row);
-                                                        }}
-                                                        sx={{
-                                                            color: "#64748b",
-                                                            "&:hover": {
-                                                                color: "#0D64DE",
-                                                                bgcolor: "rgba(13, 100, 222, 0.08)"
-                                                            },
-                                                        }}
-                                                        title="Chỉnh sửa"
-                                                    >
-                                                        <EditIcon fontSize="small"/>
-                                                    </IconButton>
                                                 </Stack>
                                             </TableCell>
                                         )}
@@ -2516,6 +2578,7 @@ export default function SchoolPrograms() {
                                             label="Tên chương trình đào tạo"
                                             fullWidth
                                             required
+                                            disabled={submitLoading || programLockedByActive}
                                             value={formValues.name}
                                             inputRef={nameInputRef}
                                             onChange={(e) => {
@@ -2533,6 +2596,7 @@ export default function SchoolPrograms() {
                                             value={formValues.languageOfInstructionList}
                                             options={languageOptions}
                                             loading={languageOptionsLoading}
+                                            disabled={programLockedByActive}
                                             onChange={(next) => {
                                                 setFormValues((prev) => ({...prev, languageOfInstructionList: next}));
                                                 setFormErrors((prev) => ({
@@ -2544,14 +2608,14 @@ export default function SchoolPrograms() {
                                         />
 
                                         <Tooltip
-                                            title={coreLockedByActive ? "Không thể sửa thông tin cốt lõi của chương trình đang hoạt động" : ""}
-                                            disableHoverListener={!coreLockedByActive}
+                                            title={programLockedByActive ? "Không thể sửa thông tin của chương trình đang hoạt động" : ""}
+                                            disableHoverListener={!programLockedByActive}
                                         >
                                     <span>
                                         <TextField
                                             label="Học phí gốc"
                                             fullWidth
-                                            disabled={coreLockedByActive}
+                                            disabled={programLockedByActive}
                                             value={
                                                 formValues.baseTuitionFee === ""
                                                     ? ""
@@ -2579,8 +2643,8 @@ export default function SchoolPrograms() {
                                         </Tooltip>
 
                                         <Tooltip
-                                            title={coreLockedByActive ? "Không thể sửa thông tin cốt lõi của chương trình đang hoạt động" : ""}
-                                            disableHoverListener={!coreLockedByActive}
+                                            title={programLockedByActive ? "Không thể sửa thông tin của chương trình đang hoạt động" : ""}
+                                            disableHoverListener={!programLockedByActive}
                                         >
                                     <span>
                                         <SelectLike
@@ -2593,7 +2657,7 @@ export default function SchoolPrograms() {
                                             }}
                                             error={!!formErrors.feeUnit}
                                             helperText={formErrors.feeUnit || ""}
-                                            disabled={coreLockedByActive}
+                                            disabled={programLockedByActive}
                                         />
                                     </span>
                                         </Tooltip>
@@ -2618,7 +2682,7 @@ export default function SchoolPrograms() {
                                                     setFormValues((prev) => ({...prev, graduationStandard: html}));
                                                     setFormErrors((prev) => ({...prev, graduationStandard: undefined}));
                                                 }}
-                                                disabled={submitLoading}
+                                                disabled={submitLoading || programLockedByActive}
                                                 minEditorHeight={220}
                                                 maxEditorHeight={400}
                                             />
@@ -2661,7 +2725,7 @@ export default function SchoolPrograms() {
                                                         targetStudentDescription: undefined
                                                     }));
                                                 }}
-                                                disabled={submitLoading}
+                                                disabled={submitLoading || programLockedByActive}
                                                 minEditorHeight={220}
                                                 maxEditorHeight={400}
                                             />
@@ -2685,14 +2749,14 @@ export default function SchoolPrograms() {
                                                 setFormErrors((prev) => ({...prev, extraSubjectList: undefined}));
                                             }}
                                             error={formErrors.extraSubjectList}
-                                            disabled={submitLoading}
+                                            disabled={submitLoading || programLockedByActive}
                                             importLoading={importExtraSubjectLoading}
                                             onImportFile={handleImportExtraSubjects}
                                         />
 
-                                        {coreLockedByActive ? (
+                                        {programLockedByActive ? (
                                             <Alert severity="info" sx={{py: 1, mt: 1.2}}>
-                                                Không thể sửa thông tin cốt lõi của chương trình đang hoạt động.
+                                                Chương trình đang hoạt động nên không thể chỉnh sửa thông tin.
                                             </Alert>
                                         ) : null}
                                     </>
@@ -2991,60 +3055,63 @@ export default function SchoolPrograms() {
                 <DialogActions sx={{px: 3, py: 2.2, borderTop: "1px solid #e2e8f0", gap: 1}}>
                     {modalMode === "view" ? (
                         <>
+                            {isPrimaryBranch && normalizeStatus(selectedProgram?.status) === "PRO_DRAFT" ? (
+                                <>
+                                    <Button
+                                        variant="outlined"
+                                        startIcon={<EditIcon fontSize="small"/>}
+                                        onClick={() => selectedProgram && handleOpenEdit(selectedProgram)}
+                                        disabled={cloneLoading || actionLoading || !selectedProgram}
+                                        sx={{textTransform: "none", fontWeight: 950, borderRadius: 2, px: 3}}
+                                    >
+                                        Chỉnh sửa
+                                    </Button>
+                                    <Button
+                                        variant="contained"
+                                        startIcon={<FileUploadOutlinedIcon fontSize="small"/>}
+                                        onClick={() => {
+                                            setActionTargetProgram(selectedProgram);
+                                            setActionType("ACTIVATE");
+                                            setActionConfirmOpen(true);
+                                        }}
+                                        disabled={cloneLoading || actionLoading || !selectedProgram}
+                                        sx={{
+                                            textTransform: "none",
+                                            fontWeight: 950,
+                                            borderRadius: 2,
+                                            px: 3,
+                                            background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
+                                        }}
+                                    >
+                                        Công bố
+                                    </Button>
+                                </>
+                            ) : null}
                             {isPrimaryBranch && normalizeStatus(selectedProgram?.status) === "PRO_ACTIVE" ? (
-                                <Button
-                                    variant="outlined"
-                                    startIcon={<ContentCopyRoundedIcon fontSize="small"/>}
-                                    onClick={() => {
-                                        setCloneTargetProgram(selectedProgram);
-                                        setCloneConfirmOpen(true);
-                                    }}
-                                    disabled={cloneLoading || actionLoading || !selectedProgram}
-                                    sx={{textTransform: "none", fontWeight: 800, borderRadius: 2, px: 3}}
-                                >
-                                    Nhân bản chương trình
-                                </Button>
-                            ) : null}
-
-                            {isPrimaryBranch ? (
-                                <Button
-                                    variant="outlined"
-                                    onClick={() => selectedProgram && handleOpenEdit(selectedProgram)}
-                                    disabled={cloneLoading || actionLoading || !selectedProgram}
-                                    sx={{
-                                        textTransform: "none",
-                                        fontWeight: 950,
-                                        borderRadius: 2,
-                                        px: 3,
-                                    }}
-                                >
-                                    Chỉnh sửa
-                                </Button>
-                            ) : null}
-                            {isPrimaryBranch && normalizeStatus(selectedProgram?.status) !== "PRO_ACTIVE" ? (
-                                <Tooltip title="Công bố chương trình" arrow>
-                                    <span>
-                                        <Button
-                                            variant="contained"
-                                            startIcon={<FileUploadOutlinedIcon fontSize="small"/>}
-                                            onClick={() => {
-                                                setActionTargetProgram(selectedProgram);
-                                                setActionType("ACTIVATE");
-                                                setActionConfirmOpen(true);
-                                            }}
-                                            disabled={cloneLoading || actionLoading || !selectedProgram}
-                                            sx={{
-                                                textTransform: "none",
-                                                fontWeight: 950,
-                                                borderRadius: 2,
-                                                px: 3,
-                                                background: "linear-gradient(135deg, #7AA9EB 0%, #0D64DE 100%)",
-                                            }}
-                                        >
-                                            Công bố
-                                        </Button>
-                                    </span>
-                                </Tooltip>
+                                <>
+                                    <Button
+                                        variant="outlined"
+                                        startIcon={<ContentCopyRoundedIcon fontSize="small"/>}
+                                        onClick={() => {
+                                            setCloneTargetProgram(selectedProgram);
+                                            setCloneConfirmOpen(true);
+                                        }}
+                                        disabled={cloneLoading || actionLoading || !selectedProgram}
+                                        sx={{textTransform: "none", fontWeight: 800, borderRadius: 2, px: 3}}
+                                    >
+                                        Nhân bản chương trình
+                                    </Button>
+                                    <Button
+                                        variant="outlined"
+                                        color="error"
+                                        startIcon={<PowerSettingsNewRoundedIcon fontSize="small"/>}
+                                        onClick={() => handleDeactivateClick(selectedProgram)}
+                                        disabled={cloneLoading || actionLoading || !selectedProgram}
+                                        sx={{textTransform: "none", fontWeight: 800, borderRadius: 2, px: 3}}
+                                    >
+                                        Ngừng hoạt động
+                                    </Button>
+                                </>
                             ) : null}
                         </>
                     ) : (
@@ -3076,7 +3143,7 @@ export default function SchoolPrograms() {
                                 <Button
                                     onClick={handleNext}
                                     variant="contained"
-                                    disabled={submitLoading}
+                                    disabled={submitLoading || programLockedByActive}
                                     sx={{
                                         textTransform: "none",
                                         fontWeight: 950,
@@ -3091,7 +3158,7 @@ export default function SchoolPrograms() {
                                 <Button
                                     onClick={handleSubmit}
                                     variant="contained"
-                                    disabled={submitLoading}
+                                    disabled={submitLoading || programLockedByActive}
                                     sx={{
                                         textTransform: "none",
                                         fontWeight: 950,
@@ -3172,21 +3239,12 @@ export default function SchoolPrograms() {
                                     return;
                                 }
 
-                                const rawBody = res?.data?.body ?? res?.data ?? {};
-                                const mapped = mapProgramFromApi(rawBody);
-                                if (!mapped) {
-                                    enqueueSnackbar("Đã nhân bản nhưng không đọc được dữ liệu bản sao mới.", {variant: "warning"});
-                                    return;
-                                }
-
-                                enqueueSnackbar(
-                                    "Thành công! Đã tạo bản sao mới. Bạn đang ở chế độ chỉnh sửa bản nháp.",
-                                    {variant: "success"}
-                                );
+                                enqueueSnackbar("Thành công! Đã tạo bản sao mới.", {variant: "success"});
                                 setCloneConfirmOpen(false);
                                 setCloneTargetProgram(null);
-
-                                await handleOpenEdit(mapped, {startStep: 0, markAsClonedDraft: true});
+                                setProgramModalOpen(false);
+                                setSelectedProgram(null);
+                                await loadData(page, rowsPerPage);
                             } catch (err) {
                                 console.error("Clone program error:", err);
                                 enqueueSnackbar(
@@ -3226,15 +3284,15 @@ export default function SchoolPrograms() {
                 </IconButton>
                 <DialogContent sx={{pt: 3, px: 3, pr: 6}}>
                     <Typography variant="h6" sx={{fontWeight: 900}}>
-                        {actionType === "DEACTIVATE" ? "Xác nhận tạm dừng chương trình?" : "Xác nhận công bố chương trình này?"}
+                        {actionType === "DEACTIVATE" ? "Xác nhận ngừng hoạt động?" : "Xác nhận công bố chương trình này?"}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{mt: 1.25}}>
                         {actionType === "DEACTIVATE" ? (
                             <>
-                                Các trường học phí và khung chương trình sẽ được mở khóa để chỉnh sửa. Lưu ý: Các cơ sở
-                                sẽ tạm thời{" "}
-                                <ConfirmHighlight>không thấy chương trình này</ConfirmHighlight> để tạo mới đợt tuyển
-                                sinh.
+                                Chương trình <ConfirmHighlight>"{safeString(actionTargetProgram?.name).trim() || actionTargetProgram?.curriculumName || "—"}"</ConfirmHighlight> đang có{" "}
+                                <ConfirmHighlight>{Number(actionTargetProgram?.effectiveOfferingCount ?? 0)} offering hoạt động</ConfirmHighlight>.
+                                {" "}Tất cả offering sẽ bị đóng và ngừng nhận hồ sơ.
+                                Bạn có chắc muốn tiếp tục?
                             </>
                         ) : (
                             <>
@@ -3266,43 +3324,30 @@ export default function SchoolPrograms() {
                         variant="contained"
                         onClick={async () => {
                             if (!actionTargetProgram || actionLoading) return;
+                            if (actionType === "DEACTIVATE") {
+                                await executeDeactivate(actionTargetProgram);
+                                return;
+                            }
+                            // ACTIVATE
                             setActionLoading(true);
                             try {
-                                const res = await handleProgramAction(actionTargetProgram.id, actionType);
+                                const res = await handleProgramAction(actionTargetProgram.id, "ACTIVATE");
                                 const ok = res?.status >= 200 && res?.status < 300;
                                 if (ok) {
-                                    enqueueSnackbar(
-                                        actionType === "ACTIVATE"
-                                            ? "Chương trình đã được công bố thành công. Các cơ sở hiện đã có thể tạo đợt tuyển sinh."
-                                            : "Chương trình đã tạm dừng. Bạn hiện có thể chỉnh sửa các thông tin cốt lõi.",
-                                        {variant: "success"}
-                                    );
+                                    enqueueSnackbar("Chương trình đã được công bố thành công. Các cơ sở hiện đã có thể tạo đợt tuyển sinh.", {variant: "success"});
                                     setActionConfirmOpen(false);
                                     setActionTargetProgram(null);
-
-                                    // Refresh list & close current modal to avoid stale state.
                                     setProgramModalOpen(false);
                                     setSelectedProgram(null);
                                     setIsClonedDraftEdit(false);
                                     setShouldAutoSelectClonedName(false);
-
                                     await loadData(0, rowsPerPage);
                                 } else {
-                                    enqueueSnackbar(
-                                        actionType === "ACTIVATE"
-                                            ? "Không thể công bố. Vui lòng kiểm tra lại dữ liệu chương trình."
-                                            : "Hành động không hợp lệ hoặc chương trình đã ở trạng thái Inactive.",
-                                        {variant: "error"}
-                                    );
+                                    enqueueSnackbar(res?.data?.message || "Không thể công bố. Vui lòng kiểm tra lại dữ liệu chương trình.", {variant: "error"});
                                 }
                             } catch (err) {
-                                console.error("Program action error:", err);
-                                enqueueSnackbar(
-                                    actionType === "ACTIVATE"
-                                        ? "Không thể công bố. Vui lòng kiểm tra lại dữ liệu chương trình."
-                                        : "Hành động không hợp lệ hoặc chương trình đã ở trạng thái Inactive.",
-                                    {variant: "error"}
-                                );
+                                console.error("Program activate error:", err);
+                                enqueueSnackbar(err?.response?.data?.message || "Không thể công bố. Vui lòng kiểm tra lại dữ liệu chương trình.", {variant: "error"});
                             } finally {
                                 setActionLoading(false);
                             }
@@ -3347,10 +3392,11 @@ function SelectLike({value, options, onChange, label, error, helperText, disable
     );
 }
 
-function LanguageInstructionSelector({value, options, loading = false, onChange, error}) {
+function LanguageInstructionSelector({value, options, loading = false, onChange, error, disabled = false}) {
     const selectedValues = Array.isArray(value) ? value : [];
 
     const toggleValue = (nextValue) => {
+        if (disabled) return;
         const exists = selectedValues.includes(nextValue);
         onChange(exists ? selectedValues.filter((v) => v !== nextValue) : [...selectedValues, nextValue]);
     };
@@ -3370,11 +3416,11 @@ function LanguageInstructionSelector({value, options, loading = false, onChange,
                         <Chip
                             key={item}
                             label={getLanguageInstructionDisplayLabel(item, options)}
-                            onDelete={() => toggleValue(item)}
+                            onDelete={disabled ? undefined : () => toggleValue(item)}
                             sx={{
                                 borderRadius: 2,
-                                bgcolor: "rgba(13, 100, 222, 0.1)",
-                                color: "#0D64DE",
+                                bgcolor: disabled ? "rgba(148, 163, 184, 0.18)" : "rgba(13, 100, 222, 0.1)",
+                                color: disabled ? "#64748b" : "#0D64DE",
                                 fontWeight: 700,
                             }}
                         />
@@ -3401,9 +3447,10 @@ function LanguageInstructionSelector({value, options, loading = false, onChange,
                                 role="checkbox"
                                 aria-checked={selected}
                                 aria-label={item.name}
-                                tabIndex={0}
+                                tabIndex={disabled ? -1 : 0}
                                 onClick={() => toggleValue(item.id)}
                                 onKeyDown={(e) => {
+                                    if (disabled) return;
                                     if (e.key === "Enter" || e.key === " ") {
                                         e.preventDefault();
                                         toggleValue(item.id);
@@ -3417,12 +3464,16 @@ function LanguageInstructionSelector({value, options, loading = false, onChange,
                                     border: selected ? "1.5px solid #0D64DE" : "1px solid #e2e8f0",
                                     bgcolor: selected ? "rgba(13, 100, 222, 0.07)" : "rgba(255,255,255,0.8)",
                                     boxShadow: selected ? "0 8px 20px rgba(13, 100, 222, 0.16)" : "0 4px 12px rgba(15, 23, 42, 0.06)",
-                                    cursor: "pointer",
+                                    cursor: disabled ? "not-allowed" : "pointer",
                                     transition: "all 180ms ease",
                                     "&:hover": {
-                                        borderColor: "#0D64DE",
-                                        boxShadow: "0 10px 24px rgba(13, 100, 222, 0.18)",
-                                        transform: "translateY(-1px)",
+                                        borderColor: disabled ? (selected ? "#0D64DE" : "#e2e8f0") : "#0D64DE",
+                                        boxShadow: disabled
+                                            ? (selected
+                                                ? "0 8px 20px rgba(13, 100, 222, 0.16)"
+                                                : "0 4px 12px rgba(15, 23, 42, 0.06)")
+                                            : "0 10px 24px rgba(13, 100, 222, 0.18)",
+                                        transform: disabled ? "none" : "translateY(-1px)",
                                     },
                                     "&:focus-visible": {
                                         outline: "2px solid rgba(13, 100, 222, 0.5)",
