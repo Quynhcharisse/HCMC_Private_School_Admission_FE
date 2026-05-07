@@ -873,8 +873,8 @@ export default function CampaignOfferingsSection({
                         )}
                     </Box>
                 </Box>
-                <CardContent sx={{ p: 2.5, pt: 1.5, pb: 2 }}>
-                    <Stack direction={{ xs: "column", md: "row" }} spacing={2} flexWrap="wrap">
+                <CardContent sx={{ p: 2.5, pt: 1.5, pb: 2, overflowX: "auto" }}>
+                    <Stack direction="row" spacing={2} flexWrap="nowrap" sx={{ minWidth: "max-content" }}>
                         {typeof onCampaignChange === "function" ? (
                             <FormControl size="small" sx={{ minWidth: 260 }} disabled={campaignOptionsLoading}>
                                 <InputLabel>Chiến dịch tuyển sinh</InputLabel>
@@ -948,7 +948,7 @@ export default function CampaignOfferingsSection({
                                 <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Cơ sở</TableCell>
                                 <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Chương trình</TableCell>
                                 <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Hình thức</TableCell>
-                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Chỉ tiêu / Còn lại</TableCell>
+                                <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Còn lại / Chỉ tiêu</TableCell>
                                 <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Học phí</TableCell>
                                 <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Trạng thái hồ sơ</TableCell>
                                 <TableCell sx={{ fontWeight: 700, color: "#1e293b", py: 2 }}>Mở — Đóng</TableCell>
@@ -998,7 +998,7 @@ export default function CampaignOfferingsSection({
                                         <TableCell sx={{ py: 2.25 }}>{row.programName ?? getProgramName(row.programId)}</TableCell>
                                         <TableCell sx={{ py: 2.25 }}>{getLearningModeLabel(row.learningMode)}</TableCell>
                                         <TableCell sx={{ py: 2.25 }}>
-                                            {row.quota ?? "—"} / {row.remainingQuota ?? "—"}
+                                            {row.remainingQuota ?? "—"} / {row.quota ?? "—"}
                                         </TableCell>
                                         <TableCell sx={{ py: 2.25 }}>{formatCurrency(row.tuitionFee)}</TableCell>
                                         <TableCell sx={{ py: 2.25 }}>

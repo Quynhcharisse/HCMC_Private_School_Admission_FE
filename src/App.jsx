@@ -71,11 +71,15 @@ const SchoolCurriculums = lazy(() => import("./components/Page/school/SchoolCurr
 const SchoolPrograms = lazy(() => import("./components/Page/school/SchoolPrograms.jsx"));
 const SchoolPurchasedPackages = lazy(() => import("./components/Page/school/SchoolPurchasedPackages.jsx"));
 const SchoolParentsInterestPage = lazy(() => import("./components/Page/school/SchoolParentsInterestPage.jsx"));
+const SchoolCampusAdmissionReservations = lazy(() => import("./components/Page/school/SchoolCampusAdmissionReservations.jsx"));
 const ParentProfile = lazy(() => import("./components/auth/ParentProfile.jsx"));
 const SavedSchoolsPage = lazy(() => import("./components/Page/SavedSchoolsPage.jsx"));
 const CompareSchoolsPage = lazy(() => import("./components/Page/CompareSchoolsPage.jsx"));
 const ParentOfflineConsultationsPage = lazy(() =>
   import("./components/Page/ParentOfflineConsultationsPage.jsx")
+);
+const ParentAdmissionReservationsPage = lazy(() =>
+  import("./components/Page/ParentAdmissionReservationsPage.jsx")
 );
 const ChildrenInfoPage = lazy(() => import("./components/Page/ChildrenInfoPage.jsx"));
 const PackageFeesPage = lazy(() => import("./components/Page/PackageFeesPage.jsx"));
@@ -362,6 +366,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <SchoolParentsInterestPage/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'admission-reservations',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <SchoolCampusAdmissionReservations/>
                     </Suspense>
                 )
             },
@@ -732,6 +744,14 @@ const router = createBrowserRouter([
                 element: (
                     <Suspense fallback={<LoadingFallback/>}>
                         <ParentOfflineConsultationsPage/>
+                    </Suspense>
+                )
+            },
+            {
+                path: 'admission-reservations',
+                element: (
+                    <Suspense fallback={<LoadingFallback/>}>
+                        <ParentAdmissionReservationsPage/>
                     </Suspense>
                 )
             }

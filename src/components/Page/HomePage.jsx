@@ -1784,6 +1784,7 @@ export default function HomePage() {
         navigate({pathname: HOME_LIST_PATH, search: qs ? `?${qs}` : ""}, {replace: true});
     }, [location.search, navigate]);
 
+    const homeDetailLoadInFlightIdRef = React.useRef(0);
     React.useEffect(() => {
         if (!isHomeDetailRoute) {
             if (selectedSchoolDetail) {
@@ -1791,6 +1792,7 @@ export default function HomePage() {
                 setSchoolDetailLoading(false);
                 setSchoolDetailError("");
             }
+            homeDetailLoadInFlightIdRef.current = 0;
             return;
         }
         const schoolName = String(detailSchoolNameFromUrl || "").trim().toLowerCase();
@@ -1833,7 +1835,15 @@ export default function HomePage() {
             navigate({pathname: HOME_LIST_PATH, search: qs ? `?${qs}` : ""}, {replace: true});
             return;
         }
-        void loadSchoolDetailForHome(resolvedSchoolId, fallback);
+        if (homeDetailLoadInFlightIdRef.current === resolvedSchoolId) {
+            return;
+        }
+        homeDetailLoadInFlightIdRef.current = resolvedSchoolId;
+        void loadSchoolDetailForHome(resolvedSchoolId, fallback).finally(() => {
+            if (homeDetailLoadInFlightIdRef.current === resolvedSchoolId) {
+                homeDetailLoadInFlightIdRef.current = 0;
+            }
+        });
     }, [
         detailKeyFromUrl,
         detailSchoolNameFromUrl,
