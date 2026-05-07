@@ -38,17 +38,14 @@ export async function updateCounsellorOfflineConsultation(id, payload, axiosConf
 
 export async function putCounsellorOfflineConsultation(payload, axiosConfig = {}) {
   const { id, appointmentDate, note, cancelReason, counsellorSlotId, action } = payload || {};
-  return axiosClient.put("/counsellor/consultation/offline", null, {
-    ...axiosConfig,
-    params: {
-      id,
-      appointmentDate,
-      note: String(note ?? ""),
-      cancelReason: String(cancelReason ?? ""),
-      counsellorSlotId,
-      action,
-    },
-  });
+  return axiosClient.put("/counsellor/consultation/offline", {
+    id,
+    appointmentDate,
+    note: String(note ?? ""),
+    cancelReason: String(cancelReason ?? ""),
+    counsellorSlotId,
+    action,
+  }, axiosConfig);
 }
 
 export function parseCounsellorOfflineConsultationsResponse(response) {
