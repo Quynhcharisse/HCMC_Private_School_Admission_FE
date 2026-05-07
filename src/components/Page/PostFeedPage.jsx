@@ -22,6 +22,8 @@ import {
     ChevronLeft as ChevronLeftIcon,
     ChevronRight as ChevronRightIcon,
     Close as CloseIcon,
+    Description as DescriptionIcon,
+    OpenInNew as OpenInNewIcon,
     ZoomIn as ZoomInIcon,
     ZoomOut as ZoomOutIcon
 } from "@mui/icons-material";
@@ -176,6 +178,41 @@ function extractPostImageUrls(raw) {
     return deepUrls.filter((u) => u !== thumbnail);
 }
 
+function extractPostFileUrl(raw) {
+    const directFileUrl = String(raw?.fileUrl ?? "").trim();
+    if (looksLikeHttpUrl(directFileUrl)) return directFileUrl;
+
+    const documentJson = parseJsonMaybe(raw?.document ?? raw?.documentJson);
+    if (documentJson && typeof documentJson === "object" && Array.isArray(documentJson.documentItemList)) {
+        const sorted = [...documentJson.documentItemList].sort(
+            (a, b) => (Number(a?.position) || 0) - (Number(b?.position) || 0)
+        );
+        const firstDocUrl = String(sorted[0]?.fileUrl ?? "").trim();
+        if (looksLikeHttpUrl(firstDocUrl)) return firstDocUrl;
+    }
+
+    const fallbackTypeFileUrl = String(raw?.typeFile ?? "").trim();
+    if (looksLikeHttpUrl(fallbackTypeFileUrl)) return fallbackTypeFileUrl;
+
+    return "";
+}
+
+function buildOnlinePreviewUrl(fileUrl) {
+    const raw = String(fileUrl || "").trim();
+    if (!looksLikeHttpUrl(raw)) return "";
+    const lower = raw.toLowerCase();
+
+    if (/\.(doc|docx|xls|xlsx|ppt|pptx)(\?|#|$)/i.test(lower)) {
+        return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(raw)}`;
+    }
+
+    if (/\.(pdf)(\?|#|$)/i.test(lower)) {
+        return raw;
+    }
+
+    return `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(raw)}`;
+}
+
 function mapApiPostToFeedItem(raw) {
     const title = removeGmtPlus7(String(raw?.content?.shortDescription ?? "").trim()) || "Không có tiêu đề";
     const list = raw?.content?.contentDataList;
@@ -196,6 +233,7 @@ function mapApiPostToFeedItem(raw) {
     tags = tags.map((t) => String(t).trim()).filter(Boolean);
 
     const detailImages = extractPostImageUrls(raw);
+    const fileUrl = extractPostFileUrl(raw);
     const heroImage = String(raw?.thumbnail ?? "").trim() || detailImages[0] || DEFAULT_SCHOOL_IMAGE;
     const authorName = String(raw?.author?.name ?? "").trim();
     const isAdminPost = authorName.toLowerCase() === "hệ thống edubridge";
@@ -211,7 +249,8 @@ function mapApiPostToFeedItem(raw) {
         tags,
         heroImage,
         detailImages,
-        contentBlocks
+        contentBlocks,
+        fileUrl
     };
 }
 
@@ -295,6 +334,50 @@ function FeedPostCard({post, onOpen, onDisable, disableLoading = false, canDisab
                     dangerouslySetInnerHTML={{__html: post.captionHtml || post.caption || "Bài viết chưa có mô tả."}}
                 />
                 <Typography sx={{fontSize: "0.86rem", color: APP_PRIMARY_MAIN, fontWeight: 700, mb: 1.25}}>{firstTagLine}</Typography>
+
+                {post.fileUrl ? (
+                    <Box
+                        sx={{
+                            mb: 1.25,
+                            p: 1.1,
+                            borderRadius: 1.5,
+                            border: "1px solid #dbe7f6",
+                            backgroundColor: "#f8fbff",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 1
+                        }}
+                    >
+                        <Stack direction="row" spacing={0.8} alignItems="center" sx={{minWidth: 0}}>
+                            <DescriptionIcon sx={{fontSize: 19, color: "#475569"}} />
+                            <Typography
+                                sx={{
+                                    fontSize: "0.86rem",
+                                    color: "#334155",
+                                    fontWeight: 600,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap"
+                                }}
+                            >
+                                Tệp đính kèm
+                            </Typography>
+                        </Stack>
+                        <Button
+                            component="a"
+                            href={buildOnlinePreviewUrl(post.fileUrl)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            size="small"
+                            variant="outlined"
+                            endIcon={<OpenInNewIcon sx={{fontSize: 16}} />}
+                            sx={{textTransform: "none", minWidth: "fit-content"}}
+                        >
+                            Xem file
+                        </Button>
+                    </Box>
+                ) : null}
 
                 {heroImage ? (
                     <Box
