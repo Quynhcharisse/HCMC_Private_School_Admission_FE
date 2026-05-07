@@ -42,7 +42,6 @@ import { getProgramList } from "../../../services/ProgramService.jsx";
 import { useSchool } from "../../../contexts/SchoolContext.jsx";
 import {
     getCampaignOfferingsByCampus,
-    getCampusOfferingQuotaSummary,
     createCampaignOffering,
     updateCampaignOffering,
     updateCampusOfferingStatus,
@@ -490,7 +489,6 @@ export default function CampaignOfferingsSection({
     const [confirmActionLoading, setConfirmActionLoading] = useState(false);
     const [actionMenuAnchorEl, setActionMenuAnchorEl] = useState(null);
     const [actionMenuRow, setActionMenuRow] = useState(null);
-    const [remainingCampaignQuota, setRemainingCampaignQuota] = useState(null);
 
     useEffect(() => {
         let cancelled = false;
@@ -548,26 +546,16 @@ export default function CampaignOfferingsSection({
         };
     }, []);
 
-    useEffect(() => {
-        if (!campaignId) {
-            setRemainingCampaignQuota(null);
-            return;
-        }
-        let cancelled = false;
-        getCampusOfferingQuotaSummary(campaignId)
-            .then((res) => {
-                if (cancelled) return;
-                const body = res?.data?.body ?? res?.data ?? {};
-                const remaining = Number(body?.remainingQuota);
-                setRemainingCampaignQuota(Number.isFinite(remaining) ? remaining : null);
-            })
-            .catch(() => {
-                if (!cancelled) setRemainingCampaignQuota(null);
-            });
-        return () => {
-            cancelled = true;
-        };
-    }, [campaignId]);
+    const selectedMethodQuota = useMemo(() => {
+        const method = String(formValues.methodCode ?? "").trim();
+        if (!method) return null;
+        const timelines = Array.isArray(selectedCampaign?.admissionMethodTimelines)
+            ? selectedCampaign.admissionMethodTimelines
+            : [];
+        const hit = timelines.find((t) => String(t?.methodCode ?? "").trim() === method);
+        const quota = Number(hit?.quota);
+        return Number.isFinite(quota) && quota > 0 ? quota : null;
+    }, [selectedCampaign, formValues.methodCode]);
 
     useEffect(() => {
         if (schoolCtxLoading) return;
@@ -740,8 +728,8 @@ export default function CampaignOfferingsSection({
             const quota = Number(formValues.quota);
             if (!Number.isFinite(quota) || quota <= 0) {
                 errors.quota = "Vui lòng nhập chỉ tiêu hợp lệ";
-            } else if (Number.isFinite(remainingCampaignQuota) && quota > remainingCampaignQuota) {
-                errors.quota = `Chỉ tiêu không được vượt quá ${remainingCampaignQuota}`;
+            } else if (Number.isFinite(selectedMethodQuota) && quota > selectedMethodQuota) {
+                errors.quota = `Chỉ tiêu không được vượt quá ${selectedMethodQuota} (quota của phương thức tuyển sinh đã chọn)`;
             }
         }
         if (!editingRow) {
@@ -1528,8 +1516,8 @@ export default function CampaignOfferingsSection({
                                 error={!!formErrors.quota}
                                 helperText={
                                     formErrors.quota ||
-                                    (Number.isFinite(remainingCampaignQuota)
-                                        ? `Campus còn có thể phân bổ tối đa ${remainingCampaignQuota} chỉ tiêu`
+                                    (Number.isFinite(selectedMethodQuota)
+                                        ? `Chỉ tiêu tối đa theo phương thức đang chọn: ${selectedMethodQuota}`
                                         : "Nhập chỉ tiêu cho offering")
                                 }
                             />
