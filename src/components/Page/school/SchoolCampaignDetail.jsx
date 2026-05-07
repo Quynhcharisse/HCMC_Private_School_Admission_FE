@@ -115,7 +115,12 @@ const STATUS_UI = {
 };
 
 const CURRENT_YEAR = new Date().getFullYear();
-const SCAN_YEARS = [CURRENT_YEAR + 1, CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2, CURRENT_YEAR - 3];
+const FUTURE_SCAN_YEARS = 30;
+const PAST_SCAN_YEARS = 3;
+const SCAN_YEARS = Array.from(
+    { length: FUTURE_SCAN_YEARS + PAST_SCAN_YEARS + 1 },
+    (_, idx) => CURRENT_YEAR + FUTURE_SCAN_YEARS - idx
+);
 
 function normalizeCampaignStatus(rawStatus) {
     const s = String(rawStatus || "").trim().toUpperCase();
@@ -299,6 +304,28 @@ function getCampaignErrorMessage(backendMessage, fallback) {
     return trimmed || fallback;
 }
 
+function getCloneYearValidationError({ campaign, targetYear, campaigns }) {
+    const sourceYear = Number(campaign?.year);
+    if (!Number.isFinite(targetYear) || targetYear <= 0) {
+        return "Vui lòng nhập năm học mục tiêu hợp lệ";
+    }
+    if (!Number.isFinite(sourceYear)) {
+        return "Không xác định được năm của chiến dịch gốc";
+    }
+    if (targetYear < sourceYear) {
+        return "Năm mục tiêu phải lớn hơn hoặc bằng năm của chiến dịch gốc";
+    }
+    const hasActiveOrDraftSameYear = (campaigns || []).some((c) => {
+        const y = Number(c?.year);
+        const s = normalizeCampaignStatus(c?.status);
+        return y === targetYear && (s === "DRAFT" || s === "OPEN");
+    });
+    if (hasActiveOrDraftSameYear) {
+        return `Năm ${targetYear} đã có chiến dịch DRAFT/OPEN`;
+    }
+    return "";
+}
+
 export default function SchoolCampaignDetail() {
     const navigate = useNavigate();
     const { campaignId } = useParams();
@@ -331,6 +358,7 @@ export default function SchoolCampaignDetail() {
     const [confirmCloneOpen, setConfirmCloneOpen] = useState(false);
     const [cloneTargetYear, setCloneTargetYear] = useState("");
     const [cloneYearError, setCloneYearError] = useState("");
+    const [campaignsForCloneValidation, setCampaignsForCloneValidation] = useState([]);
     const [isInfoEditing, setIsInfoEditing] = useState(false);
     const [descriptionFieldKey, setDescriptionFieldKey] = useState(0);
     const [admissionMethodOptions, setAdmissionMethodOptions] = useState([]);
@@ -343,6 +371,34 @@ export default function SchoolCampaignDetail() {
     useEffect(() => {
         setDescriptionFieldKey((k) => k + 1);
     }, [campaign?.admissionCampaignTemplateId, campaign?.description]);
+
+    useEffect(() => {
+        let cancelled = false;
+        const loadCampaignsForCloneValidation = async () => {
+            const acc = [];
+            for (const y of SCAN_YEARS) {
+                try {
+                    const res = await getCampaignTemplatesByYear(y);
+                    const raw = res?.data?.body ?? res?.data;
+                    const list = Array.isArray(raw)
+                        ? raw
+                        : Array.isArray(raw?.campaigns)
+                            ? raw.campaigns
+                            : raw
+                                ? [raw]
+                                : [];
+                    acc.push(...list.map(mapTemplate).filter(Boolean));
+                } catch {
+                    // ignore single-year fetch errors
+                }
+            }
+            if (!cancelled) setCampaignsForCloneValidation(acc);
+        };
+        loadCampaignsForCloneValidation();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
 
     const resolveCampaignFromApi = useCallback(async () => {
         if (!Number.isFinite(idNum)) return null;
@@ -838,7 +894,7 @@ export default function SchoolCampaignDetail() {
     };
 
     const openCloneConfirm = () => {
-        setCloneTargetYear(String(Number(campaign?.year) + 1));
+        setCloneTargetYear("");
         setCloneYearError("");
         setConfirmCloneOpen(true);
     };
@@ -846,8 +902,13 @@ export default function SchoolCampaignDetail() {
     const runCloneCampaign = async () => {
         if (!templateId || isPastYearCampaign) return;
         const targetYear = Number.parseInt(String(cloneTargetYear), 10);
-        if (!Number.isFinite(targetYear) || targetYear <= 0) {
-            setCloneYearError("Vui lòng nhập năm học mục tiêu hợp lệ");
+        const validationError = getCloneYearValidationError({
+            campaign,
+            targetYear,
+            campaigns: campaignsForCloneValidation,
+        });
+        if (validationError) {
+            setCloneYearError(validationError);
             return;
         }
         setSubmitLoading(true);
@@ -1544,7 +1605,7 @@ export default function SchoolCampaignDetail() {
                                         disabled={submitLoading}
                                         sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px", whiteSpace: "nowrap" }}
                                     >
-                                        Nhân bản → {Number(campaign?.year) + 1}
+                                        Nhân bản
                                     </Button>
                                 )}
                         </Stack>
@@ -1847,7 +1908,7 @@ export default function SchoolCampaignDetail() {
                             if (cloneYearError) setCloneYearError("");
                         }}
                         error={!!cloneYearError}
-                        helperText={cloneYearError || `Mặc định: ${Number(campaign?.year) + 1}`}
+                        helperText={cloneYearError || "Năm mục tiêu phải >= năm campaign gốc và chưa có DRAFT/OPEN"}
                         inputProps={{ min: 1, step: 1 }}
                         sx={{ mt: 2.5, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                     />

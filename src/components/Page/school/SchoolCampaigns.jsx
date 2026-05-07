@@ -943,7 +943,7 @@ export default function SchoolCampaigns() {
             return;
         }
         setCloneTargetCampaign(campaign);
-        setCloneTargetYear(String(Number(campaign?.year) + 1));
+        setCloneTargetYear("");
         setCloneYearError("");
         setConfirmCloneOpen(true);
     };
