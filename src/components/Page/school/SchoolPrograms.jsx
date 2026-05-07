@@ -143,6 +143,7 @@ const methodLearningIconMap = {
 };
 
 const normalizeStatus = (status) => String(status || "").toUpperCase();
+const isProgramActiveStatus = (status) => normalizeStatus(status) === "PRO_ACTIVE";
 
 const toCurriculumTypeLabel = (value) => curriculumTypeI18N[value] ?? value ?? "—";
 const toMethodLearningLabel = (value) => methodLearningI18N[value] ?? value ?? "—";
@@ -1209,7 +1210,7 @@ export default function SchoolPrograms() {
         setIsClonedDraftEdit(!!markAsClonedDraft);
         setShouldAutoSelectClonedName(!!markAsClonedDraft);
         setOriginalCurriculumId(program.curriculumId ?? null);
-        const isActiveProgram = normalizeStatus(program.status) === "PRO_ACTIVE";
+        const isActiveProgram = isProgramActiveStatus(program.status);
         const hasOfferingHistory = Number(program.offeringCount) > 0;
         const shouldDisableCurriculum = isActiveProgram || hasOfferingHistory;
         setDisableCurriculumSelection(shouldDisableCurriculum);
@@ -1515,6 +1516,10 @@ export default function SchoolPrograms() {
     const handleSubmit = async () => {
         if (submitLoading) return;
         if (!isPrimaryBranch) return;
+        if (modalMode === "edit" && isProgramActiveStatus(selectedProgram?.status)) {
+            enqueueSnackbar("Chương trình đang hoạt động không thể chỉnh sửa.", {variant: "info"});
+            return;
+        }
 
         // Validate before submit always
         if (activeStep === 0) {
@@ -1623,7 +1628,7 @@ export default function SchoolPrograms() {
         ? (originalCurriculumId ? curriculumOptions.find((c) => c.id === originalCurriculumId) : selectedCurriculum)
         : selectedCurriculum;
 
-    const coreLockedByActive =
+    const programLockedByActive =
         modalMode === "edit" && selectedProgram != null && normalizeStatus(selectedProgram.status) !== "PRO_DRAFT";
 
     return (
@@ -2573,6 +2578,7 @@ export default function SchoolPrograms() {
                                             label="Tên chương trình đào tạo"
                                             fullWidth
                                             required
+                                            disabled={submitLoading || programLockedByActive}
                                             value={formValues.name}
                                             inputRef={nameInputRef}
                                             onChange={(e) => {
@@ -2590,6 +2596,7 @@ export default function SchoolPrograms() {
                                             value={formValues.languageOfInstructionList}
                                             options={languageOptions}
                                             loading={languageOptionsLoading}
+                                            disabled={programLockedByActive}
                                             onChange={(next) => {
                                                 setFormValues((prev) => ({...prev, languageOfInstructionList: next}));
                                                 setFormErrors((prev) => ({
@@ -2601,14 +2608,14 @@ export default function SchoolPrograms() {
                                         />
 
                                         <Tooltip
-                                            title={coreLockedByActive ? "Không thể sửa thông tin cốt lõi của chương trình đang hoạt động" : ""}
-                                            disableHoverListener={!coreLockedByActive}
+                                            title={programLockedByActive ? "Không thể sửa thông tin của chương trình đang hoạt động" : ""}
+                                            disableHoverListener={!programLockedByActive}
                                         >
                                     <span>
                                         <TextField
                                             label="Học phí gốc"
                                             fullWidth
-                                            disabled={coreLockedByActive}
+                                            disabled={programLockedByActive}
                                             value={
                                                 formValues.baseTuitionFee === ""
                                                     ? ""
@@ -2636,8 +2643,8 @@ export default function SchoolPrograms() {
                                         </Tooltip>
 
                                         <Tooltip
-                                            title={coreLockedByActive ? "Không thể sửa thông tin cốt lõi của chương trình đang hoạt động" : ""}
-                                            disableHoverListener={!coreLockedByActive}
+                                            title={programLockedByActive ? "Không thể sửa thông tin của chương trình đang hoạt động" : ""}
+                                            disableHoverListener={!programLockedByActive}
                                         >
                                     <span>
                                         <SelectLike
@@ -2650,7 +2657,7 @@ export default function SchoolPrograms() {
                                             }}
                                             error={!!formErrors.feeUnit}
                                             helperText={formErrors.feeUnit || ""}
-                                            disabled={coreLockedByActive}
+                                            disabled={programLockedByActive}
                                         />
                                     </span>
                                         </Tooltip>
@@ -2675,7 +2682,7 @@ export default function SchoolPrograms() {
                                                     setFormValues((prev) => ({...prev, graduationStandard: html}));
                                                     setFormErrors((prev) => ({...prev, graduationStandard: undefined}));
                                                 }}
-                                                disabled={submitLoading}
+                                                disabled={submitLoading || programLockedByActive}
                                                 minEditorHeight={220}
                                                 maxEditorHeight={400}
                                             />
@@ -2718,7 +2725,7 @@ export default function SchoolPrograms() {
                                                         targetStudentDescription: undefined
                                                     }));
                                                 }}
-                                                disabled={submitLoading}
+                                                disabled={submitLoading || programLockedByActive}
                                                 minEditorHeight={220}
                                                 maxEditorHeight={400}
                                             />
@@ -2742,14 +2749,14 @@ export default function SchoolPrograms() {
                                                 setFormErrors((prev) => ({...prev, extraSubjectList: undefined}));
                                             }}
                                             error={formErrors.extraSubjectList}
-                                            disabled={submitLoading}
+                                            disabled={submitLoading || programLockedByActive}
                                             importLoading={importExtraSubjectLoading}
                                             onImportFile={handleImportExtraSubjects}
                                         />
 
-                                        {coreLockedByActive ? (
+                                        {programLockedByActive ? (
                                             <Alert severity="info" sx={{py: 1, mt: 1.2}}>
-                                                Không thể sửa thông tin cốt lõi của chương trình đang hoạt động.
+                                                Chương trình đang hoạt động nên không thể chỉnh sửa thông tin.
                                             </Alert>
                                         ) : null}
                                     </>
@@ -3136,7 +3143,7 @@ export default function SchoolPrograms() {
                                 <Button
                                     onClick={handleNext}
                                     variant="contained"
-                                    disabled={submitLoading}
+                                    disabled={submitLoading || programLockedByActive}
                                     sx={{
                                         textTransform: "none",
                                         fontWeight: 950,
@@ -3151,7 +3158,7 @@ export default function SchoolPrograms() {
                                 <Button
                                     onClick={handleSubmit}
                                     variant="contained"
-                                    disabled={submitLoading}
+                                    disabled={submitLoading || programLockedByActive}
                                     sx={{
                                         textTransform: "none",
                                         fontWeight: 950,
@@ -3232,21 +3239,12 @@ export default function SchoolPrograms() {
                                     return;
                                 }
 
-                                const rawBody = res?.data?.body ?? res?.data ?? {};
-                                const mapped = mapProgramFromApi(rawBody);
-                                if (!mapped) {
-                                    enqueueSnackbar("Đã nhân bản nhưng không đọc được dữ liệu bản sao mới.", {variant: "warning"});
-                                    return;
-                                }
-
-                                enqueueSnackbar(
-                                    "Thành công! Đã tạo bản sao mới. Bạn đang ở chế độ chỉnh sửa bản nháp.",
-                                    {variant: "success"}
-                                );
+                                enqueueSnackbar("Thành công! Đã tạo bản sao mới.", {variant: "success"});
                                 setCloneConfirmOpen(false);
                                 setCloneTargetProgram(null);
-
-                                await handleOpenEdit(mapped, {startStep: 0, markAsClonedDraft: true});
+                                setProgramModalOpen(false);
+                                setSelectedProgram(null);
+                                await loadData(page, rowsPerPage);
                             } catch (err) {
                                 console.error("Clone program error:", err);
                                 enqueueSnackbar(
@@ -3394,10 +3392,11 @@ function SelectLike({value, options, onChange, label, error, helperText, disable
     );
 }
 
-function LanguageInstructionSelector({value, options, loading = false, onChange, error}) {
+function LanguageInstructionSelector({value, options, loading = false, onChange, error, disabled = false}) {
     const selectedValues = Array.isArray(value) ? value : [];
 
     const toggleValue = (nextValue) => {
+        if (disabled) return;
         const exists = selectedValues.includes(nextValue);
         onChange(exists ? selectedValues.filter((v) => v !== nextValue) : [...selectedValues, nextValue]);
     };
@@ -3417,11 +3416,11 @@ function LanguageInstructionSelector({value, options, loading = false, onChange,
                         <Chip
                             key={item}
                             label={getLanguageInstructionDisplayLabel(item, options)}
-                            onDelete={() => toggleValue(item)}
+                            onDelete={disabled ? undefined : () => toggleValue(item)}
                             sx={{
                                 borderRadius: 2,
-                                bgcolor: "rgba(13, 100, 222, 0.1)",
-                                color: "#0D64DE",
+                                bgcolor: disabled ? "rgba(148, 163, 184, 0.18)" : "rgba(13, 100, 222, 0.1)",
+                                color: disabled ? "#64748b" : "#0D64DE",
                                 fontWeight: 700,
                             }}
                         />
@@ -3448,9 +3447,10 @@ function LanguageInstructionSelector({value, options, loading = false, onChange,
                                 role="checkbox"
                                 aria-checked={selected}
                                 aria-label={item.name}
-                                tabIndex={0}
+                                tabIndex={disabled ? -1 : 0}
                                 onClick={() => toggleValue(item.id)}
                                 onKeyDown={(e) => {
+                                    if (disabled) return;
                                     if (e.key === "Enter" || e.key === " ") {
                                         e.preventDefault();
                                         toggleValue(item.id);
@@ -3464,12 +3464,16 @@ function LanguageInstructionSelector({value, options, loading = false, onChange,
                                     border: selected ? "1.5px solid #0D64DE" : "1px solid #e2e8f0",
                                     bgcolor: selected ? "rgba(13, 100, 222, 0.07)" : "rgba(255,255,255,0.8)",
                                     boxShadow: selected ? "0 8px 20px rgba(13, 100, 222, 0.16)" : "0 4px 12px rgba(15, 23, 42, 0.06)",
-                                    cursor: "pointer",
+                                    cursor: disabled ? "not-allowed" : "pointer",
                                     transition: "all 180ms ease",
                                     "&:hover": {
-                                        borderColor: "#0D64DE",
-                                        boxShadow: "0 10px 24px rgba(13, 100, 222, 0.18)",
-                                        transform: "translateY(-1px)",
+                                        borderColor: disabled ? (selected ? "#0D64DE" : "#e2e8f0") : "#0D64DE",
+                                        boxShadow: disabled
+                                            ? (selected
+                                                ? "0 8px 20px rgba(13, 100, 222, 0.16)"
+                                                : "0 4px 12px rgba(15, 23, 42, 0.06)")
+                                            : "0 10px 24px rgba(13, 100, 222, 0.18)",
+                                        transform: disabled ? "none" : "translateY(-1px)",
                                     },
                                     "&:focus-visible": {
                                         outline: "2px solid rgba(13, 100, 222, 0.5)",
