@@ -42,6 +42,7 @@ import EventAvailableOutlinedIcon from "@mui/icons-material/EventAvailableOutlin
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 import StickyNote2OutlinedIcon from "@mui/icons-material/StickyNote2Outlined";
 import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import AssignmentTurnedInOutlinedIcon from "@mui/icons-material/AssignmentTurnedInOutlined";
 import TodayIcon from "@mui/icons-material/Today";
 import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import { enqueueSnackbar } from "notistack";
@@ -279,6 +280,73 @@ function statusTag(row) {
         border: "1px solid rgba(203,213,225,0.3)",
       }}
     />
+  );
+}
+
+function useCountdown(initialSeconds, onExpire) {
+  const initial = Math.max(0, Math.round(Number(initialSeconds) || 0));
+  const [secs, setSecs] = useState(initial);
+  const onExpireRef = React.useRef(onExpire);
+  onExpireRef.current = onExpire;
+  const firedRef = React.useRef(initial === 0);
+
+  useEffect(() => {
+    if (secs === 0 && !firedRef.current) {
+      firedRef.current = true;
+      onExpireRef.current?.();
+    }
+  }, [secs]);
+
+  useEffect(() => {
+    const id = setInterval(() => setSecs((p) => (p <= 1 ? 0 : p - 1)), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  return secs;
+}
+
+function ConfirmingStatusCell({ row, onExpire }) {
+  const secs = useCountdown(row.secondsRemaining, onExpire);
+  const m = String(Math.floor(secs / 60)).padStart(2, "0");
+  const s = String(secs % 60).padStart(2, "0");
+
+  return (
+    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0.75, flexWrap: "wrap" }}>
+      <Chip
+        size="small"
+        icon={
+          <Box
+            sx={{
+              width: "8px !important",
+              height: 8,
+              borderRadius: "50%",
+              bgcolor: "#f59e0b",
+              ml: "8px !important",
+              flexShrink: 0,
+            }}
+          />
+        }
+        label="Đang tiếp nhận"
+        sx={{
+          ...statusChipTableSx,
+          bgcolor: "rgba(245,158,11,0.12)",
+          color: "#b45309",
+          border: "1px solid rgba(245,158,11,0.38)",
+          "& .MuiChip-icon": { mr: 0 },
+        }}
+      />
+      <Typography
+        sx={{
+          fontSize: 11.5,
+          color: secs > 0 ? "#92400e" : "#94a3b8",
+          fontVariantNumeric: "tabular-nums",
+          fontWeight: 600,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {secs > 0 ? `⏱ ${m}:${s}` : "Hết giờ"}
+      </Typography>
+    </Box>
   );
 }
 
@@ -981,6 +1049,7 @@ export default function CounsellorConsultationManagement() {
   const [editUiAssignedCounsellor, setEditUiAssignedCounsellor] = useState(null);
   const [editSlotBaselineKey, setEditSlotBaselineKey] = useState(null);
   const [editSaveLoading, setEditSaveLoading] = useState(false);
+  const [confirmingRowId, setConfirmingRowId] = useState(null);
 
   useEffect(() => {
     if (!editOpen || !editRow) return;
@@ -1135,6 +1204,43 @@ export default function CounsellorConsultationManagement() {
   const openDetail = (row) => {
     setDetailRow(row);
     setDetailOpen(true);
+  };
+
+  const handleConfirmRow = async (row) => {
+    const consultationId = Number(row?.id);
+    if (!Number.isFinite(consultationId) || consultationId <= 0) {
+      enqueueSnackbar("Không xác định được mã lịch.", { variant: "warning" });
+      return;
+    }
+    const appointmentDate = String(row?.appointmentDate ?? "").trim().slice(0, 10);
+    const counsellorSlotId = Number(row?.counsellorSlotId ?? row?.slotId ?? 0);
+    const payload = {
+      id: consultationId,
+      appointmentDate,
+      note: String(row?.note ?? "").trim(),
+      cancelReason: String(row?.cancelReason ?? row?.cancel_reason ?? "").trim(),
+      counsellorSlotId,
+      action: "confirming",
+    };
+    setConfirmingRowId(consultationId);
+    try {
+      const res = await putCounsellorOfflineConsultation(payload);
+      const okMsg = res?.data?.message;
+      enqueueSnackbar(
+        typeof okMsg === "string" && okMsg.trim() ? okMsg.trim() : "Tiếp nhận lịch tư vấn thành công.",
+        { variant: "success" }
+      );
+      await load(page);
+    } catch (e) {
+      const msg =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        e?.message ||
+        "Tiếp nhận không thành công. Vui lòng thử lại.";
+      enqueueSnackbar(typeof msg === "string" ? msg : "Tiếp nhận không thành công.", { variant: "error" });
+    } finally {
+      setConfirmingRowId(null);
+    }
   };
 
   const openEdit = (row) => {
@@ -1415,10 +1521,7 @@ export default function CounsellorConsultationManagement() {
                         </TableCell>
                         <TableCell align="center" sx={{ ...adminTableHeadCellSx, width: 100 }}>Ngày</TableCell>
                         <TableCell align="center" sx={{ ...adminTableHeadCellSx, width: 100 }}>Giờ</TableCell>
-                        <TableCell align="center" sx={{ ...adminTableHeadCellSx, minWidth: 220 }}>
-                          Câu hỏi
-                        </TableCell>
-                        <TableCell align="center" sx={{ ...adminTableHeadCellSx, minWidth: 100 }}>Trạng thái</TableCell>
+<TableCell align="center" sx={{ ...adminTableHeadCellSx, minWidth: 100 }}>Trạng thái</TableCell>
                         <TableCell align="center" sx={{ ...adminTableHeadCellSx, width: 100 }}>Thao tác</TableCell>
                       </TableRow>
                     </TableHead>
@@ -1456,38 +1559,51 @@ export default function CounsellorConsultationManagement() {
                               {formatAppointmentTime(row.appointmentTime) || "—"}
                             </Typography>
                           </TableCell>
-                          <TableCell sx={{ verticalAlign: "middle", maxWidth: 280 }}>
-                            <Tooltip title={String(row.question || "").trim() || "—"} placement="top-start">
-                              <Typography
-                                sx={{
-                                  display: "-webkit-box",
-                                  WebkitLineClamp: 2,
-                                  WebkitBoxOrient: "vertical",
-                                  overflow: "hidden",
-                                  wordBreak: "break-word",
-                                  lineHeight: 1.45,
-                                  fontSize: 14,
-                                  color: "#334155",
-                                }}
-                              >
-                                {String(row.question || "").trim() || "—"}
-                              </Typography>
-                            </Tooltip>
-                          </TableCell>
-                          <TableCell align="center" sx={{ verticalAlign: "middle" }}>
-                            <Box sx={{ display: "flex", justifyContent: "center", width: "100%" }}>{statusTag(row)}</Box>
+<TableCell align="center" sx={{ verticalAlign: "middle" }}>
+                            <Box sx={{ display: "flex", justifyContent: "center", width: "100%" }}>
+                              {row.confirmingBy != null ? (
+                                <ConfirmingStatusCell row={row} onExpire={() => void load(page)} />
+                              ) : (
+                                statusTag(row)
+                              )}
+                            </Box>
                           </TableCell>
                           <TableCell align="center" sx={{ verticalAlign: "middle", px: 0.5 }}>
-                            <Tooltip title="Xem chi tiết">
-                              <IconButton
-                                size="small"
-                                aria-label="Xem chi tiết"
-                                onClick={() => openDetail(row)}
-                                sx={viewActionSx}
-                              >
-                                <VisibilityOutlinedIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
+                            <Box sx={{ display: "flex", justifyContent: "center", gap: 0.5 }}>
+                              {activeListStatus === "pending" && !row.confirmingBy && (
+                                <Tooltip title="Tiếp nhận">
+                                  <span>
+                                    <IconButton
+                                      size="small"
+                                      aria-label="Tiếp nhận"
+                                      onClick={() => void handleConfirmRow(row)}
+                                      disabled={confirmingRowId === Number(row?.id)}
+                                      sx={{
+                                        ...viewActionSx,
+                                        color: "#16a34a",
+                                        "&:hover": { bgcolor: "rgba(22,163,74,0.10)" },
+                                      }}
+                                    >
+                                      {confirmingRowId === Number(row?.id) ? (
+                                        <CircularProgress size={16} thickness={4} sx={{ color: "#16a34a" }} />
+                                      ) : (
+                                        <AssignmentTurnedInOutlinedIcon fontSize="small" />
+                                      )}
+                                    </IconButton>
+                                  </span>
+                                </Tooltip>
+                              )}
+                              <Tooltip title="Xem chi tiết">
+                                <IconButton
+                                  size="small"
+                                  aria-label="Xem chi tiết"
+                                  onClick={() => openDetail(row)}
+                                  sx={viewActionSx}
+                                >
+                                  <VisibilityOutlinedIcon fontSize="small" />
+                                </IconButton>
+                              </Tooltip>
+                            </Box>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1653,23 +1769,33 @@ export default function CounsellorConsultationManagement() {
             justifyContent: "flex-end",
           }}
         >
-          <Button
-            variant="contained"
-            startIcon={<EditOutlinedIcon />}
-            onClick={() => void openEditFromDetail()}
-            sx={{
-              textTransform: "none",
-              fontWeight: 700,
-              borderRadius: 2,
-              px: 3,
-              minWidth: 140,
-              bgcolor: "#1565c0",
-              boxShadow: "0 4px 14px rgba(21, 101, 160, 0.35)",
-              "&:hover": { bgcolor: "#0d47a1", boxShadow: "0 6px 18px rgba(13, 71, 161, 0.38)" },
-            }}
-          >
-            Chỉnh sửa
-          </Button>
+          {activeListStatus === "pending" && (
+            <Tooltip
+              title={detailRow?.confirmingBy == null ? "Tiếp nhận lịch hẹn trước khi được phép chỉnh sửa" : ""}
+              placement="top"
+            >
+              <span>
+                <Button
+                  variant="contained"
+                  startIcon={<EditOutlinedIcon />}
+                  onClick={() => void openEditFromDetail()}
+                  disabled={detailRow?.confirmingBy == null}
+                  sx={{
+                    textTransform: "none",
+                    fontWeight: 700,
+                    borderRadius: 2,
+                    px: 3,
+                    minWidth: 140,
+                    bgcolor: "#1565c0",
+                    boxShadow: "0 4px 14px rgba(21, 101, 160, 0.35)",
+                    "&:hover": { bgcolor: "#0d47a1", boxShadow: "0 6px 18px rgba(13, 71, 161, 0.38)" },
+                  }}
+                >
+                  Chỉnh sửa
+                </Button>
+              </span>
+            </Tooltip>
+          )}
         </DialogActions>
       </Dialog>
 
