@@ -41,6 +41,7 @@ import InsightsIcon from '@mui/icons-material/Insights';
 import CallIcon from '@mui/icons-material/Call';
 import BadgeIcon from '@mui/icons-material/Badge';
 import LockIcon from '@mui/icons-material/Lock';
+import CloseIcon from '@mui/icons-material/Close';
 import {useLocation, useNavigate} from "react-router-dom";
 import {enqueueSnackbar} from "notistack";
 import {exportSchools, exportUsersByRole, getUsersByRole, setAccountRestricted} from "../../../services/AdminService.jsx";
@@ -438,24 +439,21 @@ export default function AdminUsersManagement() {
     const detailSectionSx = {
         border: "1px solid #bfdbfe",
         borderRadius: 3,
-        bgcolor: "#eff6ff",
+        bgcolor: "rgba(255,255,255,0.32)",
         p: {xs: 1.4, md: 1.8},
-        boxShadow: "0 10px 24px rgba(37,99,235,0.14)",
+        boxShadow: "none",
     };
 
-    const renderDetailField = (label, value, fullWidth = false) => (
+    const renderDetailField = (label, value) => (
         <Box
             sx={{
-                border: "1px solid #bfdbfe",
-                borderRadius: 2.25,
-                bgcolor: "#ffffff",
-                px: 1.3,
-                py: 1.1,
-                gridColumn: fullWidth ? {xs: "auto", md: "1 / span 2"} : "auto",
-                boxShadow: "0 5px 12px rgba(37,99,235,0.08)",
+                borderBottom: "1px dashed #bfdbfe",
+                px: 0,
+                py: 0.8,
+                gridColumn: "1 / -1",
             }}
         >
-            <Typography sx={{fontSize: 12, color: "#2563eb", mb: 0.35, fontWeight: 700}}>{label}</Typography>
+            <Typography sx={{fontSize: 12, color: "#2563eb", mb: 0.35, fontWeight: 700}}>{label}:</Typography>
             <Typography sx={{fontSize: 14, color: "#1e293b", fontWeight: 600}}>{value || "-"}</Typography>
         </Box>
     );
@@ -1082,6 +1080,10 @@ export default function AdminUsersManagement() {
             >
                 <DialogTitle
                     sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 1,
                         fontWeight: 800,
                         color: "#1e293b",
                         pb: 1.2,
@@ -1089,14 +1091,21 @@ export default function AdminUsersManagement() {
                         borderBottom: "1px solid #93c5fd",
                     }}
                 >
-                    Chi tiết phụ huynh
+                    <Box component="span">Chi tiết phụ huynh</Box>
+                    <IconButton
+                        size="small"
+                        onClick={handleCloseParentDetail}
+                        aria-label="Đóng chi tiết phụ huynh"
+                        sx={{color: "#1e3a8a"}}
+                    >
+                        <CloseIcon fontSize="small" />
+                    </IconButton>
                 </DialogTitle>
                 <DialogContent
                     dividers
                     sx={{
-                        bgcolor: "#eff6ff",
-                        backgroundImage:
-                            "radial-gradient(circle at top right, rgba(59,130,246,0.24), transparent 45%), radial-gradient(circle at bottom left, rgba(37,99,235,0.2), transparent 42%)",
+                        bgcolor: "#e2e8f0",
+                        backgroundImage: "none",
                     }}
                 >
                     <Stack spacing={1.5}>
@@ -1109,13 +1118,10 @@ export default function AdminUsersManagement() {
                             </Stack>
                             <Box
                                 sx={{
-                                    border: "1px solid #bfdbfe",
-                                    borderRadius: 2.25,
-                                    bgcolor: "#ffffff",
-                                    px: 1.4,
-                                    py: 1.25,
-                                    mb: 1,
-                                    boxShadow: "0 5px 12px rgba(37,99,235,0.08)",
+                                    borderBottom: "1px dashed #93c5fd",
+                                    px: 0,
+                                    py: 0.8,
+                                    mb: 0.8,
                                     display: "flex",
                                     alignItems: "center",
                                     gap: 1.5,
@@ -1132,7 +1138,7 @@ export default function AdminUsersManagement() {
                                     {selectedParent?.name || "-"}
                                 </Typography>
                             </Box>
-                            <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                            <Box sx={{display: "grid", gridTemplateColumns: "1fr", gap: 1}}>
                                 {renderDetailField("Giới tính", getGenderLabel(selectedParent?.gender))}
                                 {renderDetailField("Vai trò", getRoleLabel(selectedParent?.role))}
                                 {renderDetailField("Mối quan hệ", getRelationshipLabel(selectedParent?.relationship))}
@@ -1146,7 +1152,7 @@ export default function AdminUsersManagement() {
                                     Liên hệ
                                 </Typography>
                             </Stack>
-                            <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                            <Box sx={{display: "grid", gridTemplateColumns: "1fr", gap: 1}}>
                                 {renderDetailField("Email", selectedParent?.email)}
                                 {renderDetailField("Số điện thoại", selectedParent?.phone)}
                                 {renderDetailField("Địa chỉ", selectedParent?.currentAddress, true)}
@@ -1160,7 +1166,7 @@ export default function AdminUsersManagement() {
                                     Thông tin cá nhân
                                 </Typography>
                             </Stack>
-                            <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                            <Box sx={{display: "grid", gridTemplateColumns: "1fr", gap: 1}}>
                                 {renderDetailField("Số CCCD/CMND", maskIdCardNumber(selectedParent?.idCardNumber))}
                                 {renderDetailField("Nghề nghiệp", selectedParent?.occupation)}
                                 {renderDetailField("Nơi làm việc", selectedParent?.workplace)}
@@ -1174,12 +1180,12 @@ export default function AdminUsersManagement() {
                                     Trạng thái tài khoản
                                 </Typography>
                             </Stack>
-                            <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
-                                <Box sx={{border: "1px solid #bfdbfe", borderRadius: 2.25, bgcolor: "#ffffff", px: 1.3, py: 1.1, boxShadow: "0 5px 12px rgba(37,99,235,0.08)"}}>
+                            <Box sx={{display: "grid", gridTemplateColumns: "1fr", gap: 1}}>
+                                <Box sx={{borderBottom: "1px dashed #bfdbfe", px: 0, py: 0.8}}>
                                     <Typography sx={{fontSize: 12, color: "#2563eb", mb: 0.5, fontWeight: 700}}>Trạng thái</Typography>
                                     {renderStatusChip(selectedParent?.status)}
                                 </Box>
-                                <Box sx={{border: "1px solid #bfdbfe", borderRadius: 2.25, bgcolor: "#ffffff", px: 1.3, py: 1.1, boxShadow: "0 5px 12px rgba(37,99,235,0.08)"}}>
+                                <Box sx={{borderBottom: "1px dashed #bfdbfe", px: 0, py: 0.8}}>
                                     <Typography sx={{fontSize: 12, color: "#2563eb", mb: 0.5, fontWeight: 700}}>Bị hạn chế</Typography>
                                     {renderRestrictedChip(!!selectedParent?.isRestricted)}
                                 </Box>
@@ -1206,6 +1212,10 @@ export default function AdminUsersManagement() {
             >
                 <DialogTitle
                     sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 1,
                         fontWeight: 800,
                         color: "#1e293b",
                         pb: 1.2,
@@ -1213,9 +1223,17 @@ export default function AdminUsersManagement() {
                         borderBottom: "1px solid #93c5fd",
                     }}
                 >
-                    Chi tiết nhà trường
+                    <Box component="span">Chi tiết nhà trường</Box>
+                    <IconButton
+                        size="small"
+                        onClick={handleCloseSchoolDetail}
+                        aria-label="Đóng chi tiết nhà trường"
+                        sx={{color: "#1e3a8a"}}
+                    >
+                        <CloseIcon fontSize="small" />
+                    </IconButton>
                 </DialogTitle>
-                <DialogContent dividers sx={{bgcolor: "#eff6ff"}}>
+                <DialogContent dividers sx={{bgcolor: "#e2e8f0"}}>
                     <Stack spacing={1.5}>
                         <Box sx={detailSectionSx}>
                             <Stack direction="row" spacing={0.8} alignItems="center" sx={{mb: 1}}>
@@ -1226,12 +1244,9 @@ export default function AdminUsersManagement() {
                             </Stack>
                             <Box
                                 sx={{
-                                    border: "1px solid #bfdbfe",
-                                    borderRadius: 2.25,
-                                    bgcolor: "#ffffff",
-                                    px: 1.4,
-                                    py: 1.25,
-                                    boxShadow: "0 5px 12px rgba(37,99,235,0.08)",
+                                    borderBottom: "1px dashed #93c5fd",
+                                    px: 0,
+                                    py: 0.8,
                                     display: "flex",
                                     alignItems: "flex-start",
                                     gap: 1.5,
@@ -1262,7 +1277,7 @@ export default function AdminUsersManagement() {
                                     Cơ sở chính
                                 </Typography>
                             </Stack>
-                            <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                            <Box sx={{display: "grid", gridTemplateColumns: "1fr", gap: 1}}>
                                 {renderDetailField("Tên cơ sở", selectedSchool?.primaryCampus?.campusName)}
                                 {renderDetailField("Số điện thoại", selectedSchool?.primaryCampus?.phoneNumber)}
                                 {renderDetailField("Địa chỉ", selectedSchool?.primaryCampus?.address, true)}
@@ -1276,7 +1291,7 @@ export default function AdminUsersManagement() {
                                     Thông tin hệ thống
                                 </Typography>
                             </Stack>
-                            <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                            <Box sx={{display: "grid", gridTemplateColumns: "1fr", gap: 1}}>
                                 {renderDetailField("Mã số thuế", selectedSchool?.taxCode)}
                                 {renderDetailField("Ngày thành lập", formatDate(selectedSchool?.foundingDate))}
                                 {renderDetailField("Số cơ sở", selectedSchool?.campusCount ?? "-")}
@@ -1291,7 +1306,7 @@ export default function AdminUsersManagement() {
                                     Liên hệ
                                 </Typography>
                             </Stack>
-                            <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                            <Box sx={{display: "grid", gridTemplateColumns: "1fr", gap: 1}}>
                                 {renderDetailField("Hotline", selectedSchool?.hotline)}
                                 {renderDetailField("Website", selectedSchool?.websiteUrl)}
                             </Box>
@@ -1304,7 +1319,7 @@ export default function AdminUsersManagement() {
                                     Đại diện
                                 </Typography>
                             </Stack>
-                            <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
+                            <Box sx={{display: "grid", gridTemplateColumns: "1fr", gap: 1}}>
                                 {renderDetailField("Người đại diện", selectedSchool?.representativeName)}
                             </Box>
                         </Box>
@@ -1316,8 +1331,8 @@ export default function AdminUsersManagement() {
                                     Trạng thái
                                 </Typography>
                             </Stack>
-                            <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", md: "1fr 1fr"}, gap: 1}}>
-                                <Box sx={{border: "1px solid #bfdbfe", borderRadius: 2.25, bgcolor: "#ffffff", px: 1.3, py: 1.1, boxShadow: "0 5px 12px rgba(37,99,235,0.08)"}}>
+                            <Box sx={{display: "grid", gridTemplateColumns: "1fr", gap: 1}}>
+                                <Box sx={{borderBottom: "1px dashed #bfdbfe", px: 0, py: 0.8}}>
                                     <Typography sx={{fontSize: 12, color: "#2563eb", mb: 0.5, fontWeight: 700}}>Trạng thái tổng</Typography>
                                     {renderStatusChip(selectedSchool?.overallStatus || selectedSchool?.status)}
                                 </Box>
