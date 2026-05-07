@@ -30,6 +30,7 @@ import {
     ChatBubbleOutline as ChatBubbleOutlineIcon,
     ChevronLeft as ChevronLeftIcon,
     ChevronRight as ChevronRightIcon,
+    AssignmentTurnedIn as AssignmentTurnedInIcon,
     Description as DescriptionIcon,
     Email as EmailIcon,
     Hotel as HotelIcon,
@@ -59,6 +60,7 @@ import {
     parseParentConsultSlotsBody
 } from "../../services/ParentConsultSlotsService.jsx";
 import Footer from "../partials/Footer.jsx";
+import AdmissionReservationDialog from "./school/AdmissionReservationDialog.jsx";
 
 const MAP_CONTAINER_STYLE = {width: "100%", height: "260px"};
 const NEARBY_SEARCH_RADIUS_KM = 10;
@@ -756,50 +758,210 @@ const contactDividerSx = {borderColor: "rgba(51,65,85,0.1)"};
 const generalInfoCardSx = {
     p: {xs: 2, sm: 2.5},
     borderRadius: 3.25,
-    border: "1px solid rgba(96,165,250,0.55)",
-    background: "#ffffff",
-    boxShadow: "0 10px 22px rgba(59,130,246,0.16), 0 2px 6px rgba(15,23,42,0.05)"
+    border: "1px solid rgba(147,197,253,0.55)",
+    bgcolor: "#ffffff",
+    boxShadow: "0 8px 20px rgba(59,130,246,0.08), 0 2px 6px rgba(15,23,42,0.04)",
+    transition: "box-shadow 0.35s ease",
+    "&:hover": {
+        boxShadow: "0 12px 28px rgba(59,130,246,0.12), 0 4px 10px rgba(15,23,42,0.05)"
+    }
 };
 
 const verticalCardTitleSx = {
     fontWeight: 800,
-    color: BRAND_NAVY,
     fontSize: {xs: "1.35rem", sm: "1.5rem"},
     lineHeight: 1.2,
     mb: 2.25,
-    letterSpacing: "-0.02em"
+    pb: 1,
+    letterSpacing: "-0.02em",
+    color: "#1e3a8a",
+    position: "relative",
+    "&::after": {
+        content: '""',
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        width: 56,
+        height: 3,
+        borderRadius: 999,
+        bgcolor: "#3b82f6"
+    }
 };
 
 const mainDetailSectionTitleSx = {
-    fontWeight: 800,
-    color: BRAND_NAVY,
-    fontSize: {xs: "1.5rem", sm: "1.875rem"},
+    fontWeight: 900,
+    fontSize: {xs: "1.55rem", sm: "1.95rem"},
     lineHeight: 1.2,
     mb: {xs: 2.25, sm: 2.75},
-    letterSpacing: "-0.02em"
+    pb: 1.1,
+    letterSpacing: "-0.024em",
+    color: "#1e3a8a",
+    position: "relative",
+    "&::after": {
+        content: '""',
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        width: 72,
+        height: 3,
+        borderRadius: 999,
+        bgcolor: "#3b82f6"
+    }
 };
 
 const detailMainColumnCardSx = {
     p: 2.5,
     borderRadius: 2.75,
-    border: "1px solid rgba(96,165,250,0.52)",
-    background: "#ffffff",
-    boxShadow: "0 10px 22px rgba(59,130,246,0.15), 0 2px 6px rgba(15,23,42,0.05)",
-    minWidth: 0
+    border: "1px solid rgba(147,197,253,0.5)",
+    bgcolor: "#ffffff",
+    boxShadow: "0 8px 22px rgba(59,130,246,0.08), 0 2px 6px rgba(15,23,42,0.04)",
+    minWidth: 0,
+    transition: "box-shadow 0.35s ease",
+    "&:hover": {
+        boxShadow: "0 12px 28px rgba(59,130,246,0.12), 0 4px 10px rgba(15,23,42,0.05)"
+    }
 };
 
 const tableSubsectionTitleSx = {
     fontWeight: 800,
     fontSize: {xs: "1.05rem", sm: "1.15rem"},
-    color: "#0f172a",
-    letterSpacing: "-0.01em"
+    letterSpacing: "-0.01em",
+    pl: 1.35,
+    borderLeft: "4px solid #3b82f6",
+    color: "#1e3a8a"
 };
 
 const sparseTableWrapperSx = {
-    border: "1px solid #e5e7eb",
+    border: "1px solid rgba(226,232,240,0.98)",
     borderRadius: 1.5,
     overflow: "hidden",
-    bgcolor: "#ffffff"
+    bgcolor: "#ffffff",
+    boxShadow: "0 4px 18px rgba(15,23,42,0.045)"
+};
+
+const detailPackageSectionSx = {
+    mb: 2,
+    p: {xs: 1.35, sm: 1.65},
+    borderRadius: 2.75,
+    position: "relative",
+    overflow: "hidden",
+    border: "1px solid rgba(147,197,253,0.45)",
+    bgcolor: "#f8fbff",
+    boxShadow: "0 6px 18px rgba(59,130,246,0.06)",
+    transition: "box-shadow 0.4s ease",
+    "&:hover": {
+        boxShadow: "0 10px 24px rgba(59,130,246,0.1)"
+    }
+};
+
+const detailPackageTitleSx = {
+    fontSize: {xs: "1.14rem", sm: "1.22rem"},
+    fontWeight: 800,
+    mb: 1.25,
+    letterSpacing: "-0.02em",
+    color: "#1e3a8a"
+};
+
+const detailCampaignInfoPanelSx = {
+    mb: 1.6,
+    p: {xs: 1.25, sm: 1.55},
+    borderRadius: 2.75,
+    border: "1px solid rgba(147,197,253,0.5)",
+    bgcolor: "#f4f8ff",
+    boxShadow: "0 4px 14px rgba(59,130,246,0.06)"
+};
+
+const detailOfferingCardSx = {
+    borderRadius: "18px",
+    position: "relative",
+    overflow: "hidden",
+    bgcolor: "#ffffff",
+    p: {xs: 2, sm: 2.4},
+    border: "1px solid rgba(147,197,253,0.45)",
+    boxShadow: "0 8px 22px rgba(59,130,246,0.08), 0 2px 6px rgba(15,23,42,0.04)",
+    transition: "transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease",
+    "&:hover": {
+        transform: "translateY(-2px)",
+        boxShadow: "0 12px 28px rgba(59,130,246,0.12), 0 4px 10px rgba(15,23,42,0.05)",
+        borderColor: "rgba(96,165,250,0.6)"
+    },
+    "&::before": {
+        content: '""',
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        height: 3,
+        borderRadius: "18px 18px 0 0",
+        bgcolor: "#3b82f6",
+        opacity: 0.85
+    }
+};
+
+const detailSchoolMethodGridSx = {
+    mb: 2.4,
+    p: {xs: 1.45, sm: 1.65},
+    borderRadius: 2.5,
+    border: "1px solid rgba(147,197,253,0.5)",
+    bgcolor: "#f4f8ff",
+    boxShadow: "0 4px 14px rgba(59,130,246,0.05)"
+};
+
+const detailSchoolMethodTileSx = {
+    p: 1.15,
+    borderRadius: 2,
+    bgcolor: "#ffffff",
+    border: "1px solid rgba(186,230,253,0.85)",
+    boxShadow: "0 2px 8px rgba(59,130,246,0.05)",
+    transition: "box-shadow 0.28s ease, border-color 0.28s ease",
+    "&:hover": {
+        boxShadow: "0 6px 16px rgba(59,130,246,0.1)",
+        borderColor: "rgba(96,165,250,0.85)"
+    }
+};
+
+const detailAdmissionMethodsSectionSx = {
+    mb: 2,
+    p: {xs: 1.4, sm: 1.7},
+    borderRadius: 2.75,
+    border: "1px solid rgba(186,230,253,0.55)",
+    bgcolor: "#f0f9ff",
+    boxShadow: "0 4px 14px rgba(14,165,233,0.06)"
+};
+
+const detailAdmissionMethodCardSx = {
+    borderRadius: 2.5,
+    bgcolor: "#ffffff",
+    px: {xs: 1.25, sm: 1.45},
+    py: {xs: 1.15, sm: 1.3},
+    border: "1px solid rgba(226,232,240,0.95)",
+    boxShadow: "0 4px 12px rgba(15,23,42,0.05)",
+    transition: "box-shadow 0.32s ease, border-color 0.32s ease",
+    "&:hover": {
+        boxShadow: "0 8px 18px rgba(59,130,246,0.1)",
+        borderColor: "rgba(147,197,253,0.95)"
+    }
+};
+
+const detailSubmitApplicationButtonSx = {
+    textTransform: "none",
+    fontWeight: 800,
+    fontSize: "0.95rem",
+    px: 2.6,
+    py: 1.05,
+    borderRadius: 999,
+    color: "#ffffff",
+    letterSpacing: "0.005em",
+    bgcolor: "#2563eb",
+    boxShadow: "0 6px 14px rgba(37,99,235,0.25)",
+    transition: "background-color 0.2s ease, box-shadow 0.2s ease",
+    "&:hover": {
+        bgcolor: "#1d4ed8",
+        boxShadow: "0 10px 20px rgba(37,99,235,0.32)"
+    },
+    "&:active": {
+        boxShadow: "0 4px 10px rgba(37,99,235,0.22)"
+    }
 };
 
 function SchoolGeneralInfoCard({school}) {
@@ -925,11 +1087,11 @@ function SchoolCampusInfoCard({school, isParent, onMessageCampus, activeCampusIn
                             },
                             "& .Mui-selected": {
                                 color: "#ffffff !important",
-                                borderColor: "rgba(29,78,216,0.95)",
-                                bgcolor: "#2563eb",
-                                boxShadow: "0 6px 14px rgba(37,99,235,0.28)",
+                                borderColor: "rgba(37,99,235,0.95)",
+                                bgcolor: "#2563eb !important",
+                                boxShadow: "0 4px 12px rgba(37,99,235,0.22)",
                                 "&:hover": {
-                                    bgcolor: "#2563eb",
+                                    bgcolor: "#1d4ed8 !important",
                                     borderColor: "rgba(29,78,216,0.95)"
                                 }
                             }
@@ -1171,13 +1333,13 @@ function SchoolFacilityInfoCard({school, activeCampusIndex, embedded = false}) {
         const cover = String(facilityImages.coverUrl || "").trim();
         if (!cover && fromList.length === 0) return [];
         if (fromList.length === 0) {
-            return [
-                {
+        return [
+            {
                     key: `${cover}-cover`,
                     url: cover,
-                    name: `Ảnh cơ sở vật chất ${campusName || ""}`.trim()
-                }
-            ];
+                name: `Ảnh cơ sở vật chất ${campusName || ""}`.trim()
+            }
+        ];
         }
         const seen = new Set(fromList.map((img) => img.url));
         const merged = [];
@@ -1251,9 +1413,9 @@ function SchoolFacilityInfoCard({school, activeCampusIndex, embedded = false}) {
                         {descriptionRows.length > 0 ? (
                             <Box>
                                 {descriptionRows.map((row, idx) => (
-                                    <Box
+                <Box
                                         key={`${row.name}-${idx}`}
-                                        sx={{
+                    sx={{
                                             display: "flex",
                                             alignItems: "center",
                                             justifyContent: "space-between",
@@ -1264,7 +1426,7 @@ function SchoolFacilityInfoCard({school, activeCampusIndex, embedded = false}) {
                                         }}
                                     >
                                         <Typography
-                                            sx={{
+                            sx={{
                                                 fontSize: "0.95rem",
                                                 color: "#0f172a",
                                                 fontWeight: 500,
@@ -1276,9 +1438,9 @@ function SchoolFacilityInfoCard({school, activeCampusIndex, embedded = false}) {
                                             {row.name}
                                         </Typography>
                                         <Typography
-                                            sx={{
+                                    sx={{
                                                 fontSize: "0.95rem",
-                                                color: "#0f172a",
+                                        color: "#0f172a",
                                                 fontWeight: 600,
                                                 lineHeight: 1.5,
                                                 whiteSpace: "nowrap",
@@ -1298,7 +1460,7 @@ function SchoolFacilityInfoCard({school, activeCampusIndex, embedded = false}) {
                         )}
                     </Box>
 
-                    {galleryImages.length > 0 ? (
+                            {galleryImages.length > 0 ? (
                         <Box>
                             <Typography
                                 sx={{
@@ -1336,11 +1498,11 @@ function SchoolFacilityInfoCard({school, activeCampusIndex, embedded = false}) {
                                     {galleryImages.map((img, idx) => (
                                         <Box
                                             key={img.key}
-                                            onClick={() => {
+                                    onClick={() => {
                                                 setGalleryIndex(idx);
-                                                setGalleryOpen(true);
-                                            }}
-                                            sx={{
+                                        setGalleryOpen(true);
+                                    }}
+                                    sx={{
                                                 flex: "0 0 auto",
                                                 width: {xs: 220, sm: 260, md: 300},
                                                 height: {xs: 150, sm: 180, md: 200},
@@ -1404,10 +1566,10 @@ function SchoolFacilityInfoCard({school, activeCampusIndex, embedded = false}) {
                                             <ChevronRightIcon sx={{fontSize: 22, color: "#0f172a"}}/>
                                         </IconButton>
                                     </>
-                                ) : null}
+                            ) : null}
                             </Box>
-                        </Box>
-                    ) : null}
+                </Box>
+            ) : null}
                 </>
             ) : null}
 
@@ -1589,7 +1751,7 @@ function SchoolPolicyInfoCard({school, activeCampusIndex, embedded = false}) {
                     Chưa có thông tin chính sách.
                 </Typography>
             ) : null}
-            {hasStructuredPolicy ? (
+                    {hasStructuredPolicy ? (
                 <Box sx={{minWidth: 0}}>
                     <Box>
                         {policyAllRows.map((row, idx) => (
@@ -1616,14 +1778,14 @@ function SchoolPolicyInfoCard({school, activeCampusIndex, embedded = false}) {
                                     }}
                                 >
                                     {row.name}
-                                </Typography>
-                                <Typography
-                                    sx={{
+                                            </Typography>
+                                            <Typography
+                                                sx={{
                                         fontSize: "0.95rem",
-                                        color:
+                                                    color:
                                             row.name === "Mở cửa Chủ Nhật" && String(row.value).trim().toLowerCase() === "nghỉ"
-                                                ? "#b91c1c"
-                                                : "#0f172a",
+                                                            ? "#b91c1c"
+                                                            : "#0f172a",
                                         fontWeight: 600,
                                         lineHeight: 1.5,
                                         textAlign: "right",
@@ -1633,33 +1795,52 @@ function SchoolPolicyInfoCard({school, activeCampusIndex, embedded = false}) {
                                     }}
                                 >
                                     {row.value}
-                                </Typography>
+                                            </Typography>
                             </Box>
-                        ))}
-                    </Box>
-                </Box>
+                                    ))}
+                                </Box>
+                            </Box>
             ) : hasPolicySection ? (
-                <Typography
-                    component="pre"
-                    sx={{
-                        m: 0,
-                        fontFamily: "inherit",
-                        whiteSpace: "pre-wrap",
-                        wordBreak: "break-word",
-                        fontSize: "0.9rem",
-                        color: CONTACT_BODY,
-                        lineHeight: 1.5
-                    }}
-                >
-                    {policyText}
-                </Typography>
+                        <Typography
+                            component="pre"
+                            sx={{
+                                m: 0,
+                                fontFamily: "inherit",
+                                whiteSpace: "pre-wrap",
+                                wordBreak: "break-word",
+                                fontSize: "0.9rem",
+                                color: CONTACT_BODY,
+                                lineHeight: 1.5
+                            }}
+                        >
+                            {policyText}
+                        </Typography>
             ) : null}
         </Box>
     );
 }
 
-function SchoolCampaignEnrollmentCard({campaignTemplates, campaignLoading, campaignError}) {
+function SchoolCampaignEnrollmentCard({campaignTemplates, campaignLoading, campaignError, curriculumList, curriculumSectionRef, onSubmitApplication}) {
+    const handleSubmitApplication = React.useCallback(
+        (campaign) => {
+            if (typeof onSubmitApplication === "function") {
+                onSubmitApplication(campaign);
+                return;
+            }
+            showSuccessSnackbar("Tính năng nộp hồ sơ sẽ sớm được mở.");
+        },
+        [onSubmitApplication]
+    );
     const list = Array.isArray(campaignTemplates) ? campaignTemplates : [];
+    const curriculumDataList = Array.isArray(curriculumList) ? curriculumList : [];
+    const attachCurriculumCampaignIdx = React.useMemo(() => {
+        if (curriculumDataList.length === 0) return -1;
+        for (let i = 0; i < list.length; i++) {
+            const off = Array.isArray(list[i]?.campusProgramOfferings) ? list[i].campusProgramOfferings : [];
+            if (off.length > 0) return i;
+        }
+        return 0;
+    }, [list, curriculumDataList.length]);
     const schoolAllowedMethods = (() => {
         for (const campaign of list) {
             const methods = Array.isArray(campaign?.schoolAllowedMethods)
@@ -1675,17 +1856,9 @@ function SchoolCampaignEnrollmentCard({campaignTemplates, campaignLoading, campa
             <Typography sx={mainDetailSectionTitleSx}>Chiến dịch tuyển sinh</Typography>
 
             {schoolAllowedMethods.length > 0 ? (
-                <Box
-                    sx={{
-                        mb: 2.4,
-                        p: {xs: 1.4, sm: 1.6},
-                        borderRadius: 2,
-                        border: "1px solid rgba(165,180,252,0.55)",
-                        background: "linear-gradient(180deg, rgba(238,242,255,0.8) 0%, rgba(224,231,255,0.55) 100%)"
-                    }}
-                >
+                <Box sx={detailSchoolMethodGridSx}>
                     <Stack direction="row" alignItems="center" spacing={0.8} sx={{mb: 1}}>
-                        <CheckCircleIcon sx={{fontSize: 18, color: "#4338ca"}}/>
+                        <CheckCircleIcon sx={{fontSize: 18, color: "#1e3a8a"}}/>
                         <Typography sx={{fontSize: "1.04rem", fontWeight: 800, color: BRAND_NAVY}}>
                             Phương thức xét tuyển nhà trường áp dụng
                         </Typography>
@@ -1700,13 +1873,7 @@ function SchoolCampaignEnrollmentCard({campaignTemplates, campaignLoading, campa
                         {schoolAllowedMethods.map((method) => (
                             <Box
                                 key={method.code}
-                                sx={{
-                                    p: 1,
-                                    borderRadius: 1.5,
-                                    bgcolor: "#ffffff",
-                                    border: "1px solid rgba(199,210,254,0.85)",
-                                    boxShadow: "0 4px 10px rgba(67,56,202,0.06)"
-                                }}
+                                sx={detailSchoolMethodTileSx}
                             >
                                 <Typography sx={{fontSize: "0.96rem", color: "#1e1b4b", fontWeight: 800, mb: 0.35}}>
                                     {method.displayName || method.code}
@@ -1732,10 +1899,26 @@ function SchoolCampaignEnrollmentCard({campaignTemplates, campaignLoading, campa
                     {campaignError}
                 </Typography>
             ) : null}
-            {!campaignLoading && !campaignError && list.length === 0 ? (
+            {!campaignLoading && !campaignError && list.length === 0 && curriculumDataList.length === 0 ? (
                 <Typography sx={{fontSize: "1.06rem", color: CONTACT_BODY, lineHeight: 1.65}}>
                     Chưa có thông tin chiến dịch tuyển sinh.
                 </Typography>
+            ) : null}
+
+            {!campaignLoading &&
+                !campaignError &&
+                list.length === 0 &&
+                curriculumDataList.length > 0 ? (
+                    <Box sx={detailPackageSectionSx}>
+                        <Typography sx={detailPackageTitleSx}>Gói tuyển sinh</Typography>
+                        <Box
+                            ref={curriculumSectionRef}
+                            id="school-detail-curriculum"
+                            sx={{scrollMarginTop: {xs: 56, sm: 52}}}
+                        >
+                            <SchoolCurriculumTrainingCard curriculumList={curriculumList} embedded/>
+                        </Box>
+                    </Box>
             ) : null}
 
             {!campaignLoading &&
@@ -1758,25 +1941,17 @@ function SchoolCampaignEnrollmentCard({campaignTemplates, campaignLoading, campa
                             <Typography
                                 sx={{
                                     fontWeight: 900,
-                                    color: "#0f172a",
                                     fontSize: {xs: "1.36rem", sm: "1.68rem"},
                                     letterSpacing: "-0.02em",
                                     mb: 1,
-                                    lineHeight: 1.25
+                                    lineHeight: 1.25,
+                                    color: "#1e3a8a"
                                 }}
                             >
                                 {campaignName}
                             </Typography>
 
-                            <Box
-                                sx={{
-                                    mb: 1.6,
-                                    p: {xs: 1.2, sm: 1.4},
-                                    borderRadius: 2,
-                                    border: "1px solid rgba(191,219,254,0.75)",
-                                    bgcolor: "rgba(239,246,255,0.75)"
-                                }}
-                            >
+                            <Box sx={detailCampaignInfoPanelSx}>
                                 <Typography sx={{fontSize: "1.04rem", fontWeight: 800, color: BRAND_NAVY, mb: 0.7}}>
                                     Thông tin chiến dịch
                                 </Typography>
@@ -1792,19 +1967,10 @@ function SchoolCampaignEnrollmentCard({campaignTemplates, campaignLoading, campa
                                 ) : null}
                             </Box>
 
-                            {campusProgramOfferings.length > 0 ? (
-                                <Box
-                                    sx={{
-                                        mb: 2,
-                                        p: {xs: 1.2, sm: 1.4},
-                                        borderRadius: 2,
-                                        border: "1px solid rgba(148,163,184,0.24)",
-                                        bgcolor: "rgba(255,255,255,0.78)"
-                                    }}
-                                >
-                                    <Typography sx={{fontSize: "1.16rem", fontWeight: 800, color: BRAND_NAVY, mb: 1.1}}>
-                                        Gói tuyển sinh theo cơ sở
-                                    </Typography>
+                            {campusProgramOfferings.length > 0 ||
+                            (attachCurriculumCampaignIdx === idx && curriculumDataList.length > 0) ? (
+                                <Box sx={detailPackageSectionSx}>
+                                    <Typography sx={detailPackageTitleSx}>Gói tuyển sinh</Typography>
                                     <Box
                                         sx={{
                                             display: "grid",
@@ -1832,27 +1998,8 @@ function SchoolCampaignEnrollmentCard({campaignTemplates, campaignLoading, campa
                                             return (
                                                 <Box
                                                     key={`${offering?.id ?? offerIdx}-${offering?.campusId ?? "campus"}`}
-                                                    sx={{
-                                                        borderRadius: "16px",
-                                                        background:
-                                                            "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,252,255,0.98) 100%)",
-                                                        p: {xs: 2, sm: 2.4},
-                                                        boxShadow: "0 14px 34px rgba(15,23,42,0.1)"
-                                                    }}
+                                                    sx={detailOfferingCardSx}
                                                 >
-                                                    <Box sx={{minWidth: 0, mb: 1.25}}>
-                                                        <Typography sx={{fontSize: "1.35rem", fontWeight: 900, color: "#111827", mb: 0.35, lineHeight: 1.2}}>
-                                                            {offering?.campusName || `Cơ sở ${offerIdx + 1}`}
-                                                        </Typography>
-                                                        <Stack direction="row" alignItems="center" spacing={0.5} sx={{color: "#64748b"}}>
-                                                            <LocationOnIcon sx={{fontSize: 14, color: "#94a3b8"}}/>
-                                                            <Typography sx={{fontSize: "1rem", color: "#6b7280"}}>
-                                                                {String(offering?.district || "").trim() || "—"},{" "}
-                                                                {String(offering?.city || "").trim() || "—"}
-                                                            </Typography>
-                                                        </Stack>
-                                                    </Box>
-
                                                     <Stack
                                                         direction={{xs: "column", sm: "row"}}
                                                         alignItems={{xs: "flex-start", sm: "flex-end"}}
@@ -1864,7 +2011,14 @@ function SchoolCampaignEnrollmentCard({campaignTemplates, campaignLoading, campa
                                                             <Typography sx={{fontSize: "0.76rem", color: "#6b7280", fontWeight: 600, mb: 0.12}}>
                                                                 Học phí
                                                             </Typography>
-                                                            <Typography sx={{fontSize: {xs: "1.45rem", sm: "1.62rem"}, color: "#1e3a8a", fontWeight: 900, lineHeight: 1.12}}>
+                                                            <Typography
+                                                                sx={{
+                                                                    fontSize: {xs: "1.45rem", sm: "1.62rem"},
+                                                                    fontWeight: 900,
+                                                                    lineHeight: 1.12,
+                                                                    color: "#1e3a8a"
+                                                                }}
+                                                            >
                                                                 {formatVnd(offering?.tuitionFee)}
                                                             </Typography>
                                                             <Typography sx={{fontSize: "0.76rem", color: "#475569", mt: 0.25, fontWeight: 500}}>
@@ -1941,11 +2095,18 @@ function SchoolCampaignEnrollmentCard({campaignTemplates, campaignLoading, campa
                                                                             px: 0.9,
                                                                             py: 0.35,
                                                                             borderRadius: 999,
-                                                                            bgcolor: "#f3f4f6",
+                                                                                bgcolor: "rgba(241,245,249,0.95)",
                                                                             color: "#374151",
                                                                             fontSize: "0.74rem",
                                                                             fontWeight: 500,
-                                                                            lineHeight: 1.2
+                                                                                lineHeight: 1.2,
+                                                                                border: "1px solid rgba(226,232,240,0.95)",
+                                                                                transition: "all 0.22s ease",
+                                                                                "&:hover": {
+                                                                                    bgcolor: "rgba(239,246,255,0.98)",
+                                                                                    borderColor: "rgba(147,197,253,0.85)",
+                                                                                    boxShadow: "0 2px 10px rgba(59,130,246,0.18)"
+                                                                                }
                                                                         }}
                                                                     >
                                                                         <Box
@@ -1964,23 +2125,46 @@ function SchoolCampaignEnrollmentCard({campaignTemplates, campaignLoading, campa
                                                             </Stack>
                                                         </Box>
                                                     ) : null}
+
+                                                    <Stack direction="row" justifyContent="flex-end" sx={{mt: 2}}>
+                                                        <Button
+                                                            variant="contained"
+                                                            disableElevation
+                                                            onClick={() => handleSubmitApplication({campaign, offering})}
+                                                            startIcon={<AssignmentTurnedInIcon/>}
+                                                            sx={detailSubmitApplicationButtonSx}
+                                                        >
+                                                            Nộp hồ sơ
+                                                        </Button>
+                                                    </Stack>
                                                 </Box>
                                             );
                                         })}
                                     </Box>
+                                    {attachCurriculumCampaignIdx === idx && curriculumDataList.length > 0 ? (
+                                        <>
+                                            {campusProgramOfferings.length > 0 ? (
+                                                <Divider
+                                                    sx={{
+                                                        my: 2.5,
+                                                        borderColor: "rgba(147,197,253,0.5)"
+                                                    }}
+                                                />
+                                            ) : null}
+                                            <Box
+                                                ref={curriculumSectionRef}
+                                                id="school-detail-curriculum"
+                                                sx={{scrollMarginTop: {xs: 56, sm: 52}}}
+                                            >
+                                                <SchoolCurriculumTrainingCard curriculumList={curriculumList} embedded/>
+                                            </Box>
+                                        </>
+                                    ) : null}
                                 </Box>
                             ) : null}
 
                             {admissionMethodDetails.length > 0 ? (
-                                <Box
-                                    sx={{
-                                        mb: 2,
-                                        p: {xs: 1.35, sm: 1.6},
-                                        borderRadius: 2,
-                                        bgcolor: "rgba(248,252,255,0.86)",
-                                        boxShadow: "0 10px 22px rgba(15,23,42,0.07)"
-                                    }}
-                                >
+                                <Box sx={detailAdmissionMethodsSectionSx}>
                                     <Typography sx={{fontSize: "1.16rem", fontWeight: 800, color: BRAND_NAVY, mb: 1}}>
                                         Phương thức xét tuyển
                                     </Typography>
@@ -1993,13 +2177,7 @@ function SchoolCampaignEnrollmentCard({campaignTemplates, campaignLoading, campa
                                             return (
                                                 <Box
                                                     key={`${method?.methodCode || methodIdx}-${methodIdx}`}
-                                                    sx={{
-                                                        borderRadius: 2.4,
-                                                        bgcolor: "#ffffff",
-                                                        px: {xs: 1.25, sm: 1.45},
-                                                        py: {xs: 1.15, sm: 1.3},
-                                                        boxShadow: "0 8px 18px rgba(15,23,42,0.06)"
-                                                    }}
+                                                    sx={detailAdmissionMethodCardSx}
                                                 >
                                                     <Typography sx={{fontSize: "1.02rem", fontWeight: 900, color: BRAND_NAVY, textTransform: "uppercase", letterSpacing: "0.01em"}}>
                                                         {method?.displayName || method?.methodCode || `Phương thức ${methodIdx + 1}`}
@@ -2132,7 +2310,7 @@ function SchoolCampaignEnrollmentCard({campaignTemplates, campaignLoading, campa
                             {mandatoryAll.length > 0 ? (
                                 <Box>
                                     <Typography
-                                        sx={{
+                                    sx={{
                                             fontWeight: 900,
                                             color: "#0f172a",
                                             fontSize: {xs: "1.24rem", sm: "1.42rem"},
@@ -2168,7 +2346,7 @@ function SchoolCampaignEnrollmentCard({campaignTemplates, campaignLoading, campa
                                             <Stack spacing={4}>
                                                 {orderedGroups.map((group) => (
                                                     <Box key={group.title}>
-                                                        <Typography
+                                                            <Typography
                                                             sx={{...tableSubsectionTitleSx, mb: 1.8}}
                                                         >
                                                             {group.title}
@@ -2219,7 +2397,7 @@ function SchoolCampaignEnrollmentCard({campaignTemplates, campaignLoading, campa
                                                                                 {doc?.required ? (
                                                                                     <Box
                                                                                         component="span"
-                                                                                        sx={{
+                                                                                    sx={{
                                                                                             ml: 0.5,
                                                                                             color: "#dc2626",
                                                                                             fontWeight: 800,
@@ -2230,22 +2408,22 @@ function SchoolCampaignEnrollmentCard({campaignTemplates, campaignLoading, campa
                                                                                     </Box>
                                                                                 ) : null}
                                                                             </Typography>
-                                                                            {copyBadge ? (
+                                                                                    {copyBadge ? (
                                                                                 <Typography
-                                                                                    sx={{
+                                                                                            sx={{
                                                                                         fontSize: "0.84rem",
-                                                                                        color:
-                                                                                            copyBadge === "Bản chính"
-                                                                                                ? "#1e40af"
+                                                                                                color:
+                                                                                                    copyBadge === "Bản chính"
+                                                                                                        ? "#1e40af"
                                                                                                 : "#9a3412",
                                                                                         fontWeight: 600,
                                                                                         lineHeight: 1.55
-                                                                                    }}
-                                                                                >
+                                                                                            }}
+                                                                                        >
                                                                                     {copyBadge}
                                                                                 </Typography>
                                                                             ) : null}
-                                                                        </Box>
+                                                                            </Box>
                                                                     );
                                                                 })}
                                                             </Box>
@@ -2297,7 +2475,7 @@ function ProgramRichTextSection({label, items, plain}) {
                     {items.map((item, idx) => (
                         <li key={`${idx}-${item.slice(0, 20)}`}>{item}</li>
                     ))}
-                </Box>
+            </Box>
             ) : hasPlain ? (
                 <Typography sx={{fontSize: "0.88rem", color: "#374151", lineHeight: 1.78}}>
                     {plain}
@@ -2311,12 +2489,34 @@ function ProgramRichTextSection({label, items, plain}) {
     );
 }
 
-function SchoolCurriculumTrainingCard({curriculumList}) {
+function SchoolCurriculumTrainingCard({curriculumList, embedded = false}) {
     const curriculumDataList = Array.isArray(curriculumList) ? curriculumList : [];
+    const embeddedTitleSx = {
+        fontWeight: 800,
+        fontSize: {xs: "1.1rem", sm: "1.22rem"},
+        color: BRAND_NAVY,
+        letterSpacing: "-0.02em",
+        mb: 0
+    };
 
     return (
         <Box sx={{minWidth: 0}}>
-            <Typography sx={mainDetailSectionTitleSx}>Chương trình đào tạo</Typography>
+            {embedded ? (
+                <Box sx={{mb: 2.5}}>
+                    <Typography sx={embeddedTitleSx}>Chương trình đào tạo</Typography>
+                    <Box
+                        sx={{
+                            height: 3,
+                            maxWidth: 160,
+                            mt: 1.15,
+                            borderRadius: 999,
+                            bgcolor: "#3b82f6"
+                        }}
+                    />
+                </Box>
+            ) : (
+                <Typography sx={mainDetailSectionTitleSx}>Chương trình đào tạo</Typography>
+            )}
 
             {curriculumDataList.length === 0 ? (
                 <Typography sx={{fontSize: "1.06rem", color: CONTACT_BODY, lineHeight: 1.65}}>
@@ -2339,9 +2539,15 @@ function SchoolCurriculumTrainingCard({curriculumList}) {
                     <Box
                         key={`${curriculum?.groupCode || curriculumName}-${curriculumIdx}`}
                         sx={{
-                            mt: curriculumIdx === 0 ? 1.5 : 4.5,
+                            mt: curriculumIdx === 0 ? (embedded ? 1.25 : 1.5) : 4.5,
                             pt: curriculumIdx === 0 ? 0 : 3.6,
-                            borderTop: curriculumIdx === 0 ? "none" : "1px solid #e5e7eb"
+                            borderTop: curriculumIdx === 0 ? "none" : "1px solid rgba(226,232,240,0.95)",
+                            borderRadius: 2,
+                            px: {xs: 0, sm: 0.5},
+                            transition: "background-color 0.25s ease",
+                            "&:hover": {
+                                bgcolor: "rgba(239,246,255,0.45)"
+                            }
                         }}
                     >
                         <Stack
@@ -2388,8 +2594,8 @@ function SchoolCurriculumTrainingCard({curriculumList}) {
 
                         <Box sx={{mb: 4}}>
                             <Typography sx={{...tableSubsectionTitleSx, mb: 1.8}}>
-                                Danh mục môn học
-                            </Typography>
+                                    Danh mục môn học
+                                </Typography>
                             {subjects.length === 0 ? (
                                 <Typography
                                     sx={{
@@ -2404,9 +2610,9 @@ function SchoolCurriculumTrainingCard({curriculumList}) {
                                 </Typography>
                             ) : (
                                 <Box sx={sparseTableWrapperSx}>
-                                    <Box
-                                        sx={{
-                                            display: "grid",
+                                <Box
+                                    sx={{
+                                        display: "grid",
                                             gridTemplateColumns: {xs: "1fr", sm: "1fr 1fr"}
                                         }}
                                     >
@@ -2416,9 +2622,9 @@ function SchoolCurriculumTrainingCard({curriculumList}) {
                                                 Math.floor(subjectIdx / 2) ===
                                                 Math.floor((subjects.length - 1) / 2);
                                             return (
-                                                <Box
-                                                    key={`${subject?.name || subjectIdx}-${subjectIdx}`}
-                                                    sx={{
+                                        <Box
+                                            key={`${subject?.name || subjectIdx}-${subjectIdx}`}
+                                            sx={{
                                                         px: {xs: 1.75, sm: 2.4},
                                                         py: 2.6,
                                                         borderBottom: isLastRow
@@ -2431,7 +2637,7 @@ function SchoolCurriculumTrainingCard({curriculumList}) {
                                                     }}
                                                 >
                                                     <Typography
-                                                        sx={{
+                                                    sx={{
                                                             fontWeight: 700,
                                                             fontSize: "0.95rem",
                                                             color: "#111827",
@@ -2439,7 +2645,7 @@ function SchoolCurriculumTrainingCard({curriculumList}) {
                                                             lineHeight: 1.55
                                                         }}
                                                     >
-                                                        {String(subject?.name || "").trim() || `Môn ${subjectIdx + 1}`}
+                                                    {String(subject?.name || "").trim() || `Môn ${subjectIdx + 1}`}
                                                         {subject?.isMandatory === false ? (
                                                             <Box
                                                                 component="span"
@@ -2453,7 +2659,7 @@ function SchoolCurriculumTrainingCard({curriculumList}) {
                                                                 (Tự chọn)
                                                             </Box>
                                                         ) : null}
-                                                    </Typography>
+                                                </Typography>
                                                     <Typography
                                                         sx={{
                                                             fontSize: "0.86rem",
@@ -2461,9 +2667,9 @@ function SchoolCurriculumTrainingCard({curriculumList}) {
                                                             lineHeight: 1.75
                                                         }}
                                                     >
-                                                        {String(subject?.description || "").trim() || "Đang cập nhật mô tả."}
-                                                    </Typography>
-                                                </Box>
+                                                {String(subject?.description || "").trim() || "Đang cập nhật mô tả."}
+                                            </Typography>
+                                        </Box>
                                             );
                                         })}
                                     </Box>
@@ -2495,9 +2701,9 @@ function SchoolCurriculumTrainingCard({curriculumList}) {
                                         const graduationItems = parseHtmlBulletItems(program?.graduationStandard);
                                         const graduationPlain = stripHtmlToPlainText(program?.graduationStandard);
                                         return (
-                                            <Box
-                                                key={`${program?.name || programIdx}-${programIdx}`}
-                                                sx={{
+                                        <Box
+                                            key={`${program?.name || programIdx}-${programIdx}`}
+                                            sx={{
                                                     px: {xs: 1.75, sm: 2.4},
                                                     py: 3,
                                                     borderBottom:
@@ -2508,8 +2714,8 @@ function SchoolCurriculumTrainingCard({curriculumList}) {
                                             >
                                                 <Box sx={{mb: 1.8}}>
                                                     <Typography sx={{fontSize: "1rem", color: "#111827", fontWeight: 700, lineHeight: 1.5, mb: 0.6}}>
-                                                        {String(program?.name || "").trim() || `Chương trình ${programIdx + 1}`}
-                                                    </Typography>
+                                                    {String(program?.name || "").trim() || `Chương trình ${programIdx + 1}`}
+                                                </Typography>
                                                     <Typography sx={{fontSize: "0.88rem", color: "#374151", lineHeight: 1.7}}>
                                                         <Box component="span" sx={{fontWeight: 700, color: "#111827"}}>
                                                             Học phí gốc:
@@ -2528,7 +2734,7 @@ function SchoolCurriculumTrainingCard({curriculumList}) {
                                                         items={graduationItems}
                                                         plain={graduationPlain}
                                                     />
-                                                </Box>
+                                        </Box>
                                             </Box>
                                         );
                                     })}
@@ -2721,6 +2927,37 @@ export default function SchoolSearchDetailView({
     const [bookingPhone, setBookingPhone] = React.useState("");
     const [bookingQuestion, setBookingQuestion] = React.useState("");
     const [bookingSubmitting, setBookingSubmitting] = React.useState(false);
+    const [admissionDialogOpen, setAdmissionDialogOpen] = React.useState(false);
+    const [admissionDialogContext, setAdmissionDialogContext] = React.useState(null);
+
+    const handleOpenAdmissionDialog = React.useCallback(
+        (ctx) => {
+            const offering = ctx?.offering;
+            const offeringIdNum = Number(offering?.id);
+            if (!isParent) {
+                showWarningSnackbar("Vui lòng đăng nhập tài khoản phụ huynh để nộp đơn xin giữ chỗ.");
+                return;
+            }
+            if (!Number.isFinite(offeringIdNum) || offeringIdNum <= 0) {
+                showWarningSnackbar("Không xác định được gói tuyển sinh để nộp đơn.");
+                return;
+            }
+            setAdmissionDialogContext({
+                campaign: ctx?.campaign || null,
+                offering,
+            });
+            setAdmissionDialogOpen(true);
+        },
+        [isParent]
+    );
+
+    const handleCloseAdmissionDialog = React.useCallback(() => {
+        setAdmissionDialogOpen(false);
+    }, []);
+
+    const handleAdmissionDialogExited = React.useCallback(() => {
+        setAdmissionDialogContext(null);
+    }, []);
 
     React.useEffect(() => {
         setCampusDetailTabIndex(0);
@@ -3492,8 +3729,7 @@ export default function SchoolSearchDetailView({
                         fontSize: "1.35rem",
                         color: "#0f172a",
                         pb: 1,
-                        background:
-                            "linear-gradient(180deg, rgba(59,130,246,0.14) 0%, rgba(59,130,246,0.06) 100%)"
+                        bgcolor: "rgba(59,130,246,0.08)"
                     }}
                 >
                     Đặt lịch tư vấn offline
@@ -3601,6 +3837,14 @@ export default function SchoolSearchDetailView({
                     </Button>
                 </DialogActions>
             </Dialog>
+            <AdmissionReservationDialog
+                open={admissionDialogOpen}
+                onClose={handleCloseAdmissionDialog}
+                onSubmitted={handleAdmissionDialogExited}
+                offering={admissionDialogContext?.offering}
+                campaign={admissionDialogContext?.campaign}
+                school={school}
+            />
             <IconButton
                 aria-label="Cuộn lên đầu trang"
                 onClick={scrollToDetailTop}
@@ -3612,15 +3856,18 @@ export default function SchoolSearchDetailView({
                         ? {xs: "translateX(-50%) translateY(0)", sm: "translateY(0)"}
                         : {xs: "translateX(-50%) translateY(12px)", sm: "translateY(12px)"},
                     zIndex: 1400,
-                    width: 40,
-                    height: 40,
-                    bgcolor: BRAND_NAVY,
+                    width: 44,
+                    height: 44,
                     color: "#fff",
-                    boxShadow: "0 10px 24px rgba(15,23,42,0.25)",
+                    bgcolor: "#2563eb",
+                    boxShadow: "0 6px 18px rgba(37,99,235,0.28), 0 2px 6px rgba(15,23,42,0.12)",
                     opacity: showScrollTopButton ? 1 : 0,
                     pointerEvents: showScrollTopButton ? "auto" : "none",
-                    transition: "opacity 0.24s ease, transform 0.24s ease",
-                    "&:hover": {bgcolor: APP_PRIMARY_DARK}
+                    transition: "opacity 0.24s ease, transform 0.24s ease, box-shadow 0.24s ease, background-color 0.24s ease",
+                    "&:hover": {
+                        bgcolor: "#1d4ed8",
+                        boxShadow: "0 10px 24px rgba(37,99,235,0.32)"
+                    }
                 }}
             >
                 <KeyboardArrowUpIcon/>
@@ -3642,18 +3889,16 @@ export default function SchoolSearchDetailView({
                     sx={{
                         position: "relative",
                         minHeight: {xs: 156, sm: 176},
-                        background: `
-                            radial-gradient(120% 120% at 10% 0%, rgba(96,165,250,0.54) 0%, rgba(96,165,250,0) 58%),
-                            radial-gradient(100% 120% at 92% 6%, rgba(125,211,252,0.46) 0%, rgba(125,211,252,0) 55%),
-                            linear-gradient(135deg, #60a5fa 0%, #3b82f6 46%, #38bdf8 100%)
-                        `,
+                        bgcolor: "#1d4ed8",
+                        backgroundImage:
+                            "linear-gradient(135deg, #1e3a8a 0%, #1d4ed8 55%, #2563eb 100%)",
                         color: "#fff",
                         "&::after": {
                             content: '""',
                             position: "absolute",
                             inset: 0,
                             pointerEvents: "none",
-                            opacity: 0.14,
+                            opacity: 0.1,
                             backgroundImage: `
                                 linear-gradient(rgba(255,255,255,0.22) 1px, transparent 1px),
                                 linear-gradient(90deg, rgba(255,255,255,0.22) 1px, transparent 1px)
@@ -3683,25 +3928,50 @@ export default function SchoolSearchDetailView({
                                 }}
                             >
                             <Box sx={{flex: "1 1 auto", minWidth: 0}}>
+                                <Box
+                                    sx={{
+                                        display: "inline-flex",
+                                        alignItems: "center",
+                                        gap: 0.6,
+                                        px: 1.2,
+                                        py: 0.4,
+                                        mb: 0.85,
+                                        borderRadius: 999,
+                                        bgcolor: "rgba(255,255,255,0.16)",
+                                        border: "1px solid rgba(255,255,255,0.45)",
+                                        backdropFilter: "blur(6px)"
+                                    }}
+                                >
+                                    <Box
+                                        component="span"
+                                        sx={{
+                                            width: 6,
+                                            height: 6,
+                                            borderRadius: "50%",
+                                            bgcolor: "#fde68a",
+                                            boxShadow: "0 0 0 3px rgba(255,255,255,0.25)"
+                                        }}
+                                    />
                                 <Typography
                                     sx={{
                                         fontSize: "0.66rem",
-                                        fontWeight: 700,
-                                        letterSpacing: "0.12em",
+                                            fontWeight: 800,
+                                            letterSpacing: "0.14em",
                                         textTransform: "uppercase",
-                                        color: "#dbeafe",
-                                        mb: 0.6
+                                            color: "#f8fafc"
                                     }}
                                 >
                                     {schoolCategoryLabel}
                                 </Typography>
+                                </Box>
                                 <Typography
                                     sx={{
-                                        fontWeight: 800,
-                                        fontSize: {xs: "1.45rem", sm: "1.85rem"},
-                                        lineHeight: 1.25,
-                                        color: "#f8fafc",
-                                        textShadow: "0 3px 14px rgba(15,23,42,0.45)"
+                                        fontWeight: 900,
+                                        fontSize: {xs: "1.5rem", sm: "1.95rem"},
+                                        lineHeight: 1.2,
+                                        letterSpacing: "-0.02em",
+                                        color: "#ffffff",
+                                        textShadow: "0 4px 20px rgba(15,23,42,0.55), 0 1px 0 rgba(15,23,42,0.18)"
                                     }}
                                 >
                                     {school.school}
@@ -3842,14 +4112,15 @@ export default function SchoolSearchDetailView({
                             position: "sticky",
                             top: 0,
                             zIndex: 20,
-                            bgcolor: "#eef2f7",
-                            pt: 0.25,
+                            bgcolor: "rgba(255,255,255,0.97)",
+                            backdropFilter: "blur(8px)",
+                            WebkitBackdropFilter: "blur(8px)",
+                            pt: 0.35,
                             pb: 0,
                             mb: 1.5,
-                            borderBottom: 1,
-                            borderColor: "rgba(51,65,85,0.08)",
+                            borderBottom: "1px solid rgba(147,197,253,0.4)",
                             pl: {xs: 6.5, sm: 7},
-                            boxShadow: "0 1px 0 rgba(51,65,85,0.04)"
+                            boxShadow: "0 4px 12px rgba(15,23,42,0.04)"
                         }}
                     >
                         <Tabs
@@ -3878,15 +4149,15 @@ export default function SchoolSearchDetailView({
                             allowScrollButtonsMobile
                             TabIndicatorProps={{
                                 sx: {
-                                    height: 2.5,
+                                    height: 3,
                                     borderRadius: "2px 2px 0 0",
-                                    bgcolor: BRAND_NAVY,
+                                    bgcolor: "#2563eb",
                                     transition:
-                                        "left 0.52s cubic-bezier(0.2, 0, 0, 1), width 0.52s cubic-bezier(0.2, 0, 0, 1)"
+                                        "left 0.4s cubic-bezier(0.2, 0, 0, 1), width 0.4s cubic-bezier(0.2, 0, 0, 1)"
                                 }
                             }}
                             sx={{
-                                minHeight: 40,
+                                minHeight: 42,
                                 "& .MuiTabs-scrollButtons": {
                                     width: 28,
                                     "&.Mui-disabled": {opacity: 0.35}
@@ -3896,16 +4167,21 @@ export default function SchoolSearchDetailView({
                                     fontWeight: 600,
                                     fontSize: "0.8125rem",
                                     letterSpacing: "0.01em",
-                                    minHeight: 40,
+                                    minHeight: 42,
                                     minWidth: "auto",
-                                    px: 1.75,
-                                    py: 0.75,
-                                    color: "#0f172a",
-                                    transition: "color 0.5s cubic-bezier(0.2, 0, 0, 1)"
+                                    px: 1.85,
+                                    py: 0.85,
+                                    color: "#475569",
+                                    transition: "color 0.4s ease, background-color 0.4s ease",
+                                    "&:hover": {
+                                        color: BRAND_NAVY,
+                                        bgcolor: "rgba(59,130,246,0.06)"
+                                    }
                                 },
                                 "& .Mui-selected": {
                                     color: `${BRAND_NAVY} !important`,
-                                    fontWeight: 700
+                                    fontWeight: 800,
+                                    bgcolor: "rgba(59,130,246,0.05)"
                                 },
                                 "& .MuiTabs-flexContainer": {gap: 0.25}
                             }}
@@ -4035,17 +4311,10 @@ export default function SchoolSearchDetailView({
                                         campaignTemplates={campaignTemplates}
                                         campaignLoading={campaignLoading}
                                         campaignError={campaignError}
+                                        curriculumList={school?.curriculumList}
+                                        curriculumSectionRef={detailCurriculumRef}
+                                        onSubmitApplication={handleOpenAdmissionDialog}
                                     />
-                                </Box>
-                            </Box>
-
-                            <Box
-                                ref={detailCurriculumRef}
-                                id="school-detail-curriculum"
-                                sx={{scrollMarginTop: {xs: 56, sm: 52}, mb: 3}}
-                            >
-                                <Box sx={detailMainColumnCardSx}>
-                                    <SchoolCurriculumTrainingCard curriculumList={school?.curriculumList}/>
                                 </Box>
                             </Box>
 
@@ -4055,12 +4324,12 @@ export default function SchoolSearchDetailView({
                                 sx={{scrollMarginTop: {xs: 56, sm: 52}, mb: 3}}
                             >
                                 <Box sx={detailMainColumnCardSx}>
-                                    <SchoolFacilityInfoCard
-                                        school={school}
-                                        activeCampusIndex={campusDetailTabIndex}
-                                        embedded
-                                    />
-                                </Box>
+                                        <SchoolFacilityInfoCard
+                                            school={school}
+                                            activeCampusIndex={campusDetailTabIndex}
+                                            embedded
+                                        />
+                                    </Box>
                             </Box>
 
                             <Box
@@ -4069,11 +4338,11 @@ export default function SchoolSearchDetailView({
                                 sx={{scrollMarginTop: {xs: 56, sm: 52}, mb: 3}}
                             >
                                 <Box sx={detailMainColumnCardSx}>
-                                    <SchoolPolicyInfoCard
-                                        school={school}
-                                        activeCampusIndex={campusDetailTabIndex}
-                                        embedded
-                                    />
+                                        <SchoolPolicyInfoCard
+                                            school={school}
+                                            activeCampusIndex={campusDetailTabIndex}
+                                            embedded
+                                        />
                                 </Box>
                             </Box>
 

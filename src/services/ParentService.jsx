@@ -116,3 +116,38 @@ export const deleteParentFavouriteSchool = async (schoolId) => {
     const response = await axiosClient.delete(`/parent/favourite/school/${schoolId}`);
     return response || null;
 };
+
+export const getParentAdmissionDocuments = async (campusProgramOfferingId) => {
+    const id = campusProgramOfferingId != null ? String(campusProgramOfferingId).trim() : '';
+    if (!id) {
+        throw new Error('campusProgramOfferingId is required');
+    }
+    const response = await axiosClient.get('/parent/documents', {
+        params: {campusProgramOfferingId: id},
+    });
+    return response || null;
+};
+
+export function pickAdmissionDocumentsFromResponse(response) {
+    const data = response?.data;
+    if (data == null) return {required: [], optional: []};
+    let inner = data.body ?? data;
+    if (typeof inner === 'string') {
+        try {
+            inner = JSON.parse(inner);
+        } catch {
+            return {required: [], optional: []};
+        }
+    }
+    if (inner && typeof inner === 'object' && inner.body && typeof inner.body === 'object' && !Array.isArray(inner.body)) {
+        inner = inner.body;
+    }
+    const required = Array.isArray(inner?.required) ? inner.required : [];
+    const optional = Array.isArray(inner?.optional) ? inner.optional : [];
+    return {required, optional};
+}
+
+export const postParentAdmissionReservationForm = async (payload) => {
+    const response = await axiosClient.post('/parent/admission/reservation/form', payload);
+    return response || null;
+};
