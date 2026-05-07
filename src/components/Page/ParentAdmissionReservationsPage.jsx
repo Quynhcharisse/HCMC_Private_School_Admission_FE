@@ -181,6 +181,26 @@ function InfoRow({label, value}) {
     );
 }
 
+function DetailLineRow({ label, value }) {
+    return (
+        <Box
+            sx={{
+                py: 0.8,
+                borderBottom: "1px dashed #c7d8ea"
+            }}
+        >
+            <Typography sx={{ fontSize: 14.5, color: "#1e293b" }}>
+                <Box component="span" sx={{ color: "#2563eb", fontWeight: 700 }}>
+                    {label}:
+                </Box>{" "}
+                <Box component="span" sx={{ fontWeight: 600 }}>
+                    {hasText(value) ? value : "Chưa cập nhật"}
+                </Box>
+            </Typography>
+        </Box>
+    );
+}
+
 function ReservationCard({reservation, onOpenDetail}) {
     const statusMeta = getStatusMeta(reservation?.status);
 
@@ -316,76 +336,45 @@ function DetailDialog({reservation, onClose}) {
                 </DialogTitle>
                 <DialogContent dividers sx={{bgcolor: "#e8f4fc", borderColor: "#b8d8f4", p: 3}}>
                     <Stack spacing={2.5}>
-                        <Paper elevation={0} sx={{p: 2, borderRadius: 3, border: "1px solid #c7e2f8", bgcolor: "#eef7ff"}}>
-                            <Stack direction={{xs: "column", sm: "row"}} alignItems={{xs: "flex-start", sm: "center"}} justifyContent="space-between" gap={1.5} sx={{mb: 2}}>
-                                <Typography sx={{fontWeight: 700, color: BRAND_NAVY}}>
-                                    Thông tin trường
-                                </Typography>
+                        <Paper elevation={0} sx={{p: 2, borderRadius: 3, border: "1px solid #c7e2f8", bgcolor: "rgba(255,255,255,0.65)"}}>
+                            <Stack direction={{xs: "column", sm: "row"}} alignItems={{xs: "flex-start", sm: "center"}} justifyContent="space-between" gap={1.5} sx={{mb: 1.5}}>
+                                <Typography sx={{fontWeight: 700, color: BRAND_NAVY}}>Thông tin học sinh</Typography>
                                 <Chip
                                     label={statusMeta.label}
                                     size="small"
-                                    sx={{
-                                        bgcolor: statusMeta.bg,
-                                        color: statusMeta.color,
-                                        border: `1px solid ${statusMeta.border}`,
-                                        fontWeight: 600,
-                                        borderRadius: 999
-                                    }}
+                                    sx={{ bgcolor: statusMeta.bg, color: statusMeta.color, border: `1px solid ${statusMeta.border}`, fontWeight: 600, borderRadius: 999 }}
                                 />
                             </Stack>
-                            <Grid container spacing={2}>
-                                <Grid size={{xs: 12, sm: 6}}>
-                                    <InfoRow label="Trường" value={reservation?.schoolName} />
-                                </Grid>
-                                <Grid size={{xs: 12, sm: 6}}>
-                                    <InfoRow label="Chương trình" value={reservation?.programName} />
-                                </Grid>
-                                <Grid size={{xs: 12, sm: 6}}>
-                                    <InfoRow label="Cơ sở học" value={reservation?.campusName} />
-                                </Grid>
-                                <Grid size={{xs: 12, sm: 6}}>
-                                <InfoRow label="Ngày nộp" value={formatDateOnly(reservation?.createdTime)} />
-                                </Grid>
-                                <Grid size={{xs: 12}}>
-                                    <InfoRow label="Địa chỉ" value={reservation?.address} />
-                                </Grid>
-                            </Grid>
+                            <Stack spacing={1}>
+                                <DetailLineRow label="Học sinh" value={reservation?.studentName} />
+                                <DetailLineRow label="Giới tính" value={getGenderLabel(reservation?.gender)} />
+                                <DetailLineRow label="Phương thức xét tuyển" value={reservation?.methodName || reservation?.admissionMethodCode} />
+                            </Stack>
                         </Paper>
 
-                        <Paper elevation={0} sx={{p: 2, borderRadius: 3, border: "1px solid #c7e2f8", bgcolor: "#eef7ff"}}>
-                            <Typography sx={{fontWeight: 700, color: BRAND_NAVY, mb: 2}}>
-                                Thông tin hồ sơ
-                            </Typography>
-                            <Grid container spacing={2}>
-                                <Grid size={{xs: 12, sm: 4}}>
-                                    <InfoRow label="Học sinh" value={reservation?.studentName} />
-                                </Grid>
-                                <Grid size={{xs: 12, sm: 4}}>
-                                    <InfoRow label="Giới tính" value={getGenderLabel(reservation?.gender)} />
-                                </Grid>
-                                <Grid size={{xs: 12, sm: 4}}>
-                                    <InfoRow label="Phương thức xét tuyển" value={reservation?.methodName || reservation?.admissionMethodCode} />
-                                </Grid>
-                                <Grid size={{xs: 12, sm: 4}}>
-                                    <InfoRow label="Phụ huynh" value={reservation?.parentName} />
-                                </Grid>
-                                <Grid size={{xs: 12, sm: 4}}>
-                                    <InfoRow label="Email" value={reservation?.parentEmail} />
-                                </Grid>
-                                <Grid size={{xs: 12, sm: 4}}>
-                                    <InfoRow label="Điện thoại" value={reservation?.parentPhone} />
-                                </Grid>
+                        <Paper elevation={0} sx={{p: 2, borderRadius: 3, border: "1px solid #c7e2f8", bgcolor: "rgba(255,255,255,0.65)"}}>
+                            <Typography sx={{fontWeight: 700, color: BRAND_NAVY, mb: 1.5}}>Thông tin phụ huynh</Typography>
+                            <Stack spacing={1}>
+                                <DetailLineRow label="Phụ huynh" value={reservation?.parentName} />
+                                <DetailLineRow label="Email" value={reservation?.parentEmail} />
+                                <DetailLineRow label="Điện thoại" value={reservation?.parentPhone} />
+                                <DetailLineRow label="Địa chỉ" value={reservation?.address} />
+                            </Stack>
+                        </Paper>
+
+                        <Paper elevation={0} sx={{p: 2, borderRadius: 3, border: "1px solid #c7e2f8", bgcolor: "rgba(255,255,255,0.65)"}}>
+                            <Typography sx={{fontWeight: 700, color: BRAND_NAVY, mb: 1.5}}>Thông tin hồ sơ tuyển sinh</Typography>
+                            <Stack spacing={1}>
+                                <DetailLineRow label="Chương trình" value={reservation?.programName} />
+                                <DetailLineRow label="Cơ sở học" value={reservation?.campusName} />
+                                <DetailLineRow label="Ngày nộp" value={formatDateOnly(reservation?.createdTime)} />
                                 {hasText(reservation?.rejectReason) && (
-                                    <Grid size={{xs: 12}}>
-                                        <InfoRow label="Lý do từ chối" value={reservation.rejectReason} />
-                                    </Grid>
+                                    <DetailLineRow label="Lý do từ chối" value={reservation.rejectReason} />
                                 )}
                                 {hasText(reservation?.cancelReason) && (
-                                    <Grid size={{xs: 12}}>
-                                        <InfoRow label="Lý do hủy" value={reservation.cancelReason} />
-                                    </Grid>
+                                    <DetailLineRow label="Lý do hủy" value={reservation.cancelReason} />
                                 )}
-                            </Grid>
+                            </Stack>
                         </Paper>
 
                         {documents.length === 0 ? (
