@@ -910,8 +910,6 @@ export default function SchoolPrograms() {
     const [programWizardReviewTab, setProgramWizardReviewTab] = useState(0);
 
     // Clone flow
-    const [cloneConfirmOpen, setCloneConfirmOpen] = useState(false);
-    const [cloneTargetProgram, setCloneTargetProgram] = useState(null);
     const [cloneLoading, setCloneLoading] = useState(false);
     const [isClonedDraftEdit, setIsClonedDraftEdit] = useState(false);
     const [shouldAutoSelectClonedName, setShouldAutoSelectClonedName] = useState(false);
@@ -957,6 +955,33 @@ export default function SchoolPrograms() {
             setActionTargetProgram(program);
             setActionType("DEACTIVATE");
             setActionConfirmOpen(true);
+        }
+    };
+
+    const handleCloneProgram = async (program) => {
+        if (!program || !isPrimaryBranch || cloneLoading || actionLoading) return;
+        setCloneLoading(true);
+        try {
+            const res = await cloneProgram(program.id);
+            const ok = res?.status >= 200 && res?.status < 300;
+            if (!ok) {
+                enqueueSnackbar(res?.data?.message || "Không thể nhân bản chương trình.", {variant: "error"});
+                return;
+            }
+            enqueueSnackbar("Thành công! Đã tạo bản sao mới.", {variant: "success"});
+            setProgramModalOpen(false);
+            setSelectedProgram(null);
+            setIsClonedDraftEdit(false);
+            setShouldAutoSelectClonedName(false);
+            await loadData(page, rowsPerPage);
+        } catch (err) {
+            console.error("Clone program error:", err);
+            enqueueSnackbar(
+                err?.response?.data?.message || "Không thể nhân bản chương trình. Vui lòng thử lại.",
+                {variant: "error"}
+            );
+        } finally {
+            setCloneLoading(false);
         }
     };
 
@@ -1956,12 +1981,11 @@ export default function SchoolPrograms() {
                                                             <Tooltip title="Nhân bản chương trình" arrow>
                                                                 <IconButton
                                                                     size="small"
-                                                                    onClick={(e) => {
+                                                                    onClick={async (e) => {
                                                                         e.stopPropagation();
-                                                                        if (!isPrimaryBranch) return;
-                                                                        setCloneTargetProgram(row);
-                                                                        setCloneConfirmOpen(true);
+                                                                        await handleCloneProgram(row);
                                                                     }}
+                                                                    disabled={cloneLoading || actionLoading}
                                                                     sx={{
                                                                         color: "#64748b",
                                                                         "&:hover": {color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)"},
@@ -3092,9 +3116,8 @@ export default function SchoolPrograms() {
                                     <Button
                                         variant="outlined"
                                         startIcon={<ContentCopyRoundedIcon fontSize="small"/>}
-                                        onClick={() => {
-                                            setCloneTargetProgram(selectedProgram);
-                                            setCloneConfirmOpen(true);
+                                        onClick={async () => {
+                                            await handleCloneProgram(selectedProgram);
                                         }}
                                         disabled={cloneLoading || actionLoading || !selectedProgram}
                                         sx={{textTransform: "none", fontWeight: 800, borderRadius: 2, px: 3}}
@@ -3176,90 +3199,6 @@ export default function SchoolPrograms() {
                             )}
                         </>
                     )}
-                </DialogActions>
-            </Dialog>
-
-            {/* Clone Program Dialog */}
-            <Dialog
-                open={cloneConfirmOpen}
-                onClose={(event, reason) => {
-                    if (reason === "backdropClick") return;
-                    if (!cloneLoading) setCloneConfirmOpen(false);
-                }}
-                fullWidth
-                maxWidth="sm"
-                PaperProps={{sx: {borderRadius: "16px", position: "relative"}}}
-            >
-                <IconButton
-                    aria-label="Đóng"
-                    onClick={() => !cloneLoading && !actionLoading && setCloneConfirmOpen(false)}
-                    disabled={cloneLoading || actionLoading}
-                    sx={{position: "absolute", right: 8, top: 8, zIndex: 1, color: "#64748b"}}
-                >
-                    <CloseIcon fontSize="small"/>
-                </IconButton>
-                <DialogContent sx={{pt: 3, px: 3, pr: 6}}>
-                    <Typography variant="h6" sx={{fontWeight: 900}}>
-                        Nhân bản chương trình đào tạo?
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{mt: 1.25}}>
-                        Hệ thống sẽ tạo <ConfirmHighlight>một bản sao mới (trạng thái Nháp)</ConfirmHighlight> dựa trên
-                        toàn bộ thông tin của chương trình này. Bạn có muốn{" "}
-                        <ConfirmHighlight>tiếp tục</ConfirmHighlight> không?
-                    </Typography>
-
-                    {cloneLoading ? (
-                        <Box sx={{mt: 2.5, display: "flex", alignItems: "center", gap: 1.5}}>
-                            <CircularProgress size={22}/>
-                            <Typography variant="body2" sx={{color: "#64748b", fontWeight: 800}}>
-                                Đang khởi tạo bản sao, vui lòng đợi trong giây lát...
-                            </Typography>
-                        </Box>
-                    ) : null}
-                </DialogContent>
-
-                <DialogActions sx={{px: 3, pb: 2.5}}>
-                    <Button
-                        onClick={() => setCloneConfirmOpen(false)}
-                        disabled={cloneLoading || actionLoading}
-                        sx={{textTransform: "none"}}
-                    >
-                        Hủy
-                    </Button>
-                    <Button
-                        variant="contained"
-                        onClick={async () => {
-                            if (!cloneTargetProgram || cloneLoading) return;
-                            setCloneLoading(true);
-                            try {
-                                const res = await cloneProgram(cloneTargetProgram.id);
-                                const ok = res?.status >= 200 && res?.status < 300;
-                                if (!ok) {
-                                    enqueueSnackbar(res?.data?.message || "Không thể nhân bản chương trình.", {variant: "error"});
-                                    return;
-                                }
-
-                                enqueueSnackbar("Thành công! Đã tạo bản sao mới.", {variant: "success"});
-                                setCloneConfirmOpen(false);
-                                setCloneTargetProgram(null);
-                                setProgramModalOpen(false);
-                                setSelectedProgram(null);
-                                await loadData(page, rowsPerPage);
-                            } catch (err) {
-                                console.error("Clone program error:", err);
-                                enqueueSnackbar(
-                                    err?.response?.data?.message || "Không thể nhân bản chương trình. Vui lòng thử lại.",
-                                    {variant: "error"}
-                                );
-                            } finally {
-                                setCloneLoading(false);
-                            }
-                        }}
-                        disabled={cloneLoading || actionLoading || !cloneTargetProgram}
-                        sx={{textTransform: "none", fontWeight: 800, borderRadius: "12px", bgcolor: "#3b82f6"}}
-                    >
-                        Xác nhận nhân bản
-                    </Button>
                 </DialogActions>
             </Dialog>
 
