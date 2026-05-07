@@ -861,7 +861,7 @@ export default function SchoolCurriculums() {
         handleOpenEdit(curriculum);
     };
 
-    const runCloneForCurriculum = async (base) => {
+    const runCloneForCurriculum = async (base, { closeViewModal = false } = {}) => {
         if (!isPrimaryBranch || !base) return;
         setEvolveLoading(true);
         try {
@@ -873,14 +873,18 @@ export default function SchoolCurriculums() {
                         "Đã tạo bản nháp mới nhưng không lấy được ID để mở chỉnh sửa.",
                     { variant: "warning" }
                 );
+                if (closeViewModal) {
+                    setViewModalOpen(false);
+                    setViewCurriculum(null);
+                }
                 await loadData(page, rowsPerPage);
                 return;
             }
-            const draftCurriculum = { ...base, id: Number(newDraftId), curriculumStatus: "CUR_DRAFT" };
-            setViewModalOpen(false);
-            setViewCurriculum(null);
-            handleOpenEdit(draftCurriculum);
-            enqueueSnackbar("Đã tạo bản nháp mới. Chỉnh sửa rồi công bố để kích hoạt.", { variant: "success" });
+            if (closeViewModal) {
+                setViewModalOpen(false);
+                setViewCurriculum(null);
+            }
+            enqueueSnackbar("Đã tạo bản nháp mới.", { variant: "success" });
             setCurriculumToEditAfterConfirm(null);
             await loadData(page, rowsPerPage);
         } catch (err) {
@@ -888,8 +892,10 @@ export default function SchoolCurriculums() {
             handleCurriculumActivateHttpError(err, {
                 on404: async (msg) => {
                     setCurriculumToEditAfterConfirm(null);
-                    setViewModalOpen(false);
-                    setViewCurriculum(null);
+                    if (closeViewModal) {
+                        setViewModalOpen(false);
+                        setViewCurriculum(null);
+                    }
                     await loadData(page, rowsPerPage);
                     enqueueSnackbar(msg || "Không tìm thấy khung chương trình.", { variant: "warning" });
                 },
@@ -909,7 +915,7 @@ export default function SchoolCurriculums() {
     const openCloneFromView = () => {
         if (!isPrimaryBranch || !viewCurriculum) return;
         if (normalizeStatus(viewCurriculum.curriculumStatus) !== "CUR_ACTIVE") return;
-        void runCloneForCurriculum(viewCurriculum);
+        void runCloneForCurriculum(viewCurriculum, { closeViewModal: true });
     };
 
     const handleCloseCreate = () => {
@@ -1792,7 +1798,11 @@ export default function SchoolCurriculums() {
                                                     {normalizeStatus(row.curriculumStatus) === "CUR_ACTIVE" && (
                                                         <>
                                                             <Tooltip title="Nhân bản" arrow>
-                                                                <span>
+                                                                <span
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                    }}
+                                                                >
                                                                     <IconButton
                                                                         size="small"
                                                                         disabled={evolveLoading}
