@@ -522,16 +522,7 @@ export default function PackageFeesPage() {
             const paymentUrl = res?.data?.body;
             if (typeof paymentUrl === "string" && /^https?:\/\//i.test(paymentUrl.trim())) {
                 const url = paymentUrl.trim();
-                const w = window.open(url, "_blank");
-                if (w) {
-                    try {
-                        w.opener = null;
-                    } catch {
-                    }
-                } else {
-                    enqueueSnackbar("Không mở được tab mới. Đang chuyển trong tab hiện tại.", { variant: "warning" });
-                    window.location.assign(url);
-                }
+                window.location.assign(url);
                 return;
             }
             enqueueSnackbar(
