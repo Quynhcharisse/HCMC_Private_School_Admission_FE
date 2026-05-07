@@ -16,10 +16,16 @@ import {
     Grid,
     IconButton,
     InputAdornment,
-    LinearProgress,
     MenuItem,
+    Paper,
     Skeleton,
     Stack,
+    Table,
+    TableBody,
+    TableCell,
+    TableContainer,
+    TableHead,
+    TableRow,
     TextField,
     Typography,
     useMediaQuery,
@@ -32,7 +38,6 @@ import CheckCircleRoundedIcon from "@mui/icons-material/CheckCircleRounded";
 import CancelRoundedIcon from "@mui/icons-material/CancelRounded";
 import SchoolRoundedIcon from "@mui/icons-material/SchoolRounded";
 import PersonRoundedIcon from "@mui/icons-material/PersonRounded";
-import DescriptionRoundedIcon from "@mui/icons-material/DescriptionRounded";
 import VisibilityRoundedIcon from "@mui/icons-material/VisibilityRounded";
 import WarningAmberRoundedIcon from "@mui/icons-material/WarningAmberRounded";
 import ApartmentRoundedIcon from "@mui/icons-material/ApartmentRounded";
@@ -113,6 +118,20 @@ const formatDateTime = (value) => {
     return d.toLocaleString("vi-VN");
 };
 
+const formatDateOnly = (value) => {
+    if (!value) return "—";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return String(value);
+    return d.toLocaleDateString("vi-VN");
+};
+
+const formatGender = (value) => {
+    const key = String(value || "").trim().toUpperCase();
+    if (key === "MALE") return "Nam";
+    if (key === "FEMALE") return "Nữ";
+    return value || "Chưa cập nhật";
+};
+
 const InfoRow = ({ icon, label, value }) => (
     <Stack direction="row" spacing={1} alignItems="center" sx={{ minWidth: 0 }}>
         <Box sx={{ color: "#64748b", display: "inline-flex" }}>{icon}</Box>
@@ -127,10 +146,8 @@ const InfoRow = ({ icon, label, value }) => (
 
 const StatusChip = ({ status }) => {
     const meta = statusMeta(status);
-    const Icon = meta.icon;
     return (
         <Chip
-            icon={<Icon sx={{ fontSize: 18 }} />}
             label={meta.label}
             sx={{
                 borderRadius: 999,
@@ -187,140 +204,117 @@ const mapRow = (item, index) => {
 
 function AdmissionReservationCard({ row, isSubmitting, onApprove, onReject, onViewDetail, onOpenPreview }) {
     const isPending = row.status === "RESERVATION_PENDING";
-    const initial = String(row.studentName || "?").trim().charAt(0).toUpperCase() || "?";
     const attachmentFiles = flattenAttachments(row.profileMetadata);
-    const firstAttachment = attachmentFiles[0];
+    const meta = statusMeta(row.status);
+    const StatusIcon = meta.icon;
 
     return (
-        <Card
+        <Paper
             elevation={0}
             sx={{
-                height: "100%",
                 borderRadius: 2.5,
+                overflow: "hidden",
                 border: "1px solid #e2e8f0",
-                boxShadow: "0 8px 20px rgba(15,23,42,0.06)",
                 bgcolor: "#fff",
-                transition: "transform .25s ease, box-shadow .25s ease",
+                boxShadow: "0 8px 22px rgba(15, 23, 42, 0.05)",
+                transition: "border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease",
                 "&:hover": {
-                    transform: "translateY(-4px)",
-                    boxShadow: "0 16px 30px rgba(15,23,42,0.11)",
                     borderColor: "#bfdbfe",
+                    boxShadow: "0 12px 28px rgba(37, 99, 235, 0.1)",
+                    transform: "translateY(-1px)",
                 },
             }}
         >
-            <CardContent sx={{ p: 2, height: "100%" }}>
-                <Stack spacing={1.25} sx={{ height: "100%" }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="flex-start" gap={1.25}>
-                        <Stack direction="row" spacing={1.25} alignItems="center" sx={{ minWidth: 0 }}>
-                            <Avatar sx={{ width: 44, height: 44, bgcolor: "#dbeafe", color: "#1d4ed8", fontWeight: 800 }}>
-                                {initial}
-                            </Avatar>
-                            <Box sx={{ minWidth: 0 }}>
-                                <Typography sx={{ fontWeight: 800, fontSize: "1.02rem", color: "#0f172a" }}>{row.studentName}</Typography>
-                                <Typography variant="caption" sx={{ color: "#64748b", display: "block", mt: 0.25 }} noWrap>{row.currentSchool}</Typography>
-                                <Typography variant="caption" sx={{ color: "#94a3b8", display: "block" }} noWrap>
-                                    {row.programName} · {row.methodName}
-                                </Typography>
-                            </Box>
-                        </Stack>
-                        <Stack spacing={0.75} alignItems="flex-end">
-                            <StatusChip status={row.status} />
-                            <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 600 }}>
-                                {formatDateTime(row.submittedAt)}
+            <Stack
+                direction={{xs: "column", lg: "row"}}
+                alignItems={{xs: "stretch", lg: "center"}}
+                justifyContent="space-between"
+                gap={2}
+                sx={{px: {xs: 2, md: 2.5}, py: 2.25}}
+            >
+                <Stack direction={{xs: "column", md: "row"}} alignItems={{xs: "stretch", md: "flex-start"}} gap={1.5} sx={{minWidth: 0, flex: 1}}>
+                    <Box sx={{minWidth: 0, flex: 1}}>
+                        <Stack direction="row" alignItems="center" flexWrap="wrap" gap={1} sx={{mb: 0.6}}>
+                            <Typography sx={{fontSize: 17, fontWeight: 700, color: "#1e3a8a", lineHeight: 1.3}}>
+                                {row.parentName}
                             </Typography>
-                        </Stack>
-                    </Stack>
-                    <Grid container spacing={0.75}>
-                        <Grid item xs={12} sm={6}><InfoRow icon={<PersonRoundedIcon sx={{ fontSize: 16 }} />} label="Phụ huynh" value={row.parentName} /></Grid>
-                        <Grid item xs={12} sm={6}><InfoRow icon={<PhoneRoundedIcon sx={{ fontSize: 16 }} />} label="SĐT" value={row.phone} /></Grid>
-                        <Grid item xs={12} sm={6}><InfoRow icon={<ApartmentRoundedIcon sx={{ fontSize: 16 }} />} label="Campus" value={row.campusName} /></Grid>
-                        <Grid item xs={12} sm={6}><InfoRow icon={<ClassRoundedIcon sx={{ fontSize: 16 }} />} label="Lớp" value={row.registerClass} /></Grid>
-                    </Grid>
-                    <Box
-                        onClick={() => onOpenPreview(row, 0)}
-                        sx={{
-                            p: 1,
-                            borderRadius: 2,
-                            border: "1px solid #e2e8f0",
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 1,
-                            cursor: attachmentFiles.length > 0 ? "pointer" : "default",
-                            bgcolor: "#f8fafc",
-                        }}
-                    >
-                        {firstAttachment ? (
-                            <Box component="img" src={firstAttachment.url} alt="preview" sx={{ width: 40, height: 40, borderRadius: 1.5, objectFit: "cover" }} />
-                        ) : (
-                            <Box sx={{ width: 40, height: 40, borderRadius: 1.5, border: "1px dashed #cbd5e1", display: "flex", alignItems: "center", justifyContent: "center", color: "#94a3b8" }}>
-                                <DescriptionRoundedIcon fontSize="small" />
-                            </Box>
-                        )}
-                        <Typography variant="body2" sx={{ color: "#475569", fontWeight: 700 }}>
-                            {attachmentFiles.length > 0 ? `+${attachmentFiles.length} tài liệu đính kèm` : "Không có tài liệu"}
-                        </Typography>
-                    </Box>
-
-                    {isPending ? (
-                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: "auto" }}>
-                            <Button
-                                fullWidth
-                                variant="outlined"
-                                startIcon={<VisibilityRoundedIcon />}
-                                onClick={onViewDetail}
-                                sx={{ textTransform: "none", borderRadius: 2.5, fontWeight: 700, borderColor: "#cbd5e1" }}
-                            >
-                                Xem chi tiết
-                            </Button>
-                            <Button
-                                fullWidth
-                                variant="contained"
-                                startIcon={<CheckCircleRoundedIcon />}
-                                disabled={isSubmitting}
-                                onClick={onApprove}
-                                sx={{
-                                    textTransform: "none",
-                                    borderRadius: 2.5,
-                                    fontWeight: 800,
-                                    background: "linear-gradient(90deg, #0D64DE 0%, #2563eb 100%)",
-                                    boxShadow: "0 8px 20px rgba(37,99,235,0.28)",
-                                    "&:hover": { boxShadow: "0 12px 24px rgba(37,99,235,0.35)" },
-                                }}
-                            >
-                                Phê duyệt
-                            </Button>
-                            <Button
-                                fullWidth
-                                variant="outlined"
-                                color="error"
-                                startIcon={<CancelRoundedIcon />}
-                                disabled={isSubmitting}
-                                onClick={onReject}
-                                sx={{ textTransform: "none", borderRadius: 2.5, fontWeight: 800 }}
-                            >
-                                Từ chối
-                            </Button>
-                        </Stack>
-                    ) : (
-                        <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ mt: "auto" }}>
-                            <Button
-                                fullWidth
-                                variant="outlined"
-                                startIcon={<VisibilityRoundedIcon />}
-                                onClick={onViewDetail}
-                                sx={{ textTransform: "none", borderRadius: 2.5, fontWeight: 700, borderColor: "#cbd5e1" }}
-                            >
-                                Xem chi tiết
-                            </Button>
                             <Chip
-                                label="Đã xử lý"
-                                sx={{ alignSelf: "center", borderRadius: 999, bgcolor: "#f1f5f9", color: "#475569", fontWeight: 800, minWidth: 110 }}
+                                icon={<StatusIcon sx={{fontSize: 16}} />}
+                                label={meta.label}
+                                size="small"
+                                sx={{
+                                    bgcolor: meta.bg,
+                                    color: meta.color,
+                                    border: `1px solid ${meta.border}`,
+                                    fontWeight: 700,
+                                    borderRadius: 999,
+                                }}
                             />
                         </Stack>
-                    )}
+                        <Typography sx={{fontSize: 14, color: "#475569", mb: 1}}>
+                            <strong>Học sinh:</strong> {row.studentName}
+                        </Typography>
+                        <Stack direction={{xs: "column", sm: "row"}} spacing={{xs: 0.65, sm: 2}} sx={{mb: 0.7}}>
+                            <Typography variant="body2" sx={{ color: "#475569" }}>
+                                <strong>SĐT:</strong> {row.phone || "—"}
+                            </Typography>
+                        </Stack>
+                    </Box>
+                    <Stack spacing={0.8} sx={{minWidth: {md: 280}, alignItems: {xs: "flex-start", md: "flex-end"}}}>
+                        <Typography variant="body2" sx={{ color: "#64748b", textAlign: {xs: "left", md: "right"} }}>
+                            <strong>Chương trình:</strong> {row.programName || "—"}
+                        </Typography>
+                        <Typography variant="body2" sx={{ color: "#64748b", textAlign: {xs: "left", md: "right"} }}>
+                            <strong>Ngày nộp:</strong> {formatDateOnly(row.submittedAt)}
+                        </Typography>
+                    </Stack>
                 </Stack>
-            </CardContent>
-        </Card>
+                {isPending ? (
+                    <Stack direction={{ xs: "column", sm: "row", lg: "column" }} spacing={1} sx={{ width: { xs: "100%", lg: 180 }, flexShrink: 0 }}>
+                        <Button
+                            variant="outlined"
+                            startIcon={<VisibilityRoundedIcon />}
+                            onClick={onViewDetail}
+                            sx={{ textTransform: "none", borderRadius: 999, fontWeight: 700, borderColor: "#bfdbfe", color: "#1e3a8a" }}
+                        >
+                            Xem chi tiết
+                        </Button>
+                        <Button
+                            variant="contained"
+                            disabled={isSubmitting}
+                            onClick={onApprove}
+                            sx={{ textTransform: "none", borderRadius: 999, fontWeight: 800, background: "linear-gradient(90deg, #0D64DE 0%, #2563eb 100%)" }}
+                        >
+                            Phê duyệt
+                        </Button>
+                        <Button
+                            variant="outlined"
+                            color="error"
+                            disabled={isSubmitting}
+                            onClick={onReject}
+                            sx={{ textTransform: "none", borderRadius: 999, fontWeight: 700 }}
+                        >
+                            Từ chối
+                        </Button>
+                    </Stack>
+                ) : (
+                    <Stack direction={{ xs: "column", sm: "row", lg: "column" }} spacing={1} sx={{ width: { xs: "100%", lg: 180 }, flexShrink: 0 }}>
+                        <Button
+                            variant="outlined"
+                            startIcon={<VisibilityRoundedIcon />}
+                            onClick={onViewDetail}
+                            sx={{ textTransform: "none", borderRadius: 999, fontWeight: 700, borderColor: "#bfdbfe", color: "#1e3a8a" }}
+                        >
+                            Xem chi tiết
+                        </Button>
+                        <Chip
+                            label="Đã xử lý"
+                            sx={{ borderRadius: 999, bgcolor: "#f1f5f9", color: "#475569", fontWeight: 800 }}
+                        />
+                    </Stack>
+                )}
+            </Stack>
+        </Paper>
     );
 }
 
@@ -353,11 +347,31 @@ function AttachmentGallery({ files, onOpenImage }) {
     );
 }
 
+function DetailInfoRow({ label, value }) {
+    return (
+        <Box
+            sx={{
+                py: 0.8,
+                borderBottom: "1px dashed #c7d8ea",
+            }}
+        >
+            <Typography sx={{fontSize: 14.5, color: "#1e293b"}}>
+                <Box component="span" sx={{color: "#2563eb", fontWeight: 700}}>
+                    {label}:
+                </Box>{" "}
+                <Box component="span" sx={{fontWeight: 600}}>
+                    {value || "Chưa cập nhật"}
+                </Box>
+            </Typography>
+        </Box>
+    );
+}
+
 function AdmissionReservationDetailDrawer({ open, row, onClose, onApprove, onReject, isSubmitting, onOpenPreview, fullScreen }) {
-    const files = flattenAttachments(row?.profileMetadata || []);
+    const docs = Array.isArray(row?.profileMetadata) ? row.profileMetadata : [];
     const isPending = row?.status === "RESERVATION_PENDING";
-    const initial = String(row?.studentName || "?").trim().charAt(0).toUpperCase() || "?";
-    const sectionCard = { p: 1.5, borderRadius: 2.5, bgcolor: "#f8fafc", border: "1px solid #e2e8f0" };
+    const status = statusMeta(row?.status);
+    const flattened = flattenAttachments(row?.profileMetadata || []);
     return (
         <Dialog
             open={open}
@@ -368,115 +382,170 @@ function AdmissionReservationDetailDrawer({ open, row, onClose, onApprove, onRej
             PaperProps={{
                 sx: {
                     borderRadius: fullScreen ? 0 : 3,
-                    bgcolor: "rgba(255,255,255,0.98)",
-                    backdropFilter: "blur(10px)",
-                    minHeight: fullScreen ? "100%" : "80vh",
+                    overflow: "hidden",
+                    bgcolor: "#e8f4fc",
                 },
             }}
         >
-            <Stack sx={{ height: "100%", maxHeight: fullScreen ? "100%" : "80vh" }}>
-                <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ px: 2, py: 1.5, borderBottom: "1px solid #e2e8f0", position: "sticky", top: 0, bgcolor: "rgba(255,255,255,0.95)", zIndex: 2 }}>
-                    <Stack direction="row" spacing={1.2} alignItems="center">
-                        <Avatar sx={{ width: 48, height: 48, bgcolor: "#dbeafe", color: "#1d4ed8", fontWeight: 800 }}>{initial}</Avatar>
-                        <Box>
-                            <Typography sx={{ fontWeight: 800 }}>{row?.studentName}</Typography>
-                            <Typography variant="caption" sx={{ color: "#64748b" }}>{row?.programName} · {row?.methodName}</Typography>
-                        </Box>
-                    </Stack>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                        <StatusChip status={row?.status} />
-                        <IconButton onClick={onClose}><CloseRoundedIcon /></IconButton>
-                    </Stack>
-                </Stack>
-
-                <Box sx={{ p: 2, overflowY: "auto", flex: 1 }}>
-                    <Stack spacing={1.5}>
-                        <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700 }}>Nộp lúc: {formatDateTime(row?.submittedAt)}</Typography>
-                        <Box sx={sectionCard}>
-                            <Typography sx={{ fontWeight: 800, mb: 1, color: "#334155" }}>Thông tin học sinh</Typography>
-                            <Stack spacing={0.9}>
-                                <InfoRow icon={<WcRoundedIcon sx={{ fontSize: 16 }} />} label="Giới tính" value={row?.gender} />
-                                <InfoRow icon={<BadgeRoundedIcon sx={{ fontSize: 16 }} />} label="CCCD" value={row?.identityCard} />
-                                <InfoRow icon={<ApartmentRoundedIcon sx={{ fontSize: 16 }} />} label="Campus" value={row?.campusName} />
-                                <InfoRow icon={<ClassRoundedIcon sx={{ fontSize: 16 }} />} label="Lớp đăng ký" value={row?.registerClass} />
-                                <InfoRow icon={<SchoolRoundedIcon sx={{ fontSize: 16 }} />} label="Trường" value={row?.currentSchool} />
-                            </Stack>
-                        </Box>
-
-                        <Box sx={sectionCard}>
-                            <Typography sx={{ fontWeight: 800, mb: 1, color: "#334155" }}>Thông tin phụ huynh</Typography>
-                            <Stack spacing={0.9}>
-                                <InfoRow icon={<PersonRoundedIcon sx={{ fontSize: 16 }} />} label="Tên" value={row?.parentName} />
-                                <InfoRow icon={<PhoneRoundedIcon sx={{ fontSize: 16 }} />} label="SĐT" value={row?.phone} />
-                                <InfoRow icon={<EmailRoundedIcon sx={{ fontSize: 16 }} />} label="Email" value={row?.parentEmail} />
-                                <InfoRow icon={<HomeRoundedIcon sx={{ fontSize: 16 }} />} label="Địa chỉ" value={row?.address} />
-                            </Stack>
-                        </Box>
-
-                        <Box sx={sectionCard}>
-                            <Typography sx={{ fontWeight: 800, mb: 1, color: "#334155" }}>Hồ sơ đính kèm</Typography>
-                            <AttachmentGallery files={files} onOpenImage={(idx) => onOpenPreview(row, idx)} />
-                        </Box>
-
-                        {(row?.status === "RESERVATION_REJECTED" && row?.rejectReason) || row?.note ? (
-                            <Box sx={{ p: 1.5, borderRadius: 2.5, bgcolor: "#fef2f2", border: "1px solid #fecaca" }}>
-                                <Stack direction="row" spacing={1} alignItems="flex-start">
-                                    <WarningAmberRoundedIcon sx={{ fontSize: 18, color: "#dc2626", mt: 0.2 }} />
-                                    <Box>
-                                        <Typography sx={{ fontWeight: 800, color: "#b91c1c" }}>
-                                            {row?.status === "RESERVATION_REJECTED" ? "Lý do từ chối" : "Ghi chú"}
-                                        </Typography>
-                                        <Typography variant="body2" sx={{ color: "#7f1d1d" }}>
-                                            {row?.status === "RESERVATION_REJECTED" ? row?.rejectReason : row?.note}
-                                        </Typography>
-                                    </Box>
-                                </Stack>
-                            </Box>
-                        ) : null}
-                    </Stack>
+            <DialogTitle
+                sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 2,
+                    px: 3,
+                    py: 2.25,
+                    bgcolor: "#d9ecff",
+                    borderBottom: "1px solid #b8d8f4",
+                }}
+            >
+                <Box>
+                    <Typography sx={{fontSize: 20, fontWeight: 700, color: "#0f172a"}}>
+                        Chi tiết hồ sơ nhập học
+                    </Typography>
+                    <Typography sx={{fontSize: 13, color: "#475569", mt: 0.4}}>
+                        Nộp ngày: {formatDateOnly(row?.submittedAt)}
+                    </Typography>
                 </Box>
-
-                <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ p: 2, borderTop: "1px solid #e2e8f0", position: "sticky", bottom: 0, bgcolor: "rgba(255,255,255,0.97)" }}>
-                    {isPending ? (
-                        <>
-                            <Button fullWidth variant="contained" startIcon={<CheckCircleRoundedIcon />} onClick={onApprove} disabled={isSubmitting} sx={{ textTransform: "none", borderRadius: 2.5, fontWeight: 800 }}>Phê duyệt</Button>
-                            <Button fullWidth variant="outlined" color="error" startIcon={<CancelRoundedIcon />} onClick={onReject} disabled={isSubmitting} sx={{ textTransform: "none", borderRadius: 2.5, fontWeight: 800 }}>Từ chối</Button>
-                        </>
-                    ) : (
-                        <Chip label="Đã xử lý" sx={{ borderRadius: 999, bgcolor: "#f1f5f9", color: "#475569", fontWeight: 800 }} />
-                    )}
+                <Stack direction="row" spacing={1} alignItems="center">
+                    <Chip
+                        label={status.label}
+                        size="small"
+                        sx={{bgcolor: status.bg, color: status.color, border: `1px solid ${status.border}`, fontWeight: 700, borderRadius: 999}}
+                    />
+                    <IconButton onClick={onClose}>
+                        <CloseRoundedIcon />
+                    </IconButton>
                 </Stack>
-            </Stack>
+            </DialogTitle>
+            <DialogContent dividers sx={{bgcolor: "#e8f4fc", borderColor: "#b8d8f4", p: 3}}>
+                <Stack spacing={2.5}>
+                    <Paper elevation={0} sx={{p: 2, borderRadius: 3, border: "1px solid #c7e2f8", bgcolor: "rgba(255,255,255,0.65)"}}>
+                        <Typography sx={{fontWeight: 700, color: "#1e3a8a", mb: 1.5}}>
+                            Thông tin học sinh
+                        </Typography>
+                        <Stack spacing={0}>
+                            <DetailInfoRow label="Học sinh" value={row?.studentName} />
+                            <DetailInfoRow label="Giới tính" value={formatGender(row?.gender)} />
+                            <DetailInfoRow label="CCCD" value={row?.identityCard} />
+                        </Stack>
+                    </Paper>
+
+                    <Paper elevation={0} sx={{p: 2, borderRadius: 3, border: "1px solid #c7e2f8", bgcolor: "rgba(255,255,255,0.65)"}}>
+                        <Typography sx={{fontWeight: 700, color: "#1e3a8a", mb: 1.5}}>
+                            Thông tin phụ huynh
+                        </Typography>
+                        <Stack spacing={0}>
+                            <DetailInfoRow label="Phụ huynh" value={row?.parentName} />
+                            <DetailInfoRow label="Số điện thoại" value={row?.phone} />
+                            <DetailInfoRow label="Email" value={row?.parentEmail} />
+                            <DetailInfoRow label="Địa chỉ" value={row?.address} />
+                        </Stack>
+                    </Paper>
+
+                    <Paper elevation={0} sx={{p: 2, borderRadius: 3, border: "1px solid #c7e2f8", bgcolor: "rgba(255,255,255,0.65)"}}>
+                        <Typography sx={{fontWeight: 700, color: "#1e3a8a", mb: 1.5}}>
+                            Thông tin hồ sơ tuyển sinh
+                        </Typography>
+                        <Stack spacing={0}>
+                            <DetailInfoRow label="Chương trình" value={row?.programName} />
+                            <DetailInfoRow label="Phương thức xét tuyển" value={row?.methodName} />
+                        </Stack>
+                    </Paper>
+
+                    {docs.length === 0 ? (
+                        <Paper elevation={0} sx={{p: 4, textAlign: "center", borderRadius: 3, border: "1px dashed #b8d8f4", bgcolor: "#eef7ff"}}>
+                            <Typography sx={{fontWeight: 700, color: "#475569"}}>
+                                Chưa có ảnh minh chứng trong hồ sơ này.
+                            </Typography>
+                        </Paper>
+                    ) : (
+                        docs.map((doc, docIndex) => {
+                            const images = Array.isArray(doc?.imageUrl) ? doc.imageUrl.filter(Boolean) : [];
+                            const startIndex = docs
+                                .slice(0, docIndex)
+                                .reduce((sum, item) => sum + (Array.isArray(item?.imageUrl) ? item.imageUrl.filter(Boolean).length : 0), 0);
+                            return (
+                                <Paper key={`${doc?.key || "document"}-${docIndex}`} elevation={0} sx={{p: 2, borderRadius: 3, border: "1px solid #c7e2f8", bgcolor: "#eef7ff"}}>
+                                    <Stack direction="row" alignItems="center" justifyContent="space-between" gap={1.5} sx={{mb: 1.5}}>
+                                        <Typography sx={{fontWeight: 700, color: "#1e3a8a"}}>
+                                            {doc?.key || "Minh chứng"}
+                                        </Typography>
+                                        <Chip label={`${images.length} ảnh`} size="small" sx={{bgcolor: "#eff6ff", color: "#1e3a8a", fontWeight: 800}} />
+                                    </Stack>
+                                    <Grid container spacing={1.5}>
+                                        {images.map((imageUrl, imageIndex) => (
+                                            <Grid key={`${imageUrl}-${imageIndex}`} item xs={6} sm={4} md={3}>
+                                                <Box
+                                                    component="button"
+                                                    type="button"
+                                                    onClick={() => onOpenPreview(row, startIndex + imageIndex)}
+                                                    sx={{
+                                                        display: "block",
+                                                        width: "100%",
+                                                        height: 150,
+                                                        p: 0,
+                                                        borderRadius: 2.5,
+                                                        overflow: "hidden",
+                                                        border: "1px solid #dbeafe",
+                                                        bgcolor: "#f1f5f9",
+                                                        cursor: "zoom-in",
+                                                    }}
+                                                >
+                                                    <Box component="img" src={imageUrl} alt={`${doc?.key || "Minh chứng"} ${imageIndex + 1}`} sx={{width: "100%", height: "100%", objectFit: "cover", display: "block"}} />
+                                                </Box>
+                                            </Grid>
+                                        ))}
+                                    </Grid>
+                                </Paper>
+                            );
+                        })
+                    )}
+
+                    {(row?.status === "RESERVATION_REJECTED" && row?.rejectReason) || row?.note ? (
+                        <Paper elevation={0} sx={{p: 2, borderRadius: 3, border: "1px solid #fecaca", bgcolor: "#fef2f2"}}>
+                            <Typography sx={{fontWeight: 800, color: "#b91c1c", mb: 0.8}}>
+                                {row?.status === "RESERVATION_REJECTED" ? "Lý do từ chối" : "Ghi chú"}
+                            </Typography>
+                            <Typography variant="body2" sx={{color: "#7f1d1d"}}>
+                                {row?.status === "RESERVATION_REJECTED" ? row?.rejectReason : row?.note}
+                            </Typography>
+                        </Paper>
+                    ) : null}
+                </Stack>
+            </DialogContent>
+            <DialogActions sx={{p: 2, borderTop: "1px solid #b8d8f4", bgcolor: "#eef7ff"}}>
+                {isPending ? (
+                    <>
+                        <Button variant="contained" onClick={onApprove} disabled={isSubmitting} sx={{textTransform: "none", borderRadius: 2.5, fontWeight: 800}}>
+                            Phê duyệt
+                        </Button>
+                        <Button variant="outlined" color="error" onClick={onReject} disabled={isSubmitting} sx={{textTransform: "none", borderRadius: 2.5, fontWeight: 800}}>
+                            Từ chối
+                        </Button>
+                    </>
+                ) : (
+                    <Chip label="Đã xử lý" sx={{borderRadius: 999, bgcolor: "#f1f5f9", color: "#475569", fontWeight: 800}} />
+                )}
+            </DialogActions>
         </Dialog>
     );
 }
 
 function ImagePreviewModal({ open, images, selectedIndex, onChangeIndex, onClose }) {
-    React.useEffect(() => {
-        if (!open) return undefined;
-        const onKeyDown = (e) => {
-            if (e.key === "Escape") onClose();
-            if (e.key === "ArrowRight" && selectedIndex < images.length - 1) onChangeIndex(selectedIndex + 1);
-            if (e.key === "ArrowLeft" && selectedIndex > 0) onChangeIndex(selectedIndex - 1);
-        };
-        window.addEventListener("keydown", onKeyDown);
-        return () => window.removeEventListener("keydown", onKeyDown);
-    }, [open, onClose, onChangeIndex, selectedIndex, images.length]);
-
     const current = images[selectedIndex];
     return (
-        <Backdrop open={open} onClick={onClose} sx={{ zIndex: 1400, bgcolor: "rgba(2,6,23,0.82)", backdropFilter: "blur(4px)" }}>
+        <Backdrop open={open} onClick={onClose} sx={{ zIndex: 1400, bgcolor: "rgba(15, 23, 42, 0.38)", backdropFilter: "blur(6px)" }}>
             <Fade in={open}>
-                <Box onClick={(e) => e.stopPropagation()} sx={{ width: "min(92vw,980px)", maxHeight: "90vh", p: 2 }}>
-                    <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-                        <Typography sx={{ color: "#e2e8f0", fontWeight: 700 }}>
-                            {selectedIndex + 1}/{images.length} {current?.key ? `· ${current.key}` : ""}
-                        </Typography>
-                        <IconButton onClick={onClose} sx={{ color: "#fff" }}><CloseRoundedIcon /></IconButton>
-                    </Stack>
-                    <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", maxHeight: "82vh" }}>
-                        {current ? <Box component="img" src={current.url} alt={current.key || "preview"} sx={{ maxWidth: "100%", maxHeight: "82vh", borderRadius: 2, boxShadow: "0 20px 45px rgba(0,0,0,0.35)" }} /> : null}
-                    </Box>
+                <Box onClick={(e) => e.stopPropagation()} sx={{display: "flex", justifyContent: "center", alignItems: "center", p: {xs: 2, md: 4}}}>
+                    {current ? (
+                        <Box
+                            component="img"
+                            src={current.url}
+                            alt={current.key || "preview"}
+                            sx={{maxWidth: "92vw", maxHeight: "84vh", objectFit: "contain", display: "block"}}
+                        />
+                    ) : null}
                 </Box>
             </Fade>
         </Backdrop>
@@ -717,21 +786,15 @@ export default function SchoolCampusAdmissionReservations() {
             ) : (
                 <>
                     {loading ? (
-                        <Grid container spacing={1.5}>
-                            {Array.from({length: 6}).map((_, i) => (
-                                <Grid item xs={12} md={6} key={i}>
-                                    <Card elevation={0} sx={{borderRadius: "22px", border: "1px solid #e2e8f0", boxShadow: "0 8px 20px rgba(15,23,42,0.04)"}}>
-                                        <CardContent>
-                                            <Skeleton variant="rounded" height={56} sx={{borderRadius: 2}} />
-                                            <Skeleton sx={{mt: 1}} />
-                                            <Skeleton />
-                                            <Skeleton variant="rounded" height={88} sx={{mt: 1.2, borderRadius: 2}} />
-                                            <Skeleton variant="rounded" height={40} sx={{mt: 1.2, borderRadius: 2}} />
-                                        </CardContent>
-                                    </Card>
-                                </Grid>
-                            ))}
-                        </Grid>
+                        <Card elevation={0} sx={{borderRadius: 3, border: "1px solid #e2e8f0"}}>
+                            <CardContent>
+                                <Skeleton variant="rounded" height={42} sx={{borderRadius: 2}} />
+                                <Skeleton sx={{mt: 1}} />
+                                <Skeleton />
+                                <Skeleton />
+                                <Skeleton />
+                            </CardContent>
+                        </Card>
                     ) : rows.length === 0 ? (
                         <Card elevation={0} sx={{borderRadius: 4, border: "1px dashed #cbd5e1", textAlign: "center"}}>
                             <CardContent>
@@ -740,20 +803,75 @@ export default function SchoolCampusAdmissionReservations() {
                             </CardContent>
                         </Card>
                     ) : (
-                        <Grid container spacing={1.5}>
-                            {rows.map((row) => (
-                                <Grid item xs={12} md={6} key={row.id}>
-                                    <AdmissionReservationCard
-                                        row={row}
-                                        isSubmitting={submittingId === row.id}
-                                        onViewDetail={() => openDetail(row)}
-                                        onApprove={() => setConfirmState({open: true, form: row})}
-                                        onReject={() => setRejectState({open: true, form: row, reason: "", touched: false})}
-                                        onOpenPreview={openImagePreview}
-                                    />
-                                </Grid>
-                            ))}
-                        </Grid>
+                        <TableContainer component={Card} elevation={0} sx={{borderRadius: 3, border: "1px solid #e2e8f0", overflowX: "auto"}}>
+                            <Table sx={{minWidth: 980}}>
+                                <TableHead>
+                                    <TableRow sx={{bgcolor: "#f8fafc"}}>
+                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>Phụ huynh</TableCell>
+                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>Học sinh</TableCell>
+                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>SĐT</TableCell>
+                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>Chương trình</TableCell>
+                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>Ngày nộp</TableCell>
+                                        <TableCell sx={{fontWeight: 700, color: "#1e293b", py: 2}}>Trạng thái</TableCell>
+                                        <TableCell align="right" sx={{fontWeight: 700, color: "#1e293b", py: 2, minWidth: 150}}>Thao tác</TableCell>
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {rows.map((row) => (
+                                        <TableRow
+                                            key={row.id}
+                                            hover
+                                            sx={{
+                                                "&:hover": { bgcolor: "rgba(122, 169, 235, 0.06)" },
+                                            }}
+                                        >
+                                            <TableCell sx={{py: 2.25, fontWeight: 600, color: "#1e293b"}}>{row.parentName}</TableCell>
+                                            <TableCell sx={{py: 2.25}}>{row.studentName}</TableCell>
+                                            <TableCell sx={{py: 2.25}}>{row.phone || "—"}</TableCell>
+                                            <TableCell sx={{py: 2.25}}>{row.programName || "—"}</TableCell>
+                                            <TableCell sx={{py: 2.25, whiteSpace: "nowrap"}}>{formatDateOnly(row.submittedAt)}</TableCell>
+                                            <TableCell sx={{py: 2.25}}><StatusChip status={row.status} /></TableCell>
+                                            <TableCell align="right" sx={{py: 2.25}}>
+                                                <Stack direction="row" spacing={0.25} justifyContent="flex-end">
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => openDetail(row)}
+                                                        sx={{ color: "#64748b", "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" } }}
+                                                        aria-label="Xem chi tiết"
+                                                    >
+                                                        <VisibilityRoundedIcon fontSize="small" />
+                                                    </IconButton>
+                                                    {row.status === "RESERVATION_PENDING" ? (
+                                                        <>
+                                                            <IconButton
+                                                                size="small"
+                                                                disabled={submittingId === row.id}
+                                                                onClick={() => setConfirmState({open: true, form: row})}
+                                                                sx={{ color: "#64748b", "&:hover": { color: "#0D64DE", bgcolor: "rgba(13, 100, 222, 0.08)" } }}
+                                                                aria-label="Phê duyệt"
+                                                            >
+                                                                <CheckCircleRoundedIcon fontSize="small" />
+                                                            </IconButton>
+                                                            <IconButton
+                                                                size="small"
+                                                                disabled={submittingId === row.id}
+                                                                onClick={() => setRejectState({open: true, form: row, reason: "", touched: false})}
+                                                                sx={{ color: "#64748b", "&:hover": { color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)" } }}
+                                                                aria-label="Từ chối"
+                                                            >
+                                                                <CancelRoundedIcon fontSize="small" />
+                                                            </IconButton>
+                                                        </>
+                                                    ) : (
+                                                        <Chip label="Đã xử lý" size="small" sx={{borderRadius: 999, bgcolor: "#f1f5f9", color: "#475569", fontWeight: 800}} />
+                                                    )}
+                                                </Stack>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
                     )}
                     {totalItems > pageSize ? (
                         <Box sx={{display: "flex", justifyContent: "flex-end", pt: 1}}>
