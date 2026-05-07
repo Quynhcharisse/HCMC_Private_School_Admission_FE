@@ -8,6 +8,7 @@ import {
     Dialog,
     DialogActions,
     DialogContent,
+    Divider,
     FormControl,
     FormControlLabel,
     IconButton,
@@ -24,6 +25,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import AddIcon from "@mui/icons-material/Add";
 import CampaignIcon from "@mui/icons-material/Campaign";
 import CloseIcon from "@mui/icons-material/Close";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { enqueueSnackbar } from "notistack";
@@ -113,7 +115,12 @@ const STATUS_UI = {
 };
 
 const CURRENT_YEAR = new Date().getFullYear();
-const SCAN_YEARS = [CURRENT_YEAR + 1, CURRENT_YEAR, CURRENT_YEAR - 1, CURRENT_YEAR - 2, CURRENT_YEAR - 3];
+const FUTURE_SCAN_YEARS = 30;
+const PAST_SCAN_YEARS = 3;
+const SCAN_YEARS = Array.from(
+    { length: FUTURE_SCAN_YEARS + PAST_SCAN_YEARS + 1 },
+    (_, idx) => CURRENT_YEAR + FUTURE_SCAN_YEARS - idx
+);
 
 function normalizeCampaignStatus(rawStatus) {
     const s = String(rawStatus || "").trim().toUpperCase();
@@ -297,6 +304,28 @@ function getCampaignErrorMessage(backendMessage, fallback) {
     return trimmed || fallback;
 }
 
+function getCloneYearValidationError({ campaign, targetYear, campaigns }) {
+    const sourceYear = Number(campaign?.year);
+    if (!Number.isFinite(targetYear) || targetYear <= 0) {
+        return "Vui lòng nhập năm học mục tiêu hợp lệ";
+    }
+    if (!Number.isFinite(sourceYear)) {
+        return "Không xác định được năm của chiến dịch gốc";
+    }
+    if (targetYear < sourceYear) {
+        return "Năm mục tiêu phải lớn hơn hoặc bằng năm của chiến dịch gốc";
+    }
+    const hasActiveOrDraftSameYear = (campaigns || []).some((c) => {
+        const y = Number(c?.year);
+        const s = normalizeCampaignStatus(c?.status);
+        return y === targetYear && (s === "DRAFT" || s === "OPEN");
+    });
+    if (hasActiveOrDraftSameYear) {
+        return `Năm ${targetYear} đã có chiến dịch DRAFT/OPEN`;
+    }
+    return "";
+}
+
 export default function SchoolCampaignDetail() {
     const navigate = useNavigate();
     const { campaignId } = useParams();
@@ -329,6 +358,7 @@ export default function SchoolCampaignDetail() {
     const [confirmCloneOpen, setConfirmCloneOpen] = useState(false);
     const [cloneTargetYear, setCloneTargetYear] = useState("");
     const [cloneYearError, setCloneYearError] = useState("");
+    const [campaignsForCloneValidation, setCampaignsForCloneValidation] = useState([]);
     const [isInfoEditing, setIsInfoEditing] = useState(false);
     const [descriptionFieldKey, setDescriptionFieldKey] = useState(0);
     const [admissionMethodOptions, setAdmissionMethodOptions] = useState([]);
@@ -342,13 +372,47 @@ export default function SchoolCampaignDetail() {
         setDescriptionFieldKey((k) => k + 1);
     }, [campaign?.admissionCampaignTemplateId, campaign?.description]);
 
+    useEffect(() => {
+        let cancelled = false;
+        const loadCampaignsForCloneValidation = async () => {
+            const acc = [];
+            for (const y of SCAN_YEARS) {
+                try {
+                    const res = await getCampaignTemplatesByYear(y);
+                    const raw = res?.data?.body ?? res?.data;
+                    const list = Array.isArray(raw)
+                        ? raw
+                        : Array.isArray(raw?.campaigns)
+                            ? raw.campaigns
+                            : raw
+                                ? [raw]
+                                : [];
+                    acc.push(...list.map(mapTemplate).filter(Boolean));
+                } catch {
+                    // ignore single-year fetch errors
+                }
+            }
+            if (!cancelled) setCampaignsForCloneValidation(acc);
+        };
+        loadCampaignsForCloneValidation();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
     const resolveCampaignFromApi = useCallback(async () => {
         if (!Number.isFinite(idNum)) return null;
         for (const y of SCAN_YEARS) {
             try {
                 const res = await getCampaignTemplatesByYear(y);
                 const raw = res?.data?.body ?? res?.data;
-                const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+                const list = Array.isArray(raw)
+                    ? raw
+                    : Array.isArray(raw?.campaigns)
+                      ? raw.campaigns
+                      : raw
+                        ? [raw]
+                        : [];
                 const found = list.find((row) => Number(row?.id ?? row?.admissionCampaignTemplateId) === idNum);
                 if (found) return mapTemplate(found);
             } catch {
@@ -738,6 +802,8 @@ export default function SchoolCampaignDetail() {
         try {
             const res = await updateCampaignTemplateStatus(templateId);
             if (res?.status === 200 || res?.data) {
+                // Optimistic update so badge/actions switch to OPEN immediately.
+                setCampaign((prev) => (prev ? { ...prev, status: "OPEN" } : prev));
                 enqueueSnackbar("Đã công bố chiến dịch thành công.", { variant: "success" });
                 setConfirmPublishOpen(false);
                 const updated = await refreshCampaign();
@@ -745,6 +811,11 @@ export default function SchoolCampaignDetail() {
                     navigate(`/school/campaigns/detail/${campaignId}`, {
                         replace: true,
                         state: { campaign: updated },
+                    });
+                } else if (campaignId) {
+                    navigate(`/school/campaigns/detail/${campaignId}`, {
+                        replace: true,
+                        state: { campaign: { ...(campaign || {}), status: "OPEN" } },
                     });
                 }
             } else {
@@ -823,7 +894,7 @@ export default function SchoolCampaignDetail() {
     };
 
     const openCloneConfirm = () => {
-        setCloneTargetYear(String(Number(campaign?.year) + 1));
+        setCloneTargetYear("");
         setCloneYearError("");
         setConfirmCloneOpen(true);
     };
@@ -831,8 +902,13 @@ export default function SchoolCampaignDetail() {
     const runCloneCampaign = async () => {
         if (!templateId || isPastYearCampaign) return;
         const targetYear = Number.parseInt(String(cloneTargetYear), 10);
-        if (!Number.isFinite(targetYear) || targetYear <= 0) {
-            setCloneYearError("Vui lòng nhập năm học mục tiêu hợp lệ");
+        const validationError = getCloneYearValidationError({
+            campaign,
+            targetYear,
+            campaigns: campaignsForCloneValidation,
+        });
+        if (validationError) {
+            setCloneYearError(validationError);
             return;
         }
         setSubmitLoading(true);
@@ -1063,7 +1139,7 @@ export default function SchoolCampaignDetail() {
                         gap: 1.5,
                     }}
                 >
-                    <Typography sx={{ fontSize: 20, lineHeight: 1, mt: 0.1 }}>ℹ️</Typography>
+                    <InfoOutlinedIcon sx={{ fontSize: 20, mt: 0.1, color: "#1d4ed8" }} />
                     <Box>
                         <Typography variant="body2" sx={{ fontWeight: 700, color: "#1d4ed8" }}>
                             Bản nhân bản từ chiến dịch {clonedFromYear}
@@ -1230,138 +1306,159 @@ export default function SchoolCampaignDetail() {
                                 const selectedCodes = (formValues.admissionMethodTimelines || [])
                                     .map((r, rIdx) => (rIdx === idx ? "" : String(r?.methodCode ?? "").trim()))
                                     .filter(Boolean);
+                                const rowHasError = Boolean(
+                                    rowErr.methodCode || rowErr.quota || rowErr.startDate || rowErr.endDate
+                                );
+                                const start = parseLocalDate(String(row?.startDate ?? "").trim());
+                                const end = parseLocalDate(String(row?.endDate ?? "").trim());
+                                const now = startOfLocalToday();
+                                const timelineBadge = (() => {
+                                    if (!start || !end) return null;
+                                    if (now < start) return { label: "Sắp diễn ra", color: "#1d4ed8", bg: "rgba(59,130,246,0.12)" };
+                                    if (now > end) return { label: "Đã kết thúc", color: "#64748b", bg: "rgba(148,163,184,0.16)" };
+                                    return { label: "Đang mở", color: "#166534", bg: "rgba(34,197,94,0.14)" };
+                                })();
                                 return (
                                     <Box
                                         key={`detail-timeline-${idx}`}
                                         sx={{
-                                            border: "1px solid #dbeafe",
-                                            borderRadius: 2,
-                                            bgcolor: "#f8fbff",
-                                            px: 2,
-                                            py: 1.5,
+                                            border: "1px solid #e2e8f0",
+                                            borderColor: rowHasError ? "rgba(220, 38, 38, 0.35)" : "#e2e8f0",
+                                            borderRadius: "10px",
+                                            bgcolor: "#fff",
+                                            px: 2.25,
+                                            py: 2,
+                                            transition: "box-shadow .2s ease, border-color .2s ease, transform .2s ease",
+                                            "&:hover": {
+                                                boxShadow: "0 8px 18px rgba(15, 23, 42, 0.06)",
+                                            },
                                         }}
                                     >
-                                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
-                                            <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800 }}>
-                                                Mốc {idx + 1}
-                                            </Typography>
-                                            {isCampaignInfoEditable && (
-                                                <IconButton
-                                                    size="small"
-                                                    onClick={() => removeTimelineRow(idx)}
-                                                    aria-label="Xóa phương thức"
-                                                    title="Xóa"
-                                                    sx={{
-                                                        color: "#64748b",
-                                                        "&:hover": { color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)" },
-                                                    }}
-                                                >
-                                                    <CloseIcon fontSize="small" />
-                                                </IconButton>
-                                            )}
-                                        </Stack>
-
-                                        <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mt: 1.2 }}>
-                                            <Card
-                                                variant="outlined"
-                                                sx={{
-                                                    flex: 1.6,
-                                                    borderRadius: 2,
-                                                    borderColor: "#dbeafe",
-                                                    bgcolor: "#ffffff",
-                                                    boxShadow: "0 6px 16px rgba(15, 23, 42, 0.03)",
-                                                }}
-                                            >
-                                                <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
-                                                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800, display: "block", mb: 1 }}>
-                                                        Phương thức
-                                                    </Typography>
-                                                    <FormControl fullWidth error={!!rowErr.methodCode}>
-                                                        <InputLabel>Phương thức</InputLabel>
-                                                        <Select
-                                                            value={row.methodCode || ""}
-                                                            label="Phương thức"
-                                                            onChange={(e) => handleTimelineChange(idx, "methodCode", e.target.value)}
-                                                            disabled={!isCampaignInfoEditable}
-                                                        >
-                                                            {admissionMethodOptions
-                                                                .filter((opt) => !selectedCodes.includes(opt.value))
-                                                                .map((opt) => (
-                                                                    <MenuItem key={opt.value} value={opt.value}>
-                                                                        {opt.label}
-                                                                    </MenuItem>
-                                                                ))}
-                                                        </Select>
-                                                        {!!rowErr.methodCode && (
-                                                            <Typography
-                                                                variant="caption"
-                                                                sx={{ color: "#d32f2f", ml: 1.2, mt: 0.5, display: "block" }}
-                                                            >
-                                                                {rowErr.methodCode}
-                                                            </Typography>
-                                                        )}
-                                                    </FormControl>
-                                                </CardContent>
-                                            </Card>
-
-                                            <Card
-                                                variant="outlined"
-                                                sx={{
-                                                    flex: 1,
-                                                    borderRadius: 2,
-                                                    borderColor: "#dbeafe",
-                                                    bgcolor: "#ffffff",
-                                                    boxShadow: "0 6px 16px rgba(15, 23, 42, 0.03)",
-                                                }}
-                                            >
-                                                <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
-                                                    <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800, display: "block", mb: 1 }}>
-                                                        Chỉ tiêu và giữ chỗ
-                                                    </Typography>
-                                                    <Stack direction={{ xs: "column", sm: "row" }} spacing={1.5} alignItems={{ sm: "center" }}>
-                                                        <TextField
-                                                            label="Quota"
-                                                            type="number"
-                                                            value={row.quota ?? ""}
-                                                            onChange={(e) => handleTimelineChange(idx, "quota", e.target.value)}
-                                                            inputProps={{ min: 1, step: 1 }}
-                                                            error={!!rowErr.quota}
-                                                            helperText={rowErr.quota}
-                                                            fullWidth
-                                                            InputProps={{ readOnly: !isCampaignInfoEditable }}
-                                                        />
-                                                        <FormControlLabel
-                                                            sx={{ m: 0, flexShrink: 0 }}
-                                                            control={
-                                                                <Checkbox
-                                                                    size="small"
-                                                                    checked={!!row.allowReservationSubmission}
-                                                                    onChange={(e) => handleTimelineChange(idx, "allowReservationSubmission", e.target.checked)}
-                                                                    disabled={!isCampaignInfoEditable}
-                                                                />
-                                                            }
-                                                            label="Cho phép nộp hồ sơ giữ chỗ"
-                                                        />
-                                                    </Stack>
-                                                </CardContent>
-                                            </Card>
-                                        </Stack>
-
-                                        <Card
-                                            variant="outlined"
-                                            sx={{
-                                                mt: 1.5,
-                                                borderRadius: 2,
-                                                borderColor: "#dbeafe",
-                                                bgcolor: "#ffffff",
-                                                boxShadow: "0 6px 16px rgba(15, 23, 42, 0.03)",
-                                            }}
-                                        >
-                                            <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
-                                                <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 800, display: "block", mb: 1 }}>
-                                                    Thời gian
+                                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2.5}>
+                                            <Box sx={{ minWidth: 0 }}>
+                                                <Typography variant="subtitle2" sx={{ color: "#1e293b", fontWeight: 800 }}>
+                                                    Mốc {idx + 1}
                                                 </Typography>
-                                                <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                                                <Typography variant="caption" sx={{ color: "#64748b", display: "block", mt: 0.25 }}>
+                                                    {admissionMethodOptions.find((opt) => opt.value === row.methodCode)?.label || "Chưa chọn phương thức"}
+                                                </Typography>
+                                            </Box>
+                                            <Stack direction="row" spacing={0.8} alignItems="center">
+                                                {timelineBadge ? (
+                                                    <Box
+                                                        component="span"
+                                                        sx={{
+                                                            px: 1,
+                                                            py: 0.35,
+                                                            borderRadius: 999,
+                                                            bgcolor: timelineBadge.bg,
+                                                            color: timelineBadge.color,
+                                                            fontSize: 11,
+                                                            fontWeight: 700,
+                                                            lineHeight: 1.2,
+                                                            whiteSpace: "nowrap",
+                                                        }}
+                                                    >
+                                                        {timelineBadge.label}
+                                                    </Box>
+                                                ) : null}
+                                                {isCampaignInfoEditable && (
+                                                    <IconButton
+                                                        size="small"
+                                                        onClick={() => removeTimelineRow(idx)}
+                                                        aria-label="Xóa phương thức"
+                                                        title="Xóa"
+                                                        sx={{
+                                                            color: "#64748b",
+                                                            "&:hover": { color: "#dc2626", bgcolor: "rgba(220, 38, 38, 0.08)" },
+                                                        }}
+                                                    >
+                                                        <CloseIcon fontSize="small" />
+                                                    </IconButton>
+                                                )}
+                                            </Stack>
+                                        </Stack>
+
+                                        <Divider sx={{ my: 1.5 }} />
+
+                                        <Stack
+                                            direction={{ xs: "column", md: "row" }}
+                                            spacing={1.5}
+                                            alignItems={{ md: "flex-start" }}
+                                        >
+                                            <FormControl fullWidth error={!!rowErr.methodCode} sx={{ flex: 1.8 }}>
+                                                <InputLabel>Phương thức</InputLabel>
+                                                <Select
+                                                    value={row.methodCode || ""}
+                                                    label="Phương thức"
+                                                    onChange={(e) => handleTimelineChange(idx, "methodCode", e.target.value)}
+                                                    disabled={!isCampaignInfoEditable}
+                                                >
+                                                    {admissionMethodOptions
+                                                        .filter((opt) => !selectedCodes.includes(opt.value))
+                                                        .map((opt) => (
+                                                            <MenuItem key={opt.value} value={opt.value}>
+                                                                {opt.label}
+                                                            </MenuItem>
+                                                        ))}
+                                                </Select>
+                                                {!!rowErr.methodCode && (
+                                                    <Typography
+                                                        variant="caption"
+                                                        sx={{ color: "#d32f2f", ml: 1.2, mt: 0.5, display: "block" }}
+                                                    >
+                                                        {rowErr.methodCode}
+                                                    </Typography>
+                                                )}
+                                            </FormControl>
+                                            <TextField
+                                                label="Chỉ tiêu"
+                                                type="number"
+                                                value={row.quota ?? ""}
+                                                onChange={(e) => handleTimelineChange(idx, "quota", e.target.value)}
+                                                inputProps={{ min: 1, step: 1 }}
+                                                error={!!rowErr.quota}
+                                                helperText={rowErr.quota}
+                                                sx={{ flex: { md: 0.8 } }}
+                                                fullWidth
+                                                InputProps={{ readOnly: !isCampaignInfoEditable }}
+                                            />
+                                            <FormControlLabel
+                                                sx={{
+                                                    m: 0,
+                                                    minHeight: 56,
+                                                    px: 1.2,
+                                                    borderRadius: 1.5,
+                                                    bgcolor: "rgba(248,250,252,0.9)",
+                                                    border: "1px solid #e2e8f0",
+                                                    whiteSpace: "nowrap",
+                                                }}
+                                                control={
+                                                    <Checkbox
+                                                        size="small"
+                                                        checked={!!row.allowReservationSubmission}
+                                                        onChange={(e) => handleTimelineChange(idx, "allowReservationSubmission", e.target.checked)}
+                                                        disabled={!isCampaignInfoEditable}
+                                                    />
+                                                }
+                                                label="Cho phép giữ chỗ"
+                                            />
+                                        </Stack>
+
+                                        <Stack spacing={1} sx={{ mt: 1.5 }}>
+                                            <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700 }}>
+                                                Thời gian
+                                            </Typography>
+                                            <Box
+                                                sx={{
+                                                    p: 1.25,
+                                                    borderRadius: 1.5,
+                                                    border: "1px solid #e2e8f0",
+                                                    borderColor: rowErr.startDate || rowErr.endDate ? "rgba(220,38,38,0.35)" : "#e2e8f0",
+                                                    bgcolor: rowErr.startDate || rowErr.endDate ? "rgba(254,242,242,0.65)" : "rgba(248,250,252,0.8)",
+                                                }}
+                                            >
+                                                <Stack direction={{ xs: "column", sm: "row" }} spacing={1.25} alignItems={{ sm: "center" }}>
                                                     <TextField
                                                         label="Bắt đầu"
                                                         type="date"
@@ -1373,6 +1470,9 @@ export default function SchoolCampaignDetail() {
                                                         fullWidth
                                                         InputProps={{ readOnly: !isCampaignInfoEditable }}
                                                     />
+                                                    <Typography sx={{ color: "#94a3b8", fontWeight: 700, px: 0.5, display: { xs: "none", sm: "block" } }}>
+                                                        →
+                                                    </Typography>
                                                     <TextField
                                                         label="Kết thúc"
                                                         type="date"
@@ -1385,8 +1485,8 @@ export default function SchoolCampaignDetail() {
                                                         InputProps={{ readOnly: !isCampaignInfoEditable }}
                                                     />
                                                 </Stack>
-                                            </CardContent>
-                                        </Card>
+                                            </Box>
+                                        </Stack>
                                     </Box>
                                 );
                             })}
@@ -1403,7 +1503,7 @@ export default function SchoolCampaignDetail() {
                                 <Box sx={{ mt: 2.5, p: 2, borderRadius: 2, bgcolor: "rgba(13, 100, 222, 0.06)", border: "1px solid #dbeafe" }}>
                                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: max > 0 ? 1 : 0.5 }}>
                                         <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#1e293b" }}>
-                                            Tổng quota đã phân bổ
+                                            Tổng chỉ tiêu đã phân bổ
                                         </Typography>
                                         <Typography variant="subtitle2" sx={{ fontWeight: 700, color: textColor }}>
                                             {allocated.toLocaleString("vi-VN")}{max > 0 ? ` / ${max.toLocaleString("vi-VN")}` : ""}
@@ -1416,9 +1516,9 @@ export default function SchoolCampaignDetail() {
                                     )}
                                     <Typography variant="caption" sx={{ color: textColor, display: "block" }}>
                                         {max === 0
-                                            ? "Tổng quota từ tất cả phương thức phải bằng tổng chỉ tiêu hệ thống"
+                                            ? "Tổng chỉ tiêu từ tất cả phương thức phải bằng tổng chỉ tiêu hệ thống"
                                             : allocated === max
-                                            ? "✓ Đã phân bổ đủ quota"
+                                            ? "✓ Đã phân bổ đủ chỉ tiêu"
                                             : allocated < max
                                             ? `Còn thiếu ${(max - allocated).toLocaleString("vi-VN")} chỉ tiêu`
                                             : `Vượt quá ${(allocated - max).toLocaleString("vi-VN")} chỉ tiêu`}
@@ -1505,7 +1605,7 @@ export default function SchoolCampaignDetail() {
                                         disabled={submitLoading}
                                         sx={{ textTransform: "none", fontWeight: 600, borderRadius: "12px", whiteSpace: "nowrap" }}
                                     >
-                                        Nhân bản → {Number(campaign?.year) + 1}
+                                        Nhân bản
                                     </Button>
                                 )}
                         </Stack>
@@ -1808,7 +1908,7 @@ export default function SchoolCampaignDetail() {
                             if (cloneYearError) setCloneYearError("");
                         }}
                         error={!!cloneYearError}
-                        helperText={cloneYearError || `Mặc định: ${Number(campaign?.year) + 1}`}
+                        helperText={cloneYearError || "Năm mục tiêu phải >= năm campaign gốc và chưa có DRAFT/OPEN"}
                         inputProps={{ min: 1, step: 1 }}
                         sx={{ mt: 2.5, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                     />

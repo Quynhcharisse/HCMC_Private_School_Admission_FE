@@ -24,7 +24,6 @@ import {
 import {
     Add as AddIcon,
     ArrowBack as ArrowBackIcon,
-    Business as BusinessIcon,
     CalendarToday as CalendarTodayIcon,
     CalendarMonth as CalendarMonthIcon,
     CheckCircle as CheckCircleIcon,
@@ -57,6 +56,7 @@ import {
     getParentConsultSlots,
     parseParentConsultSlotsBody
 } from "../../services/ParentConsultSlotsService.jsx";
+import Footer from "../partials/Footer.jsx";
 
 const MAP_CONTAINER_STYLE = {width: "100%", height: "260px"};
 const NEARBY_SEARCH_RADIUS_KM = 10;
@@ -1094,15 +1094,55 @@ function SchoolFacilityInfoCard({school, activeCampusIndex, embedded = false}) {
     const activeCampus = campuses[activeCampusIndex] || campuses[0] || null;
     const facilityItems = getCampusFacilityItems(activeCampus);
     const facilityImages = getCampusFacilityImages(activeCampus);
-    const facilityByCategory = facilityItems.reduce((acc, item) => {
-        const category = item.category || "Khác";
-        if (!acc[category]) acc[category] = [];
-        acc[category].push(item);
-        return acc;
-    }, {});
-    const facilityCategories = Object.entries(facilityByCategory);
     const campusName = String(activeCampus?.name || "").trim();
     const hasFacilitySection = facilityItems.length > 0 || facilityImages.coverUrl || facilityImages.imageList.length > 0;
+    const [galleryOpen, setGalleryOpen] = React.useState(false);
+    const [galleryIndex, setGalleryIndex] = React.useState(0);
+
+    const galleryImages = React.useMemo(() => {
+        if (facilityImages.imageList.length > 0) return facilityImages.imageList;
+        if (!facilityImages.coverUrl) return [];
+        return [
+            {
+                key: `${facilityImages.coverUrl}-cover`,
+                url: facilityImages.coverUrl,
+                name: `Ảnh cơ sở vật chất ${campusName || ""}`.trim()
+            }
+        ];
+    }, [facilityImages.imageList, facilityImages.coverUrl, campusName]);
+
+    const facilityBadges = React.useMemo(() => {
+        const counter = new Map();
+        facilityItems.forEach((item) => {
+            const key = String(item?.name || "").trim().toLowerCase();
+            if (!key) return;
+            const amount = Number(item?.value);
+            const normalizedAmount = Number.isFinite(amount) && amount >= 0 ? amount : 1;
+            const prev = counter.get(key);
+            if (!prev) {
+                counter.set(key, {
+                    name: String(item?.name || "").trim(),
+                    unit: String(item?.unit || "").trim(),
+                    count: normalizedAmount
+                });
+            } else {
+                prev.count += normalizedAmount;
+            }
+        });
+        return Array.from(counter.values());
+    }, [facilityItems]);
+
+    const getFacilityBadgeIcon = (label) => {
+        const value = String(label || "").toLowerCase();
+        if (value.includes("phòng học") || value.includes("lop")) return <SchoolIcon sx={{fontSize: 16, color: "#1d4ed8"}}/>;
+        if (value.includes("ký túc") || value.includes("ky tuc") || value.includes("nội trú") || value.includes("noi tru")) {
+            return <HotelIcon sx={{fontSize: 16, color: "#0f766e"}}/>;
+        }
+        if (value.includes("cơ sở") || value.includes("co so") || value.includes("khu") || value.includes("toà")) {
+            return <MapsHomeWorkIcon sx={{fontSize: 16, color: "#0f766e"}}/>;
+        }
+        return <CheckCircleIcon sx={{fontSize: 16, color: "#2563eb"}}/>;
+    };
 
     const rootSx = embedded
         ? {p: 0, border: "none", background: "transparent", boxShadow: "none"}
@@ -1111,11 +1151,6 @@ function SchoolFacilityInfoCard({school, activeCampusIndex, embedded = false}) {
     return (
         <Box sx={rootSx}>
             <Typography sx={mainDetailSectionTitleSx}>Cơ sở vật chất</Typography>
-            {campusName ? (
-                <Typography sx={{fontSize: "0.85rem", color: "#64748b", mb: 1.2}}>
-                    Áp dụng cho: {campusName}
-                </Typography>
-            ) : null}
 
             {!hasFacilitySection ? (
                 <Typography sx={{fontSize: "0.92rem", color: CONTACT_BODY, lineHeight: 1.6}}>
@@ -1132,74 +1167,130 @@ function SchoolFacilityInfoCard({school, activeCampusIndex, embedded = false}) {
                         bgcolor: "rgba(239,246,255,0.65)"
                     }}
                 >
-                    <Box sx={{display: "flex", alignItems: "center", gap: 0.9, mb: 1}}>
-                        <BusinessIcon sx={{fontSize: 20, color: BRAND_NAVY}}/>
-                        <Typography sx={{fontSize: "1rem", fontWeight: 800, color: BRAND_NAVY}}>
-                            Cơ sở vật chất
-                        </Typography>
-                    </Box>
-
                     {facilityImages.coverUrl ? (
                         <CardMedia
                             component="img"
                             image={facilityImages.coverUrl}
                             alt={`Ảnh đại diện cơ sở vật chất ${campusName || ""}`.trim()}
+                            onClick={() => {
+                                if (galleryImages.length === 0) return;
+                                setGalleryIndex(0);
+                                setGalleryOpen(true);
+                            }}
                             sx={{
                                 width: "100%",
-                                height: {xs: 180, sm: 220},
-                                objectFit: "cover",
+                                height: {xs: 220, sm: 320},
+                                objectFit: "contain",
+                                bgcolor: "#e2e8f0",
                                 borderRadius: 2,
-                                mb: 1.2
+                                mb: 1.2,
+                                cursor: galleryImages.length > 0 ? "zoom-in" : "default"
                             }}
                         />
                     ) : null}
 
-                    {facilityCategories.length > 0 ? (
-                        <Stack spacing={1}>
-                            {facilityCategories.map(([category, items]) => (
-                                <Box key={category}>
-                                    <Typography sx={{fontSize: "0.86rem", fontWeight: 700, color: "#334155", mb: 0.55}}>
-                                        {category}
-                                    </Typography>
-                                    <Stack spacing={0.5}>
-                                        {items.map((item, idx) => {
-                                            const hasNumericValue = Number.isFinite(Number(item.value));
-                                            const valueLabel = hasNumericValue ? `${Number(item.value)}${item.unit ? ` ${item.unit}` : ""}` : "";
-                                            return (
-                                                <Typography key={`${item.name}-${idx}`} sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.5}}>
-                                                    - {item.name}{valueLabel ? `: ${valueLabel}` : ""}
-                                                </Typography>
-                                            );
-                                        })}
-                                    </Stack>
-                                </Box>
+                    {facilityBadges.length > 0 ? (
+                        <Stack direction="row" flexWrap="wrap" useFlexGap sx={{gap: 0.8}}>
+                            {facilityBadges.map((item, idx) => (
+                                <Chip
+                                    key={`${item.name}-${idx}`}
+                                    icon={getFacilityBadgeIcon(item.name)}
+                                    label={`${Math.max(0, Number(item.count) || 0)} ${item.name}`.trim()}
+                                    sx={{
+                                        bgcolor: "#ffffff",
+                                        border: "1px solid rgba(148,163,184,0.4)",
+                                        color: "#0f172a",
+                                        fontWeight: 700,
+                                        "& .MuiChip-label": {px: 1, py: 0.1}
+                                    }}
+                                />
                             ))}
+                            {galleryImages.length > 0 ? (
+                                <Chip
+                                    clickable
+                                    onClick={() => {
+                                        setGalleryIndex(0);
+                                        setGalleryOpen(true);
+                                    }}
+                                    label="Xem thư viện ảnh"
+                                    sx={{
+                                        bgcolor: "rgba(37,99,235,0.12)",
+                                        border: "1px solid rgba(37,99,235,0.28)",
+                                        color: "#1d4ed8",
+                                        fontWeight: 700
+                                    }}
+                                />
+                            ) : null}
                         </Stack>
                     ) : (
                         <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY, lineHeight: 1.5}}>
                             Chưa có danh sách hạng mục cơ sở vật chất.
                         </Typography>
                     )}
-
-                    {facilityImages.imageList.length > 0 ? (
-                        <Box
-                            sx={{
-                                mt: 1.4,
-                                display: "grid",
-                                gridTemplateColumns: {xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(3, minmax(0, 1fr))"},
-                                gap: 0.9
-                            }}
-                        >
-                            {facilityImages.imageList.slice(0, 6).map((img) => (
-                                <Card key={img.key} sx={{borderRadius: 1.5, border: "1px solid rgba(203,213,225,0.9)"}}>
-                                    <CardMedia component="img" image={img.url} alt={img.name} sx={{height: 110, objectFit: "cover"}}/>
-                                    <Typography sx={{fontSize: "0.74rem", color: "#475569", px: 0.8, py: 0.5}}>{img.name}</Typography>
-                                </Card>
-                            ))}
-                        </Box>
-                    ) : null}
                 </Box>
             ) : null}
+            <Dialog
+                open={galleryOpen}
+                onClose={() => setGalleryOpen(false)}
+                fullWidth
+                maxWidth="md"
+            >
+                <DialogTitle sx={{fontWeight: 800}}>Thư viện ảnh cơ sở vật chất</DialogTitle>
+                <DialogContent sx={{pt: "8px !important"}}>
+                    {galleryImages.length > 0 ? (
+                        <>
+                            <CardMedia
+                                component="img"
+                                image={galleryImages[galleryIndex]?.url}
+                                alt={galleryImages[galleryIndex]?.name || "Ảnh cơ sở vật chất"}
+                                sx={{
+                                    width: "100%",
+                                    maxHeight: {xs: 300, sm: 420},
+                                    objectFit: "contain",
+                                    borderRadius: 2,
+                                    bgcolor: "#e2e8f0",
+                                    mb: 1.2
+                                }}
+                            />
+                            {galleryImages.length > 1 ? (
+                                <Box
+                                    sx={{
+                                        display: "grid",
+                                        gridTemplateColumns: {xs: "repeat(3, minmax(0, 1fr))", sm: "repeat(6, minmax(0, 1fr))"},
+                                        gap: 0.8
+                                    }}
+                                >
+                                    {galleryImages.slice(0, 12).map((img, idx) => (
+                                        <Card
+                                            key={img.key}
+                                            onClick={() => setGalleryIndex(idx)}
+                                            sx={{
+                                                borderRadius: 1.2,
+                                                overflow: "hidden",
+                                                border: idx === galleryIndex
+                                                    ? "2px solid #2563eb"
+                                                    : "1px solid rgba(148,163,184,0.45)",
+                                                cursor: "pointer"
+                                            }}
+                                        >
+                                            <CardMedia component="img" image={img.url} alt={img.name} sx={{height: 74, objectFit: "cover"}}/>
+                                        </Card>
+                                    ))}
+                                </Box>
+                            ) : null}
+                        </>
+                    ) : (
+                        <Typography sx={{fontSize: "0.9rem", color: CONTACT_BODY}}>
+                            Chưa có ảnh cơ sở vật chất.
+                        </Typography>
+                    )}
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={() => setGalleryOpen(false)} sx={{textTransform: "none", fontWeight: 700}}>
+                        Đóng
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }
@@ -1229,6 +1320,9 @@ function SchoolPolicyInfoCard({school, activeCampusIndex, embedded = false}) {
             : "";
     const regularDaysLabel = mapWeekdays(workingConfig?.regularDays);
     const weekendDaysLabel = mapWeekdays(workingConfig?.weekendDays);
+    const maxCounsellorsPerSlot = Number(policyDetail?.maxCounsellorsPerSlot);
+    const hasMaxCounsellorsPerSlot = Number.isFinite(maxCounsellorsPerSlot) && maxCounsellorsPerSlot >= 0;
+    const customPolicyNote = String(policyDetail?.rawCustomNote || "").trim();
     const policyRows = [
         {label: "Đường dây nóng", value: String(activeCampus?.phoneNumber || "").trim()},
         {label: "Email hỗ trợ", value: String(activeCampus?.email || "").trim()},
@@ -1255,6 +1349,24 @@ function SchoolPolicyInfoCard({school, activeCampusIndex, embedded = false}) {
             value: Number.isFinite(Number(policyDetail?.allowBookingBeforeHours))
                 ? `${Number(policyDetail.allowBookingBeforeHours)} giờ`
                 : ""
+        },
+        {
+            label: "Số tư vấn viên tối đa mỗi ca",
+            value: hasMaxCounsellorsPerSlot
+                ? maxCounsellorsPerSlot === 0
+                    ? "Không giới hạn"
+                    : `${maxCounsellorsPerSlot} người`
+                : ""
+        },
+        {
+            label: "Thời gian nghỉ giữa 2 ca",
+            value: Number.isFinite(Number(policyDetail?.bufferBetweenSlotsMinutes))
+                ? `${Number(policyDetail.bufferBetweenSlotsMinutes)} phút`
+                : ""
+        },
+        {
+            label: "Ghi chú vận hành",
+            value: customPolicyNote
         }
     ].filter((item) => Boolean(item.value));
 
@@ -1274,6 +1386,17 @@ function SchoolPolicyInfoCard({school, activeCampusIndex, embedded = false}) {
             value: typeof workingConfig?.isOpenSunday === "boolean" ? (workingConfig.isOpenSunday ? "Có" : "Nghỉ") : ""
         }
     ].filter((item) => Boolean(item.value));
+    const metricCards = policyRows.map((row) => {
+        const lower = String(row.label || "").toLowerCase();
+        let icon = <DescriptionIcon sx={{fontSize: 16, color: "#1d4ed8"}}/>;
+        if (lower.includes("đường dây nóng")) icon = <PhoneIcon sx={{fontSize: 16, color: "#1d4ed8"}}/>;
+        else if (lower.includes("email")) icon = <EmailIcon sx={{fontSize: 16, color: "#1d4ed8"}}/>;
+        else if (lower.includes("tư vấn viên")) icon = <PersonIcon sx={{fontSize: 16, color: "#1d4ed8"}}/>;
+        else if (lower.includes("thời lượng") || lower.includes("đặt lịch") || lower.includes("thời gian nghỉ")) {
+            icon = <CalendarTodayIcon sx={{fontSize: 16, color: "#1d4ed8"}}/>;
+        }
+        return {...row, icon};
+    });
 
     const hasStructuredPolicy =
         policyRows.length > 0 || workingRows.length > 0;
@@ -1283,7 +1406,7 @@ function SchoolPolicyInfoCard({school, activeCampusIndex, embedded = false}) {
         const parts = text.split(/(\d+)/g);
         return parts.map((part, idx) =>
             /^\d+$/.test(part) ? (
-                <Box component="span" key={`${part}-${idx}`} sx={{fontWeight: 800, color: "#0f172a"}}>
+                <Box component="span" key={`${part}-${idx}`} sx={{fontWeight: 700, color: "#0f172a"}}>
                     {part}
                 </Box>
             ) : (
@@ -1308,34 +1431,73 @@ function SchoolPolicyInfoCard({school, activeCampusIndex, embedded = false}) {
                 >
                     {hasStructuredPolicy ? (
                         <>
-                            <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", sm: "minmax(190px, 240px) 1fr"}, rowGap: 1.35, columnGap: 1.8, py: 1.2}}>
-                                {policyRows.map((row) => (
-                                    <React.Fragment key={row.label}>
-                                        <Typography sx={{fontSize: "0.83rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em"}}>
-                                            {row.label}
-                                        </Typography>
-                                        <Typography
+                            <Box
+                                sx={{
+                                    py: 1.2,
+                                    px: {xs: 0.2, sm: 0.4},
+                                    borderRadius: 2,
+                                    bgcolor: "rgba(219,234,254,0.42)",
+                                    border: "1px solid rgba(147,197,253,0.4)"
+                                }}
+                            >
+                                <Box
+                                    sx={{
+                                        display: "grid",
+                                        gridTemplateColumns: {xs: "1fr", sm: "repeat(2, minmax(0, 1fr))", lg: "repeat(3, minmax(0, 1fr))"},
+                                        gap: 0.8
+                                    }}
+                                >
+                                    {metricCards.map((row) => (
+                                        <Box
+                                            key={row.label}
                                             sx={{
-                                                fontSize: row.label === "Đường dây nóng" ? "1.04rem" : "0.96rem",
-                                                color: row.label === "Đường dây nóng" ? BRAND_NAVY : "#0f172a",
-                                                fontWeight: row.label === "Đường dây nóng" ? 800 : 600,
-                                                lineHeight: 1.65
+                                                p: 1,
+                                                borderRadius: 1.5,
+                                                bgcolor: "#ffffff",
+                                                border: "1px solid rgba(191,219,254,0.9)",
+                                                boxShadow: "0 5px 12px rgba(30,64,175,0.08)"
                                             }}
                                         >
-                                            {renderValueWithBoldNumbers(row.value)}
-                                        </Typography>
-                                    </React.Fragment>
-                                ))}
+                                            <Stack direction="row" alignItems="center" spacing={0.7} sx={{mb: 0.35}}>
+                                                {row.icon}
+                                                <Typography sx={{fontSize: "0.73rem", color: "#475569", fontWeight: 600, lineHeight: 1.2}}>
+                                                    {row.label}
+                                                </Typography>
+                                            </Stack>
+                                            <Typography sx={{fontSize: "1.03rem", color: BRAND_NAVY, fontWeight: 700, lineHeight: 1.35}}>
+                                                {renderValueWithBoldNumbers(row.value)}
+                                            </Typography>
+                                        </Box>
+                                    ))}
+                                </Box>
                             </Box>
 
-                            <Box sx={{mt: 1.2, pt: 1.1, borderTop: "1px solid rgba(203,213,225,0.95)"}}>
-                                <Typography sx={{fontSize: "0.82rem", color: "#64748b", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", mb: 0.7}}>
+                            <Box
+                                sx={{
+                                    mt: 1.2,
+                                    pt: 1.1,
+                                    borderTop: "1px solid rgba(203,213,225,0.95)"
+                                }}
+                            >
+                                <Typography sx={{fontSize: "0.82rem", color: "#64748b", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.03em", mb: 0.7}}>
                                     Giờ làm việc
                                 </Typography>
-                                <Box sx={{display: "grid", gridTemplateColumns: {xs: "1fr", sm: "minmax(190px, 240px) 1fr"}, rowGap: 1.2, columnGap: 1.8}}>
+                                <Box
+                                    sx={{
+                                        p: {xs: 1.1, sm: 1.35},
+                                        borderRadius: 1.8,
+                                        bgcolor: "#ffffff",
+                                        border: "1px solid rgba(191,219,254,0.9)",
+                                        boxShadow: "0 6px 16px rgba(37,99,235,0.08)",
+                                        display: "grid",
+                                        gridTemplateColumns: {xs: "1fr", sm: "minmax(190px, 240px) 1fr"},
+                                        rowGap: 1.2,
+                                        columnGap: 1.8
+                                    }}
+                                >
                                     {workingRows.map((row) => (
                                         <React.Fragment key={row.label}>
-                                            <Typography sx={{fontSize: "0.84rem", color: "#64748b", fontWeight: 600}}>
+                                            <Typography sx={{fontSize: "0.84rem", color: "#64748b", fontWeight: 500}}>
                                                 {row.label}
                                             </Typography>
                                             <Typography
@@ -1347,8 +1509,8 @@ function SchoolPolicyInfoCard({school, activeCampusIndex, embedded = false}) {
                                                             : "#0f172a",
                                                     fontWeight:
                                                         row.label === "Mở cửa Chủ Nhật" && String(row.value).trim().toLowerCase() === "nghỉ"
-                                                            ? 700
-                                                            : 500,
+                                                            ? 600
+                                                            : 400,
                                                     lineHeight: 1.65
                                                 }}
                                             >
@@ -4264,6 +4426,9 @@ export default function SchoolSearchDetailView({
                             </Box>
                         </Box>
                     </Box>
+                </Box>
+                <Box sx={{mt: 1.5}}>
+                    <Footer/>
                 </Box>
             </Box>
         </Box>

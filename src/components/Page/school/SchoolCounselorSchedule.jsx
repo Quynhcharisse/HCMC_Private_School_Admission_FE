@@ -101,7 +101,7 @@ const DAY_LABELS = {
     THU: "Thứ 5",
     FRI: "Thứ 6",
     SAT: "Thứ 7",
-    SUN: "CN",
+    SUN: "Chủ nhật",
 };
 
 const DAY_SHORT = {
@@ -114,7 +114,7 @@ const DAY_SHORT = {
     SUN: "SUN",
 };
 
-const SESSION_OPTIONS = ["MORNING", "AFTERNOON", "EVENING"];
+const SESSION_OPTIONS = ["MORNING", "AFTERNOON"];
 
 /** Đồng bộ màu với SchoolCampaigns / Cơ sở */
 const PRIMARY = "#0D64DE";
@@ -227,7 +227,7 @@ function sessionTypeLabel(s) {
     const v = String(s || "").toUpperCase();
     if (v === "MORNING") return "Buổi sáng";
     if (v === "AFTERNOON") return "Buổi chiều";
-    if (v === "EVENING") return "Buổi tối";
+    if (v === "EVENING") return "Buổi chiều";
     if (v === "FULL_DAY") return "Cả ngày";
     return s || "—";
 }
@@ -459,10 +459,10 @@ function sessionCardColors(sessionType) {
     }
     if (v === "EVENING") {
         return {
-            bg: "linear-gradient(145deg, #FAF5FF 0%, #F3E8FF 100%)",
-            border: "rgba(139, 92, 246, 0.35)",
-            accent: "#6D28D9",
-            label: "Tối",
+            bg: "linear-gradient(145deg, #F0F7FF 0%, #E8F2FE 100%)",
+            border: "rgba(59, 130, 246, 0.35)",
+            accent: "#1D4ED8",
+            label: "Chiều",
         };
     }
     return {
@@ -477,23 +477,23 @@ function sessionCardColors(sessionType) {
 function sessionZoneSurface(sessionType) {
     const v = String(sessionType || "").toUpperCase();
     if (v === "MORNING") {
-        return {bg: "rgba(254, 243, 199, 0.42)", border: "rgba(245, 158, 11, 0.24)"};
+        return {bg: "rgba(254, 243, 199, 0.42)", border: "rgba(245, 158, 11, 0.24)", label: "Ca sáng", accent: "#B45309"};
     }
     if (v === "AFTERNOON") {
-        return {bg: "rgba(219, 234, 254, 0.48)", border: "rgba(59, 130, 246, 0.22)"};
+        return {bg: "rgba(219, 234, 254, 0.48)", border: "rgba(59, 130, 246, 0.22)", label: "Ca chiều", accent: "#1D4ED8"};
     }
     if (v === "EVENING") {
-        return {bg: "rgba(237, 233, 254, 0.52)", border: "rgba(139, 92, 246, 0.22)"};
+        return {bg: "rgba(237, 233, 254, 0.52)", border: "rgba(139, 92, 246, 0.22)", label: "Ca tối", accent: "#6D28D9"};
     }
-    return {bg: "rgba(248, 250, 252, 0.95)", border: BORDER_SOFT};
+    return {bg: "rgba(248, 250, 252, 0.95)", border: BORDER_SOFT, label: "Ca làm việc", accent: "#475569"};
 }
 
 function groupSlotsBySession(slots) {
-    const out = {MORNING: [], AFTERNOON: [], EVENING: []};
+    const out = {MORNING: [], AFTERNOON: []};
     for (const s of slots) {
         const k = String(s?.sessionType || "").toUpperCase();
         if (out[k]) out[k].push(s);
-        else out.MORNING.push(s);
+        else out.AFTERNOON.push(s);
     }
     for (const k of SESSION_OPTIONS) {
         out[k].sort((a, b) => timeToMinutes(a.startTime) - timeToMinutes(b.startTime));
@@ -563,6 +563,8 @@ export default function SchoolCounselorSchedule() {
         maxBookingPerSlot: 1,
         workShifts: [],
         regularDays: [],
+        weekendDays: [],
+        isOpenSunday: false,
         workingNote: "",
         academicCalendar: normalizeAcademicCalendarShape(null),
         academicSemesterLimitActive: false,
@@ -740,6 +742,8 @@ export default function SchoolCounselorSchedule() {
                         maxBookingPerSlot: 1,
                         workShifts: [],
                         regularDays: [],
+                        weekendDays: [],
+                        isOpenSunday: false,
                         workingNote: "",
                         academicCalendar: normalizeAcademicCalendarShape(null),
                         academicSemesterLimitActive: false,
@@ -1213,7 +1217,13 @@ export default function SchoolCounselorSchedule() {
 
     const isEditing = (form.templateId || 0) > 0;
 
-    const openDaySet = useMemo(() => new Set(schedulePolicy.regularDays || []), [schedulePolicy.regularDays]);
+    const openDaySet = useMemo(() => {
+        const set = new Set();
+        (Array.isArray(schedulePolicy.regularDays) ? schedulePolicy.regularDays : []).forEach((d) => set.add(String(d).toUpperCase()));
+        (Array.isArray(schedulePolicy.weekendDays) ? schedulePolicy.weekendDays : []).forEach((d) => set.add(String(d).toUpperCase()));
+        if (schedulePolicy.isOpenSunday) set.add("SUN");
+        return set;
+    }, [schedulePolicy.regularDays, schedulePolicy.weekendDays, schedulePolicy.isOpenSunday]);
 
     const sessionWindowPreview = useMemo(
         () => resolveSessionWindowFromWorkShifts(schedulePolicy.workShifts, form.sessionType),
@@ -1311,7 +1321,7 @@ export default function SchoolCounselorSchedule() {
     const validate = () => {
         const err = {};
         if (!form.dayOfWeek?.length) err.dayOfWeek = "Chọn ít nhất một ngày";
-        if (!form.sessionType?.trim()) err.session = "Chọn buổi (sáng / chiều / tối).";
+        if (!form.sessionType?.trim()) err.session = "Chọn buổi (sáng / chiều).";
 
         if (isEditing && form.dayOfWeek?.length !== 1) {
             err.dayOfWeek = "Sửa khung chỉ áp dụng đúng một thứ trong tuần";
@@ -1402,9 +1412,51 @@ export default function SchoolCounselorSchedule() {
             columnHeaderDates: headerDates = null,
         } = {}
     ) => {
-        const slotKey = (slot, day) => slot.id ?? `${day}-${slot.startTime}-${String(slot.sessionType || "")}`;
+        const slotRowKey = (slot) =>
+            `${String(slot?.sessionType || "").toUpperCase()}|${String(slot?.startTime || "")}|${String(slot?.endTime || "")}`;
+        const slotsByDay = DAYS.reduce((acc, day) => {
+            acc[day] = (byDay[day] || []).filter((s) => (applySessionFilter ? filterSlot(s) : true));
+            return acc;
+        }, {});
+        const rowKeySeen = new Set();
+        const rowMeta = [];
+        DAYS.forEach((day) => {
+            (slotsByDay[day] || []).forEach((slot) => {
+                const rk = slotRowKey(slot);
+                if (rowKeySeen.has(rk)) return;
+                rowKeySeen.add(rk);
+                rowMeta.push({
+                    rowKey: rk,
+                    sessionType: String(slot?.sessionType || "").toUpperCase(),
+                    startTime: String(slot?.startTime || ""),
+                    endTime: String(slot?.endTime || ""),
+                });
+            });
+        });
+        rowMeta.sort((a, b) => {
+            const ad = timeToMinutes(a.startTime);
+            const bd = timeToMinutes(b.startTime);
+            if (Number.isFinite(ad) && Number.isFinite(bd) && ad !== bd) return ad - bd;
+            return a.rowKey.localeCompare(b.rowKey);
+        });
 
-        const renderSlotItem = (slot, day) => {
+        const lookupSlotByDay = DAYS.reduce((acc, day) => {
+            const m = new Map();
+            (slotsByDay[day] || []).forEach((slot) => m.set(slotRowKey(slot), slot));
+            acc[day] = m;
+            return acc;
+        }, {});
+
+        const renderGridCell = (slot, day) => {
+            if (!slot) {
+                return (
+                    <Box sx={{minHeight: 46, display: "flex", alignItems: "center", justifyContent: "center"}}>
+                        <Typography variant="caption" sx={{color: "#94A3B8", fontWeight: 600}}>
+                            —
+                        </Typography>
+                    </Box>
+                );
+            }
             const colors = sessionCardColors(slot.sessionType);
             const tipCampus =
                 campusLabel ||
@@ -1412,23 +1464,25 @@ export default function SchoolCounselorSchedule() {
             const tip = [`${slot.startTime} – ${slot.endTime}`, sessionTypeLabel(slot.sessionType), tipCampus].join(" · ");
             const tplId = Number(slot.id ?? slot.templateId);
             const mapKey = Number.isFinite(tplId) && tplId > 0 ? `${tplId}|${day}` : null;
-            const assigns =
-                counsellor && mapKey && counsellor.map?.has(mapKey) ? [...counsellor.map.get(mapKey)] : [];
+            const assigns = counsellor && mapKey && counsellor.map?.has(mapKey) ? [...counsellor.map.get(mapKey)] : [];
             const showCounsellorUi = Boolean(counsellor && counsellor.map && !readOnly);
-            const emptyStaff = slotIsActive(slot) && assigns.length === 0;
-            const maxCap = counsellor?.maxCounsellorsPerSlot ?? 0;
             const selKey = slotGridSelectionKey(slot, day);
             const isSlotSelected = Boolean(multiSelectMode && selKey && selectedFrameKeys.has(selKey));
             const cellAssignSummary = assigns.length > 0 ? summarizeGridCellAssignments(assigns) : null;
-
-            if (showCounsellorUi) {
-                return (
+            const activate = () => {
+                if (showCounsellorUi) {
+                    setScheduleDetail({open: true, slot, day});
+                    return;
+                }
+                if (!readOnly) openEdit(slot, day);
+            };
+            return (
+                <Tooltip title={tip} placement="top" arrow>
                     <Box
-                        key={slotKey(slot, day)}
-                        role="button"
-                        tabIndex={0}
+                        role={readOnly ? undefined : "button"}
+                        tabIndex={readOnly ? undefined : 0}
                         onClick={(e) => {
-                            if (selKey && slotIsActive(slot) && (e.ctrlKey || e.metaKey)) {
+                            if (showCounsellorUi && selKey && slotIsActive(slot) && (e.ctrlKey || e.metaKey)) {
                                 e.preventDefault();
                                 setMultiSelectMode(true);
                                 setSelectedFrameKeys((prev) => {
@@ -1439,7 +1493,7 @@ export default function SchoolCounselorSchedule() {
                                 });
                                 return;
                             }
-                            if (multiSelectMode && selKey) {
+                            if (showCounsellorUi && multiSelectMode && selKey) {
                                 setSelectedFrameKeys((prev) => {
                                     const n = new Set(prev);
                                     if (n.has(selKey)) n.delete(selKey);
@@ -1448,393 +1502,140 @@ export default function SchoolCounselorSchedule() {
                                 });
                                 return;
                             }
-                            setScheduleDetail({open: true, slot, day});
+                            activate();
                         }}
-                        onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault();
-                                if (multiSelectMode && selKey) {
-                                    setSelectedFrameKeys((prev) => {
-                                        const n = new Set(prev);
-                                        if (n.has(selKey)) n.delete(selKey);
-                                        else n.add(selKey);
-                                        return n;
-                                    });
-                                    return;
-                                }
-                                setScheduleDetail({open: true, slot, day});
-                            }
-                        }}
-                        sx={{
-                            position: "relative",
-                            p: 1.35,
-                            borderRadius: RADIUS_INNER,
-                            background: colors.bg,
-                            border: isSlotSelected
-                                ? `2px solid ${PRIMARY}`
-                                : emptyStaff
-                                    ? `2px dashed ${colors.border}`
-                                    : `1px solid ${colors.border}`,
-                            boxShadow: SHADOW_SM,
-                            opacity: slotIsActive(slot) ? 1 : 0.55,
-                            transition: TRANSITION_CARD,
-                            cursor: "pointer",
-                            outline: "none",
-                            "&:focus-visible": {
-                                boxShadow: `0 0 0 2px #fff, 0 0 0 4px ${PRIMARY}`,
-                            },
-                            "&:hover": {
-                                boxShadow: SHADOW_MD,
-                                transform: "translateY(-2px)",
-                            },
-                        }}
-                    >
-                        {multiSelectMode && slotIsActive(slot) && selKey ? (
-                            <Checkbox
-                                size="small"
-                                checked={isSlotSelected}
-                                onClick={(e) => e.stopPropagation()}
-                                onChange={() => {
-                                    setSelectedFrameKeys((prev) => {
-                                        const n = new Set(prev);
-                                        if (n.has(selKey)) n.delete(selKey);
-                                        else n.add(selKey);
-                                        return n;
-                                    });
-                                }}
-                                inputProps={{"aria-label": "Chọn khung để gán hàng loạt"}}
-                                sx={{
-                                    position: "absolute",
-                                    top: 4,
-                                    left: 2,
-                                    p: 0.25,
-                                    zIndex: 2,
-                                    bgcolor: "rgba(255,255,255,0.9)",
-                                    borderRadius: "8px",
-                                }}
-                            />
-                        ) : null}
-                        <Stack direction="row" alignItems="flex-start" justifyContent="space-between" spacing={0.75}>
-                            <Box sx={{flex: 1, minWidth: 0, pr: 0.25}}>
-                                <Typography
-                                    sx={{
-                                        fontWeight: 800,
-                                        fontSize: "0.8125rem",
-                                        color: "#0F172A",
-                                        fontVariantNumeric: "tabular-nums",
-                                        letterSpacing: "-0.01em",
-                                        whiteSpace: "nowrap",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                    }}
-                                >
-                                    {slot.startTime} – {slot.endTime}
-                                </Typography>
-                                <Typography
-                                    sx={{
-                                        fontSize: "0.72rem",
-                                        color: colors.accent,
-                                        fontWeight: 700,
-                                        mt: 0.35,
-                                        textTransform: "uppercase",
-                                        letterSpacing: "0.04em",
-                                        whiteSpace: "nowrap",
-                                        overflow: "hidden",
-                                        textOverflow: "ellipsis",
-                                    }}
-                                >
-                                    {sessionTypeLabel(slot.sessionType)}
-                                </Typography>
-                            </Box>
-                            {slotIsActive(slot) ? (
-                                <Tooltip title="Chi tiết khung, sửa template, gán…" arrow>
-                                    <IconButton
-                                        size="small"
-                                        aria-label="Menu khung giờ"
-                                        aria-haspopup="true"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setSlotActionsMenu({anchorEl: e.currentTarget, slot, day});
-                                        }}
-                                        sx={{
-                                            width: 30,
-                                            height: 30,
-                                            flexShrink: 0,
-                                            bgcolor: "rgba(255,255,255,0.95)",
-                                            border: `1px solid ${BORDER_SOFT}`,
-                                            borderRadius: "10px",
-                                            "&:hover": {bgcolor: "#fff", borderColor: "rgba(148,163,184,0.45)"},
-                                        }}
-                                    >
-                                        <MoreVertIcon sx={{fontSize: 18, color: "#64748B"}}/>
-                                    </IconButton>
-                                </Tooltip>
-                            ) : null}
-                        </Stack>
-                        {slotIsActive(slot) ? null : (
-                            <Chip
-                                label="Ngưng"
-                                size="small"
-                                sx={{
-                                    mt: 0.75,
-                                    height: 24,
-                                    fontSize: "0.65rem",
-                                    fontWeight: 700,
-                                    bgcolor: "rgba(100,116,139,0.12)",
-                                    color: "#475569",
-                                    border: "1px solid rgba(100,116,139,0.2)",
-                                }}
-                            />
-                        )}
-                        <Typography
-                            variant="caption"
-                            sx={{
-                                color: assigns.length === 0 ? "#94A3B8" : "#334155",
-                                textAlign: "center",
-                                display: "block",
-                                mt: slotIsActive(slot) ? 1 : 0.75,
-                                py: 0.5,
-                                fontWeight: assigns.length === 0 ? 500 : 700,
-                            }}
-                        >
-                            {assigns.length === 0
-                                ? "Chưa có lượt gán"
-                                : cellAssignSummary &&
-                                `${cellAssignSummary.assignmentCount} lượt gán${
-                                    cellAssignSummary.distinctRangeCount > 1
-                                        ? ` · ${cellAssignSummary.distinctRangeCount} khoảng ngày`
-                                        : ""
-                                }`}
-                        </Typography>
-                        {cellAssignSummary && cellAssignSummary.rangeLines.length > 0 ? (
-                            <Stack spacing={0.15} sx={{mt: 0.2, px: 0.5, alignItems: "center"}}>
-                                {cellAssignSummary.rangeLines.map((line, idx) => (
-                                    <Typography
-                                        key={`${line}-${idx}`}
-                                        variant="caption"
-                                        sx={{
-                                            display: "block",
-                                            textAlign: "center",
-                                            color: "#64748B",
-                                            fontSize: "0.65rem",
-                                            lineHeight: 1.35,
-                                        }}
-                                    >
-                                        {line}
-                                    </Typography>
-                                ))}
-                            </Stack>
-                        ) : null}
-                        {slotIsActive(slot) && maxCap > 0 && showCounsellorUi ? (
-                            <Stack direction="row" justifyContent="center" flexWrap="wrap" gap={0.5} sx={{mt: 0.35}}>
-                                {assigns.length >= maxCap ? (
-                                    <Chip
-                                        label="Đã đủ tư vấn viên"
-                                        size="small"
-                                        sx={{
-                                            height: 22,
-                                            fontSize: "0.62rem",
-                                            fontWeight: 800,
-                                            bgcolor: "rgba(71,85,105,0.12)",
-                                            color: "#334155"
-                                        }}
-                                    />
-                                ) : assigns.length > 0 && maxCap > 1 && assigns.length === maxCap - 1 ? (
-                                    <Chip
-                                        label="Còn 1 suất"
-                                        size="small"
-                                        color="warning"
-                                        variant="outlined"
-                                        sx={{height: 22, fontSize: "0.62rem", fontWeight: 700}}
-                                    />
-                                ) : null}
-                            </Stack>
-                        ) : null}
-                    </Box>
-                );
-            }
-
-            return (
-                <Tooltip key={slotKey(slot, day)} title={tip} placement="top" arrow>
-                    <Box
-                        role={readOnly ? undefined : "button"}
-                        tabIndex={readOnly ? undefined : 0}
-                        onClick={readOnly ? undefined : () => openEdit(slot, day)}
                         onKeyDown={
                             readOnly
                                 ? undefined
                                 : (e) => {
                                     if (e.key === "Enter" || e.key === " ") {
                                         e.preventDefault();
-                                        openEdit(slot, day);
+                                        activate();
                                     }
                                 }
                         }
                         sx={{
-                            position: "relative",
-                            p: 1.35,
-                            borderRadius: RADIUS_INNER,
+                            px: 0.7,
+                            py: 0.5,
+                            borderRadius: "8px",
                             background: colors.bg,
-                            border: `1px solid ${colors.border}`,
-                            boxShadow: SHADOW_SM,
-                            opacity: slotIsActive(slot) ? 1 : 0.55,
-                            transition: TRANSITION_CARD,
-                            ...(readOnly
-                                ? {}
-                                : {
-                                    cursor: "pointer",
-                                    outline: "none",
-                                    "&:focus-visible": {
-                                        boxShadow: `0 0 0 2px #fff, 0 0 0 4px ${PRIMARY}`,
-                                    },
-                                }),
-                            "&:hover": readOnly
-                                ? {}
-                                : {
-                                    boxShadow: SHADOW_MD,
-                                    transform: "translateY(-2px)",
-                                },
+                            border: isSlotSelected ? `2px solid ${PRIMARY}` : `1px solid ${colors.border}`,
+                            cursor: readOnly ? "default" : "pointer",
+                            transition: "all .2s ease",
+                            "&:hover": readOnly ? {} : {boxShadow: SHADOW_SM, transform: "translateY(-1px)"},
                         }}
                     >
-                        <Typography sx={{fontWeight: 700, fontSize: "0.8125rem", color: "#0F172A"}}>
+                        <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={0.5}>
+                            <Typography sx={{fontSize: "0.7rem", fontWeight: 700, color: "#0f172a"}}>
+                                {sessionTypeLabel(slot.sessionType)}
+                            </Typography>
+                            {showCounsellorUi && slotIsActive(slot) ? (
+                                <IconButton
+                                    size="small"
+                                    aria-label="Menu khung giờ"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSlotActionsMenu({anchorEl: e.currentTarget, slot, day});
+                                    }}
+                                    sx={{p: 0.25, color: "#64748B"}}
+                                >
+                                    <MoreVertIcon sx={{fontSize: 16}}/>
+                                </IconButton>
+                            ) : null}
+                        </Stack>
+                        <Typography sx={{fontSize: "0.68rem", color: "#475569", mt: 0.15}}>
                             {slot.startTime} – {slot.endTime}
                         </Typography>
-                        <Typography sx={{fontSize: "0.75rem", color: colors.accent, fontWeight: 600, mt: 0.25}}>
-                            {sessionTypeLabel(slot.sessionType)}
-                        </Typography>
-                        {slotIsActive(slot) ? null : (
-                            <Chip
-                                label="Ngưng"
-                                size="small"
-                                sx={{
-                                    mt: 0.75,
-                                    height: 24,
-                                    fontSize: "0.65rem",
-                                    fontWeight: 700,
-                                    bgcolor: "rgba(100,116,139,0.12)",
-                                    color: "#475569",
-                                    border: "1px solid rgba(100,116,139,0.2)",
-                                }}
-                            />
-                        )}
+                        {showCounsellorUi ? (
+                            <Typography variant="caption" sx={{display: "block", mt: 0.25, color: "#334155", fontWeight: 600}}>
+                                {assigns.length === 0 ? "Chưa gán" : `${cellAssignSummary?.assignmentCount || assigns.length} lượt`}
+                            </Typography>
+                        ) : null}
                     </Box>
                 </Tooltip>
             );
         };
 
+        if (rowMeta.length === 0) {
+            SESSION_OPTIONS.forEach((sessionType) => {
+                const win = resolveSessionWindowFromWorkShifts(schedulePolicy.workShifts, sessionType);
+                if (win?.start && win?.end) {
+                    rowMeta.push({
+                        rowKey: `${sessionType}|${win.start}|${win.end}`,
+                        sessionType,
+                        startTime: win.start,
+                        endTime: win.end,
+                    });
+                    return;
+                }
+                if (sessionType === "MORNING") {
+                    rowMeta.push({
+                        rowKey: "MORNING|07:00|11:30",
+                        sessionType: "MORNING",
+                        startTime: "07:00",
+                        endTime: "11:30",
+                    });
+                    return;
+                }
+                rowMeta.push({
+                    rowKey: "AFTERNOON|13:00|17:00",
+                    sessionType: "AFTERNOON",
+                    startTime: "13:00",
+                    endTime: "17:00",
+                });
+            });
+        }
+
         return (
-            <Box
-                sx={{
-                    display: "grid",
-                    gridTemplateColumns: `repeat(7, ${SCHEDULE_DAY_COLUMN_PX}px)`,
-                    width: "max-content",
-                    maxWidth: "100%",
-                    gap: {xs: 1.25, md: 1.75},
-                    overflowX: "auto",
-                    pb: 1,
-                    mx: -0.25,
-                    px: 0.25,
-                }}
-            >
-                {DAYS.map((day) => {
-                    const slots = (byDay[day] || []).filter((s) => (applySessionFilter ? filterSlot(s) : true));
-                    const bySession = groupSlotsBySession(slots);
-                    return (
-                        <Box
-                            key={day}
-                            sx={{
-                                minHeight: 460,
-                                background: `linear-gradient(180deg, ${SURFACE_CARD} 0%, #F8FAFC 100%)`,
-                                borderRadius: RADIUS_INNER,
-                                border: `1px solid ${BORDER_SOFT}`,
-                                p: 1.5,
-                                display: "flex",
-                                flexDirection: "column",
-                                gap: 0,
-                                boxShadow: "inset 0 1px 0 rgba(255,255,255,0.8)",
-                            }}
-                        >
-                            <Box
-                                sx={{
-                                    textAlign: "center",
-                                    pb: 1.25,
-                                    mb: 1,
-                                    borderBottom: `1px dashed ${BORDER_SOFT}`,
-                                }}
-                            >
-                                <Typography
-                                    sx={{
-                                        fontSize: "0.8125rem",
-                                        fontWeight: 800,
-                                        color: PRIMARY,
-                                        display: "block",
-                                        letterSpacing: "-0.01em",
-                                    }}
-                                >
-                                    {DAY_LABELS[day]}
-                                </Typography>
-                                {headerDates?.[day] ? (
-                                    <Typography
-                                        variant="caption"
-                                        sx={{
-                                            color: "#64748B",
-                                            fontWeight: 600,
-                                            display: "block",
-                                            mt: 0.5,
-                                            fontSize: "0.75rem",
-                                            fontVariantNumeric: "tabular-nums",
-                                        }}
-                                    >
-                                        {formatColumnHeaderDate(headerDates[day])}
+            <TableContainer component={Paper} elevation={0} sx={{borderRadius: RADIUS_INNER, border: `1px solid ${BORDER_SOFT}`, overflow: "auto"}}>
+                <Table size="small" stickyHeader sx={{minWidth: 980}}>
+                    <TableHead>
+                        <TableRow>
+                            <TableCell sx={{minWidth: 160, bgcolor: "#5E81BE", color: "#fff", borderRight: "1px solid rgba(255,255,255,0.35)"}}>
+                                <Typography sx={{fontSize: "0.78rem", fontWeight: 800}}>Thời gian</Typography>
+                            </TableCell>
+                            {DAYS.map((day) => (
+                                <TableCell key={day} align="center" sx={{minWidth: 120, bgcolor: "#5E81BE", color: "#fff", borderRight: "1px solid rgba(255,255,255,0.35)"}}>
+                                    <Typography sx={{fontSize: "0.73rem", fontWeight: 800}}>{DAY_LABELS[day]}</Typography>
+                                    <Typography sx={{fontSize: "0.7rem", opacity: 0.95}}>
+                                        {headerDates?.[day] ? formatColumnHeaderDate(headerDates[day]) : ""}
                                     </Typography>
-                                ) : null}
-                            </Box>
-                            <Stack spacing={0.75} sx={{display: "flex", flexDirection: "column"}}>
-                                {SESSION_OPTIONS.map((sessionKey) => {
-                                    const zoneSlots = bySession[sessionKey];
-                                    const surface = sessionZoneSurface(sessionKey);
-                                    return (
-                                        <Box
-                                            key={sessionKey}
+                                </TableCell>
+                            ))}
+                        </TableRow>
+                    </TableHead>
+                    <TableBody>
+                        {rowMeta.map((row) => {
+                            const surface = sessionZoneSurface(row.sessionType);
+                            return (
+                                <TableRow key={row.rowKey} hover>
+                                    <TableCell sx={{bgcolor: surface.bg, borderRight: `1px solid ${BORDER_SOFT}`}}>
+                                        <Typography sx={{fontSize: "0.83rem", fontWeight: 800, color: "#0f172a"}}>
+                                            {row.startTime} - {row.endTime}
+                                        </Typography>
+                                        <Typography sx={{fontSize: "0.7rem", color: surface.accent, fontWeight: 700}}>
+                                            {sessionTypeLabel(row.sessionType)}
+                                        </Typography>
+                                    </TableCell>
+                                    {DAYS.map((day) => (
+                                        <TableCell
+                                            key={`${row.rowKey}-${day}`}
                                             sx={{
-                                                minHeight: zoneSlots.length === 0 ? 104 : "auto",
-                                                display: "flex",
-                                                flexDirection: "column",
-                                                borderRadius: "10px",
-                                                border: `1px solid ${surface.border}`,
+                                                verticalAlign: "top",
+                                                borderRight: `1px solid ${BORDER_SOFT}`,
+                                                py: 0.5,
                                                 bgcolor: surface.bg,
-                                                p: 0.75,
-                                                gap: 0.75,
                                             }}
                                         >
-                                            {zoneSlots.length === 0 ? (
-                                                <Box
-                                                    sx={{
-                                                        flex: 1,
-                                                        minHeight: 72,
-                                                        display: "flex",
-                                                        alignItems: "center",
-                                                        justifyContent: "center",
-                                                        px: 0.5,
-                                                    }}
-                                                >
-                                                    <Typography variant="caption"
-                                                                sx={{color: "#94A3B8", fontWeight: 500}}>
-                                                        —
-                                                    </Typography>
-                                                </Box>
-                                            ) : (
-                                                <Stack
-                                                    spacing={1}>{zoneSlots.map((slot) => renderSlotItem(slot, day))}</Stack>
-                                            )}
-                                        </Box>
-                                    );
-                                })}
-                            </Stack>
-                        </Box>
-                    );
-                })}
-            </Box>
+                                            {renderGridCell(lookupSlotByDay[day]?.get(row.rowKey) || null, day)}
+                                        </TableCell>
+                                    ))}
+                                </TableRow>
+                            );
+                        })}
+                    </TableBody>
+                </Table>
+            </TableContainer>
         );
     };
 
@@ -2799,7 +2600,7 @@ export default function SchoolCounselorSchedule() {
                                 Chọn <strong>ngày</strong> trong tuần (có thể chọn nhiều ngày).
                             </Typography>
                             <Typography component="li" variant="body2" sx={{mb: 0.75}}>
-                                Chọn <strong>buổi</strong>: sáng, chiều hoặc tối.
+                                Chọn <strong>buổi</strong>: sáng hoặc chiều.
                             </Typography>
                             <Typography component="li" variant="body2" sx={{mb: 0.75}}>
                                 Xem ô bên dưới để biết <strong>khung giờ</strong> tương ứng — giờ này theo lịch làm việc

@@ -14,7 +14,7 @@ export function HqScalarDiffChip({fieldKey, effectiveOp, hqOp, hqMissing}) {
   return (
     <Chip
       size="small"
-      label={differs ? "Khác với trụ sở chính" : "Giống trụ sở chính"}
+      label={differs ? "Khác với cơ sở chính" : "Giống cơ sở chính"}
       color={differs ? "primary" : "default"}
       variant={differs ? "filled" : "outlined"}
       sx={{height: 22, fontSize: "0.7rem", flexShrink: 0}}
@@ -86,7 +86,7 @@ export function HqVsCampusSlotBufferSummary({effectiveOp, hqOp, hqMissing}) {
     return (
       <Stack spacing={0.75} sx={{width: "100%", mb: 0.5}}>
         <Typography variant="body2" sx={{color: "#334155", lineHeight: 1.55}}>
-          <strong>Đồng bộ với trụ sở chính.</strong> Tiết, nghỉ và quy định gán tư vấn viên đang khớp với trụ sở.
+          <strong>Đồng bộ với cơ sở chính.</strong> Tiết, nghỉ và quy định gán tư vấn viên đang khớp với cơ sở.
         </Typography>
         <Typography variant="caption" sx={{color: "#64748b", lineHeight: 1.5}}>
           {effLineFull} · {effTvBody}
@@ -99,7 +99,7 @@ export function HqVsCampusSlotBufferSummary({effectiveOp, hqOp, hqMissing}) {
     return (
       <Stack spacing={0.75} sx={{width: "100%", mb: 0.5}}>
         <Typography variant="caption" sx={{color: "#64748b", lineHeight: 1.5}}>
-          Tiết/nghỉ <strong>giống trụ sở chính</strong>: {effLineFull}
+          Tiết/nghỉ <strong>giống cơ sở chính</strong>: {effLineFull}
         </Typography>
         <Typography variant="caption" sx={{color: "#64748b", lineHeight: 1.5}}>
           <strong>Trụ sở — gán tư vấn viên:</strong> {hqTvBody}

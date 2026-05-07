@@ -99,6 +99,7 @@ const TAB_LABELS = [
 /** Campus phụ: chỉ vận hành + cơ sở vật chất (API GET/PUT /campus/{id}/config) */
 const BRANCH_TAB_SLUGS = ["operation", "facility"];
 const BRANCH_TAB_LABELS = ["Cài đặt vận hành", "Cài đặt cơ sở vật chất"];
+const SCHOOL_WORK_SHIFT_SELECT_CODES = WORK_SHIFT_TYPE_CODES.filter((code) => code !== "NOON" && code !== "EVENING");
 
 /**
  * Danh sách phương thức hiển thị checkbox: từ API, không preset FE.
@@ -4477,7 +4478,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                             }))
                           }
                           size="small"
-                          helperText="Dành cho phụ huynh khi đặt lịch: tối đa bao nhiêu lượt đặt hoặc chờ trong một khung giờ. Không phải số tư vấn viên — xem hai ô bên cạnh."
+                          helperText="Dành cho phụ huynh khi đặt lịch: tối đa bao nhiêu lượt đặt hoặc chờ trong một khung giờ."
                           FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
@@ -4503,7 +4504,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                             }))
                           }
                           size="small"
-                          helperText="Khi gán lịch cho tư vấn viên: mỗi khung giờ và khoảng ngày phải có ít nhất số người này. Không liên quan tới lượt đặt của phụ huynh (ô bên trái)."
+                          helperText="Khi gán lịch cho tư vấn viên: mỗi khung giờ và khoảng ngày phải có ít nhất số người này."
                           FormHelperTextProps={{sx: {fontWeight: 500, color: "#64748b"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth
@@ -4813,7 +4814,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                   <Stack spacing={1}>
                     {(config.operationSettingsData.workingConfig.workShifts || []).map((sh, idx) => {
                       const code = canonicalizeWorkShiftName(sh.name);
-                      const sel = WORK_SHIFT_TYPE_CODES.includes(code) ? code : "";
+                      const sel = SCHOOL_WORK_SHIFT_SELECT_CODES.includes(code) ? code : "";
                       return (
                         <Box
                           key={idx}
@@ -4848,9 +4849,9 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                               <MenuItem value="">
                                 <em>Chọn loại ca</em>
                               </MenuItem>
-                              {WORK_SHIFT_TYPE_CODES.map((k) => (
+                              {SCHOOL_WORK_SHIFT_SELECT_CODES.map((k) => (
                                 <MenuItem key={k} value={k}>
-                                  {WORK_SHIFT_TYPE_LABEL_VI[k]} ({k})
+                                  {WORK_SHIFT_TYPE_LABEL_VI[k]}
                                 </MenuItem>
                               ))}
                             </Select>
@@ -5162,7 +5163,7 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                               <Stack spacing={1.25}>
                                 {(season.extraShifts || []).map((sh, ei) => {
                                   const code = canonicalizeWorkShiftName(sh.name);
-                                  const sel = WORK_SHIFT_TYPE_CODES.includes(code) ? code : "";
+                                  const sel = SCHOOL_WORK_SHIFT_SELECT_CODES.includes(code) ? code : "";
                                   return (
                                   <Stack
                                     key={`season-${si}-shift-${ei}`}
@@ -5187,9 +5188,9 @@ export default function SchoolConfig({variant = "platform"} = {}) {
                                         <MenuItem value="">
                                           <em>Chọn</em>
                                         </MenuItem>
-                                        {WORK_SHIFT_TYPE_CODES.map((k) => (
+                                        {SCHOOL_WORK_SHIFT_SELECT_CODES.map((k) => (
                                           <MenuItem key={k} value={k}>
-                                            {WORK_SHIFT_TYPE_LABEL_VI[k]} ({k})
+                                            {WORK_SHIFT_TYPE_LABEL_VI[k]}
                                           </MenuItem>
                                         ))}
                                       </Select>
