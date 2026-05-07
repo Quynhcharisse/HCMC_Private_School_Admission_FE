@@ -22,10 +22,10 @@ import {
     ChevronLeft as ChevronLeftIcon,
     ChevronRight as ChevronRightIcon,
     Close as CloseIcon,
+    Description as DescriptionIcon,
+    OpenInNew as OpenInNewIcon,
     ZoomIn as ZoomInIcon,
-    ZoomOut as ZoomOutIcon,
-    InsertDriveFileOutlined as FileIcon,
-    OpenInNew as OpenInNewIcon
+    ZoomOut as ZoomOutIcon
 } from "@mui/icons-material";
 import {disablePostStatus, getPostList} from "../../services/PostService.jsx";
 import {APP_PRIMARY_MAIN, BRAND_NAVY} from "../../constants/homeLandingTheme";
@@ -178,20 +178,39 @@ function extractPostImageUrls(raw) {
     return deepUrls.filter((u) => u !== thumbnail);
 }
 
-function getFileDisplayName(url) {
-    try {
-        const pathname = new URL(url).pathname;
-        const name = decodeURIComponent(pathname.split("/").pop() || "");
-        return name || "Tải file đính kèm";
-    } catch {
-        return "Tải file đính kèm";
+function extractPostFileUrl(raw) {
+    const directFileUrl = String(raw?.fileUrl ?? "").trim();
+    if (looksLikeHttpUrl(directFileUrl)) return directFileUrl;
+
+    const documentJson = parseJsonMaybe(raw?.document ?? raw?.documentJson);
+    if (documentJson && typeof documentJson === "object" && Array.isArray(documentJson.documentItemList)) {
+        const sorted = [...documentJson.documentItemList].sort(
+            (a, b) => (Number(a?.position) || 0) - (Number(b?.position) || 0)
+        );
+        const firstDocUrl = String(sorted[0]?.fileUrl ?? "").trim();
+        if (looksLikeHttpUrl(firstDocUrl)) return firstDocUrl;
     }
+
+    const fallbackTypeFileUrl = String(raw?.typeFile ?? "").trim();
+    if (looksLikeHttpUrl(fallbackTypeFileUrl)) return fallbackTypeFileUrl;
+
+    return "";
 }
 
-function getFileTypeLabel(url) {
-    const m = String(url || "").match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|csv|zip|rar)(\?|#|$)/i);
-    if (!m) return "FILE";
-    return m[1].toUpperCase();
+function buildOnlinePreviewUrl(fileUrl) {
+    const raw = String(fileUrl || "").trim();
+    if (!looksLikeHttpUrl(raw)) return "";
+    const lower = raw.toLowerCase();
+
+    if (/\.(doc|docx|xls|xlsx|ppt|pptx)(\?|#|$)/i.test(lower)) {
+        return `https://view.officeapps.live.com/op/view.aspx?src=${encodeURIComponent(raw)}`;
+    }
+
+    if (/\.(pdf)(\?|#|$)/i.test(lower)) {
+        return raw;
+    }
+
+    return `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(raw)}`;
 }
 
 function mapApiPostToFeedItem(raw) {
@@ -214,11 +233,10 @@ function mapApiPostToFeedItem(raw) {
     tags = tags.map((t) => String(t).trim()).filter(Boolean);
 
     const detailImages = extractPostImageUrls(raw);
+    const fileUrl = extractPostFileUrl(raw);
     const heroImage = String(raw?.thumbnail ?? "").trim() || detailImages[0] || DEFAULT_SCHOOL_IMAGE;
     const authorName = String(raw?.author?.name ?? "").trim();
     const isAdminPost = authorName.toLowerCase() === "hệ thống edubridge";
-
-    const fileUrl = String(raw?.fileUrl ?? raw?.content?.fileUrl ?? "").trim() || null;
 
     return {
         id: raw?.id,
@@ -232,7 +250,7 @@ function mapApiPostToFeedItem(raw) {
         heroImage,
         detailImages,
         contentBlocks,
-        fileUrl,
+        fileUrl
     };
 }
 
@@ -319,36 +337,45 @@ function FeedPostCard({post, onOpen, onDisable, disableLoading = false, canDisab
 
                 {post.fileUrl ? (
                     <Box
-                        component="a"
-                        href={post.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
                         sx={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 1,
                             mb: 1.25,
-                            px: 1.5,
-                            py: 0.9,
-                            borderRadius: 2,
-                            border: "1px solid #e2e8f0",
-                            bgcolor: "#f8fafc",
-                            textDecoration: "none",
-                            color: "#1e293b",
-                            transition: "background-color 150ms ease, border-color 150ms ease",
-                            "&:hover": {bgcolor: "#eef4ff", borderColor: "#93c5fd"},
+                            p: 1.1,
+                            borderRadius: 1.5,
+                            border: "1px solid #dbe7f6",
+                            backgroundColor: "#f8fbff",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: 1
                         }}
                     >
-                        <FileIcon sx={{fontSize: 20, color: APP_PRIMARY_MAIN, flexShrink: 0}} />
-                        <Box sx={{minWidth: 0}}>
-                            <Typography sx={{fontWeight: 700, fontSize: "0.85rem", color: "#1e293b", lineHeight: 1.3}} noWrap>
-                                {getFileDisplayName(post.fileUrl)}
+                        <Stack direction="row" spacing={0.8} alignItems="center" sx={{minWidth: 0}}>
+                            <DescriptionIcon sx={{fontSize: 19, color: "#475569"}} />
+                            <Typography
+                                sx={{
+                                    fontSize: "0.86rem",
+                                    color: "#334155",
+                                    fontWeight: 600,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                    whiteSpace: "nowrap"
+                                }}
+                            >
+                                Tệp đính kèm
                             </Typography>
-                            <Typography sx={{fontSize: "0.75rem", color: "#64748b", fontWeight: 600}}>
-                                {getFileTypeLabel(post.fileUrl)} · Nhấn để mở
-                            </Typography>
-                        </Box>
-                        <OpenInNewIcon sx={{fontSize: 15, color: "#94a3b8", flexShrink: 0, ml: "auto"}} />
+                        </Stack>
+                        <Button
+                            component="a"
+                            href={buildOnlinePreviewUrl(post.fileUrl)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            size="small"
+                            variant="outlined"
+                            endIcon={<OpenInNewIcon sx={{fontSize: 16}} />}
+                            sx={{textTransform: "none", minWidth: "fit-content"}}
+                        >
+                            Xem file
+                        </Button>
                     </Box>
                 ) : null}
 
