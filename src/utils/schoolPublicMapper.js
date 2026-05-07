@@ -8,6 +8,9 @@ const normalizeLocationToken = (value) =>
         .toLowerCase()
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[ơớờởỡợ]/g, "o")
+        .replace(/[ưứừửữự]/g, "u")
+        .replace(/đ/g, "d")
         .replace(/[\s._-]+/g, " ")
         .replace(/\s+/g, " ")
         .trim();
@@ -36,9 +39,37 @@ export function normalizeProvinceName(value) {
 export const DEFAULT_SCHOOL_IMAGE =
     "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?auto=format&fit=crop&w=900&q=80";
 
+const PRIMARY_CAMPUS_KEYWORDS = ["co so chinh", "chinh", "main", "headquarter", "head quarter", "tru so chinh"];
+
+function isPrimaryCampusName(value) {
+    const token = normalizeLocationToken(value);
+    if (!token) return false;
+    return PRIMARY_CAMPUS_KEYWORDS.some((keyword) => token.includes(keyword));
+}
+
+export function sortCampusListPrimaryFirst(campusList) {
+    if (!Array.isArray(campusList)) return [];
+    return [...campusList]
+        .map((campus, originalIndex) => ({campus, originalIndex}))
+        .sort((a, b) => {
+            const aPrimary = isPrimaryCampusName(a.campus?.name);
+            const bPrimary = isPrimaryCampusName(b.campus?.name);
+            if (aPrimary !== bPrimary) return aPrimary ? -1 : 1;
+            const aId = Number(a.campus?.id);
+            const bId = Number(b.campus?.id);
+            const aValid = Number.isFinite(aId);
+            const bValid = Number.isFinite(bId);
+            if (aValid && bValid && aId !== bId) return aId - bId;
+            if (aValid !== bValid) return aValid ? -1 : 1;
+            return a.originalIndex - b.originalIndex;
+        })
+        .map(({campus}) => campus);
+}
+
 export function mapPublicSchoolDetailToRow(api) {
     if (!api || typeof api !== "object") return null;
-    const campusList = Array.isArray(api.campusList) ? api.campusList : [];
+    const rawCampusList = Array.isArray(api.campusList) ? api.campusList : [];
+    const campusList = sortCampusListPrimaryFirst(rawCampusList);
     const firstCampus = campusList[0] ?? null;
     const consultantEmails = campusList
         .flatMap((campus) => (Array.isArray(campus?.consultantEmails) ? campus.consultantEmails : []))
