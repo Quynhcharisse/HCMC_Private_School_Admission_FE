@@ -747,9 +747,6 @@ export default function CampaignOfferingsSection({
         if (!editingRow) {
             if (!String(formValues.openDate || "").trim()) errors.openDate = "Vui lòng chọn ngày mở nhận hồ sơ";
             if (!String(formValues.closeDate || "").trim()) errors.closeDate = "Vui lòng chọn ngày đóng nhận hồ sơ";
-        } else if (getOfferingActionState(editingRow, campaignPaused).canUpdate) {
-            if (!String(formValues.openDate || "").trim()) errors.openDate = "Vui lòng chọn ngày mở";
-            if (!String(formValues.closeDate || "").trim()) errors.closeDate = "Vui lòng chọn ngày đóng";
         }
         setFormErrors(errors);
         return Object.keys(errors).length === 0;
@@ -828,12 +825,17 @@ export default function CampaignOfferingsSection({
         setSubmitLoading(true);
         try {
             if (editingRow) {
-                const res = await updateCampaignOffering({
-                    id: editingRow.id,
+                const payload = {
+                    id: Number(editingRow.id),
+                    admissionCampaignId: Number(editingRow.admissionCampaignId ?? editingRow.campaignId ?? campaignId),
+                    campusId: Number(editingRow.campusId ?? formValues.campusId),
+                    programId: Number(editingRow.programId ?? formValues.programId),
+                    quota: Number(editingRow.quota ?? formValues.quota ?? 0),
                     learningMode: formValues.learningMode || "DAY_SCHOOL",
                     priceAdjustmentPercentage: priceAdjustmentToApiFraction(formValues.priceAdjustmentPercentage),
-                    openDate: formValues.openDate || "",
-                    closeDate: formValues.closeDate || "",
+                };
+                const res = await updateCampaignOffering({
+                    ...payload,
                 });
                 if (res?.status === 200 || res?.status === 201 || res?.data?.message) {
                     enqueueSnackbar(res?.data?.message || "Cập nhật chỉ tiêu thành công", {
@@ -1598,9 +1600,10 @@ export default function CampaignOfferingsSection({
                             value={formValues.openDate}
                             onChange={handleChange}
                             InputLabelProps={{ shrink: true }}
-                            disabled={isEditingReadOnly}
+                            disabled
+                            InputProps={{ readOnly: true }}
                             error={!!formErrors.openDate}
-                            helperText={formErrors.openDate}
+                            helperText={formErrors.openDate || "Ngày mở lấy theo timeline của phương thức tuyển sinh"}
                         />
                         <TextField
                             label="Ngày đóng nhận hồ sơ"
@@ -1611,9 +1614,10 @@ export default function CampaignOfferingsSection({
                             value={formValues.closeDate}
                             onChange={handleChange}
                             InputLabelProps={{ shrink: true }}
-                            disabled={isEditingReadOnly}
+                            disabled
+                            InputProps={{ readOnly: true }}
                             error={!!formErrors.closeDate}
-                            helperText={formErrors.closeDate}
+                            helperText={formErrors.closeDate || "Ngày đóng lấy theo timeline của phương thức tuyển sinh"}
                         />
                     </Stack>
                 </DialogContent>

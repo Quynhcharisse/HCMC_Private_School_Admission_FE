@@ -183,8 +183,14 @@ function normalizeDateLikeToIso(v) {
 
 function formatDate(dateStr) {
     if (!dateStr) return "—";
-    const d = new Date(dateStr);
-    return d.toLocaleDateString("vi-VN");
+    const raw = String(dateStr).trim();
+    const m = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) {
+        return `${m[3].padStart(2, "0")}/${m[2].padStart(2, "0")}/${m[1]}`;
+    }
+    const d = new Date(raw);
+    if (Number.isNaN(d.getTime())) return raw;
+    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
