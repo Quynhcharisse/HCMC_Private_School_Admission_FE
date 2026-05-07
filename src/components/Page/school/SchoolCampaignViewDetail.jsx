@@ -170,6 +170,28 @@ function timelineStateUi(state) {
     return { label: "Sắp diễn ra", color: "#1d4ed8", bg: "rgba(59, 130, 246, 0.14)" };
 }
 
+function getCloneYearValidationError({ campaign, targetYear, campaigns }) {
+    const sourceYear = Number(campaign?.year);
+    if (!Number.isFinite(targetYear) || targetYear <= 0) {
+        return "Vui lòng nhập năm học mục tiêu hợp lệ";
+    }
+    if (!Number.isFinite(sourceYear)) {
+        return "Không xác định được năm của chiến dịch gốc";
+    }
+    if (targetYear < sourceYear) {
+        return "Năm mục tiêu phải lớn hơn hoặc bằng năm của chiến dịch gốc";
+    }
+    const hasActiveOrDraftSameYear = (campaigns || []).some((c) => {
+        const y = Number(c?.year);
+        const s = normalizeCampaignStatus(c?.status);
+        return y === targetYear && (s === "DRAFT" || s === "OPEN");
+    });
+    if (hasActiveOrDraftSameYear) {
+        return `Năm ${targetYear} đã có chiến dịch DRAFT/OPEN`;
+    }
+    return "";
+}
+
 export default function SchoolCampaignViewDetail() {
     const navigate = useNavigate();
     const location = useLocation();
@@ -180,7 +202,9 @@ export default function SchoolCampaignViewDetail() {
     const [campaign, setCampaign] = useState(null);
     const [cloneLoading, setCloneLoading] = useState(false);
     const [confirmCloneOpen, setConfirmCloneOpen] = useState(false);
-    const [cloneDisabled, setCloneDisabled] = useState(false);
+    const [cloneTargetYear, setCloneTargetYear] = useState("");
+    const [cloneYearError, setCloneYearError] = useState("");
+    const [campaignsForCloneValidation, setCampaignsForCloneValidation] = useState([]);
     const [cancelLoading, setCancelLoading] = useState(false);
     const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
@@ -239,23 +263,23 @@ export default function SchoolCampaignViewDetail() {
     }, [initialCampaign, resolveCampaignFromApi]);
 
     useEffect(() => {
-        if (!campaign?.year) return;
         let cancelled = false;
-        const nextYear = Number(campaign.year) + 1;
-        getCampaignTemplatesByYear(nextYear)
-            .then((res) => {
-                if (cancelled) return;
-                const parsed = parseCampaignTemplateResponse(res);
-                const list = parsed.campaigns;
-                const hasActive = list.some((r) => {
-                    const s = normalizeCampaignStatus(r.status);
-                    return s === "DRAFT" || s === "OPEN";
-                });
-                setCloneDisabled(hasActive);
-            })
-            .catch(() => { if (!cancelled) setCloneDisabled(false); });
+        const loadForCloneValidation = async () => {
+            const acc = [];
+            for (const y of SCAN_YEARS) {
+                try {
+                    const res = await getCampaignTemplatesByYear(y);
+                    const parsed = parseCampaignTemplateResponse(res);
+                    acc.push(...(Array.isArray(parsed.campaigns) ? parsed.campaigns.map(mapTemplate) : []));
+                } catch {
+                    // ignore
+                }
+            }
+            if (!cancelled) setCampaignsForCloneValidation(acc.filter(Boolean));
+        };
+        loadForCloneValidation();
         return () => { cancelled = true; };
-    }, [campaign?.year]);
+    }, []);
 
     const status = useMemo(() => statusUi(campaign?.status), [campaign?.status]);
 
@@ -277,14 +301,26 @@ export default function SchoolCampaignViewDetail() {
 
     const handleCloneCampaign = useCallback(async () => {
         if (!campaign?.id || cloneLoading) return;
+        const targetYear = Number.parseInt(String(cloneTargetYear), 10);
+        const validationError = getCloneYearValidationError({
+            campaign,
+            targetYear,
+            campaigns: campaignsForCloneValidation,
+        });
+        if (validationError) {
+            setCloneYearError(validationError);
+            return;
+        }
         setCloneLoading(true);
         try {
-            const res = await cloneCampaignTemplate(campaign.id);
+            const res = await cloneCampaignTemplate(campaign.id, targetYear);
             if (res?.status >= 200 && res?.status < 300) {
                 const body = res?.data?.body ?? res?.data ?? {};
                 const newId = Number(body?.id ?? body?.admissionCampaignTemplateId ?? body?.data?.id ?? body?.data?.admissionCampaignTemplateId);
-                enqueueSnackbar(res?.data?.message || `Đã tạo bản nháp Chiến dịch ${Number(campaign.year) + 1}`, { variant: "success" });
+                enqueueSnackbar(res?.data?.message || `Đã tạo bản nháp Chiến dịch ${targetYear}`, { variant: "success" });
                 setConfirmCloneOpen(false);
+                setCloneTargetYear("");
+                setCloneYearError("");
                 if (Number.isFinite(newId) && newId > 0) {
                     navigate(`/school/campaigns/detail/${newId}`, {
                         state: { clonedFrom: Number(campaign.year) },
@@ -298,7 +334,7 @@ export default function SchoolCampaignViewDetail() {
         } finally {
             setCloneLoading(false);
         }
-    }, [campaign?.id, campaign?.year, cloneLoading, navigate]);
+    }, [campaign, cloneLoading, cloneTargetYear, campaignsForCloneValidation, navigate]);
 
     const resetCancelFlow = useCallback(() => {
         setConfirmCancelOpen(false);
@@ -483,12 +519,16 @@ export default function SchoolCampaignViewDetail() {
                                 </Tooltip>
                             )}
                             {(normalizeCampaignStatus(campaign?.status) === "OPEN" || normalizeCampaignStatus(campaign?.status) === "CANCELLED") && (
-                                <Tooltip title={cloneDisabled ? `Năm ${Number(campaign.year) + 1} đã có chiến dịch DRAFT/OPEN` : `Nhân bản → ${Number(campaign.year) + 1}`}>
+                                <Tooltip title="Nhân bản chiến dịch">
                                     <span>
                                         <Button
                                             variant="outlined"
-                                            onClick={() => setConfirmCloneOpen(true)}
-                                            disabled={cloneDisabled || cloneLoading}
+                                            onClick={() => {
+                                                setCloneTargetYear("");
+                                                setCloneYearError("");
+                                                setConfirmCloneOpen(true);
+                                            }}
+                                            disabled={cloneLoading}
                                             sx={{
                                                 textTransform: "none",
                                                 borderRadius: 999,
@@ -499,7 +539,7 @@ export default function SchoolCampaignViewDetail() {
                                                 "&.Mui-disabled": { borderColor: "rgba(255,255,255,0.3)", color: "rgba(255,255,255,0.4)" },
                                             }}
                                         >
-                                            Nhân bản → {Number(campaign.year) + 1}
+                                            Nhân bản
                                         </Button>
                                     </span>
                                 </Tooltip>
@@ -994,7 +1034,13 @@ export default function SchoolCampaignViewDetail() {
             {/* Clone dialog */}
             <Dialog
                 open={confirmCloneOpen}
-                onClose={(_, reason) => { if (reason !== "backdropClick" && !cloneLoading) setConfirmCloneOpen(false); }}
+                onClose={(_, reason) => {
+                    if (reason !== "backdropClick" && !cloneLoading) {
+                        setConfirmCloneOpen(false);
+                        setCloneTargetYear("");
+                        setCloneYearError("");
+                    }
+                }}
                 fullWidth
                 maxWidth="sm"
                 PaperProps={{ sx: { borderRadius: "16px" } }}
@@ -1004,13 +1050,41 @@ export default function SchoolCampaignViewDetail() {
                         Nhân bản chiến dịch?
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                        Bạn có chắc chắn muốn <ConfirmHighlight>nhân bản chiến dịch này</ConfirmHighlight> để tạo{" "}
-                        <ConfirmHighlight>một bản nháp mới cho năm {Number(campaign?.year) + 1}</ConfirmHighlight>?
+                        Chọn <ConfirmHighlight>năm học mục tiêu</ConfirmHighlight> trước khi nhân bản.
                     </Typography>
+                    <TextField
+                        label="Năm học mục tiêu"
+                        type="number"
+                        fullWidth
+                        value={cloneTargetYear}
+                        onChange={(e) => {
+                            const nextYearRaw = e.target.value;
+                            setCloneTargetYear(nextYearRaw);
+                            const nextYear = Number.parseInt(String(nextYearRaw), 10);
+                            const err = getCloneYearValidationError({
+                                campaign,
+                                targetYear: nextYear,
+                                campaigns: campaignsForCloneValidation,
+                            });
+                            setCloneYearError(err);
+                        }}
+                        error={!!cloneYearError}
+                        helperText={cloneYearError || "Năm mục tiêu phải >= năm campaign gốc và chưa có DRAFT/OPEN"}
+                        inputProps={{ min: 1, step: 1 }}
+                        sx={{ mt: 2.5, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
+                    />
                 </DialogContent>
                 <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
-                    <Button onClick={() => setConfirmCloneOpen(false)} disabled={cloneLoading} sx={{ textTransform: "none" }}>
-                        Bỏ qua
+                    <Button
+                        onClick={() => {
+                            setConfirmCloneOpen(false);
+                            setCloneTargetYear("");
+                            setCloneYearError("");
+                        }}
+                        disabled={cloneLoading}
+                        sx={{ textTransform: "none" }}
+                    >
+                        Đóng
                     </Button>
                     <Button
                         variant="contained"
