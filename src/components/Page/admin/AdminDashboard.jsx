@@ -18,6 +18,7 @@ import {
     TableHead,
     TableRow,
     TextField,
+    Tooltip,
     Typography,
 } from "@mui/material";
 import SchoolRoundedIcon from "@mui/icons-material/SchoolRounded";
@@ -27,6 +28,7 @@ import AttachMoneyRoundedIcon from "@mui/icons-material/AttachMoneyRounded";
 import AccountBalanceWalletRoundedIcon from "@mui/icons-material/AccountBalanceWalletRounded";
 import ReceiptLongRoundedIcon from "@mui/icons-material/ReceiptLongRounded";
 import SwapHorizRoundedIcon from "@mui/icons-material/SwapHorizRounded";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { LineChart, PieChart } from "@mui/x-charts";
 import { enqueueSnackbar } from "notistack";
 import { getAdminDashboardOverview, getAdminRevenueSummary } from "../../../services/AdminService.jsx";
@@ -182,12 +184,55 @@ export default function AdminDashboard() {
     const trend = Array.isArray(revenueSummary?.trend) ? revenueSummary.trend : [];
     const scope = String(revenueSummary?.scope || "DAY").toUpperCase();
     const scopeLabel = scopeToVi(scope);
+    const revenueTooltipContent = (
+        <Box sx={{ maxWidth: 420, py: 0.2 }}>
+            <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.6 }}>Giải thích các trường dữ liệu:</Typography>
+            <Typography sx={{ fontSize: 12, mb: 0.5 }}>
+                `totalNetRevenue` (Tổng doanh thu thuần): Số tiền gốc thu được từ việc bán hàng hoặc dịch vụ trước khi cộng thuế/phí.
+            </Typography>
+            <Typography sx={{ fontSize: 12, mb: 0.5 }}>
+                `totalServiceFee` (Tổng phí dịch vụ): Khoản phí thu thêm để phục vụ giao dịch (vận chuyển, nền tảng, xử lý hệ thống...).
+            </Typography>
+            <Typography sx={{ fontSize: 12, mb: 0.5 }}>
+                `totalTaxFee` (Tổng thuế): Tổng tiền thuế áp dụng trên doanh thu/dịch vụ (thường là VAT).
+            </Typography>
+            <Typography sx={{ fontSize: 12, mb: 0.5 }}>
+                `totalFinalRevenue` (Lợi nhuận thực nhận): Tổng tiền thực thu sau khi cộng các khoản trên.
+            </Typography>
+            <Typography sx={{ fontSize: 12, mb: 0.5, fontStyle: "italic" }}>
+                Công thức: FinalRevenue = NetRevenue + ServiceFee + TaxFee
+            </Typography>
+            <Typography sx={{ fontSize: 12 }}>
+                `totalTransactions` (Tổng số giao dịch): Số đơn/lượt giao dịch tạo ra doanh thu.
+            </Typography>
+        </Box>
+    );
+    const netRevenueTooltipContent = (
+        <Box sx={{ maxWidth: 420, py: 0.2 }}>
+            <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.6 }}>Tổng doanh thu</Typography>
+            <Typography sx={{ fontSize: 12 }}>
+                Số tiền gốc từ bán hàng/dịch vụ, chưa gồm phí dịch vụ và thuế.
+            </Typography>
+        </Box>
+    );
+    const finalRevenueTooltipContent = (
+        <Box sx={{ maxWidth: 420, py: 0.2 }}>
+            <Typography sx={{ fontSize: 12.5, fontWeight: 700, mb: 0.6 }}>Lợi nhuận thực nhận</Typography>
+            <Typography sx={{ fontSize: 12, mb: 0.5 }}>
+                Tổng tiền thực thu sau khi cộng doanh thu gốc + phí dịch vụ + thuế.
+            </Typography>
+            <Typography sx={{ fontSize: 12, fontStyle: "italic" }}>
+                Công thức: Doanh thu thực nhận = Doanh thu gốc + Phí dịch vụ + Thuế
+            </Typography>
+        </Box>
+    );
 
     const revenueCards = [
         {
             key: "totalNetRevenue",
             title: "Tổng Doanh thu (Chưa trừ phí)",
             value: formatVnd(totals.totalNetRevenue),
+            tooltip: revenueTooltipContent,
             icon: <AttachMoneyRoundedIcon sx={{ fontSize: 22 }} />,
             iconColor: "#075985",
             iconBg: "#e0f2fe",
@@ -197,6 +242,7 @@ export default function AdminDashboard() {
             key: "totalFinalRevenue",
             title: "Lợi nhuận Thực nhận",
             value: formatVnd(totals.totalFinalRevenue),
+            tooltip: revenueTooltipContent,
             icon: <AccountBalanceWalletRoundedIcon sx={{ fontSize: 22 }} />,
             iconColor: "#0f766e",
             iconBg: "#ccfbf1",
@@ -294,9 +340,26 @@ export default function AdminDashboard() {
                                         <Box sx={{ "& .MuiSvgIcon-root": { fontSize: 16 } }}>{card.icon}</Box>
                                     </Box>
                                     <Box sx={{ minWidth: 0, flex: 1 }}>
-                                        <Typography sx={{ color: "#64748b", fontSize: 11, lineHeight: 1.15, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                            {card.title}
-                                        </Typography>
+                                        <Stack direction="row" spacing={0.6} alignItems="center" sx={{ minWidth: 0 }}>
+                                            <Typography
+                                                sx={{
+                                                    color: "#64748b",
+                                                    fontSize: 11,
+                                                    lineHeight: 1.15,
+                                                    fontWeight: 500,
+                                                    whiteSpace: "nowrap",
+                                                    overflow: "hidden",
+                                                    textOverflow: "ellipsis",
+                                                }}
+                                            >
+                                                {card.title}
+                                            </Typography>
+                                            {card.tooltip ? (
+                                                <Tooltip title={card.tooltip} arrow placement="top-start">
+                                                    <InfoOutlinedIcon sx={{ fontSize: 14, color: "#94a3b8", cursor: "help", flexShrink: 0 }} />
+                                                </Tooltip>
+                                            ) : null}
+                                        </Stack>
                                         <Typography sx={{ mt: 0.1, fontSize: { xs: 19, md: 18, lg: 19 }, lineHeight: 1.2, fontWeight: 600, color: "#0f172a", whiteSpace: "nowrap" }}>
                                             {card.value}
                                         </Typography>
@@ -530,21 +593,40 @@ export default function AdminDashboard() {
                     ) : !hasValidChart ? (
                         <Box sx={{ py: 6, textAlign: "center", color: "#64748b" }}>Không có dữ liệu xu hướng doanh thu.</Box>
                     ) : (
-                        <LineChart
-                            height={320}
-                            xAxis={[{ scaleType: "point", data: chartLabels }]}
-                            series={[
-                                { data: netSeries, label: "Tổng doanh thu", color: "#2563eb", valueFormatter: (value) => formatVnd(value) },
-                                { data: finalSeries, label: "Lợi nhuận thực nhận", color: "#f97316", valueFormatter: (value) => formatVnd(value) },
-                            ]}
-                            yAxis={[
-                                {
-                                    width: 90,
-                                    valueFormatter: (value) => Number(value || 0).toLocaleString("vi-VN"),
-                                },
-                            ]}
-                            margin={{ left: 0, right: 56, top: 20, bottom: 50 }}
-                        />
+                        <Box>
+                            <Stack direction="row" spacing={2.2} sx={{ mb: 0.8, flexWrap: "wrap" }}>
+                                <Stack direction="row" alignItems="center" spacing={0.7}>
+                                    <Box sx={{ width: 10, height: 10, borderRadius: 1, bgcolor: "#2563eb" }} />
+                                    <Typography sx={{ color: "#334155", fontSize: 13.5, fontWeight: 600 }}>Tổng doanh thu</Typography>
+                                    <Tooltip title={netRevenueTooltipContent} arrow enterTouchDelay={0}>
+                                        <InfoOutlinedIcon sx={{ color: "#64748b", fontSize: 15.5, cursor: "help" }} />
+                                    </Tooltip>
+                                </Stack>
+                                <Stack direction="row" alignItems="center" spacing={0.7}>
+                                    <Box sx={{ width: 10, height: 10, borderRadius: 1, bgcolor: "#f97316" }} />
+                                    <Typography sx={{ color: "#334155", fontSize: 13.5, fontWeight: 600 }}>Lợi nhuận thực nhận</Typography>
+                                    <Tooltip title={finalRevenueTooltipContent} arrow enterTouchDelay={0}>
+                                        <InfoOutlinedIcon sx={{ color: "#64748b", fontSize: 15.5, cursor: "help" }} />
+                                    </Tooltip>
+                                </Stack>
+                            </Stack>
+                            <LineChart
+                                height={320}
+                                hideLegend
+                                xAxis={[{ scaleType: "point", data: chartLabels }]}
+                                series={[
+                                    { data: netSeries, label: "Tổng doanh thu", color: "#2563eb", valueFormatter: (value) => formatVnd(value) },
+                                    { data: finalSeries, label: "Lợi nhuận thực nhận", color: "#f97316", valueFormatter: (value) => formatVnd(value) },
+                                ]}
+                                yAxis={[
+                                    {
+                                        width: 90,
+                                        valueFormatter: (value) => Number(value || 0).toLocaleString("vi-VN"),
+                                    },
+                                ]}
+                                margin={{ left: 0, right: 56, top: 20, bottom: 50 }}
+                            />
+                        </Box>
                     )}
                 </CardContent>
             </Card>
