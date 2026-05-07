@@ -157,10 +157,31 @@ export const getCampaignOfferingsByCampus = async (campusId, { page = 0, pageSiz
  * }} body
  */
 export const createCampaignOffering = async (body) => {
-    const response = await axiosClient.post("/campus/offering", {
+    const payload = {
         admissionCampaignId: Number(body.admissionCampaignId),
-        campusId: Number(body.campusId),
+        methodCode: String(body.methodCode ?? "").trim(),
         programId: Number(body.programId),
+        quota: Number(body.quota),
+        learningMode: body.learningMode ?? "DAY_SCHOOL",
+        priceAdjustmentPercentage: Number(body.priceAdjustmentPercentage) || 0,
+    };
+    if (body.openDate != null && String(body.openDate).trim() !== "") {
+        payload.openDate = String(body.openDate).trim();
+    }
+    if (body.closeDate != null && String(body.closeDate).trim() !== "") {
+        payload.closeDate = String(body.closeDate).trim();
+    }
+    if (body.campusId != null && Number.isFinite(Number(body.campusId))) {
+        payload.campusId = Number(body.campusId);
+    }
+    const response = await axiosClient.post("/campus/offering", payload);
+    return response || null;
+};
+
+/** PUT /campus/offering — cập nhật chỉ tiêu (học phí qua % điều chỉnh, kèm ngày mở/đóng) */
+export const updateCampaignOffering = async (body) => {
+    const response = await axiosClient.put("/campus/offering", {
+        id: Number(body.id),
         learningMode: body.learningMode ?? "DAY_SCHOOL",
         priceAdjustmentPercentage: Number(body.priceAdjustmentPercentage) || 0,
         openDate: String(body.openDate ?? "").trim(),
@@ -169,17 +190,10 @@ export const createCampaignOffering = async (body) => {
     return response || null;
 };
 
-/** PUT /campus/offering — cập nhật chỉ tiêu (học phí qua % điều chỉnh, kèm ngày mở/đóng) */
-export const updateCampaignOffering = async (body) => {
-    const response = await axiosClient.put("/campus/offering", {
-        id: Number(body.id),
-        admissionCampaignId: Number(body.admissionCampaignId),
-        campusId: Number(body.campusId),
-        programId: Number(body.programId),
-        learningMode: body.learningMode ?? "DAY_SCHOOL",
-        priceAdjustmentPercentage: Number(body.priceAdjustmentPercentage) || 0,
-        openDate: String(body.openDate ?? "").trim(),
-        closeDate: String(body.closeDate ?? "").trim(),
+/** GET /campus/offering/quota-summary?campaignId= */
+export const getCampusOfferingQuotaSummary = async (campaignId) => {
+    const response = await axiosClient.get("/campus/offering/quota-summary", {
+        params: { campaignId: Number(campaignId) },
     });
     return response || null;
 };

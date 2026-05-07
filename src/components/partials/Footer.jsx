@@ -7,7 +7,7 @@ import {BRAND_AQUA, HOME_SECTION_TESTIMONIAL_BG} from "../../constants/homeLandi
 const sectionTitleSx = {
     fontWeight: 700,
     mb: 1.25,
-    color: '#1e293b',
+    color: '#111827',
     letterSpacing: '0.06em',
     fontSize: '0.95rem',
     position: 'relative',
@@ -28,7 +28,8 @@ const sectionTitleSx = {
 };
 
 const linkSx = {
-    color: '#334155',
+    color: '#111827',
+    fontWeight: 500,
     textDecoration: 'none',
     display: 'inline-block',
     py: 0.25,
@@ -36,15 +37,15 @@ const linkSx = {
     textShadow: 'none',
     transition: 'color 0.2s ease, transform 0.2s ease, background-color 0.2s ease',
     '&:hover': {
-        color: '#1d4ed8',
+        color: '#0f172a',
         transform: 'translateX(2px)',
-        backgroundColor: 'rgba(59,130,246,0.08)'
+        backgroundColor: 'rgba(15,23,42,0.05)'
     }
 };
 
-/** Plain footer lines (no href) — same base look as links without hover/navigation */
 const footerPlainLineSx = {
-    color: '#334155',
+    color: '#111827',
+    fontWeight: 500,
     textShadow: 'none',
     py: 0.25,
 };
@@ -55,7 +56,7 @@ export default function Footer() {
             component="footer"
             sx={{
                 width: '100%',
-                background: HOME_SECTION_TESTIMONIAL_BG,
+                background: `linear-gradient(180deg, rgba(219,234,254,0.96) 0%, rgba(191,219,254,0.96) 100%)`,
                 borderTop: 'none'
             }}
         >
@@ -64,7 +65,7 @@ export default function Footer() {
                 sx={{
                     px: {xs: 2, md: 4},
                     py: {xs: 3, md: 3.5},
-                    color: '#1e293b',
+                    color: '#111827',
                     backgroundColor: 'transparent'
                 }}
             >
@@ -83,7 +84,7 @@ export default function Footer() {
                         <Typography variant="h6" component="h2" sx={sectionTitleSx}>
                             GIỚI THIỆU
                         </Typography>
-                        <Typography variant="body2" sx={{color: '#475569', lineHeight: 1.65, mb: 1}}>
+                        <Typography variant="body2" sx={{color: '#111827', fontWeight: 500, lineHeight: 1.65, mb: 1}}>
                             EduBridgeHCM là dự án học tập nhằm xây dựng nền tảng tư vấn tuyển sinh thông minh, kết nối phụ huynh với các trường học. Dự án phục vụ mục đích nghiên cứu và không đại diện cho tổ chức thương mại thực tế
                         </Typography>
                     </Grid>
@@ -108,7 +109,7 @@ export default function Footer() {
                             }}
                         >
                             <PhoneIcon sx={{fontSize: 18, color: BRAND_AQUA}}/>
-                            <Typography variant="body2" sx={{color: '#475569'}}>0839-674-767</Typography>
+                            <Typography variant="body2" sx={{color: '#111827', fontWeight: 500}}>0839-674-767</Typography>
                         </Box>
                         <Box
                             sx={{
@@ -120,7 +121,7 @@ export default function Footer() {
                             }}
                         >
                             <EmailIcon sx={{fontSize: 18, color: BRAND_AQUA}}/>
-                            <Typography variant="body2" sx={{color: '#475569'}}>edubridgehcm@gmail.com</Typography>
+                            <Typography variant="body2" sx={{color: '#111827', fontWeight: 500}}>edubridgehcm@gmail.com</Typography>
                         </Box>
                     </Grid>
 
@@ -191,7 +192,8 @@ export default function Footer() {
                         variant="body2"
                         align="center"
                         sx={{
-                            color: '#64748b',
+                            color: '#111827',
+                            fontWeight: 500,
                             whiteSpace: 'nowrap',
                             m: 0,
                             px: 0.5,

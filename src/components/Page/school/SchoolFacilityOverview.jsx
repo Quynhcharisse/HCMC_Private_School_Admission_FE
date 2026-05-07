@@ -3694,7 +3694,7 @@ export default function SchoolFacilityOverview({variant = "platform"}) {
                             }))
                           }
                           size="small"
-                          helperText="Dành cho phụ huynh khi đặt lịch: tối đa bao nhiêu lượt đặt hoặc chờ trong một khung giờ. Không phải số tư vấn viên — xem hai ô bên cạnh."
+                          helperText="Dành cho phụ huynh khi đặt lịch: tối đa bao nhiêu lượt đặt hoặc chờ trong một khung giờ."
                           FormHelperTextProps={{sx: {fontWeight: 700, color: "red"}}}
                           inputProps={{readOnly: fieldDisabled, min: 0}}
                           fullWidth

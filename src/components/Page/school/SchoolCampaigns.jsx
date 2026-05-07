@@ -345,6 +345,33 @@ const CAMPAIGN_SUCCESS_VI = {
     "Create campaign template successfully": "Đã tạo chiến dịch thành công",
 };
 
+function canCloneCampaignStatus(status) {
+    const s = String(status || "").trim().toUpperCase();
+    return s === "OPEN" || s === "CANCELLED";
+}
+
+function getCloneYearValidationError({ campaign, targetYear, campaigns }) {
+    const sourceYear = Number(campaign?.year);
+    if (!Number.isFinite(targetYear) || targetYear <= 0) {
+        return "Vui lòng nhập năm học mục tiêu hợp lệ";
+    }
+    if (!Number.isFinite(sourceYear)) {
+        return "Không xác định được năm của chiến dịch gốc";
+    }
+    if (targetYear < sourceYear) {
+        return "Năm mục tiêu phải lớn hơn hoặc bằng năm của chiến dịch gốc";
+    }
+    const hasActiveOrDraftSameYear = (campaigns || []).some((c) => {
+        const y = Number(c?.year);
+        const s = String(c?.status || "").trim().toUpperCase();
+        return y === targetYear && (s === "DRAFT" || s === "OPEN");
+    });
+    if (hasActiveOrDraftSameYear) {
+        return `Năm ${targetYear} đã có chiến dịch DRAFT/OPEN`;
+    }
+    return "";
+}
+
 function getCampaignSuccessMessage(backendMessage, fallback) {
     if (!backendMessage) return fallback;
     const trimmed = String(backendMessage).trim();
@@ -603,19 +630,6 @@ export default function SchoolCampaigns() {
         const start = page * rowsPerPage;
         return filteredCampaigns.slice(start, start + rowsPerPage);
     }, [filteredCampaigns, page]);
-
-    const cloneDisabledMap = useMemo(() => {
-        const activeYears = new Set();
-        for (const c of campaigns) {
-            const s = String(c.status || "").toUpperCase();
-            if (s === "DRAFT" || s === "OPEN") activeYears.add(Number(c.year));
-        }
-        const result = {};
-        for (const c of campaigns) {
-            result[c.id] = activeYears.has(Number(c.year) + 1);
-        }
-        return result;
-    }, [campaigns]);
 
     const validateForm = () => {
         const errors = {};
@@ -918,6 +932,10 @@ export default function SchoolCampaigns() {
     };
 
     const openCloneConfirm = (campaign) => {
+        if (!canCloneCampaignStatus(campaign?.status)) {
+            enqueueSnackbar("Chỉ clone được campaign ở trạng thái OPEN hoặc CANCELLED.", { variant: "warning" });
+            return;
+        }
         setCloneTargetCampaign(campaign);
         setCloneTargetYear(String(Number(campaign?.year) + 1));
         setCloneYearError("");
@@ -926,9 +944,18 @@ export default function SchoolCampaigns() {
 
     const handleCloneCampaign = async () => {
         if (!cloneTargetCampaign?.id || cloneLoading) return;
+        if (!canCloneCampaignStatus(cloneTargetCampaign?.status)) {
+            setCloneYearError("Campaign gốc phải ở trạng thái OPEN hoặc CANCELLED");
+            return;
+        }
         const targetYear = Number.parseInt(String(cloneTargetYear), 10);
-        if (!Number.isFinite(targetYear) || targetYear <= 0) {
-            setCloneYearError("Vui lòng nhập năm học mục tiêu hợp lệ");
+        const validationError = getCloneYearValidationError({
+            campaign: cloneTargetCampaign,
+            targetYear,
+            campaigns,
+        });
+        if (validationError) {
+            setCloneYearError(validationError);
             return;
         }
         setCloneLoading(true);
@@ -937,7 +964,10 @@ export default function SchoolCampaigns() {
             if (res?.status >= 200 && res?.status < 300) {
                 const body = res?.data?.body ?? res?.data ?? {};
                 const newId = Number(body?.id ?? body?.admissionCampaignTemplateId ?? body?.data?.id ?? body?.data?.admissionCampaignTemplateId);
-                enqueueSnackbar(res?.data?.message || "Đã nhân bản chiến dịch sang bản nháp mới.", { variant: "success" });
+                enqueueSnackbar(
+                    "Đã tạo bản sao. Vui lòng kiểm tra lại ngày tháng và quota trước khi publish.",
+                    { variant: "success" }
+                );
                 setConfirmCloneOpen(false);
                 setCloneTargetCampaign(null);
                 setCloneTargetYear("");
@@ -1594,10 +1624,7 @@ export default function SchoolCampaigns() {
                                                                         </IconButton>
                                                                     </span>
                                                                 </Tooltip>
-                                                                <Tooltip
-                                                                    title={cloneDisabledMap[row.id] ? `Năm ${Number(row.year) + 1} đã có chiến dịch DRAFT/OPEN` : `Nhân bản → ${Number(row.year) + 1}`}
-                                                                    arrow
-                                                                >
+                                                                <Tooltip title={`Nhân bản chiến dịch`} arrow>
                                                                     <span>
                                                                         <IconButton
                                                                             size="small"
@@ -1615,10 +1642,7 @@ export default function SchoolCampaigns() {
                                                             </>
                                                         )}
                                                         {!isPastYearView && String(row.status || "").toUpperCase() === "CANCELLED" && (
-                                                            <Tooltip
-                                                                title={cloneDisabledMap[row.id] ? `Năm ${Number(row.year) + 1} đã có chiến dịch DRAFT/OPEN` : `Nhân bản → ${Number(row.year) + 1}`}
-                                                                arrow
-                                                            >
+                                                            <Tooltip title={`Nhân bản chiến dịch`} arrow>
                                                                 <span>
                                                                     <IconButton
                                                                         size="small"
@@ -2167,11 +2191,18 @@ export default function SchoolCampaigns() {
                         fullWidth
                         value={cloneTargetYear}
                         onChange={(e) => {
-                            setCloneTargetYear(e.target.value);
-                            if (cloneYearError) setCloneYearError("");
+                            const nextYearRaw = e.target.value;
+                            setCloneTargetYear(nextYearRaw);
+                            const nextYear = Number.parseInt(String(nextYearRaw), 10);
+                            const err = getCloneYearValidationError({
+                                campaign: cloneTargetCampaign,
+                                targetYear: nextYear,
+                                campaigns,
+                            });
+                            setCloneYearError(err);
                         }}
                         error={!!cloneYearError}
-                        helperText={cloneYearError || `Mặc định: ${Number(cloneTargetCampaign?.year) + 1}`}
+                        helperText={cloneYearError || "Năm mục tiêu phải >= năm campaign gốc và chưa có DRAFT/OPEN"}
                         inputProps={{ min: 1, step: 1 }}
                         sx={{ mt: 2.5, "& .MuiOutlinedInput-root": { borderRadius: "12px" } }}
                     />
@@ -2241,9 +2272,9 @@ export default function SchoolCampaigns() {
                 {cancelFlowPhase === "reason" && (
                     <>
                         <DialogContent sx={{ pt: 3 }}>
-                            <Stack spacing={1.5} alignItems="flex-start">
+                            <Stack spacing={1.5} alignItems="center">
                                 <WarningAmberIcon sx={{ fontSize: 44, color: "#d97706" }} />
-                                <Box>
+                                <Box sx={{ textAlign: "center" }}>
                                     <Typography variant="h6" sx={{ fontWeight: 700, color: "#1e293b" }}>
                                         Xác nhận hủy chiến dịch
                                     </Typography>
